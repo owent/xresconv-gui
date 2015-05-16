@@ -1,0 +1,17 @@
+
+#conv_list_panel {
+    width: 30%;
+    min-height: 650px;
+    float: left;
+}
+
+#info_list_panel {
+    width: 70%;
+    float: right;
+    padding: 16px 16px 5px 16px;
+}
+
+#conv_list_run_res {
+    height: 290px;
+    background-color: LightGray;
+}
