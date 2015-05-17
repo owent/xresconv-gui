@@ -58,7 +58,7 @@ function alert_error(content, title) {
                 $("#conv_list_protocol").get(0).selectedIndex = $("#conv_list_protocol option[value=" + val + "]").get(0).index;
             } else if ("output_type" == tn) {
                 $("#conv_list_output_type").get(0).selectedIndex = $("#conv_list_output_type option[value=" + val + "]").get(0).index;
-            } else if ("option" == tn) {
+            } else if ("option" == tn && val) {
                 conv_data.global_options.push({
                     name: $(dom).attr('name') || val,
                     desc: $(dom).attr('desc') || val,
