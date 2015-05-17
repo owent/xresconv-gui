@@ -3,9 +3,10 @@
 var conv_data = {
     id_index: 0,
     config: {},
-    global_options: {},
+    global_options: [],
     groups: {},
-    items: {}
+    items: {},
+    run_seq: 0
 };
 
 function generate_id() {
@@ -34,6 +35,7 @@ function alert_error(content, title) {
         var jdom = $(context);
         conv_data.config = {};
         conv_data.groups = {};
+        conv_data.global_options = [];
 
         // 加载全局配置
         $.each(jdom.children("global").children(), function(k, dom){
@@ -56,6 +58,12 @@ function alert_error(content, title) {
                 $("#conv_list_protocol").get(0).selectedIndex = $("#conv_list_protocol option[value=" + val + "]").get(0).index;
             } else if ("output_type" == tn) {
                 $("#conv_list_output_type").get(0).selectedIndex = $("#conv_list_output_type option[value=" + val + "]").get(0).index;
+            } else if ("option" == tn) {
+                conv_data.global_options.push({
+                    name: $(dom).attr('name') || val,
+                    desc: $(dom).attr('desc') || val,
+                    value: val
+                });
             }
         });
 
@@ -167,8 +175,14 @@ function alert_error(content, title) {
             }
         }
 
+        $.each(conv_data.global_options, function(k, v){
+            cmd_params += " " + v.value;
+        });
+
         var run_log = $("#conv_list_run_res");
         run_log.empty();
+
+        var pending_script = [];
 
         selNodes.forEach(function(node) {
             if (node.key && conv_data.items[node.key]) {
@@ -180,15 +194,29 @@ function alert_error(content, title) {
 
                 cmd_args += " -s \"" + item_data.file + "\" -m \"" + item_data.scheme + "\"";
 
-                require('child_process').exec(cmd_args, {
-                    cwd: work_dir
-                }, function(error, stdout, stderr){
-                    run_log.append("[" + work_dir + "] " + cmd_args +　
-                        "\r\n<span style='color: Green;'>" + stdout +
-                        "</span>\r\n<strong style='color: Red;'>" + stderr + "</strong>\r\n");
-                });
+                pending_script.push(cmd_args);
             }
         });
+
+        var run_seq = generate_id();
+        conv_data.run_seq = run_seq;
+
+        function run_one_cmd() {
+            if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
+                var cmd = pending_script.pop();
+
+                run_log.append("[" + work_dir + "] " + cmd + "\r\n");
+
+                require('child_process').exec(cmd, {
+                    cwd: work_dir
+                }, function(error, stdout, stderr){
+                    run_log.append("<span style='color: Green;'>" + stdout +
+                    "</span>\r\n<strong style='color: Red;'>" + stderr + "</strong>\r\n");
+                    run_one_cmd();
+                });            
+            }
+        }
+        run_one_cmd();
     }
 
     $(document).ready(function(){

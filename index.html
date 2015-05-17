@@ -28,46 +28,46 @@
     </div>
 
     <div class="jumbotron" id="info_list_panel">
-        <form>
-            <div class="form-group">
+        <form class="container">
+            <div class="form-group col-lg-12">
                 <label for="conv_list_file">转换列表文件</label>
                 <input type="file" id="conv_list_file" />
             </div>
         </form>
-        <form class="form-inline">
-            <div class="form-group">
-                <div class="input-group">
+        <form class="form-inline container">
+            <div class="form-group col-lg-6">
+                <div class="input-group"> 
                     <label class="input-group-addon" for="conv_list_xresloader">xresloader.jar的路径</label>
                     <input type="text" class="form-control" id="conv_list_xresloader" placeholder="xresloader.jar的路径" />
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group col-lg-6">
                 <div class="input-group">
                     <label class="input-group-addon" for="conv_list_work_dir">执行目录</label>
                     <input type="text" class="form-control" id="conv_list_work_dir" placeholder="执行目录" />
                 </div>
             </div>
         </form>
-        <form class="form-inline">
-            <div class="form-group">
+        <form class="form-inline container">
+            <div class="form-group col-lg-4">
                 <div class="input-group">
                     <label class="input-group-addon" for="conv_list_proto_file">协议描述文件</label>
                     <input type="text" class="form-control" id="conv_list_proto_file" placeholder="协议描述文件" />
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group col-lg-4">
                 <div class="input-group">
                     <label class="input-group-addon" for="conv_list_output_dir">输出目录</label>
                     <input type="text" class="form-control" id="conv_list_output_dir" placeholder="输出目录" />
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group col-lg-4">
                 <div class="input-group">
                     <label class="input-group-addon" for="conv_list_data_src_dir">数据源目录</label>
                     <input type="text" class="form-control" id="conv_list_data_src_dir" placeholder="数据源目录" />
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group col-lg-4">
                 <div class="input-group">
                     <label class="input-group-addon" for="conv_list_protocol">协议</label>
                     <select class="form-control"  id="conv_list_protocol">
@@ -76,6 +76,8 @@
                         <option disabled="disabled" value="capnproto">capn's proto</option>
                     </select>
                 </div>
+            </div>
+            <div class="form-group col-lg-4">
                 <div class="input-group">
                     <label class="input-group-addon" for="conv_list_output_type">输出类型</label>
                     <select class="form-control"  id="conv_list_output_type">
@@ -86,6 +88,8 @@
                         <option disabled="disabled" value="xml">xml</option>
                     </select>
                 </div>
+            </div>
+            <div class="form-group col-lg-4">
                 <div class="input-group">
                     <label class="input-group-addon" for="conv_list_rename">重命名规则</label>
                     <input type="text" class="form-control" id="conv_list_rename" placeholder="重命名规则" />
@@ -93,7 +97,7 @@
             </div>
         </form>
         <hr />
-        <form>
+        <form class="container">
             <div class="form-group">
                 <label for="conv_list_file">转换列表文件</label>
                 <pre id="conv_list_run_res" class="form-control" placeholder="运行日志:"></pre>
