@@ -206,12 +206,15 @@ function alert_error(content, title) {
                 var cmd = pending_script.pop();
 
                 run_log.append("[" + work_dir + "] " + cmd + "\r\n");
-
+                run_log.scrollTop(run_log.prop('scrollHeight'));
+                
                 require('child_process').exec(cmd, {
                     cwd: work_dir
                 }, function(error, stdout, stderr){
                     run_log.append("<span style='color: Green;'>" + stdout +
                     "</span>\r\n<strong style='color: Red;'>" + stderr + "</strong>\r\n");
+                    
+                    run_log.scrollTop(run_log.prop('scrollHeight'));
                     run_one_cmd();
                 });            
             }
