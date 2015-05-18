@@ -18,6 +18,10 @@
 }
 
 #conv_list_run_res {
-    height: 382px;
+    height: 393px;
     background-color: LightGray;
+}
+
+#conv_list_file {
+    display: none;
 }

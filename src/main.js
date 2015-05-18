@@ -160,8 +160,8 @@ function alert_error(content, title) {
             "-p": $("#conv_list_protocol").val(),
             "-t": $("#conv_list_output_type").val(),
             "-f": $("#conv_list_proto_file").val(),
-            "-o": $("#output_dir").val(),
-            "-d": $("#data_src_dir").val(),
+            "-o": $("#conv_list_output_dir").val(),
+            "-d": $("#conv_list_data_src_dir").val(),
             "-n": $("#conv_list_rename").val()
         };
 
@@ -223,11 +223,17 @@ function alert_error(content, title) {
     }
 
     $(document).ready(function(){
+        $("#conv_list_file_btn").click(function(){
+            $("#conv_list_file").val("");
+            $("#conv_list_file").click();
+        });
         $("#conv_list_file").click(function(){
             $(this).val("");
         });
 
         $("#conv_list_file").bind("change", function(){
+            $("#conv_list_file_val").val($(conv_list_file).val());
+            
             var file_loader = new FileReader();
 
             file_loader.onload = function(ev) {
