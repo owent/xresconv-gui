@@ -273,5 +273,37 @@ function alert_error(content, title) {
         $("#conv_list_btn_start_conv").click(function(){
             conv_start();
         });
+        
+        var rename_templates = [{
+                value: "/\\.bin$/.lua/",
+                label: ".bin后缀 => .lua"
+            },{
+                value: "/\\.bin$/.json/",
+                label: ".bin后缀 => .json"
+            },{
+                value: "/\\.bin$/.msgpack.bin/",
+                label: ".bin后缀 => .msgpack.bin"
+            }
+        ];
+
+        $( "#conv_list_rename" ).autocomplete({
+            minLength: 0,
+            source: rename_templates,
+            focus: function( event, ui ) {
+                $( "#conv_list_rename" ).val( ui.item.value );
+                return false;
+            },
+            select: function( event, ui ) {
+                $( "#project" ).val( ui.item.value );
+                return false;
+            }
+        }).autocomplete( "instance" )._renderItem = function( ul, item ) {
+            return $( "<li>" )
+            .append( "<a>" + item.label + "</a>" )
+            .appendTo( ul );
+        };
+        $("#conv_list_rename").dblclick(function(){
+            $( "#conv_list_rename" ).autocomplete("search", "");
+        });
     });
 })(jQuery, window);

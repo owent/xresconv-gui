@@ -8,14 +8,16 @@ xresconv-gui
 使用说明
 ------
 
+使用方式有以下三种，任轩一种即可
+
 1. 使用[NW.js](https://github.com/nwjs/nw.js)  参数传入src目录即可。
-2. build_package.sh 用于打包版本，使用前请先修改NWJS_ROOT和nw可执行文件名（Unix like系统没有.exe后缀）
+2. build_package.sh 用于打包版本，使用前请先修改***NWJS_ROOT***和**nw**可执行文件名*（Unix like系统没有.exe后缀）*
 3. build_with_nwjs-build.sh 用于使用[NW.js](https://github.com/nwjs/nw.js)官方的打包工具打包，并支持打包多个平台的版本
 > 使用前请修改***--target***参数,用于指定打包的版本，使用方式可以通过 *tools/nwjs-build.sh --help* 查看
 > 
 > [NW.js](https://github.com/nwjs/nw.js)官方的打包工具不会打包 package.nw nw.pak icudtl.dat 这几个文件和 locales 文件夹，需要手动复制这几个文件和目录到压缩包内。
 
-使用截图
+示例截图
 ------
 ![示例截图-1](doc/snapshoot-1.png)
 
