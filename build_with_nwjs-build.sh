@@ -1,16 +1,21 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-if [ -e tools/TMP ]; then
-    rm -rf tools/TMP;
+WORKING_DIR="$(cd -P -- "$(dirname -- "$0")" && pwd -P)";
+cd "$WORKING_DIR";
+
+if [ ! -e 'tools/nwjs-build.sh' ] ; then
+    wget -c "https://raw.githubusercontent.com/Gisto/nwjs-shell-builder/master/nwjs-build.sh" -O "tools/nwjs-build.sh";
+    chmod +x 'tools/nwjs-build.sh'; 
 fi
 
-chmod +x tools/nwjs-build.sh;
+tools/nwjs-build.sh "$@" --clean;
 
 tools/nwjs-build.sh \
-    --nw=0.12.1 \
+    --nw=0.12.2 \
     --src=src \
     --name="xresconv-gui" \
     --win-icon=doc/logo.ico \
-    --target="3" \
     --version="1.0.0" \
-    --build
+    "$@" --build ;
+
+# add dependency files 
