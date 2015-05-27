@@ -15,6 +15,7 @@ Windows环境准备
 
 1. Windows 下请先安装 [Cygwin](http://www.cygwin.org/)或[Msys](http://www.mingw.org/wiki/msys)或[Msys2](https://msys2.github.io/)或其他类型的Shell环境
 2. 安装wget、curl、tar、zip和unzip组件
+
 > Cygwin下直接GUI里安装即可
 > 
 > Msys2: pacman -S wget curl tar zip unzip
@@ -22,6 +23,7 @@ Windows环境准备
 Linux环境准备
 ------
 1. 安装wget、curl、tar、zip和unzip组件
+
 > CentOS、Fedora、Redhat： yum install -y wget curl tar zip unzip
 > 
 > Ubuntu、Debian: apt-get install wget curl tar zip unzip
@@ -32,12 +34,14 @@ OSX环境准备
 ------
 1. 安装[homebrew](http://brew.sh/)
 2. 安装wget、curl、tar组件
+
 > brew install wget curl gnu-tar
 
 
 开始打包
 ------
 1. 执行构建脚本 ./build_with_nwjs-build.sh --target="打包目标平台" [其他nwjs-build.sh 参数]
+
 > 目标平台:
 >> 1. linux-32位: 0
 >> 2. linux-64位: 1
