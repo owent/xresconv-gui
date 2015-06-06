@@ -1,13 +1,6 @@
 ﻿// WebKit的编码转换有点奇怪的
 
-var conv_data = {
-    id_index: 0,
-    config: {},
-    global_options: [],
-    groups: {},
-    items: {},
-    run_seq: 0
-};
+var conv_data = {};
 
 function generate_id() {
     ++ conv_data.id_index;
@@ -28,14 +21,26 @@ function alert_error(content, title) {
 
 (function ($, window) {
 
+    function reset_conv_data() {
+        conv_data = {
+            id_index: 0,
+            config: {},
+            global_options: [],
+            groups: {},
+            items: {},
+            run_seq: 0,
+            gui: {
+                set_name: null
+            }
+        };
+    }
+
     function build_conv_tree(context) {
         // $("#conv_list").empty();
+        reset_conv_data();
 
         // 初始化
         var jdom = $(context);
-        conv_data.config = {};
-        conv_data.groups = {};
-        conv_data.global_options = [];
 
         // 加载全局配置
         $.each(jdom.children("global").children(), function(k, dom){
@@ -90,31 +95,47 @@ function alert_error(content, title) {
         };
         build_tree_fn(treeData, jdom.children("category"));
 
-        conv_data.items = {};
+        // GUI 显示规则
+        $.each(jdom.children("gui").children("set_name"), function(k, dom){
+            conv_data.gui.set_name = eval($(dom).html());
+        });
+
         $.each(jdom.children("list").children("item"), function(k, item_node) {
             var jitem = $(item_node);
             var id = generate_id();
+
             var item_data = {
                 id: id,
                 file: jitem.attr('file'),
                 scheme: jitem.attr('scheme'),
-                name: jitem.attr('name').trim() || jitem.attr('scheme'),
+                name: (jitem.attr('name').trim() || ""),
                 cat: jitem.attr('cat'),
-                options: []
+                options: [],
+                desc: (jitem.attr('name').trim() || jitem.attr('desc').trim() || "")  + " -- 文件名: \"" + jitem.attr("file") + "\" 描述信息: \"" + jitem.attr("scheme") + "\""
             };
 
+            // GUI 显示规则
+            if (conv_data.gui.set_name) {
+                try {
+                    item_data = conv_data.gui.set_name(item_data) || item_data;
+                } catch (err) {
+                    assert("ERROR: " + err.toString());
+                }
+            }
+
             $.each(jitem.children('option'), function(k, v){
+                var nj_node = $(v);
                 item_data.options.push({
-                    name: $(v).attr('name'),
-                    desc: $(v).attr('desc'),
-                    value: $(v).html()
+                    name: nj_node.attr('name'),
+                    desc: nj_node.attr('desc'),
+                    value: nj_node.html()
                 });
             });
             conv_data.items[item_data.id] = item_data;
 
             var ft_node = {
                 title: item_data.name,
-                tooltip: item_data.name,
+                tooltip: item_data.desc,
                 key: item_data.id
             };
             if (item_data.cat && cat_map[item_data.cat]) {
