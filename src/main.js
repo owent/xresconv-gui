@@ -45,18 +45,18 @@ function alert_error(content, title) {
         var jdom = $(context);
 
         var include_list = [];
-        // 暂时不知道怎么获取文件路径
-        //var prefix_dir = current_path.replace(/[^\\\/]*$/, "");
+        // nw.js 获取文件路径
+        var prefix_dir = current_path.replace(/[^\\\/]*$/, "");
         //// 加载include项目
-        //$.each(jdom.children("global").children(), function(k, dom){
-        //    var file_path = $(dom).html();
-        //    if (file_path) {
-        //        if (!file_path.match(/^(\w:|\/)/i)) {
-        //            file_path = prefix_dir + file_path;
-        //        }
-        //        include_list.push(file_path);
-        //    }
-        //});
+        $.each(jdom.children("global").children(), function(k, dom){
+            var file_path = $(dom).html();
+            if (file_path) {
+                if (!file_path.match(/^(\w:|\/)/i)) {
+                    file_path = prefix_dir + file_path;
+                }
+                include_list.push(file_path);
+            }
+        });
 
         var active_run = (function(){
             // 加载并覆盖全局配置
@@ -174,10 +174,12 @@ function alert_error(content, title) {
             while (include_list.length > 0) {
                 file_path = include_list.shift();
 
-                if (conv_data.file_map[file_path]) {
+				var file_inst = new File(file_path, file_path.match(/[^\\\/]*$/i)[0]);
+                if (conv_data.file_map[file_inst.name]) {
                     alert("文件" + file_path + " 已被加载过，不能循环include文件");
                     file_path = null;
                 } else {
+					conv_data.file_map[file_inst.name] = true;
                     break;
                 }
             }
@@ -186,15 +188,18 @@ function alert_error(content, title) {
                 var file_loader = new FileReader();
 
                 file_loader.onload = (function(ev) {
-                    build_conv_tree(ev.target.result, file_path);
+                    build_conv_tree(ev.target.result, file_path, function(){
+						load_one_by_one.fn();
+					});
                 });
+				
+				// 出错则直接回调
+				file_loader.onerror = (function(){
+					load_one_by_one.fn();
+				});
 
                 file_loader.onerror = function(ev) {
                     alert("尝试读取文件失败:" +　file_path);
-                };
-
-                file_loader.onloadend = function(){
-                    load_one_by_one.fn();
                 };
 
                 file_loader.readAsText(file_path);
@@ -318,13 +323,13 @@ function alert_error(content, title) {
             $("#conv_list_file_val").val($(conv_list_file).val());
 
             var sel_dom = document.getElementById("conv_list_file");
-            var file_path = sel_dom.files.length > 0? sel_dom.files[0]: null;
+            var file_inst = sel_dom.files.length > 0? sel_dom.files[0]: null;
 
             var file_loader = new FileReader();
 
             file_loader.onload = function(ev) {
                 reset_conv_data();
-                build_conv_tree(ev.target.result, file_path, function(){
+                build_conv_tree(ev.target.result, file_inst.pathS, function(){
                     // 显示属性树
                     show_conv_tree();
                 });
@@ -334,9 +339,9 @@ function alert_error(content, title) {
                 alert("尝试读取文件失败:" +　file_path);
             };
 
-            if (file_path) {
-                // conv_data.file_map[file_path] = true;
-                file_loader.readAsText(file_path);
+            if (file_inst) {
+                conv_data.file_map[file_inst.name] = true;
+                file_loader.readAsText(file_inst);
             }
         });
 
