@@ -15,7 +15,7 @@ tools/nwjs-build.sh \
     --src=src \
     --name="xresconv-gui" \
     --win-icon=doc/logo.ico \
-    --version="1.0.0" \
+    --version="1.0.1" \
     "$@" --build ;
 
 # add dependency files 

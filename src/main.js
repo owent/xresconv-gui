@@ -48,7 +48,7 @@ function alert_error(content, title) {
         // nw.js 获取文件路径
         var prefix_dir = current_path.replace(/[^\\\/]*$/, "");
         //// 加载include项目
-        $.each(jdom.children("global").children(), function(k, dom){
+        $.each(jdom.children("include"), function(k, dom){
             var file_path = $(dom).html();
             if (file_path) {
                 if (!file_path.match(/^(\w:|\/)/i)) {
@@ -171,20 +171,27 @@ function alert_error(content, title) {
         var load_one_by_one = {fn: null};
         load_one_by_one.fn = function () {
             var file_path = null;
+            var file_inst = null;
             while (include_list.length > 0) {
                 file_path = include_list.shift();
 
-				var file_inst = new File(file_path, file_path.match(/[^\\\/]*$/i)[0]);
-                if (conv_data.file_map[file_inst.name]) {
-                    alert("文件" + file_path + " 已被加载过，不能循环include文件");
-                    file_path = null;
-                } else {
-					conv_data.file_map[file_inst.name] = true;
-                    break;
+                try {
+                    file_inst = new File(file_path, file_path.match(/[^\\\/]*$/i)[0]);
+                    if (conv_data.file_map[file_inst.name]) {
+                        alert("文件" + file_path + " 已被加载过，不能循环include文件");
+                        file_path = null;
+                        file_inst = null;
+                    } else {
+                        conv_data.file_map[file_inst.name] = true;
+                        break;
+                    }
+                } catch (e) {
+                    alert("文件" + file_path + " 加载失败。" + e.toString());
+                    file_inst = null;
                 }
             }
 
-            if (file_path) {
+            if (file_inst) {
                 var file_loader = new FileReader();
 
                 file_loader.onload = (function(ev) {
@@ -202,7 +209,7 @@ function alert_error(content, title) {
                     alert("尝试读取文件失败:" +　file_path);
                 };
 
-                file_loader.readAsText(file_path);
+                file_loader.readAsText(file_inst);
             } else {
                 active_run();
             }
@@ -305,6 +312,8 @@ function alert_error(content, title) {
                     run_log.scrollTop(run_log.prop('scrollHeight'));
                     run_one_cmd();
                 });            
+            } else {
+                run_log.append("<span style='color: DarkRed;'>All jobs done.</strong>\r\n");
             }
         }
         run_one_cmd();
@@ -329,7 +338,10 @@ function alert_error(content, title) {
 
             file_loader.onload = function(ev) {
                 reset_conv_data();
-                build_conv_tree(ev.target.result, file_inst.pathS, function(){
+
+                conv_data.file_map[file_inst.name] = true;
+
+                build_conv_tree(ev.target.result, file_inst.path || $(conv_list_file).val(), function(){
                     // 显示属性树
                     show_conv_tree();
                 });
@@ -340,7 +352,6 @@ function alert_error(content, title) {
             };
 
             if (file_inst) {
-                conv_data.file_map[file_inst.name] = true;
                 file_loader.readAsText(file_inst);
             }
         });
