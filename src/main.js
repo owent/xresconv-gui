@@ -393,6 +393,9 @@ function alert_error(content, title) {
             },{
                 value: "/\\.bin$/.msgpack.bin/",
                 label: ".bin后缀 => .msgpack.bin"
+            },{
+                value: "/\\.bin$/.xml/",
+                label: ".bin后缀 => .xml"
             }
         ];
 

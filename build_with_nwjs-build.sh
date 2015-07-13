@@ -8,14 +8,15 @@ if [ ! -e 'tools/nwjs-build.sh' ] ; then
     chmod +x 'tools/nwjs-build.sh'; 
 fi
 
-tools/nwjs-build.sh "$@" --clean;
+cd tools;
+./nwjs-build.sh "$@" --clean;
 
-tools/nwjs-build.sh \
+./nwjs-build.sh \
     --nw=0.12.2 \
-    --src=src \
+    --src=../src \
     --name="xresconv-gui" \
-    --win-icon=doc/logo.ico \
-    --version="1.0.1" \
+    --win-icon=../doc/logo.ico \
+    --version="1.1.0" \
     "$@" --build ;
 
 # add dependency files 
