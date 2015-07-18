@@ -29,15 +29,20 @@
 
     <div class="jumbotron" id="info_list_panel">
         <form class="container">
-            <div class="col-lg-12">
+            <div class="col-lg-9">
                 <div class="input-group"> 
-                    <span class="input-group-btn">
+                    <span class="input-group-btn" for="conv_list_file_val">
                         <button class="btn btn-info" type="button" id="conv_list_file_btn" >转换列表文件</button>
                     </span>
                     <input class="form-control" type="text" id="conv_list_file_val" placeholder="尚未载入任何文件，需要载入清单列表的xml文件(比如: convert_list.xml)" disabled="disabled" />
                 </div>
             </div>
-            <input type="file" id="conv_list_file" placeholder="选择转换列表文件" />
+            <div class="col-lg-3">
+                <div class="input-group">
+                    <label class="input-group-addon" for="conv_config_parallelism">转表并发数</label>
+                    <select class="form-control"  id="conv_config_parallelism"></select>
+                </div>
+            </div><input type="file" id="conv_list_file" placeholder="选择转换列表文件" />
         </form>
         <br />
         <form class="form-inline container">

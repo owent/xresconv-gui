@@ -1,6 +1,10 @@
 ﻿// WebKit的编码转换有点奇怪的
 
 var conv_data = {};
+var xconv_gui_options = {
+    parallelism: 4,
+    parallelism_max: 16
+};
 
 function generate_id() {
     ++ conv_data.id_index;
@@ -24,7 +28,6 @@ function alert_error(content, title) {
     function reset_conv_data() {
         conv_data = {
             id_index: 0,
-            config: {},
             global_options: [],
             groups: {},
             items: {},
@@ -263,7 +266,7 @@ function alert_error(content, title) {
         var tree = $("#conv_list").fancytree("getTree");
         var selNodes = tree.getSelectedNodes();
 
-        var cmd_params = "java -jar \"" + xresloader_path + "\"";
+        var cmd_params = "java -client -jar \"" + xresloader_path + "\"";
         for(var k in global_options) {
             if (global_options[k]) {
                 cmd_params += " " + k + " \"" + global_options[k] + "\"";
@@ -297,8 +300,10 @@ function alert_error(content, title) {
         conv_data.run_seq = run_seq;
 
         function run_one_cmd() {
+
             if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
                 var cmd = pending_script.pop();
+                var is_last = 0 == pending_script.length;
 
                 run_log.append("[" + work_dir + "] " + cmd + "\r\n");
                 run_log.scrollTop(run_log.prop('scrollHeight'));
@@ -308,18 +313,91 @@ function alert_error(content, title) {
                 }, function(error, stdout, stderr){
                     run_log.append("<span style='color: Green;'>" + stdout +
                     "</span>\r\n<strong style='color: Red;'>" + stderr + "</strong>\r\n");
-                    
+
+                    if (is_last) {
+                        run_log.append("<span style='color: DarkRed;'>All jobs done.</strong>\r\n");
+                    } else {
+                        run_one_cmd();
+                    }
                     run_log.scrollTop(run_log.prop('scrollHeight'));
-                    run_one_cmd();
                 });            
-            } else {
-                run_log.append("<span style='color: DarkRed;'>All jobs done.</strong>\r\n");
             }
         }
-        run_one_cmd();
+
+        for(var i = 0; i < xconv_gui_options.parallelism; ++ i) {
+            run_one_cmd();
+        }
     }
 
     $(document).ready(function(){
+        // 并行转表选项
+        (function(){
+            // 获取CPU信息，默认并行度为CPU核心数量/2
+            try {
+                xconv_gui_options.parallelism = parseInt((require('os').cpus().length - 1) / 2 + 1);
+            } catch(e) {
+                console.log('judge cpu count require node.js');
+            }
+
+            var father_dom = $("#conv_config_parallelism");
+            for(var i = 0; i < xconv_gui_options.parallelism_max; ++ i) {
+                var paral_opt = $("<option></option>");
+                paral_opt.attr("value", i + 1);
+                paral_opt.prop("value", i + 1);
+                paral_opt.html(i + 1);
+
+                if (xconv_gui_options.parallelism == i + 1) {
+                    paral_opt.attr("selected", "selected");
+                    paral_opt.attr("selected", true);
+                }
+
+                father_dom.append(paral_opt);
+            }
+
+            console.log("转表并发数: " + xconv_gui_options.parallelism);
+            father_dom.change(function() {
+                var new_value = parseInt(father_dom.val());
+                if (xconv_gui_options.parallelism == new_value) {
+                    return;
+                }
+
+                if (new_value <= 6) {
+                    xconv_gui_options.parallelism = new_value;
+                    console.log("转表并发数: " + xconv_gui_options.parallelism);
+                } else {
+                    var dlg = $("<div></div>");
+                    dlg.append("并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。").append("<br />");
+                    dlg.append("通常可以通过修改JVM默认内存限制实现。(如: -Xmx 2048m)").append("<br />");
+                    dlg.append("您确定要把并发转表的进程数调整到 " + new_value + "吗？").append("<br />");
+
+                    $(dlg).dialog({
+                        title: "高并行度警告",
+                        resizable: false,
+                        height:240,
+                        width: 360,
+                        modal: true,
+                        buttons: {
+                            "是": function() {
+                                xconv_gui_options.parallelism = new_value;
+                                console.log("转表并发数: " + xconv_gui_options.parallelism);
+
+                                $( this ).dialog( "close" );
+                            },
+                            "否": function() {
+                                $( this ).dialog( "close" );
+                            }
+                        },
+                        close: function() {
+                            if (xconv_gui_options.parallelism != new_value) {
+                                father_dom.get(0).selectedIndex = xconv_gui_options.parallelism - 1;
+                            }
+
+                        }
+                    });
+                }
+            });
+        })();
+
         $("#conv_list_file_btn").click(function(){
             $("#conv_list_file").val("");
             $("#conv_list_file").click();
