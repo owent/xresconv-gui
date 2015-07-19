@@ -3,8 +3,18 @@
 WORKING_DIR="$(cd -P -- "$(dirname -- "$0")" && pwd -P)";
 cd "$WORKING_DIR";
 
+if [ ! -e 'tools' ] ; then
+    mkdir -p tools;
+fi
+
 if [ ! -e 'tools/nwjs-build.sh' ] ; then
-    wget -c "https://raw.githubusercontent.com/Gisto/nwjs-shell-builder/master/nwjs-build.sh" -O "tools/nwjs-build.sh";
+	which curl;
+	if [ 0 == $? ]; then
+		curl -L "https://raw.githubusercontent.com/Gisto/nwjs-shell-builder/master/nwjs-build.sh" -o "tools/nwjs-build.sh";
+	else
+		wget -c "https://raw.githubusercontent.com/Gisto/nwjs-shell-builder/master/nwjs-build.sh" -O "tools/nwjs-build.sh";
+	fi
+    
     chmod +x 'tools/nwjs-build.sh'; 
 fi
 
