@@ -297,28 +297,29 @@ function alert_error(content, title) {
         });
 
         var run_seq = generate_id();
+        var running_count = 0;
         conv_data.run_seq = run_seq;
 
         function run_one_cmd() {
-
             if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
                 var cmd = pending_script.pop();
-                var is_last = 0 == pending_script.length;
 
                 run_log.append("[" + work_dir + "] " + cmd + "\r\n");
                 run_log.scrollTop(run_log.prop('scrollHeight'));
-                
+
+                ++ running_count;
                 require('child_process').exec(cmd, {
                     cwd: work_dir
                 }, function(error, stdout, stderr){
                     run_log.append("<span style='color: Green;'>" + stdout +
                     "</span>\r\n<strong style='color: Red;'>" + stderr + "</strong>\r\n");
 
-                    if (is_last) {
+                    -- running_count;
+                    if (running_count <= 0 && conv_data.run_seq == run_seq) {
                         run_log.append("<span style='color: DarkRed;'>All jobs done.</strong>\r\n");
-                    } else {
-                        run_one_cmd();
                     }
+
+                    run_one_cmd();
                     run_log.scrollTop(run_log.prop('scrollHeight'));
                 });            
             }

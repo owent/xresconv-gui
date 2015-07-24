@@ -78,3 +78,5 @@ nw.js运行需要 icudtl.dat、 nw.pak和locales目录。但是打包脚本并�
 ![示例截图-1](doc/snapshoot-1.png)
 
 ![示例截图-2](doc/snapshoot-2.png)
+
+![示例截图-3](doc/snapshoot-3.png)
