@@ -222,6 +222,9 @@ function alert_error(content, title) {
     }
 
     function show_conv_tree() {
+        if($("#conv_list").children().length > 0) {
+            $("#conv_list").fancytree("destroy");
+        }
         $("#conv_list").fancytree({
             checkbox: true,
             selectMode: 3,
@@ -241,93 +244,114 @@ function alert_error(content, title) {
     }
 
     function conv_start() {
-        var work_dir = $("#conv_list_work_dir").val();
-        if (work_dir && work_dir[0] != '/' && work_dir[1] != ':') {
-            var list_dir = $("#conv_list_file").val();
-            var anchor_1 = list_dir.lastIndexOf('/');
-            var anchor_2 = list_dir.lastIndexOf("\\");
-            if (anchor_2 < 0 || anchor_2 >= list_dir.length || anchor_2 < anchor_1) {
-                anchor_2 = anchor_1;
+        try {
+            var work_dir = $("#conv_list_work_dir").val();
+            if (work_dir && work_dir[0] != '/' && work_dir[1] != ':') {
+                var list_dir = $("#conv_list_file").val();
+                var anchor_1 = list_dir.lastIndexOf('/');
+                var anchor_2 = list_dir.lastIndexOf("\\");
+                if (anchor_2 < 0 || anchor_2 >= list_dir.length || anchor_2 < anchor_1) {
+                    anchor_2 = anchor_1;
+                }
+                work_dir = list_dir.substr(0, anchor_2) + "/" + work_dir;
             }
-            work_dir = list_dir.substr(0, anchor_2) + "/" + work_dir;
-        }
 
-        var xresloader_path = $("#conv_list_xresloader").val();
+            var xresloader_path = $("#conv_list_xresloader").val();
 
-        var global_options = {
-            "-p": $("#conv_list_protocol").val(),
-            "-t": $("#conv_list_output_type").val(),
-            "-f": $("#conv_list_proto_file").val(),
-            "-o": $("#conv_list_output_dir").val(),
-            "-d": $("#conv_list_data_src_dir").val(),
-            "-n": $("#conv_list_rename").val()
-        };
+            var global_options = {
+                "-p": $("#conv_list_protocol").val(),
+                "-t": $("#conv_list_output_type").val(),
+                "-f": $("#conv_list_proto_file").val(),
+                "-o": $("#conv_list_output_dir").val(),
+                "-d": $("#conv_list_data_src_dir").val(),
+                "-n": $("#conv_list_rename").val()
+            };
 
-        var tree = $("#conv_list").fancytree("getTree");
-        var selNodes = tree.getSelectedNodes();
+            var tree = $("#conv_list").fancytree("getTree");
+            var selNodes = tree.getSelectedNodes();
 
-        var cmd_params = "java -client -jar \"" + xresloader_path + "\"";
-        for(var k in global_options) {
-            if (global_options[k]) {
-                cmd_params += " " + k + " \"" + global_options[k] + "\"";
+            var cmd_params = "";
+            for(var k in global_options) {
+                if (global_options[k]) {
+                    cmd_params += " " + k + " \"" + global_options[k] + "\"";
+                }
             }
-        }
 
-        $.each(conv_data.global_options, function(k, v){
-            cmd_params += " " + v.value;
-        });
+            $.each(conv_data.global_options, function(k, v){
+                cmd_params += " " + v.value;
+            });
 
-        var run_log = $("#conv_list_run_res");
-        run_log.empty();
+            var run_log = $("#conv_list_run_res");
+            run_log.empty();
 
-        var pending_script = [];
+            var pending_script = [];
 
-        selNodes.forEach(function(node) {
-            if (node.key && conv_data.items[node.key]) {
-                var item_data = conv_data.items[node.key];
-                var cmd_args = cmd_params;
-                $.each(item_data.options, function(k, v){
-                    cmd_args += " " + v.value;
-                });
+            selNodes.forEach(function(node) {
+                if (node.key && conv_data.items[node.key]) {
+                    var item_data = conv_data.items[node.key];
+                    var cmd_args = cmd_params;
+                    $.each(item_data.options, function(k, v){
+                        cmd_args += " " + v.value;
+                    });
 
-                cmd_args += " -s \"" + item_data.file + "\" -m \"" + item_data.scheme + "\"";
+                    cmd_args += " -s \"" + item_data.file + "\" -m \"" + item_data.scheme + "\"";
 
-                pending_script.push(cmd_args);
-            }
-        });
+                    pending_script.push(cmd_args);
+                }
+            });
 
-        var run_seq = generate_id();
-        var running_count = 0;
-        conv_data.run_seq = run_seq;
+            var run_seq = generate_id();
+            var running_count = 0;
+            conv_data.run_seq = run_seq;
 
-        function run_one_cmd() {
-            if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
-                var cmd = pending_script.pop();
-
-                run_log.append("[" + work_dir + "] " + cmd + "\r\n");
-                run_log.scrollTop(run_log.prop('scrollHeight'));
-
-                ++ running_count;
-                require('child_process').exec(cmd, {
-                    cwd: work_dir
-                }, function(error, stdout, stderr){
-                    run_log.append("<span style='color: Green;'>" + stdout +
-                    "</span>\r\n<strong style='color: Red;'>" + stderr + "</strong>\r\n");
-
-                    -- running_count;
-                    if (running_count <= 0 && conv_data.run_seq == run_seq) {
-                        run_log.append("<span style='color: DarkRed;'>All jobs done.</strong>\r\n");
-                    }
-
-                    run_one_cmd();
+            function run_one_cmd(xresloader_index, xresloader_exec) {
+                if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
+                    var cmd = pending_script.pop();
+                    run_log.append("[CONV " + xresloader_index + "] " + cmd + "\r\n");
                     run_log.scrollTop(run_log.prop('scrollHeight'));
-                });            
-            }
-        }
 
-        for(var i = 0; i < xconv_gui_options.parallelism; ++ i) {
-            run_one_cmd();
-        }
+                    xresloader_exec.stdin.write(cmd)
+                    xresloader_exec.stdin.write("\r\n")
+                } else {
+                    xresloader_exec.stdin.end()
+                }
+            }
+
+            running_count = xconv_gui_options.parallelism;
+            for(var i = 0; i < xconv_gui_options.parallelism; ++ i) {
+                (function(xresloader_index) {
+                    var exec = require('child_process').exec;
+                    var xresloader_cmd = "java -client -jar \"" + xresloader_path + "\" --stdin";
+                    run_log.append("[" + work_dir + "] Process " + xresloader_index + ": " + xresloader_cmd + "\r\n");
+                    var xresloader_exec = exec(xresloader_cmd, {
+                        cwd: work_dir
+                    });
+
+                    xresloader_exec.stdout.on('data', function (data) {
+                        run_log.append("<span style='color: Green;'>" + data + "</span>\r\n");
+                        run_log.scrollTop(run_log.prop('scrollHeight'));
+                        run_one_cmd(xresloader_index, xresloader_exec);
+                    });
+
+                    xresloader_exec.stderr.on('data', function (data) {
+                        run_log.append("<strong style='color: Red;'>" + data + "</strong>\r\n");
+                        run_log.scrollTop(run_log.prop('scrollHeight'));
+                        run_one_cmd(xresloader_index, xresloader_exec);
+                    });
+
+                    xresloader_exec.on('close', function (code) {
+                        run_log.append("[Process " + xresloader_index + " Exit]\r\n");
+                        --running_count;
+                        if (running_count <= 0 && conv_data.run_seq == run_seq) {
+                            run_log.append("<span style='color: DarkRed;'>All jobs done.</strong>\r\n");
+                        }
+                    });
+                    run_one_cmd(xresloader_index, xresloader_exec);
+                })(i + 1);
+            }
+        } catch(e) {
+            alert("出错啦: " + e.toString());
+        } 
     }
 
     $(document).ready(function(){
@@ -336,8 +360,14 @@ function alert_error(content, title) {
             // 获取CPU信息，默认并行度为CPU核心数量/2
             try {
                 xconv_gui_options.parallelism = parseInt((require('os').cpus().length - 1) / 2 + 1);
+
+                // 实际使用过程中发现，java的运行时优化反而比并行执行更节省性能
+                if (xconv_gui_options.parallelism > 2) {
+                    xconv_gui_options.parallelism = 2;
+                }
             } catch(e) {
                 console.log('judge cpu count require node.js');
+                xconv_gui_options.parallelism = 2;
             }
 
             var father_dom = $("#conv_config_parallelism");

@@ -22,11 +22,11 @@ cd tools;
 ./nwjs-build.sh "$@" --clean;
 
 ./nwjs-build.sh \
-    --nw=0.12.2 \
+    --nw=0.12.3 \
     --src=../src \
     --name="xresconv-gui" \
     --win-icon=../doc/logo.ico \
-    --version="1.1.1.1" \
+    --version="1.1.2.0" \
     "$@" --build ;
 
 # add dependency files 
