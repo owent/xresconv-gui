@@ -10,9 +10,9 @@ fi
 if [ ! -e 'tools/nwjs-build.sh' ] ; then
 	which curl;
 	if [ 0 == $? ]; then
-		curl -L "https://raw.githubusercontent.com/Gisto/nwjs-shell-builder/master/nwjs-build.sh" -o "tools/nwjs-build.sh";
+		curl -L "https://github.com/Gisto/nwjs-shell-builder/raw/master/nwjs-build.sh" -o "tools/nwjs-build.sh";
 	else
-		wget -c "https://raw.githubusercontent.com/Gisto/nwjs-shell-builder/master/nwjs-build.sh" -O "tools/nwjs-build.sh";
+		wget -c "https://github.com/Gisto/nwjs-shell-builder/raw/master/nwjs-build.sh" -O "tools/nwjs-build.sh";
 	fi
     
     chmod +x 'tools/nwjs-build.sh'; 
@@ -26,7 +26,7 @@ cd tools;
     --src=../src \
     --name="xresconv-gui" \
     --win-icon=../doc/logo.ico \
-    --version="1.1.2.0" \
+    --version="1.1.2.1" \
     "$@" --build ;
 
 # add dependency files 

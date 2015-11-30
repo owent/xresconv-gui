@@ -321,10 +321,12 @@ function alert_error(content, title) {
             for(var i = 0; i < xconv_gui_options.parallelism; ++ i) {
                 (function(xresloader_index) {
                     var exec = require('child_process').exec;
-                    var xresloader_cmd = "java -client -jar \"" + xresloader_path + "\" --stdin";
+                    var xresloader_cmd = "java -client -Dfile.encoding=UTF-8 -jar \"" + xresloader_path + "\" --stdin";
                     run_log.append("[" + work_dir + "] Process " + xresloader_index + ": " + xresloader_cmd + "\r\n");
+                    console.log('start xresloader at ' + work_dir);
                     var xresloader_exec = exec(xresloader_cmd, {
-                        cwd: work_dir
+                        cwd: work_dir,
+                        encoding: 'utf8'
                     });
 
                     xresloader_exec.stdout.on('data', function (data) {
