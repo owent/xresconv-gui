@@ -10,9 +10,9 @@ fi
 if [ ! -e 'tools/nwjs-build.sh' ] ; then
 	which curl;
 	if [ 0 == $? ]; then
-		curl -L "https://github.com/Gisto/nwjs-shell-builder/raw/master/nwjs-build.sh" -o "tools/nwjs-build.sh";
+		curl --insecure -L "https://github.com/Gisto/nwjs-shell-builder/raw/master/nwjs-build.sh" -o "tools/nwjs-build.sh";
 	else
-		wget -c "https://github.com/Gisto/nwjs-shell-builder/raw/master/nwjs-build.sh" -O "tools/nwjs-build.sh";
+		wget --no-check-certificate -c "https://github.com/Gisto/nwjs-shell-builder/raw/master/nwjs-build.sh" -O "tools/nwjs-build.sh";
 	fi
     
     chmod +x 'tools/nwjs-build.sh'; 
