@@ -25,3 +25,57 @@
 #conv_list_file {
     display: none;
 }
+
+.conv_list_run_error {
+    border-color: #FF4040;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(255,64,64,.6);
+    box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(255,64,64,.6);
+}
+
+.conv_list_run_success {
+}
+
+@keyframes conv_list_run_running_ani
+{
+    20% {
+
+    }
+    80%   {
+        border-color: #40FF40;
+        -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(64,255,64,.6);
+        box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(64,255,64,.6);
+    }
+    100%   {
+        border-color: #40FF40;
+        -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(64,255,64,.6);
+        box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(64,255,64,.6);
+    }
+}
+
+@-webkit-keyframes conv_list_run_running_ani
+{
+    20% {
+
+    }
+    80%   {
+        border-color: #40FF40;
+        -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(64,255,64,.6);
+        box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(64,255,64,.6);
+    }
+    100%   {
+        border-color: #40FF40;
+        -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(64,255,64,.6);
+        box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(64,255,64,.6);
+    }
+}
+
+.conv_list_run_running {
+    border-color: White;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(255,255,255,.6);
+    box-shadow: inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(255,255,255,.6);
+
+    animation: conv_list_run_running_ani 1s linear 0s infinite alternate ;
+    -moz-animation: conv_list_run_running_ani 1s linear 0s infinite alternate ;	/* Firefox */
+    -webkit-animation: conv_list_run_running_ani 1s linear 0s infinite alternate ;	/* Safari 和 Chrome */
+    -o-animation: conv_list_run_running_ani 1s linear 0s infinite alternate ;	/* Opera */
+}

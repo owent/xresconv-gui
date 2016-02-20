@@ -283,6 +283,9 @@ function alert_error(content, title) {
 
             var run_log = $("#conv_list_run_res");
             run_log.empty();
+            run_log.removeClass('conv_list_run_error');
+            run_log.removeClass('conv_list_run_success');
+            run_log.addClass('conv_list_run_running');
 
             var pending_script = [];
 
@@ -302,6 +305,7 @@ function alert_error(content, title) {
 
             var run_seq = generate_id();
             var running_count = 0;
+            var failed_count = 0;
             conv_data.run_seq = run_seq;
 
             function run_one_cmd(xresloader_index, xresloader_exec) {
@@ -344,8 +348,22 @@ function alert_error(content, title) {
                     xresloader_exec.on('close', function (code) {
                         run_log.append("[Process " + xresloader_index + " Exit]\r\n");
                         --running_count;
+
+                        if (code > 0) {
+                            failed_count += code;
+                        }
+
                         if (running_count <= 0 && conv_data.run_seq == run_seq) {
-                            run_log.append("<span style='color: DarkRed;'>All jobs done.</strong>\r\n");
+                            if (failed_count > 0) {
+                                run_log.append("<span style='color: DarkRed;'>All jobs done, " + failed_count + " job(s) failed.</strong>\r\n");
+                                run_log.addClass('conv_list_run_error');
+                                run_log.removeClass('conv_list_run_running');
+                            } else {
+                                run_log.append("<span style='color: DarkRed;'>All jobs done.</strong>\r\n");
+                                run_log.addClass('conv_list_run_success');
+                                run_log.removeClass('conv_list_run_running');
+                            }
+                            run_log.scrollTop(run_log.prop('scrollHeight'));
                         }
                     });
                     run_one_cmd(xresloader_index, xresloader_exec);

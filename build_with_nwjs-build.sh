@@ -26,7 +26,7 @@ cd tools;
     --src=../src \
     --name="xresconv-gui" \
     --win-icon=../doc/logo.ico \
-    --version="1.1.2.1" \
+    --version="1.1.3.0" \
     "$@" --build ;
 
 # add dependency files 
