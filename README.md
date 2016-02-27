@@ -5,6 +5,10 @@ xresconv-gui
 
 本项目基于 [NW.js](https://github.com/nwjs/nw.js) 项目，所以支持nw.js支持得所有平台（Linux、Mac OS和Windows）
 
+Gitter on [xresloader](https://github.com/xresloader/xresloader)
+------
+[![Gitter](https://badges.gitter.im/xresloader/xresloader.svg)](https://gitter.im/xresloader/xresloader?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
 注意事项
 ======
 1. 文件名最好全英文，因为GUI工具中的编码统一使用UTF-8，而Windows默认编码是GBK。如果转表工具也使用UTF-8的话Windows下会找不到中文文件名。
