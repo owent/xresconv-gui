@@ -41,6 +41,40 @@ function alert_error(content, title) {
         };
     }
 
+    function get_dom_file(dom_id) {
+        var ret = {
+            file: null,
+            path: '',
+            filename: '',
+            dirname: '.'
+        };
+        
+        var sel_dom = document.getElementById(dom_id);
+        if (!sel_dom) {
+            return ret;
+        }
+        
+        ret.file = sel_dom.files.length > 0? sel_dom.files[0]: null;
+        if (ret.file) {
+            ret.path = ret.file.path || sel_dom.value;
+        } else {
+            ret.path = sel_dom.value;
+        }
+        
+        var mres = ret.path.match(/[^\/\\]*$/);
+        if (mres) {
+            ret.filename = mres[0];  
+        }
+        
+        if (ret.filename && ret.path.length > ret.filename.length + 1) {
+            ret.dirname = ret.path.substr(0, ret.path.length - ret.filename.length - 1);  
+        } else if (ret.filename && ret.path.length == ret.filename.length + 1) {
+            ret.dirname = ret.path[0];
+        }
+        
+        return ret;
+    }
+    
     function build_conv_tree(context, current_path, callback) {
         // $("#conv_list").empty();
 
@@ -48,7 +82,7 @@ function alert_error(content, title) {
         var jdom = $(context);
 
         var include_list = [];
-        // nw.js 获取文件路径
+        // nw.js/electron 获取文件路径
         var prefix_dir = current_path.replace(/[^\\\/]*$/, "");
         //// 加载include项目
         $.each(jdom.children("include"), function(k, dom){
@@ -175,21 +209,23 @@ function alert_error(content, title) {
         load_one_by_one.fn = function () {
             var file_path = null;
             var file_inst = null;
+            var fs = require('fs'); // node.js - File System
+            
             while (include_list.length > 0) {
                 file_path = include_list.shift();
 
                 try {
-                    file_inst = new File(file_path, file_path.match(/[^\\\/]*$/i)[0]);
-                    if (conv_data.file_map[file_inst.name]) {
-                        alert("文件" + file_path + " 已被加载过，不能循环include文件");
+                    file_inst = fs.createReadStream(file_path);
+                    if (conv_data.file_map[file_path]) {
+                        alert("文件 " + file_path + " 已被加载过，不能循环include文件");
                         file_path = null;
                         file_inst = null;
                     } else {
-                        conv_data.file_map[file_inst.name] = true;
+                        conv_data.file_map[file_path] = true;
                         break;
                     }
                 } catch (e) {
-                    alert("文件" + file_path + " 加载失败。" + e.toString());
+                    alert("文件 " + file_path + " 加载失败。" + e.toString());
                     file_inst = null;
                 }
             }
@@ -197,22 +233,35 @@ function alert_error(content, title) {
             if (file_inst) {
                 var file_loader = new FileReader();
 
-                file_loader.onload = (function(ev) {
-                    build_conv_tree(ev.target.result, file_path, function(){
+                file_inst.on('data', (content) => {
+                    build_conv_tree(content.toString(), file_path, function(){
 						load_one_by_one.fn();
 					});
                 });
+                
+                file_inst.on('error', (err) => {
+                    console.error(err.toString());
+                    console.error(err.stack);
+                    alert("尝试读取文件失败:" +　file_path);
+                    load_one_by_one.fn();
+                });
+                
+                // file_loader.onload = (function(ev) {
+                //     build_conv_tree(ev.target.result, file_path, function(){
+				// 		load_one_by_one.fn();
+				// 	});
+                // });
 				
 				// 出错则直接回调
-				file_loader.onerror = (function(){
-					load_one_by_one.fn();
-				});
+				// file_loader.onerror = (function(){
+				// 	load_one_by_one.fn();
+				// });
 
-                file_loader.onerror = function(ev) {
-                    alert("尝试读取文件失败:" +　file_path);
-                };
+                // file_loader.onerror = function(ev) {
+                //     alert("尝试读取文件失败:" +　file_path);
+                // };
 
-                file_loader.readAsText(file_inst);
+                // file_loader.readAsText(file_inst);
             } else {
                 active_run();
             }
@@ -242,18 +291,12 @@ function alert_error(content, title) {
             idPrefix: "conv_list-ft-"
         });
     }
-
+    
     function conv_start() {
         try {
             var work_dir = $("#conv_list_work_dir").val();
-            if (work_dir && work_dir[0] != '/' && work_dir[1] != ':') {
-                var list_dir = $("#conv_list_file").val();
-                var anchor_1 = list_dir.lastIndexOf('/');
-                var anchor_2 = list_dir.lastIndexOf("\\");
-                if (anchor_2 < 0 || anchor_2 >= list_dir.length || anchor_2 < anchor_1) {
-                    anchor_2 = anchor_1;
-                }
-                work_dir = list_dir.substr(0, anchor_2) + "/" + work_dir;
+            if (work_dir && work_dir[0] != '/' && (work_dir.length < 2 || work_dir[1] != ':')) {
+                work_dir = get_dom_file('file_path').dirname + "/" + work_dir;
             }
 
             var xresloader_path = $("#conv_list_xresloader").val();
@@ -324,11 +367,11 @@ function alert_error(content, title) {
             running_count = xconv_gui_options.parallelism;
             for(var i = 0; i < xconv_gui_options.parallelism; ++ i) {
                 (function(xresloader_index) {
-                    var exec = require('child_process').exec;
-                    var xresloader_cmd = "java -client -Dfile.encoding=UTF-8 -jar \"" + xresloader_path + "\" --stdin";
-                    run_log.append("[" + work_dir + "] Process " + xresloader_index + ": " + xresloader_cmd + "\r\n");
+                    var spawn = require('child_process').spawn;
+                    var xresloader_cmds = ["-client", "-Dfile.encoding=UTF-8", "-jar", xresloader_path, "--stdin"];
+                    run_log.append("[" + work_dir + "] Process " + xresloader_index + ": " + xresloader_cmds.join(' ') + "\r\n");
                     console.log('start xresloader at ' + work_dir);
-                    var xresloader_exec = exec(xresloader_cmd, {
+                    var xresloader_exec = spawn('java', xresloader_cmds, {
                         cwd: work_dir,
                         encoding: 'utf8'
                     });
@@ -370,6 +413,8 @@ function alert_error(content, title) {
                 })(i + 1);
             }
         } catch(e) {
+            run_log.append("<strong style='color: Red;'>" + e.toString() + "</strong>\r\n");
+            run_log.scrollTop(run_log.prop('scrollHeight'));
             alert("出错啦: " + e.toString());
         } 
     }
@@ -458,19 +503,17 @@ function alert_error(content, title) {
         });
 
         $("#conv_list_file").bind("change", function(){
-            $("#conv_list_file_val").val($(conv_list_file).val());
-
-            var sel_dom = document.getElementById("conv_list_file");
-            var file_inst = sel_dom.files.length > 0? sel_dom.files[0]: null;
+            var clf = get_dom_file('conv_list_file');
+            $("#conv_list_file_val").val(clf.path);
 
             var file_loader = new FileReader();
 
             file_loader.onload = function(ev) {
                 reset_conv_data();
 
-                conv_data.file_map[file_inst.name] = true;
+                conv_data.file_map[clf.path] = true;
 
-                build_conv_tree(ev.target.result, file_inst.path || $(conv_list_file).val(), function(){
+                build_conv_tree(ev.target.result, clf.path, function(){
                     // 显示属性树
                     show_conv_tree();
                 });
@@ -480,8 +523,8 @@ function alert_error(content, title) {
                 alert("尝试读取文件失败:" +　file_path);
             };
 
-            if (file_inst) {
-                file_loader.readAsText(file_inst);
+            if (clf.file) {
+                file_loader.readAsText(clf.file);
             }
         });
 

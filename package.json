@@ -1,0 +1,31 @@
+{
+  "name": "xresconv-gui",
+  "version": "1.2.0",
+  "description": "xresconv 批量转表工具-GUI\r ==========",
+  "main": "src/setup.js",
+  "directories": {
+    "doc": "doc"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron-packager": "^7.0.2",
+    "electron-prebuilt": "^1.1.1",
+    "gulp": "^3.9.1"
+  },
+  "scripts": {
+    "start": "electron .",
+    "echo": "electron --help",
+    "echop": "electron-packager --help",
+    "package": "electron-packager . xresconv-gui --all --overwrite --out ./out --version 1.1.1 --overwrite --icon=doc/logo.ico"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xresloader/xresconv-gui.git"
+  },
+  "author": "owent",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/xresloader/xresconv-gui/issues"
+  },
+  "homepage": "https://github.com/xresloader/xresconv-gui"
+}

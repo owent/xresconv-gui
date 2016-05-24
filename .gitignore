@@ -15,3 +15,8 @@ hs_err_pid*
 /tools/TMP
 /tools/nwjs_download_cache
 /tools/nwjs-build.sh
+
+
+# nodejs modules
+/node_modules
+/out
