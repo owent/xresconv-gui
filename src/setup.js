@@ -30,7 +30,8 @@ function createWindow() {
       closable:true,
       skipTaskbar: false,
       frame: true,
-      autoHideMenuBar: !app_config.debug
+      autoHideMenuBar: !app_config.debug,
+      icon: app_config.icon
   });
 
   // and load the index.html of the app.

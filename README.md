@@ -44,7 +44,7 @@ npm run-script start
 npm run-script start
 ```
 
-VSCode调试-Raw
+VSCode调试启动
 ------
 
 先使用设定调试端口并启动
@@ -57,6 +57,8 @@ npm run-script gulp-start
 
 
 *VSCode里直接Launch的方式仅在Windows下有效*
+
+**注：VSCode连接成功后，会立刻断点在程序启动处，这时候可以对需要断点的地方打断点，然后直接继续即可。**
 
 打包和发布
 ======
@@ -74,6 +76,16 @@ npm run-script gulp-start
 
 ![示例截图-3](doc/snapshoot-3.png)
 
+关于加载和调试
+======
+本软件中大部分的外部库加载都没有问题，但是由于默认走的是node.js的沙箱机制，所以html内的script标签里某些库不会写出到全局。这时候需要手动加一下，比如：
+```javascript
+window.jQuery = require(`${__dirname}/lib/jquery/jquery-2.2.0.min.js`);
+```
+
+另外，调试模式运行只能调试[Electron](http://electron.atom.io/)进入的代码。
+无法调试[Electron](http://electron.atom.io/)中[BrowserWindow](http://electron.atom.io/docs/api/browser-window/)的沙箱里的代码。
+所以如果要调试[BrowserWindow](http://electron.atom.io/docs/api/browser-window/)内的代码还是要在[src/setup.js](src/setup.js)中把***debug***选项改为true。
 
 关于NPM下载加速
 ======

@@ -296,7 +296,7 @@ function alert_error(content, title) {
         try {
             var work_dir = $("#conv_list_work_dir").val();
             if (work_dir && work_dir[0] != '/' && (work_dir.length < 2 || work_dir[1] != ':')) {
-                work_dir = get_dom_file('file_path').dirname + "/" + work_dir;
+                work_dir = get_dom_file('conv_list_file').dirname + "/" + work_dir;
             }
 
             var xresloader_path = $("#conv_list_xresloader").val();
