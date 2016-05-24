@@ -1,0 +1,13 @@
+{
+    "version": "0.1.0",
+    "command": "npm",
+    "isShellCommand": true,
+    "args": [
+        "run-script", "gulp-start"
+    ],
+    "tasks": [ { 
+      "taskName": "run", 
+      "args": [], 
+      "isBuildCommand": true 
+    }]
+}
