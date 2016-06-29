@@ -3,16 +3,31 @@ xresconv-gui
 
 这是一个符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的GUI转表工具，并且使用 [xresloader](https://github.com/xresloader/xresloader) 作为数据导出工具后端。
 
-本项目基于 [Electron](http://electron.atom.io/) 项目，所以支持[Electron](http://electron.atom.io/)支持得所有平台（Linux、Mac OS和Windows）
+本项目基于 [Electron](http://electron.atom.io/) 项目，所以支持[Electron](http://electron.atom.io/)支持得所有平台（Linux、macOS和Windows）
 
 Gitter on [xresloader](https://github.com/xresloader/xresloader)
 ------
 [![Gitter](https://badges.gitter.im/xresloader/xresloader.svg)](https://gitter.im/xresloader/xresloader?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
+下载和使用
+======
+点击[此处](https://github.com/xresloader/xresconv-gui/releases)并根据需要下载对应系统的包，直接执行里面的二进制即可。
+
+示例截图
+------
+![示例截图-1](doc/snapshoot-1.png)
+
+![示例截图-2](doc/snapshoot-2.png)
+
+![示例截图-3](doc/snapshoot-3.png)
+
 注意事项
 ======
 1. 文件名最好全英文，因为GUI工具中的编码统一使用UTF-8，而Windows默认编码是GBK。如果转表工具也使用UTF-8的话Windows下会找不到中文文件名。
 
+开发使用说明
+======
+以下内容仅是对这个工具的开发和维护进行说明，直接使用的话[下载预发布包](https://github.com/xresloader/xresconv-gui/releases)即可
 
 环境准备
 ======
@@ -26,8 +41,6 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 4. VSCode调试需要安装**[gulp](http://gulpjs.com/)**
 > *npm install --save-dev gulp*
 
-开发使用说明
-======
 
 直接启动
 ------
@@ -67,14 +80,6 @@ npm run-script gulp-start
 
 + 打包发布所有平台
 > *npm run-script package-all*
-
-示例截图
-------
-![示例截图-1](doc/snapshoot-1.png)
-
-![示例截图-2](doc/snapshoot-2.png)
-
-![示例截图-3](doc/snapshoot-3.png)
 
 关于加载和调试
 ======
