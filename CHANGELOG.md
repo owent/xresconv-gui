@@ -1,6 +1,12 @@
 更新记录
 ==========
 
+1.2.1
+------
+1. 支持新版本xresloader对web工具输出shell颜色代码
+2. 更新[Electron](http://electron.atom.io)到1.2.5
+2. 更新[Electron-Packager](https://github.com/electron-userland/electron-packager)到7.1.0
+
 1.2.0
 ------
 1. 使用[Electron](http://electron.atom.io)重新构建，不再使用[nw.js](http://nwjs.io/)。后者的官方打包脚本问题比较多。

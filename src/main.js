@@ -292,6 +292,65 @@ function alert_error(content, title) {
         });
     }
     
+    function shell_color_to_html(data) {
+        var style_map = {
+            "1": "font-weight: bolder;",
+            "4": "text-decoration: underline;",
+            "30": "color: black;",
+            "31": "color: darkred;",
+            "32": "color: darkgreen;",
+            "33": "color: brown;",
+            "34": "color: darkblue;",
+            "35": "color: purple;",
+            "36": "color: darkcyan;",
+            "37": "color: gray;",
+            "40": "background-color: black;",
+            "41": "background-color: darkred;",
+            "42": "background-color: darkgreen;",
+            "43": "background-color: brown;",
+            "44": "background-color: darkblue;",
+            "45": "background-color: purple;",
+            "46": "background-color: darkcyan;",
+            "47": "background-color: white;"
+        };
+
+        var split_group = data.toString().split(/(\[[\d;]*m)/g);
+        var span_level = 0;
+
+        function finish_tail() {
+            var ret = '';
+            while (span_level > 0) {
+                -- span_level;
+                ret += '</span>';
+            }
+            return ret;
+        }
+        for (var i = 0; i < split_group.length; ++ i) {
+            var msg = split_group[i];
+            if (msg.match(/^\[[\d;]*m$/)) {
+                var all_flags = msg.match(/\d+/g);
+                var style_list = [];
+                for (var j = 0; all_flags && j < all_flags.length; ++ j) {
+                    if ('0' == all_flags[j]) {
+                        split_group[i] = finish_tail();
+                        break;
+                    } else if (style_map[all_flags[j]]) {
+                        style_list.push(style_map[all_flags[j]]);
+                    }
+                }
+
+                if (style_list.length > 0) {
+                    ++ span_level;
+                    split_group[i] = '<span style="' + style_list.join(' ') + '">';
+                } else {
+                    split_group[i] = finish_tail();
+                }
+            }
+        }
+
+        return split_group.join('') + finish_tail();
+    }
+    
     function conv_start() {
         try {
             var work_dir = $("#conv_list_work_dir").val();
@@ -377,13 +436,13 @@ function alert_error(content, title) {
                     });
 
                     xresloader_exec.stdout.on('data', function (data) {
-                        run_log.append("<span style='color: Green;'>" + data + "</span>\r\n");
+                        run_log.append("<span style='color: Green;'>" + shell_color_to_html(data) + "</span>\r\n");
                         run_log.scrollTop(run_log.prop('scrollHeight'));
                         run_one_cmd(xresloader_index, xresloader_exec);
                     });
 
                     xresloader_exec.stderr.on('data', function (data) {
-                        run_log.append("<strong style='color: Red;'>" + data + "</strong>\r\n");
+                        run_log.append("<strong style='color: Red;'>" + shell_color_to_html(data) + "</strong>\r\n");
                         run_log.scrollTop(run_log.prop('scrollHeight'));
                         run_one_cmd(xresloader_index, xresloader_exec);
                     });

@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
@@ -16,15 +16,15 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "electron-packager": "^7.0.2",
-    "electron-prebuilt": "^1.1.1"
+    "electron-packager": "^7.1.0",
+    "electron-prebuilt": "^1.2.5"
   },
   "scripts": {
     "start": "electron .",
     "vscode-start": "electron  --debug=5858 .",
     "gulp-start": "gulp run", 
-    "package": "electron-packager . xresconv-gui --platform=all --arch=x64 --overwrite --out ./out --version 1.1.1 --overwrite --icon=doc/logo.ico",
-    "package-all": "electron-packager . xresconv-gui --all --overwrite --out ./out --version 1.1.1 --overwrite --icon=doc/logo.ico"
+    "package": "electron-packager . xresconv-gui --platform=all --arch=x64 --overwrite --out ./out --version 1.2.5 --overwrite --icon=doc/logo.ico",
+    "package-all": "electron-packager . xresconv-gui --all --overwrite --out ./out --version 1.2.5 --overwrite --icon=doc/logo.ico"
   },
   "repository": {
     "type": "git",
