@@ -10,23 +10,20 @@ var packger_options = {
   out: 'out',
   platform: 'all',
   arch: 'all',
-  overwrite: true
+  overwrite: true,
+  asar: false
 };
 
-function extend_options(opts, src) {
-  src = src || packger_options;
-  var ret = {};
-  for (var i in src) {
-    if ('object' == typeof(src[i])) {
-      ret[i] = extend_options({}, src[i]);
-    } else {
-      ret[i] = src[i];
-    }
-  }
-
-  if (opts) {
-    for (var i in opts) {
-      ret[i] = opts[i];
+function extend_options(ret) {
+  for (var src_i = 1; src_i < arguments.length; ++src_i) {
+    var src = arguments[src_i] || {};
+    ret = ret || {};
+    for (var i in src) {
+      if ('object' == typeof(src[i]) && 'object' == typeof(ret[i])) {
+        ret[i] = extend_options(ret[i], src[i]);
+      } else {
+        ret[i] = src[i];
+      }
     }
   }
 
@@ -36,10 +33,14 @@ function extend_options(opts, src) {
 // 创建 gulp 任务
 gulp.task('copy-libs', function() {
   gulp.src('./node_modules/bootstrap/dist/**')
-      .pipe(gulp.dest('./src/lib/bootstrap'));
-  gulp.src('./node_modules/jquery/dist/**').pipe(gulp.dest('./src/lib/jquery'));
+      .pipe(gulp.dest('./src/lib/bootstrap'))
+      .end();
+  gulp.src('./node_modules/jquery/dist/**')
+      .pipe(gulp.dest('./src/lib/jquery'))
+      .end();
   gulp.src('./node_modules/jquery.fancytree/dist/**')
-      .pipe(gulp.dest('./src/lib/jquery.fancytree'));
+      .pipe(gulp.dest('./src/lib/jquery.fancytree'))
+      .end();
 });
 
 gulp.task('run', ['copy-libs'], function() {
@@ -51,40 +52,38 @@ gulp.task('debug', ['copy-libs'], function() {
 });
 
 gulp.task('package', ['copy-libs'], function() {
-  electron_packger(
-      extend_options({
-        platform: 'all',
-        arch: 'x64',
-      }),
-      function(err, appPaths) {
-        if (err) {
-          console.log(`${appPaths}: ${err}`);
-        }
-      });
+  var opts = extend_options({}, packger_options, {
+    platform: 'all',
+    arch: 'x64',
+  });
+  electron_packger(opts, function(err, appPaths) {
+    if (err) {
+      console.log(`${appPaths}: ${err}`);
+    }
+  });
 });
 
 gulp.task('package-all', ['copy-libs'], function() {
-  electron_packger(
-      extend_options({
-        platform: 'all',
-        arch: 'all',
-      }),
-      function(err, appPaths) {
-        if (err) {
-          console.log(`${appPaths}: ${err}`);
-        }
-      });
+  var opts = extend_options({}, packger_options, {
+    platform: 'all',
+    arch: 'all',
+  });
+  electron_packger(opts, function(err, appPaths) {
+    if (err) {
+      console.log(`${appPaths}: ${err}`);
+    }
+  });
 });
 
 gulp.task('package-test', ['copy-libs'], function() {
-  electron_packger(
-      extend_options({
-        platform: 'win32',
-        arch: 'x64',
-      }),
-      function(err, appPaths) {
-        if (err) {
-          console.log(`${appPaths}: ${err}`);
-        }
-      });
+  var opts = extend_options({}, packger_options, {
+    platform: 'win32',
+    arch: 'x64',
+  });
+
+  electron_packger(opts, function(err, appPaths) {
+    if (err) {
+      console.log(`${appPaths}: ${err}`);
+    }
+  });
 });

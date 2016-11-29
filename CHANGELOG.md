@@ -6,6 +6,7 @@
 2. 更新electron到1.4.10
 3. jquery/bootstrap/jquery.fancytree 采用npm维护版本
 4. jquery-ui升级到1.12.0
+5. 完全使用gulp复制依赖项
 
 1.2.1
 ------
