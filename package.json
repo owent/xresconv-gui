@@ -1,10 +1,10 @@
 {
   "name": "xresconv-gui",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
-  "files" : [
+  "files": [
     "src",
     "doc",
     "README.md",
@@ -14,17 +14,25 @@
   "directories": {
     "doc": "doc"
   },
-  "dependencies": {},
+  "dependencies": {
+    "jquery": "^3.1.1",
+    "jquery.fancytree": "^2.20.0",
+    "bootstrap": "^4.0.0-alpha.5"
+  },
   "devDependencies": {
-    "electron-packager": "^7.1.0",
-    "electron-prebuilt": "^1.2.5"
+    "jquery-ui": "^1.12.1",
+    "electron-packager": "^7.7.0",
+    "electron-prebuilt": "^1.4.10",
+    "grunt-electron": "5.0.0",
+    "gulp": "^3.9.1"
   },
   "scripts": {
-    "start": "electron .",
-    "vscode-start": "electron  --debug=5858 .",
-    "gulp-start": "gulp run", 
-    "package": "electron-packager . xresconv-gui --platform=all --arch=x64 --overwrite --out ./out --version 1.2.5 --overwrite --icon=doc/logo.ico",
-    "package-all": "electron-packager . xresconv-gui --all --overwrite --out ./out --version 1.2.5 --overwrite --icon=doc/logo.ico"
+    "start": "gulp run",
+    "vscode-start": "electron --debug=5858 .",
+    "debug": "gulp debug",
+    "package-test": "gulp package-test",
+    "package": "gulp package",
+    "package-all": "gulp package-all"
   },
   "repository": {
     "type": "git",
@@ -32,6 +40,12 @@
   },
   "author": "owent",
   "license": "MIT",
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/xresloader/xresconv-gui/blob/master/LICENSE"
+    }
+  ],
   "bugs": {
     "url": "https://github.com/xresloader/xresconv-gui/issues"
   },

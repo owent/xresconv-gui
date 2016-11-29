@@ -32,15 +32,9 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 环境准备
 ======
 1. 请自行安装node.js和npm（详见：https://nodejs.org）
-2. 调试运行需安装**[electron-prebuilt](https://github.com/electron-userland/electron-prebuilt)**
-> *npm install --save-dev electron-prebuilt*
-
-3. 打包和发布需要安装**[electron-packager](https://github.com/electron-userland/electron-packager)**
-> *npm install --save-dev electron-packager*
-
-4. VSCode调试需要安装**[gulp](http://gulpjs.com/)**
-> *npm install --save-dev gulp*
-
+> 基本组件安装: *npm install*
+> 
+> 开发环境安装: *npm install --save-dev gulp*  
 
 直接启动
 ------
@@ -63,7 +57,7 @@ VSCode调试启动
 先使用设定调试端口并启动
 
 ```
-npm run-script gulp-start
+npm run-script debug
 ```
 
 然后VSCode打开调试面板Attach到进程上
@@ -85,7 +79,7 @@ npm run-script gulp-start
 ======
 本软件中大部分的外部库加载都没有问题，但是由于默认走的是node.js的沙箱机制，所以html内的script标签里某些库不会写出到全局。这时候需要手动加一下，比如：
 ```javascript
-window.jQuery = require(`${__dirname}/lib/jquery/jquery-2.2.0.min.js`);
+window.jQuery = require(`${__dirname}/lib/jquery/jquery.min.js`);
 ```
 
 另外，调试模式运行只能调试[Electron](http://electron.atom.io/)进入的代码。
@@ -99,6 +93,10 @@ window.jQuery = require(`${__dirname}/lib/jquery/jquery-2.2.0.min.js`);
 
 2. 设置npm的软件源
 > *npm config set registry "http://registry.npmjs.org/"*
+> 
+> *npm config set registry https://registry.npm.taobao.org/*
+> 
+> *npm install -g cnpm --registry=https://registry.npm.taobao.org*
 
 3. 代理
 > + 设置代理： *npm config set proxy=http://代理服务器ip:代理服务器端口*

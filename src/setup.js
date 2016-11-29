@@ -21,17 +21,17 @@ let win;
 function createWindow() {
   // Create the browser window.
   win = new BrowserWindow({
-      width: app_config.width, 
-      height: app_config.height,
-      minWidth: app_config.minWidth,
-      minHeight: app_config.minHeight,
-      resizable: true,
-      movable: true,
-      closable:true,
-      skipTaskbar: false,
-      frame: true,
-      autoHideMenuBar: !app_config.debug,
-      icon: app_config.icon
+    width: app_config.width,
+    height: app_config.height,
+    minWidth: app_config.minWidth,
+    minHeight: app_config.minHeight,
+    resizable: true,
+    movable: true,
+    closable: true,
+    skipTaskbar: false,
+    frame: true,
+    autoHideMenuBar: !app_config.debug,
+    icon: app_config.icon
   });
 
   // and load the index.html of the app.
@@ -75,4 +75,3 @@ app.on('activate', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
-

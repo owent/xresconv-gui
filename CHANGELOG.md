@@ -1,5 +1,11 @@
 更新记录
 ==========
+1.2.2
+------
+1. 支持设置java选项
+2. 更新electron到1.4.10
+3. jquery/bootstrap/jquery.fancytree 采用npm维护版本
+4. jquery-ui升级到1.12.0
 
 1.2.1
 ------
