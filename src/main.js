@@ -23,6 +23,7 @@ function alert_error(content, title) {
     conv_data = {
       id_index: 0,
       global_options: [],
+      default_scheme: {},
       java_options: ['-Dfile.encoding=UTF-8'],
       groups: {},
       items: {},
@@ -118,6 +119,15 @@ function alert_error(content, title) {
           });
         } else if ('java_option' == tn && val) {
           conv_data.java_options.push(val);
+        } else if ('default_scheme' == tn && val) {
+          var scheme_key = $(dom).attr('name').trim();
+          if (scheme_key) {
+            if (conv_data.default_scheme[scheme_key]) {
+              conv_data.default_scheme[scheme_key].push(val);
+            } else {
+              conv_data.default_scheme[scheme_key] = [val];
+            }
+          }
         }
       });
 
@@ -162,7 +172,8 @@ function alert_error(content, title) {
           options: [],
           desc: (jitem.attr('name').trim() || jitem.attr('desc').trim() || '') +
               ' -- 文件名: "' + jitem.attr('file') + '" 描述信息: "' +
-              jitem.attr('scheme') + '"'
+              jitem.attr('scheme') + '"',
+          scheme_data: {}
         };
 
         // GUI 显示规则
@@ -182,6 +193,24 @@ function alert_error(content, title) {
             value: nj_node.html()
           });
         });
+
+        $.each(jitem.children('scheme'), function(k, v) {
+          var nj_node = $(v);
+          var scheme_key = nj_node.attr('name').trim();
+          if (scheme_key) {
+            if (item_data.scheme_data[scheme_key]) {
+              item_data.scheme_data[scheme_key].push(nj_node.html());
+            } else {
+              item_data.scheme_data[scheme_key] = [nj_node.html()];
+            }
+          }
+        });
+        for (var key in conv_data.default_scheme) {
+          if (!item_data.scheme_data[key]) {
+            item_data.scheme_data[key] = conv_data.default_scheme[key];
+          }
+        }
+
         conv_data.items[item_data.id] = item_data;
 
         var ft_node = {
@@ -394,8 +423,17 @@ function alert_error(content, title) {
           $.each(
               item_data.options, function(k, v) { cmd_args += ' ' + v.value; });
 
-          cmd_args +=
-              ' -s "' + item_data.file + '" -m "' + item_data.scheme + '"';
+          if (item_data.file && item_data.scheme) {
+            cmd_args +=
+                ' -s "' + item_data.file + '" -m "' + item_data.scheme + '"';
+          } else {
+            for (var key in item_data.scheme_data) {
+              var vals = item_data.scheme_data[key];
+              for (var i in vals) {
+                cmd_args += ' -m "' + key + '=' + vals[i] + '"';
+              }
+            }
+          }
 
           pending_script.push(cmd_args);
         }
