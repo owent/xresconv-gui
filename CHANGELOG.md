@@ -3,13 +3,13 @@
 1.3.0
 ------
 1. 支持预置scheme参数
-2. 更新electron到1.4.10
+2. 更新electron到1.4.12
 3. 更新npm维护的库-20161211
 
 1.2.2
 ------
 1. 支持设置java选项
-2. 更新electron到1.4.12
+2. 更新electron到1.4.10
 3. jquery/bootstrap/jquery.fancytree 采用npm维护版本
 4. jquery-ui升级到1.12.0
 5. 完全使用gulp复制依赖项
