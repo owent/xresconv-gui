@@ -35,6 +35,9 @@ gulp.task('copy-libs', function() {
   gulp.src('./node_modules/bootstrap/dist/**')
       .pipe(gulp.dest('./src/lib/bootstrap'))
       .end();
+  gulp.src('./node_modules/tether/dist/**')
+      .pipe(gulp.dest('./src/lib/tether'))
+      .end();
   gulp.src('./node_modules/jquery/dist/**')
       .pipe(gulp.dest('./src/lib/jquery'))
       .end();

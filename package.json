@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
@@ -17,6 +17,7 @@
   "dependencies": {
     "jquery": "^3.1.1",
     "jquery.fancytree": "^2.20.0",
+    "tether": "^1.3.8",
     "bootstrap": "^4.0.0-alpha.5"
   },
   "devDependencies": {
@@ -28,6 +29,7 @@
     "gulp": "^3.9.1"
   },
   "scripts": {
+    "prepare": "gulp copy-libs",
     "start": "gulp run",
     "vscode-start": "electron --debug=5858 .",
     "debug": "gulp debug",

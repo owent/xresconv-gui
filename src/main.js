@@ -156,7 +156,13 @@ function alert_error(content, title) {
 
       // GUI 显示规则
       $.each(jdom.children('gui').children('set_name'), function(k, dom) {
-        conv_data.gui.set_name = eval($(dom).html());
+        try {
+          conv_data.gui.set_name = eval($(dom).html());
+        } catch (err) {
+          alert_error(
+              'GUI脚本编译错误(gui.set_name):<pre class="form-control conv_pre_default">' +
+              err.toString() + '</pre>');
+        }
       });
 
       $.each(jdom.children('list').children('item'), function(k, item_node) {
@@ -181,7 +187,9 @@ function alert_error(content, title) {
           try {
             item_data = conv_data.gui.set_name(item_data) || item_data;
           } catch (err) {
-            assert('ERROR: ' + err.toString());
+            alert_error(
+                'GUI脚本执行错误(gui.set_name):<pre class="form-control conv_pre_default">' +
+                err.toString() + '</pre>');
           }
         }
 

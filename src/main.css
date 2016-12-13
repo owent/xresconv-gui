@@ -22,6 +22,10 @@
     background-color: LightGray;
 }
 
+.conv_pre_default {
+    background-color: LightGray;
+}
+
 #conv_list_file {
     display: none;
 }
