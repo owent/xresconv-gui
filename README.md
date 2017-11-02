@@ -31,10 +31,16 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 
 环境准备
 ======
-1. 请自行安装node.js和npm（详见：https://nodejs.org）
-> 基本组件安装: *npm install*
-> 
-> 开发环境安装: *npm install --save-dev gulp*  
+1. 请自行安装node.js和npm（详见： https://nodejs.org ）
+
+```bash
+# 基本组件安装
+npm install
+
+# 开发环境安装
+npm install --dev
+npm install -g gulp-cli
+```
 
 直接启动
 ------

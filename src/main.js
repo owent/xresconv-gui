@@ -1,7 +1,7 @@
 ﻿// WebKit的编码转换有点奇怪的
 
 var conv_data = {};
-var xconv_gui_options = {parallelism: 4, parallelism_max: 16};
+var xconv_gui_options = { parallelism: 4, parallelism_max: 16 };
 
 function generate_id() {
   ++conv_data.id_index;
@@ -11,13 +11,13 @@ function generate_id() {
 
 function alert_error(content, title) {
   jQuery('#dlg_alert_error_title', '#dlg_alert_error_modal')
-      .html(title || '出错啦');
+    .html(title || '出错啦');
   jQuery('#dlg_alert_error_content', '#dlg_alert_error_modal')
-      .html(content || '');
+    .html(content || '');
   jQuery('#dlg_alert_error_modal').modal();
 }
 
-(function($, window) {
+(function ($, window) {
 
   function reset_conv_data() {
     conv_data = {
@@ -28,7 +28,7 @@ function alert_error(content, title) {
       groups: {},
       items: {},
       run_seq: 0,
-      gui: {set_name: null},
+      gui: { set_name: null },
       tree: [],
       category: {},
       file_map: {}
@@ -36,7 +36,7 @@ function alert_error(content, title) {
   }
 
   function get_dom_file(dom_id) {
-    var ret = {file: null, path: '', filename: '', dirname: '.'};
+    var ret = { file: null, path: '', filename: '', dirname: '.' };
 
     var sel_dom = document.getElementById(dom_id);
     if (!sel_dom) {
@@ -57,7 +57,7 @@ function alert_error(content, title) {
 
     if (ret.filename && ret.path.length > ret.filename.length + 1) {
       ret.dirname =
-          ret.path.substr(0, ret.path.length - ret.filename.length - 1);
+        ret.path.substr(0, ret.path.length - ret.filename.length - 1);
     } else if (ret.filename && ret.path.length == ret.filename.length + 1) {
       ret.dirname = ret.path[0];
     }
@@ -75,7 +75,7 @@ function alert_error(content, title) {
     // nw.js/electron 获取文件路径
     var prefix_dir = current_path.replace(/[^\\\/]*$/, '');
     //// 加载include项目
-    $.each(jdom.children('include'), function(k, dom) {
+    $.each(jdom.children('include'), function (k, dom) {
       var file_path = $(dom).html();
       if (file_path) {
         if (!file_path.match(/^(\w:|\/)/i)) {
@@ -85,9 +85,9 @@ function alert_error(content, title) {
       }
     });
 
-    var active_run = (function() {
+    var active_run = (function () {
       // 加载并覆盖全局配置
-      $.each(jdom.children('global').children(), function(k, dom) {
+      $.each(jdom.children('global').children(), function (k, dom) {
         var tn = dom.tagName.toLowerCase();
         var val = $(dom).html().trim();
 
@@ -99,18 +99,20 @@ function alert_error(content, title) {
           $('#conv_list_proto_file').val(val);
         } else if ('output_dir' == tn) {
           $('#conv_list_output_dir').val(val);
+        } else if ('data_version' == tn) {
+          $('#conv_list_data_version').val(val);
         } else if ('data_src_dir' == tn) {
           $('#conv_list_data_src_dir').val(val);
         } else if ('rename' == tn) {
           $('#conv_list_rename').val(val);
         } else if ('proto' == tn) {
           $('#conv_list_protocol').get(0).selectedIndex =
-              $('#conv_list_protocol option[value=' + val + ']').get(0).index;
+            $('#conv_list_protocol option[value=' + val + ']').get(0).index;
         } else if ('output_type' == tn) {
           $('#conv_list_output_type').get(0).selectedIndex =
-              $('#conv_list_output_type option[value=' + val + ']')
-                  .get(0)
-                  .index;
+            $('#conv_list_output_type option[value=' + val + ']')
+              .get(0)
+              .index;
         } else if ('option' == tn && val) {
           conv_data.global_options.push({
             name: $(dom).attr('name') || val,
@@ -135,7 +137,7 @@ function alert_error(content, title) {
       var treeData = conv_data.tree;
       var cat_map = conv_data.category;
       function build_tree_fn(root, xml_dom) {
-        $.each($(xml_dom).children('tree'), function(k, xml_node) {
+        $.each($(xml_dom).children('tree'), function (k, xml_node) {
           var nj_node = $(xml_node);
           var new_option = {
             title: nj_node.attr('name') || nj_node.attr('id'),
@@ -155,17 +157,17 @@ function alert_error(content, title) {
       build_tree_fn(treeData, jdom.children('category'));
 
       // GUI 显示规则
-      $.each(jdom.children('gui').children('set_name'), function(k, dom) {
+      $.each(jdom.children('gui').children('set_name'), function (k, dom) {
         try {
           conv_data.gui.set_name = eval($(dom).html());
         } catch (err) {
           alert_error(
-              'GUI脚本编译错误(gui.set_name):<pre class="form-control conv_pre_default">' +
-              err.toString() + '</pre>');
+            'GUI脚本编译错误(gui.set_name):<pre class="form-control conv_pre_default">' +
+            err.toString() + '</pre>');
         }
       });
 
-      $.each(jdom.children('list').children('item'), function(k, item_node) {
+      $.each(jdom.children('list').children('item'), function (k, item_node) {
         var jitem = $(item_node);
         var id = generate_id();
 
@@ -177,8 +179,8 @@ function alert_error(content, title) {
           cat: jitem.attr('cat'),
           options: [],
           desc: (jitem.attr('name').trim() || jitem.attr('desc').trim() || '') +
-              ' -- 文件名: "' + jitem.attr('file') + '" 描述信息: "' +
-              jitem.attr('scheme') + '"',
+          ' -- 文件名: "' + jitem.attr('file') + '" 描述信息: "' +
+          jitem.attr('scheme') + '"',
           scheme_data: {}
         };
 
@@ -188,12 +190,12 @@ function alert_error(content, title) {
             item_data = conv_data.gui.set_name(item_data) || item_data;
           } catch (err) {
             alert_error(
-                'GUI脚本执行错误(gui.set_name):<pre class="form-control conv_pre_default">' +
-                err.toString() + '</pre>');
+              'GUI脚本执行错误(gui.set_name):<pre class="form-control conv_pre_default">' +
+              err.toString() + '</pre>');
           }
         }
 
-        $.each(jitem.children('option'), function(k, v) {
+        $.each(jitem.children('option'), function (k, v) {
           var nj_node = $(v);
           item_data.options.push({
             name: nj_node.attr('name'),
@@ -202,7 +204,7 @@ function alert_error(content, title) {
           });
         });
 
-        $.each(jitem.children('scheme'), function(k, v) {
+        $.each(jitem.children('scheme'), function (k, v) {
           var nj_node = $(v);
           var scheme_key = nj_node.attr('name').trim();
           if (scheme_key) {
@@ -239,8 +241,8 @@ function alert_error(content, title) {
     });
 
 
-    var load_one_by_one = {fn: null};
-    load_one_by_one.fn = function() {
+    var load_one_by_one = { fn: null };
+    load_one_by_one.fn = function () {
       var file_path = null;
       var file_inst = null;
       var fs = require('fs');  // node.js - File System
@@ -268,7 +270,7 @@ function alert_error(content, title) {
         var file_loader = new FileReader();
 
         file_inst.on('data', (content) => {
-          build_conv_tree(content.toString(), file_path, function() {
+          build_conv_tree(content.toString(), file_path, function () {
             load_one_by_one.fn();
           });
         });
@@ -276,7 +278,7 @@ function alert_error(content, title) {
         file_inst.on('error', (err) => {
           console.error(err.toString());
           console.error(err.stack);
-          alert('尝试读取文件失败:' +　file_path);
+          alert('尝试读取文件失败:' + file_path);
           load_one_by_one.fn();
         });
 
@@ -312,8 +314,8 @@ function alert_error(content, title) {
       checkbox: true,
       selectMode: 3,
       source: conv_data.tree,
-      dblclick: function(event, data) { data.node.toggleSelected(); },
-      keydown: function(event, data) {
+      dblclick: function (event, data) { data.node.toggleSelected(); },
+      keydown: function (event, data) {
         if (event.which === 32) {
           data.node.toggleSelected();
           return false;
@@ -387,7 +389,7 @@ function alert_error(content, title) {
     try {
       var work_dir = $('#conv_list_work_dir').val();
       if (work_dir && work_dir[0] != '/' &&
-          (work_dir.length < 2 || work_dir[1] != ':')) {
+        (work_dir.length < 2 || work_dir[1] != ':')) {
         work_dir = get_dom_file('conv_list_file').dirname + '/' + work_dir;
       }
 
@@ -402,6 +404,10 @@ function alert_error(content, title) {
         '-n': $('#conv_list_rename').val()
       };
 
+      if ($("#conv_list_data_version").val()) {
+        global_options['-a'] = $("#conv_list_data_version").val();
+      }
+
       var tree = $('#conv_list').fancytree('getTree');
       var selNodes = tree.getSelectedNodes();
 
@@ -412,7 +418,7 @@ function alert_error(content, title) {
         }
       }
 
-      $.each(conv_data.global_options, function(k, v) {
+      $.each(conv_data.global_options, function (k, v) {
         cmd_params += ' ' + v.value;
       });
 
@@ -424,16 +430,16 @@ function alert_error(content, title) {
 
       var pending_script = [];
 
-      selNodes.forEach(function(node) {
+      selNodes.forEach(function (node) {
         if (node.key && conv_data.items[node.key]) {
           var item_data = conv_data.items[node.key];
           var cmd_args = cmd_params;
           $.each(
-              item_data.options, function(k, v) { cmd_args += ' ' + v.value; });
+            item_data.options, function (k, v) { cmd_args += ' ' + v.value; });
 
           if (item_data.file && item_data.scheme) {
             cmd_args +=
-                ' -s "' + item_data.file + '" -m "' + item_data.scheme + '"';
+              ' -s "' + item_data.file + '" -m "' + item_data.scheme + '"';
           } else {
             for (var key in item_data.scheme_data) {
               var vals = item_data.scheme_data[key];
@@ -467,34 +473,34 @@ function alert_error(content, title) {
 
       running_count = xconv_gui_options.parallelism;
       for (var i = 0; i < xconv_gui_options.parallelism; ++i) {
-        (function(xresloader_index) {
+        (function (xresloader_index) {
           var spawn = require('child_process').spawn;
           var xresloader_cmds = conv_data.java_options.concat(
-              ['-jar', xresloader_path, '--stdin']);
+            ['-jar', xresloader_path, '--stdin']);
           run_log.append(
-              '[' + work_dir + '] Process ' + xresloader_index + ': ' +
-              xresloader_cmds.join(' ') + '\r\n');
+            '[' + work_dir + '] Process ' + xresloader_index + ': ' +
+            xresloader_cmds.join(' ') + '\r\n');
           console.log('start xresloader at ' + work_dir);
           var xresloader_exec =
-              spawn('java', xresloader_cmds, {cwd: work_dir, encoding: 'utf8'});
+            spawn('java', xresloader_cmds, { cwd: work_dir, encoding: 'utf8' });
 
-          xresloader_exec.stdout.on('data', function(data) {
+          xresloader_exec.stdout.on('data', function (data) {
             run_log.append(
-                '<span style=\'color: Green;\'>' + shell_color_to_html(data) +
-                '</span>\r\n');
+              '<span style=\'color: Green;\'>' + shell_color_to_html(data) +
+              '</span>\r\n');
             run_log.scrollTop(run_log.prop('scrollHeight'));
             run_one_cmd(xresloader_index, xresloader_exec);
           });
 
-          xresloader_exec.stderr.on('data', function(data) {
+          xresloader_exec.stderr.on('data', function (data) {
             run_log.append(
-                '<strong style=\'color: Red;\'>' + shell_color_to_html(data) +
-                '</strong>\r\n');
+              '<strong style=\'color: Red;\'>' + shell_color_to_html(data) +
+              '</strong>\r\n');
             run_log.scrollTop(run_log.prop('scrollHeight'));
             run_one_cmd(xresloader_index, xresloader_exec);
           });
 
-          xresloader_exec.on('close', function(code) {
+          xresloader_exec.on('close', function (code) {
             run_log.append('[Process ' + xresloader_index + ' Exit]\r\n');
             --running_count;
 
@@ -505,13 +511,13 @@ function alert_error(content, title) {
             if (running_count <= 0 && conv_data.run_seq == run_seq) {
               if (failed_count > 0) {
                 run_log.append(
-                    '<span style=\'color: DarkRed;\'>All jobs done, ' +
-                    failed_count + ' job(s) failed.</strong>\r\n');
+                  '<span style=\'color: DarkRed;\'>All jobs done, ' +
+                  failed_count + ' job(s) failed.</strong>\r\n');
                 run_log.addClass('conv_list_run_error');
                 run_log.removeClass('conv_list_run_running');
               } else {
                 run_log.append(
-                    '<span style=\'color: DarkRed;\'>All jobs done.</strong>\r\n');
+                  '<span style=\'color: DarkRed;\'>All jobs done.</strong>\r\n');
                 run_log.addClass('conv_list_run_success');
                 run_log.removeClass('conv_list_run_running');
               }
@@ -523,19 +529,19 @@ function alert_error(content, title) {
       }
     } catch (e) {
       run_log.append(
-          '<strong style=\'color: Red;\'>' + e.toString() + '</strong>\r\n');
+        '<strong style=\'color: Red;\'>' + e.toString() + '</strong>\r\n');
       run_log.scrollTop(run_log.prop('scrollHeight'));
       alert('出错啦: ' + e.toString());
     }
   }
 
-  $(document).ready(function() {
+  $(document).ready(function () {
     // 并行转表选项
-    (function() {
+    (function () {
       // 获取CPU信息，默认并行度为CPU核心数量/2
       try {
         xconv_gui_options.parallelism =
-            parseInt((require('os').cpus().length - 1) / 2 + 1);
+          parseInt((require('os').cpus().length - 1) / 2 + 1);
 
         // 实际使用过程中发现，java的运行时优化反而比并行执行更节省性能
         if (xconv_gui_options.parallelism > 2) {
@@ -562,7 +568,7 @@ function alert_error(content, title) {
       }
 
       console.log('转表并发数: ' + xconv_gui_options.parallelism);
-      father_dom.change(function() {
+      father_dom.change(function () {
         var new_value = parseInt(father_dom.val());
         if (xconv_gui_options.parallelism == new_value) {
           return;
@@ -576,37 +582,37 @@ function alert_error(content, title) {
           var dlg_body = $('#dlg_parallelism_warning_content', dlg);
           dlg_body.empty();
           dlg_body
-              .append(
-                  '并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。')
-              .append('<br />');
+            .append(
+            '并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。')
+            .append('<br />');
           dlg_body
-              .append('通常可以通过修改JVM默认内存限制实现。(如: -Xmx2048m)')
-              .append('<br />');
+            .append('通常可以通过修改JVM默认内存限制实现。(如: -Xmx2048m)')
+            .append('<br />');
           dlg_body
-              .append(
-                  '您确定要把并发转表的进程数调整到 <strong>' + new_value +
-                  '</strong> 吗？')
-              .append('<br />');
+            .append(
+            '您确定要把并发转表的进程数调整到 <strong>' + new_value +
+            '</strong> 吗？')
+            .append('<br />');
 
           var btn_yes = $(
-              '<button type="button" class="btn btn-secondary" data-dismiss="modal">是</button>');
+            '<button type="button" class="btn btn-secondary" data-dismiss="modal">是</button>');
           var btn_no = $(
-              '<button type="button" class="btn btn-secondary" data-dismiss="modal">否</button>');
-          btn_yes.click(function() {
+            '<button type="button" class="btn btn-secondary" data-dismiss="modal">否</button>');
+          btn_yes.click(function () {
             xconv_gui_options.parallelism = new_value;
             console.log('转表并发数: ' + xconv_gui_options.parallelism);
 
             dlg.modal('hide');
             if (xconv_gui_options.parallelism != new_value) {
               father_dom.get(0).selectedIndex =
-                  xconv_gui_options.parallelism - 1;
+                xconv_gui_options.parallelism - 1;
             }
           });
 
-          btn_no.click(function() {
+          btn_no.click(function () {
             if (xconv_gui_options.parallelism != new_value) {
               father_dom.get(0).selectedIndex =
-                  xconv_gui_options.parallelism - 1;
+                xconv_gui_options.parallelism - 1;
             }
             dlg.modal('hide');
           });
@@ -617,31 +623,31 @@ function alert_error(content, title) {
       });
     })();
 
-    $('#conv_list_file_btn').click(function() {
+    $('#conv_list_file_btn').click(function () {
       $('#conv_list_file').val('');
       $('#conv_list_file').click();
     });
-    $('#conv_list_file').click(function() { $(this).val(''); });
+    $('#conv_list_file').click(function () { $(this).val(''); });
 
-    $('#conv_list_file').bind('change', function() {
+    $('#conv_list_file').bind('change', function () {
       var clf = get_dom_file('conv_list_file');
       $('#conv_list_file_val').val(clf.path);
 
       var file_loader = new FileReader();
 
-      file_loader.onload = function(ev) {
+      file_loader.onload = function (ev) {
         reset_conv_data();
 
         conv_data.file_map[clf.path] = true;
 
-        build_conv_tree(ev.target.result, clf.path, function() {
+        build_conv_tree(ev.target.result, clf.path, function () {
           // 显示属性树
           show_conv_tree();
         });
       };
 
-      file_loader.onerror = function(ev) {
-        alert('尝试读取文件失败:' +　file_path);
+      file_loader.onerror = function (ev) {
+        alert('尝试读取文件失败:' + file_path);
       };
 
       if (clf.file) {
@@ -649,57 +655,57 @@ function alert_error(content, title) {
       }
     });
 
-    $('#conv_list_btn_select_all').click(function() {
-      $('#conv_list').fancytree('getRootNode').visit(function(node) {
+    $('#conv_list_btn_select_all').click(function () {
+      $('#conv_list').fancytree('getRootNode').visit(function (node) {
         node.setSelected(true);
       });
     });
 
-    $('#conv_list_btn_select_none').click(function() {
-      $('#conv_list').fancytree('getRootNode').visit(function(node) {
+    $('#conv_list_btn_select_none').click(function () {
+      $('#conv_list').fancytree('getRootNode').visit(function (node) {
         node.setSelected(false);
       });
     });
 
-    $('#conv_list_btn_expand').click(function() {
-      $('#conv_list').fancytree('getRootNode').visit(function(node) {
+    $('#conv_list_btn_expand').click(function () {
+      $('#conv_list').fancytree('getRootNode').visit(function (node) {
         node.setExpanded(true);
       });
     });
 
-    $('#conv_list_btn_collapse').click(function() {
-      $('#conv_list').fancytree('getRootNode').visit(function(node) {
+    $('#conv_list_btn_collapse').click(function () {
+      $('#conv_list').fancytree('getRootNode').visit(function (node) {
         node.setExpanded(false);
       });
     });
 
-    $('#conv_list_btn_start_conv').click(function() { conv_start(); });
+    $('#conv_list_btn_start_conv').click(function () { conv_start(); });
 
     var rename_templates = [
-      {value: '/\\.bin$/.lua/', label: '.bin后缀 => .lua'},
-      {value: '/\\.bin$/.json/', label: '.bin后缀 => .json'},
-      {value: '/\\.bin$/.msgpack.bin/', label: '.bin后缀 => .msgpack.bin'},
-      {value: '/\\.bin$/.xml/', label: '.bin后缀 => .xml'}
+      { value: '/\\.bin$/.lua/', label: '.bin后缀 => .lua' },
+      { value: '/\\.bin$/.json/', label: '.bin后缀 => .json' },
+      { value: '/\\.bin$/.msgpack.bin/', label: '.bin后缀 => .msgpack.bin' },
+      { value: '/\\.bin$/.xml/', label: '.bin后缀 => .xml' }
     ];
 
     $('#conv_list_rename')
-        .autocomplete({
-          minLength: 0,
-          source: rename_templates,
-          focus: function(event, ui) {
-            $('#conv_list_rename').val(ui.item.value);
-            return false;
-          },
-          select: function(event, ui) {
-            $('#project').val(ui.item.value);
-            return false;
-          }
-        })
-        .autocomplete('instance')
-        ._renderItem = function(ul, item) {
-      return $('<li>').append('<a>' + item.label + '</a>').appendTo(ul);
-    };
-    $('#conv_list_rename').dblclick(function() {
+      .autocomplete({
+        minLength: 0,
+        source: rename_templates,
+        focus: function (event, ui) {
+          $('#conv_list_rename').val(ui.item.value);
+          return false;
+        },
+        select: function (event, ui) {
+          $('#project').val(ui.item.value);
+          return false;
+        }
+      })
+      .autocomplete('instance')
+      ._renderItem = function (ul, item) {
+        return $('<li>').append('<a>' + item.label + '</a>').appendTo(ul);
+      };
+    $('#conv_list_rename').dblclick(function () {
       $('#conv_list_rename').autocomplete('search', '');
     });
   });

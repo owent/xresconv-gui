@@ -10,9 +10,9 @@
 
 const electron = require('electron');
 // Module to control application life.
-const {app} = electron;
+const { app } = electron;
 // Module to create native browser window.
-const {BrowserWindow} = electron;
+const { BrowserWindow } = electron;
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -31,7 +31,10 @@ function createWindow() {
     skipTaskbar: false,
     frame: true,
     autoHideMenuBar: !app_config.debug,
-    icon: app_config.icon
+    icon: app_config.icon,
+    webPreferences: {
+      // nodeIntegration: false
+    }
   });
 
   // and load the index.html of the app.

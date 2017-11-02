@@ -7,11 +7,21 @@
 
     <!-- <script type="text/javascript" src="../node_modules/dist/jquery/jquery.min.js"></script> -->
     <script type="text/javascript">
-        window.jQuery = require(`${__dirname}/lib/jquery/jquery.min.js`);
+        module.paths.push(`${__dirname}`);
+        module.paths.push(`${__dirname}/lib/jquery`);
+        module.paths.push(`${__dirname}/lib/popper.js`);
+        module.paths.push(`${__dirname}/prebuilt/jquery-ui`);
+        module.paths.push(`${__dirname}/lib/jquery.fancytree/modules`);
+        window.$ = window.jQuery = require('jquery'); // 必须用jquery，不能jquery.min因为jquery-ui里面使用里这个名称
+        window.Popper = require('popper.min');
+        // require('jquery-ui');
     </script>
 
-    <link rel="stylesheet" href="prebuilt/jquery-ui/jquery-ui.min.css">
+    <!-- <script type="text/javascript" src="lib/jquery/jquery.min.js"></script> -->
+    <!-- <script type="text/javascript" src="lib/popper.js/popper.js"></script> -->
     <script type="text/javascript" src="prebuilt/jquery-ui/jquery-ui.min.js"></script>
+
+    <link rel="stylesheet" href="prebuilt/jquery-ui/jquery-ui.min.css">
 
     <link rel="stylesheet" href="lib/tether/css/tether.min.css">
     <script type="text/javascript" src="lib/tether/js/tether.min.js"></script>
@@ -21,7 +31,7 @@
     <script type="text/javascript" src="lib/bootstrap/js/bootstrap.min.js"></script>
 
     <link rel="stylesheet" href="lib/jquery.fancytree/skin-lion/ui.fancytree.min.css">
-    <script type="text/javascript" src="lib/jquery.fancytree/jquery.fancytree-all.min.js"></script>
+    <script type="text/javascript" src="lib/jquery.fancytree/jquery.fancytree-all-deps.min.js"></script>
 
     <link rel="stylesheet" href="main.css">
     <script type="text/javascript" src="main.js"></script>
@@ -42,34 +52,42 @@
 
     <div class="jumbotron" id="info_list_panel">
         <form class="container">
-            <div class="col-lg-9">
-                <div class="input-group">
-                    <span class="input-group-btn" for="conv_list_file_val">
-                        <button class="btn btn-info" type="button" id="conv_list_file_btn" >转换列表文件</button>
-                    </span>
-                    <input class="form-control" type="text" id="conv_list_file_val" placeholder="尚未载入任何文件，需要载入清单列表的xml文件(比如: convert_list.xml)"
-                        disabled="disabled" />
+            <div class="row">
+                <div class="col-lg-9">
+                    <div class="input-group">
+                        <span class="input-group-btn" for="conv_list_file_val">
+                            <button class="btn btn-info" type="button" id="conv_list_file_btn" >转换列表文件</button>
+                        </span>
+                        <input class="form-control" type="text" id="conv_list_file_val" placeholder="尚未载入任何文件，需要载入清单列表的xml文件(比如: convert_list.xml)"
+                            disabled="disabled" />
+                    </div>
                 </div>
+                <div class="col-lg-3">
+                    <div class="input-group">
+                        <label class="input-group-addon" for="conv_config_parallelism">并发数</label>
+                        <select class="form-control" id="conv_config_parallelism"></select>
+                    </div>
+                </div><input type="file" id="conv_list_file" placeholder="选择转换列表文件" />
             </div>
-            <div class="col-lg-3">
-                <div class="input-group">
-                    <label class="input-group-addon" for="conv_config_parallelism">转表并发数</label>
-                    <select class="form-control" id="conv_config_parallelism"></select>
-                </div>
-            </div><input type="file" id="conv_list_file" placeholder="选择转换列表文件" />
         </form>
         <br />
         <form class="form-inline container">
-            <div class="form-group col-lg-6">
+            <div class="form-group col-lg-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_xresloader">xresloader.jar的路径</label>
+                    <label class="input-group-addon" for="conv_list_xresloader">xresloader</label>
                     <input type="text" class="form-control" id="conv_list_xresloader" placeholder="xresloader.jar的路径" />
                 </div>
             </div>
-            <div class="form-group col-lg-6">
+            <div class="form-group col-lg-4">
                 <div class="input-group">
                     <label class="input-group-addon" for="conv_list_work_dir">执行目录</label>
                     <input type="text" class="form-control" id="conv_list_work_dir" placeholder="执行目录" />
+                </div>
+            </div>
+            <div class="form-group col-lg-4">
+                <div class="input-group">
+                    <label class="input-group-addon" for="conv_list_data_version">数据版本号</label>
+                    <input type="text" class="form-control" id="conv_list_data_version" placeholder="数据版本号" />
                 </div>
             </div>
         </form>
