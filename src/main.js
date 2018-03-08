@@ -179,8 +179,8 @@ function alert_error(content, title) {
           cat: jitem.attr('cat'),
           options: [],
           desc: (jitem.attr('name').trim() || jitem.attr('desc').trim() || '') +
-          ' -- 文件名: "' + jitem.attr('file') + '" 描述信息: "' +
-          jitem.attr('scheme') + '"',
+            ' -- 文件名: "' + jitem.attr('file') + '" 描述信息: "' +
+            jitem.attr('scheme') + '"',
           scheme_data: {}
         };
 
@@ -583,15 +583,15 @@ function alert_error(content, title) {
           dlg_body.empty();
           dlg_body
             .append(
-            '并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。')
+              '并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。')
             .append('<br />');
           dlg_body
             .append('通常可以通过修改JVM默认内存限制实现。(如: -Xmx2048m)')
             .append('<br />');
           dlg_body
             .append(
-            '您确定要把并发转表的进程数调整到 <strong>' + new_value +
-            '</strong> 吗？')
+              '您确定要把并发转表的进程数调整到 <strong>' + new_value +
+              '</strong> 吗？')
             .append('<br />');
 
           var btn_yes = $(
@@ -687,7 +687,6 @@ function alert_error(content, title) {
       { value: '/\\.bin$/.msgpack.bin/', label: '.bin后缀 => .msgpack.bin' },
       { value: '/\\.bin$/.xml/', label: '.bin后缀 => .xml' }
     ];
-
     $('#conv_list_rename')
       .autocomplete({
         minLength: 0,

@@ -1,9 +1,9 @@
 ﻿const app_config = {
   debug: false,
   width: 1280,
-  height: 760,
+  height: 768,
   minWidth: 1280,
-  minHeight: 680,
+  minHeight: 768,
   icon: `${__dirname}/../doc/logo.ico`,
   main: `file://${__dirname}/index.html`
 };

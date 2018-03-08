@@ -12,6 +12,7 @@
         module.paths.push(`${__dirname}/lib/popper.js`);
         module.paths.push(`${__dirname}/prebuilt/jquery-ui`);
         module.paths.push(`${__dirname}/lib/jquery.fancytree/modules`);
+        console.log(`${__dirname}/lib/jquery.fancytree/modules`);
         window.$ = window.jQuery = require('jquery'); // 必须用jquery，不能jquery.min因为jquery-ui里面使用里这个名称
         window.Popper = require('popper.min');
         // require('jquery-ui');
@@ -23,15 +24,18 @@
 
     <link rel="stylesheet" href="prebuilt/jquery-ui/jquery-ui.min.css">
 
-    <link rel="stylesheet" href="lib/tether/css/tether.min.css">
-    <script type="text/javascript" src="lib/tether/js/tether.min.js"></script>
-
     <link rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" href="lib/bootstrap/css/bootstrap-grid.min.css">
     <script type="text/javascript" src="lib/bootstrap/js/bootstrap.min.js"></script>
 
     <link rel="stylesheet" href="lib/jquery.fancytree/skin-lion/ui.fancytree.min.css">
-    <script type="text/javascript" src="lib/jquery.fancytree/jquery.fancytree-all-deps.min.js"></script>
+    <!-- <script type="text/javascript" src="lib/jquery.fancytree/jquery.fancytree-all-deps.min.js"></script> -->
+    <script type="text/javascript">
+        const fancytree = require('jquery.fancytree');
+        require('jquery.fancytree.edit');
+        require('jquery.fancytree.filter');
+        require('jquery.fancytree.ui-deps');
+    </script>
 
     <link rel="stylesheet" href="main.css">
     <script type="text/javascript" src="main.js"></script>
@@ -53,7 +57,7 @@
     <div class="jumbotron" id="info_list_panel">
         <form class="container">
             <div class="row">
-                <div class="col-lg-9">
+                <div class="col-md-9">
                     <div class="input-group">
                         <span class="input-group-btn" for="conv_list_file_val">
                             <button class="btn btn-info" type="button" id="conv_list_file_btn" >转换列表文件</button>
@@ -62,9 +66,9 @@
                             disabled="disabled" />
                     </div>
                 </div>
-                <div class="col-lg-3">
+                <div class="col-md-3">
                     <div class="input-group">
-                        <label class="input-group-addon" for="conv_config_parallelism">并发数</label>
+                        <label class="input-group-addon" for="conv_config_parallelism">并发数&nbsp;</label>
                         <select class="form-control" id="conv_config_parallelism"></select>
                     </div>
                 </div><input type="file" id="conv_list_file" placeholder="选择转换列表文件" />
@@ -72,53 +76,53 @@
         </form>
         <br />
         <form class="form-inline container">
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_xresloader">xresloader</label>
+                    <label class="input-group-addon" for="conv_list_xresloader">转表工具&nbsp;</label>
                     <input type="text" class="form-control" id="conv_list_xresloader" placeholder="xresloader.jar的路径" />
                 </div>
             </div>
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_work_dir">执行目录</label>
+                    <label class="input-group-addon" for="conv_list_work_dir">执行目录&nbsp;</label>
                     <input type="text" class="form-control" id="conv_list_work_dir" placeholder="执行目录" />
                 </div>
             </div>
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_data_version">数据版本号</label>
+                    <label class="input-group-addon" for="conv_list_data_version">数据版本&nbsp;</label>
                     <input type="text" class="form-control" id="conv_list_data_version" placeholder="数据版本号" />
                 </div>
             </div>
         </form>
         <form class="form-inline container">
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_proto_file">协议描述文件</label>
+                    <label class="input-group-addon" for="conv_list_proto_file">协议描述&nbsp;</label>
                     <input type="text" class="form-control" id="conv_list_proto_file" placeholder="协议描述文件" />
                 </div>
             </div>
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_output_dir">输出目录</label>
+                    <label class="input-group-addon" for="conv_list_output_dir">输出目录&nbsp;</label>
                     <input type="text" class="form-control" id="conv_list_output_dir" placeholder="输出目录" />
                 </div>
             </div>
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_data_src_dir">数据源目录</label>
+                    <label class="input-group-addon" for="conv_list_data_src_dir">数据目录&nbsp;</label>
                     <input type="text" class="form-control" id="conv_list_data_src_dir" placeholder="数据源目录" />
                 </div>
             </div>
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_rename">重命名规则</label>
+                    <label class="input-group-addon" for="conv_list_rename">输出重命名&nbsp;</label>
                     <input type="text" class="form-control" id="conv_list_rename" placeholder="正则表达式(双击查看示例)" />
                 </div>
             </div>
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_protocol">协议</label>
+                    <label class="input-group-addon" for="conv_list_protocol">协议类型&nbsp;</label>
                     <select class="form-control" id="conv_list_protocol">
                         <option selected="selected" value="protobuf">protobuf</option>
                         <option disabled="disabled" value="flatbuffer">flatbuffer</option>
@@ -126,11 +130,11 @@
                     </select>
                 </div>
             </div>
-            <div class="form-group col-lg-4">
+            <div class="form-group col-md-4">
                 <div class="input-group">
-                    <label class="input-group-addon" for="conv_list_output_type">输出类型</label>
+                    <label class="input-group-addon" for="conv_list_output_type">输出类型&nbsp;</label>
                     <select class="form-control" id="conv_list_output_type">
-                        <option selected="selected" value="bin">基于协议的二进制</option>
+                        <option selected="selected" value="bin">协议二进制</option>
                         <option value="lua">Lua配置</option>
                         <option value="msgpack">MsgPack二进制</option>
                         <option value="json">Json格式</option>

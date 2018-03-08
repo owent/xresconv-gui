@@ -40,6 +40,10 @@ npm install
 # 开发环境安装
 npm install --dev
 npm install -g gulp-cli
+
+# 升级依赖包
+npm upgrade --dev
+npm upgrade --save-dev
 ```
 
 直接启动
