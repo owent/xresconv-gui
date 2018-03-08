@@ -583,15 +583,15 @@ function alert_error(content, title) {
           dlg_body.empty();
           dlg_body
             .append(
-              '并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。')
+            '并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。')
             .append('<br />');
           dlg_body
             .append('通常可以通过修改JVM默认内存限制实现。(如: -Xmx2048m)')
             .append('<br />');
           dlg_body
             .append(
-              '您确定要把并发转表的进程数调整到 <strong>' + new_value +
-              '</strong> 吗？')
+            '您确定要把并发转表的进程数调整到 <strong>' + new_value +
+            '</strong> 吗？')
             .append('<br />');
 
           var btn_yes = $(
@@ -681,31 +681,31 @@ function alert_error(content, title) {
 
     $('#conv_list_btn_start_conv').click(function () { conv_start(); });
 
-    var rename_templates = [
-      { value: '/\\.bin$/.lua/', label: '.bin后缀 => .lua' },
-      { value: '/\\.bin$/.json/', label: '.bin后缀 => .json' },
-      { value: '/\\.bin$/.msgpack.bin/', label: '.bin后缀 => .msgpack.bin' },
-      { value: '/\\.bin$/.xml/', label: '.bin后缀 => .xml' }
-    ];
-    $('#conv_list_rename')
-      .autocomplete({
-        minLength: 0,
-        source: rename_templates,
-        focus: function (event, ui) {
-          $('#conv_list_rename').val(ui.item.value);
-          return false;
-        },
-        select: function (event, ui) {
-          $('#project').val(ui.item.value);
-          return false;
-        }
-      })
-      .autocomplete('instance')
-      ._renderItem = function (ul, item) {
-        return $('<li>').append('<a>' + item.label + '</a>').appendTo(ul);
-      };
-    $('#conv_list_rename').dblclick(function () {
-      $('#conv_list_rename').autocomplete('search', '');
-    });
+    // var rename_templates = [
+    //   { value: '/\\.bin$/.lua/', label: '.bin后缀 => .lua' },
+    //   { value: '/\\.bin$/.json/', label: '.bin后缀 => .json' },
+    //   { value: '/\\.bin$/.msgpack.bin/', label: '.bin后缀 => .msgpack.bin' },
+    //   { value: '/\\.bin$/.xml/', label: '.bin后缀 => .xml' }
+    // ];
+    // $('#conv_list_rename')
+    //   .autocomplete({
+    //     minLength: 0,
+    //     source: rename_templates,
+    //     focus: function (event, ui) {
+    //       $('#conv_list_rename').val(ui.item.value);
+    //       return false;
+    //     },
+    //     select: function (event, ui) {
+    //       $('#project').val(ui.item.value);
+    //       return false;
+    //     }
+    //   })
+    //   .autocomplete('instance')
+    //   ._renderItem = function (ul, item) {
+    //     return $('<li>').append('<a>' + item.label + '</a>').appendTo(ul);
+    //   };
+    // $('#conv_list_rename').dblclick(function () {
+    //   $('#conv_list_rename').autocomplete('search', '');
+    // });
   });
 })(jQuery, window);

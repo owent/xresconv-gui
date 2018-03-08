@@ -23,11 +23,9 @@
   },
   "devDependencies": {
     "electron-packager": ">=11.1.0",
-    "electron-prebuilt": ">=1.4.13",
     "grunt": ">=1.0.2",
     "grunt-electron": ">=8.0.0",
-    "gulp": "^3.9.1",
-    "jquery-ui": ">=1.12.1"
+    "gulp": "^3.9.1"
   },
   "scripts": {
     "prepare": "gulp copy-libs",

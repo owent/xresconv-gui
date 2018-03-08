@@ -10,19 +10,14 @@
         module.paths.push(`${__dirname}`);
         module.paths.push(`${__dirname}/lib/jquery`);
         module.paths.push(`${__dirname}/lib/popper.js`);
-        module.paths.push(`${__dirname}/prebuilt/jquery-ui`);
         module.paths.push(`${__dirname}/lib/jquery.fancytree/modules`);
         console.log(`${__dirname}/lib/jquery.fancytree/modules`);
-        window.$ = window.jQuery = require('jquery'); // 必须用jquery，不能jquery.min因为jquery-ui里面使用里这个名称
+        window.$ = window.jQuery = require('jquery');
         window.Popper = require('popper.min');
-        // require('jquery-ui');
     </script>
 
     <!-- <script type="text/javascript" src="lib/jquery/jquery.min.js"></script> -->
     <!-- <script type="text/javascript" src="lib/popper.js/popper.js"></script> -->
-    <script type="text/javascript" src="prebuilt/jquery-ui/jquery-ui.min.js"></script>
-
-    <link rel="stylesheet" href="prebuilt/jquery-ui/jquery-ui.min.css">
 
     <link rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" href="lib/bootstrap/css/bootstrap-grid.min.css">
@@ -34,7 +29,7 @@
         const fancytree = require('jquery.fancytree');
         require('jquery.fancytree.edit');
         require('jquery.fancytree.filter');
-        require('jquery.fancytree.ui-deps');
+        // require('jquery.fancytree.ui-deps');
     </script>
 
     <link rel="stylesheet" href="main.css">

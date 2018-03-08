@@ -1,6 +1,6 @@
 // 获取依赖
 var gulp = require('gulp'), childProcess = require('child_process'),
-  electron = require('electron-prebuilt'),
+  electron = require('electron'),
   electron_packger = require('electron-packager');
 
 var packger_options = {

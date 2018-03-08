@@ -1,5 +1,5 @@
 ﻿const app_config = {
-  debug: false,
+  debug: true,
   width: 1280,
   height: 768,
   minWidth: 1280,

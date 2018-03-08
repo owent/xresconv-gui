@@ -3,6 +3,15 @@
 1.4.1
 ------
 1. 更新依赖库到当前最新版本release（2018-03-08）
+2. 移除jQuery UI
+3. 移除electron-prebuilt，使用electron来执行打包盒开发环境启动
+4. 升级jQuery到3.3.1
+5. 升级bootstrap到4.0.0
+6. 升级electron到1.8.3
+7. 升级jquery.fancytree到2.28.0
+8. 升级popper.js到1.13.0
+9. 升级electron-packager到11.1.0
+
 
 1.4.0
 ------
