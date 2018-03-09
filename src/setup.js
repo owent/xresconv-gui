@@ -1,5 +1,5 @@
 ﻿const app_config = {
-  debug: true,
+  debug: false,
   width: 1280,
   height: 768,
   minWidth: 1280,
@@ -25,7 +25,7 @@ function createWindow() {
     height: app_config.height,
     minWidth: app_config.minWidth,
     minHeight: app_config.minHeight,
-    resizable: true,
+    resizable: false,
     movable: true,
     closable: true,
     skipTaskbar: false,

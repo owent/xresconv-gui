@@ -11,6 +11,7 @@
 7. 升级jquery.fancytree到2.28.0
 8. 升级popper.js到1.13.0
 9. 升级electron-packager到11.1.0
+10. 界面同步优化成bootstrap4
 
 
 1.4.0

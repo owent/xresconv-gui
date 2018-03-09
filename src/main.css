@@ -1,24 +1,26 @@
 
 #conv_list_panel {
-    width: 30%;
-    height: 700px;
-    float: left;
+    max-width: 30%;
+    min-height: 100%;
     overflow: auto;
 }
 
 #info_list_panel {
-    width: 70%;
-    float: right;
     padding: 16px 0px 5px 0px;
     margin-bottom: 0px;
+    min-height: 100%;
 }
 
 #info_list_panel > form.form-inline > div > div {
     width: 100%;
 }
 
+#conv_list {
+    padding: 0;
+}
+
 #conv_list_run_res {
-    height: 393px;
+    height: 404px;
     background-color: LightGray;
 }
 

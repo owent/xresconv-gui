@@ -583,15 +583,15 @@ function alert_error(content, title) {
           dlg_body.empty();
           dlg_body
             .append(
-            '并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。')
+              '并发度过大时会导致JVM有很高的内存消耗，可能会导致执行过程中达到JVM堆栈内存而崩溃。')
             .append('<br />');
           dlg_body
             .append('通常可以通过修改JVM默认内存限制实现。(如: -Xmx2048m)')
             .append('<br />');
           dlg_body
             .append(
-            '您确定要把并发转表的进程数调整到 <strong>' + new_value +
-            '</strong> 吗？')
+              '您确定要把并发转表的进程数调整到 <strong>' + new_value +
+              '</strong> 吗？')
             .append('<br />');
 
           var btn_yes = $(
@@ -680,6 +680,9 @@ function alert_error(content, title) {
     });
 
     $('#conv_list_btn_start_conv').click(function () { conv_start(); });
+    $('a', '#conv_list_rename_samples').click(function () {
+      $('#conv_list_rename').val($(this).attr('data-rename'));
+    });
 
     // var rename_templates = [
     //   { value: '/\\.bin$/.lua/', label: '.bin后缀 => .lua' },
