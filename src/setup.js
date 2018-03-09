@@ -25,7 +25,7 @@ function createWindow() {
     height: app_config.height,
     minWidth: app_config.minWidth,
     minHeight: app_config.minHeight,
-    resizable: false,
+    resizable: app_config.debug,
     movable: true,
     closable: true,
     skipTaskbar: false,
@@ -33,7 +33,7 @@ function createWindow() {
     autoHideMenuBar: !app_config.debug,
     icon: app_config.icon,
     webPreferences: {
-      // nodeIntegration: false
+      nodeIntegration: true
     }
   });
 

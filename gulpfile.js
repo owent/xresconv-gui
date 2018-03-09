@@ -6,12 +6,22 @@ var gulp = require('gulp'), childProcess = require('child_process'),
 var packger_options = {
   dir: '.',
   icon: 'doc/logo.ico',
-  ignore: ['node_modules', '.git', '.gitignore', '.vscode'],
+  ignore: [
+    'node_modules/.bin',
+    'node_modules/electron',
+    'node_modules/electron-prebuilt',
+    'node_modules/electron-prebuilt-compile',
+    'node_modules/electron-packager',
+    '.git',
+    '.gitignore',
+    '.vscode'
+  ],
   out: 'out',
   platform: 'all',
   arch: 'all',
   overwrite: true,
-  asar: false
+  prune: true,
+  asar: true
 };
 
 function extend_options(ret) {
@@ -32,18 +42,18 @@ function extend_options(ret) {
 
 // 创建 gulp 任务
 gulp.task('copy-libs', function () {
-  gulp.src('./node_modules/bootstrap/dist/**')
-    .pipe(gulp.dest('./src/lib/bootstrap'))
-    ;
-  gulp.src('./node_modules/jquery/dist/**')
-    .pipe(gulp.dest('./src/lib/jquery'))
-    ;
-  gulp.src('./node_modules/jquery.fancytree/dist/**')
-    .pipe(gulp.dest('./src/lib/jquery.fancytree'))
-    ;
-  gulp.src('./node_modules/popper.js/dist/umd/*.js')
-    .pipe(gulp.dest('./src/lib/popper.js'))
-    ;
+  // gulp.src('./node_modules/bootstrap/**')
+  //   .pipe(gulp.dest('./src/node_modules/bootstrap'))
+  //   ;
+  // gulp.src('./node_modules/jquery/**')
+  //   .pipe(gulp.dest('./src/node_modules/jquery'))
+  //   ;
+  // gulp.src('./node_modules/jquery.fancytree/**')
+  //   .pipe(gulp.dest('./src/node_modules/jquery.fancytree'))
+  //   ;
+  // gulp.src('./node_modules/popper.js/**')
+  //   .pipe(gulp.dest('./src/node_modules/popper.js'))
+  //   ;
 });
 
 gulp.task('run', ['copy-libs'], function () {

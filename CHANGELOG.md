@@ -12,6 +12,9 @@
 8. 升级popper.js到1.13.0
 9. 升级electron-packager到11.1.0
 10. 界面同步优化成bootstrap4
+11. 优化打包方式
+  + 使用标准的node_modules路径并排除开发工具依赖（解决electron会重置模块搜索目录的问题）
+  + 使用asar打包资源文件
 
 
 1.4.0

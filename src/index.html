@@ -5,26 +5,27 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <title>xresloader批量转表工具-GUI</title>
 
-    <!-- <script type="text/javascript" src="../node_modules/dist/jquery/jquery.min.js"></script> -->
+    <!-- <script type="text/javascript" src="../node_modules/jquery/dist/jquery.min.js"></script>     -->
+    <!-- <script type="text/javascript" src="../node_modules/popper.js/dist/popper.min.js"></script>  -->
     <script type="text/javascript">
         module.paths.push(`${__dirname}`);
-        module.paths.push(`${__dirname}/lib/jquery`);
-        module.paths.push(`${__dirname}/lib/popper.js`);
-        module.paths.push(`${__dirname}/lib/jquery.fancytree/modules`);
-        // console.log(`${__dirname}/lib/jquery.fancytree/modules`);
-        window.$ = window.jQuery = require('jquery');
-        window.Popper = require('popper.min');
+        // module.paths.push(`${__dirname}/../node_modules`);
+        module.paths.push(`${__dirname}/../node_modules/jquery.fancytree/dist/modules`);
+        // console.log(`${__dirname}`);
+
+        const jQuery = require('jquery');
+        const $ = jQuery;
+        window.$ = window.jQuery = jQuery;
+        window.Popper = require('popper.js');
+        
+        require('bootstrap');
     </script>
 
-    <!-- <script type="text/javascript" src="lib/jquery/jquery.min.js"></script> -->
-    <!-- <script type="text/javascript" src="lib/popper.js/popper.js"></script> -->
+    <link rel="stylesheet" href="../node_modules/bootstrap/dist/css/bootstrap.min.css">
+    <!-- <script type="text/javascript" src="../node_modules/bootstrap/dist/js/bootstrap.min.js"></script> -->
 
-    <link rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css">
-    <link rel="stylesheet" href="lib/bootstrap/css/bootstrap-grid.min.css">
-    <script type="text/javascript" src="lib/bootstrap/js/bootstrap.min.js"></script>
-
-    <link rel="stylesheet" href="lib/jquery.fancytree/skin-lion/ui.fancytree.min.css">
-    <!-- <script type="text/javascript" src="lib/jquery.fancytree/jquery.fancytree-all-deps.min.js"></script> -->
+    <link rel="stylesheet" href="../node_modules/jquery.fancytree/dist/skin-lion/ui.fancytree.min.css">
+    <!-- <script type="text/javascript" src="../node_modules/jquery.fancytree/dist/jquery.fancytree-all-deps.min.js"></script> -->
     <script type="text/javascript">
         const fancytree = require('jquery.fancytree');
         require('jquery.fancytree.edit');
@@ -33,10 +34,9 @@
     </script>
 
     <link rel="stylesheet" href="main.css">
-    <script type="text/javascript" src="main.js"></script>
-    <!-- <script type="text/javascript">
-        require(`${__dirname}/main.js`);
-    </script> -->
+    <script type="text/javascript">
+        require('main');
+    </script>
 </head>
 
 <body>
