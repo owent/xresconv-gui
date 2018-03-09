@@ -72,6 +72,7 @@ npm run-script debug
 
 然后VSCode打开调试面板Attach到进程上
 
+直接VSCode Lanch调试的方法见: https://electronjs.org/docs/tutorial/debugging-main-process-vscode
 
 *VSCode里直接Launch的方式仅在Windows下有效*
 

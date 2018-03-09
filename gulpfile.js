@@ -51,7 +51,7 @@ gulp.task('run', ['copy-libs'], function () {
 });
 
 gulp.task('debug', ['copy-libs'], function () {
-  childProcess.spawn(electron, ['--debug-brk=5858', '.'], { stdio: 'inherit' });
+  childProcess.spawn(electron, ['--inspect-brk=5858', '.'], { stdio: 'inherit' });
 });
 
 gulp.task('package', ['copy-libs'], function () {

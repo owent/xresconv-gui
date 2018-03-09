@@ -1,6 +1,7 @@
 {
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "Launch",
             "type": "node",
@@ -17,9 +18,9 @@
             "env": {
                 "NODE_ENV": "development"
             },
-            "externalConsole": false,
+            "console": "internalConsole",
             "sourceMaps": false,
-            "outDir": null
+            "outFiles": []
         },
         {
             "name": "Attach",
@@ -29,7 +30,7 @@
             "address": "localhost",
             "restart": false,
             "sourceMaps": false,
-            "outDir": null,
+            "outFiles": [],
             "localRoot": "${workspaceRoot}",
             "remoteRoot": null
         }
