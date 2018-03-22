@@ -205,8 +205,10 @@ function alert_error(content, title) {
             if (scheme_key.toLowerCase() == "datasource") {
               var data_source = nj_node.html().split("|");
               if (data_source && data_source.length > 1) {
+                item_data.file = data_source[0];
                 scheme_info_text = ' -- 文件名: "' + data_source[0] + '" 表: "' + data_source[1] + '"';
               } else if (data_source) {
+                item_data.file = data_source[0];
                 scheme_info_text = ' -- 文件名: "' + data_source[0];
               }
             }
