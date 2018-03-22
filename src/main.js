@@ -171,6 +171,7 @@ function alert_error(content, title) {
         var jitem = $(item_node);
         var id = generate_id();
 
+        var scheme_info_text = ' -- 文件名: "' + jitem.attr('file') + '" 描述信息: "' + jitem.attr('scheme') + '"';
         var item_data = {
           id: id,
           file: jitem.attr('file'),
@@ -178,22 +179,9 @@ function alert_error(content, title) {
           name: (jitem.attr('name').trim() || ''),
           cat: jitem.attr('cat'),
           options: [],
-          desc: (jitem.attr('name').trim() || jitem.attr('desc').trim() || '') +
-            ' -- 文件名: "' + jitem.attr('file') + '" 描述信息: "' +
-            jitem.attr('scheme') + '"',
+          desc: (jitem.attr('name').trim() || jitem.attr('desc').trim() || ''),
           scheme_data: {}
         };
-
-        // GUI 显示规则
-        if (conv_data.gui.set_name) {
-          try {
-            item_data = conv_data.gui.set_name(item_data) || item_data;
-          } catch (err) {
-            alert_error(
-              'GUI脚本执行错误(gui.set_name):<pre class="form-control conv_pre_default">' +
-              err.toString() + '</pre>');
-          }
-        }
 
         $.each(jitem.children('option'), function (k, v) {
           var nj_node = $(v);
@@ -213,11 +201,35 @@ function alert_error(content, title) {
             } else {
               item_data.scheme_data[scheme_key] = [nj_node.html()];
             }
+
+            if (scheme_key.toLowerCase() == "datasource") {
+              var data_source = nj_node.html().split("|");
+              if (data_source && data_source.length > 1) {
+                item_data.file = data_source[0];
+                scheme_info_text = ' -- 文件名: "' + data_source[0] + '" 表: "' + data_source[1] + '"';
+              } else if (data_source) {
+                item_data.file = data_source[0];
+                scheme_info_text = ' -- 文件名: "' + data_source[0];
+              }
+            }
           }
         });
         for (var key in conv_data.default_scheme) {
           if (!item_data.scheme_data[key]) {
             item_data.scheme_data[key] = conv_data.default_scheme[key];
+          }
+        }
+
+        item_data.desc = item_data.desc + scheme_info_text;
+
+        // GUI 显示规则
+        if (conv_data.gui.set_name) {
+          try {
+            item_data = conv_data.gui.set_name(item_data) || item_data;
+          } catch (err) {
+            alert_error(
+              'GUI脚本执行错误(gui.set_name):<pre class="form-control conv_pre_default">' +
+              err.toString() + '</pre>');
           }
         }
 
