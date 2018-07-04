@@ -506,8 +506,8 @@ function alert_error(content, title) {
 
           xresloader_exec.stderr.on('data', function (data) {
             run_log.append(
-              '<strong style=\'color: Red;\'>' + shell_color_to_html(data) +
-              '</strong>\r\n');
+              '<div class="alert alert-danger">' + shell_color_to_html(data) +
+              '</div>\r\n');
             run_log.scrollTop(run_log.prop('scrollHeight'));
             run_one_cmd(xresloader_index, xresloader_exec);
           });
@@ -541,10 +541,54 @@ function alert_error(content, title) {
       }
     } catch (e) {
       run_log.append(
-        '<strong style=\'color: Red;\'>' + e.toString() + '</strong>\r\n');
+        '<div class="alert alert-danger">' + e.toString() + '</div>\r\n');
       run_log.scrollTop(run_log.prop('scrollHeight'));
       alert('出错啦: ' + e.toString());
     }
+  }
+
+  function conv_env_check() {
+    var run_log = $('#conv_list_run_res');
+    var dep_text = '';
+    var dep_msg = '<div class="alert alert-danger">请确保已安装<a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html" target="_blank">JRE或JDK 1.8.0</a>或以上</div>\r\n';
+    try {
+      var spawn = require('child_process').spawn;
+      var java_exec =
+        spawn('java', ['-version'], { encoding: 'utf8', shell: true });
+      java_exec.stdout.on('data', function (data) {
+        dep_text += data;
+      });
+      java_exec.stderr.on('data', function (data) {
+        dep_text += data;
+      });
+      java_exec.on('close', function () {
+        const find_java_version = dep_text.match(/\d+/g);
+        if (find_java_version && find_java_version.length < 2) {
+          run_log.append(
+            '<div class="alert alert-danger">查询不到java版本号</div>\r\n');
+          run_log.append(dep_msg);
+        } else if (find_java_version && (parseInt(find_java_version[0]) > 1 || parseInt(find_java_version[1]) >= 8)) {
+          run_log.append(
+            '<div class="alert alert-primary">' + dep_text + '</div>\r\n');
+        } else {
+          if (dep_text) {
+            run_log.append(
+              '<div class="alert alert-primary">' + dep_text + '</div>\r\n');
+          }
+          run_log.append(
+            '<div class="alert alert-danger">检测不到java或java版本号过老</div>\r\n');
+          run_log.append(dep_msg);
+        }
+      });
+
+      java_exec.stdin.end();
+    } catch (e) {
+      run_log.append(
+        '<div class="alert alert-danger">' + e.toString() + '</div>\r\n');
+      run_log.append(dep_msg);
+    }
+
+    run_log.scrollTop(run_log.prop('scrollHeight'));
   }
 
   $(document).ready(function () {
@@ -722,5 +766,7 @@ function alert_error(content, title) {
     // $('#conv_list_rename').dblclick(function () {
     //   $('#conv_list_rename').autocomplete('search', '');
     // });
+
+    conv_env_check();
   });
 })(jQuery, window);
