@@ -25,6 +25,39 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 ======
 1. 文件名最好全英文，因为GUI工具中的编码统一使用UTF-8，而Windows默认编码是GBK。如果转表工具也使用UTF-8的话Windows下会找不到中文文件名。
 
+事件支持
+======
+2.1.0 版本开始增加了事件支持。事件格式如下：
+
+```xml
+<gui>
+    <on_before_convert type="text/javascript" timeout="超时时间（毫秒）" description="开始转表前的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+        // 事件代码脚本
+    </on_before_convert>
+    <on_after_convert type="text/javascript" timeout="超时时间（毫秒）" description="转表结束后的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+        // 事件代码脚本
+    </on_after_convert>
+</gui>
+```
+
+在事件系统中，可用的接口如下:
+
+```javascript
+{
+    work_dir: "执行xresloader的工作目录",
+    xresloader_path: "xresloader目录",
+    global_options: {"全局选项": "VALUE"},
+    selected_nodes: ["选中要执行转表的节点集合"],
+    run_seq: "执行序号",
+    alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
+    alert_error: function(content, title) {}, // 错误弹框
+    log_info: function (content) {}, // 打印info日志
+    log_error: function (content) {}, // 打印info日志
+    done: function (done) {}, // 通知上层执行结束
+    require: function (name) {} // 相当于 nodejs的 require(name) 用于导入nodejs 模块
+}
+```
+
 开发使用说明
 ======
 以下内容仅是对这个工具的开发和维护进行说明，直接使用的话[下载预发布包](https://github.com/xresloader/xresconv-gui/releases)即可

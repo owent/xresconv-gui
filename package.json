@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "1.4.2",
+  "version": "2.1.0",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
@@ -15,17 +15,15 @@
     "doc": "doc"
   },
   "dependencies": {
-    "bootstrap": "^4.0.0",
-    "electron": "^2.0.4",
-    "jquery": "^3.3.1",
-    "jquery.fancytree": ">=2.28.0",
-    "popper.js": "^1.13.0"
+    "bootstrap": "^4.3.1",
+    "electron": "^4.0.18",
+    "jquery": "^3.4.0",
+    "jquery.fancytree": "^2.30.2",
+    "popper.js": "^1.15.0"
   },
   "devDependencies": {
-    "electron-packager": ">=11.1.0",
-    "grunt": ">=1.0.2",
-    "grunt-electron": ">=8.0.0",
-    "gulp": "^3.9.1"
+    "electron-packager": "^13.1.1",
+    "gulp": "^4.0.0"
   },
   "scripts": {
     "prepare": "gulp copy-libs",
@@ -33,7 +31,9 @@
     "vscode-start": "electron --debug=5858 .",
     "debug": "gulp debug",
     "package-test": "gulp package-test",
-    "package": "gulp package",
+    "package-win32": "gulp package-win32",
+    "package-linux": "gulp package-linux",
+    "package-darwin": "gulp package-darwin",
     "package-all": "gulp package-all"
   },
   "repository": {
@@ -42,12 +42,10 @@
   },
   "author": "owent",
   "license": "MIT",
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "https://github.com/xresloader/xresconv-gui/blob/master/LICENSE"
-    }
-  ],
+  "licenses": [{
+    "type": "MIT",
+    "url": "https://github.com/xresloader/xresconv-gui/blob/master/LICENSE"
+  }],
   "bugs": {
     "url": "https://github.com/xresloader/xresconv-gui/issues"
   },

@@ -1,5 +1,12 @@
 更新记录
 ==========
+2.1.0
+------
+1. 更新依赖库到当前最新版本release（2018-07-04）
+2. 支持xresloader 2.0.0的输出类型
+3. 修复未知的输出目标会导致加载失败的问题
+4. 增加事件支持 ```<on_before_convert>NODEJS CODE...</on_before_convert>``` 和 ```<on_after_convert>NODEJS CODE...</on_after_convert>```
+
 1.4.2
 ------
 1. 增加java环境检测脚本

@@ -1,5 +1,6 @@
 // 获取依赖
-var gulp = require('gulp'), childProcess = require('child_process'),
+var gulp = require('gulp'),
+  childProcess = require('child_process'),
   electron = require('electron'),
   electron_packger = require('electron-packager');
 
@@ -41,7 +42,7 @@ function extend_options(ret) {
 }
 
 // 创建 gulp 任务
-gulp.task('copy-libs', function () {
+gulp.task('copy-libs', function (done) {
   // gulp.src('./node_modules/bootstrap/**')
   //   .pipe(gulp.dest('./src/node_modules/bootstrap'))
   //   ;
@@ -54,29 +55,69 @@ gulp.task('copy-libs', function () {
   // gulp.src('./node_modules/popper.js/**')
   //   .pipe(gulp.dest('./src/node_modules/popper.js'))
   //   ;
+
+  done();
 });
 
-gulp.task('run', ['copy-libs'], function () {
-  childProcess.spawn(electron, ['.'], { stdio: 'inherit' });
-});
+gulp.task('run', gulp.series('copy-libs', function (done) {
+  childProcess.spawn(electron, ['.'], {
+    stdio: 'inherit'
+  });
 
-gulp.task('debug', ['copy-libs'], function () {
-  childProcess.spawn(electron, ['--inspect-brk=5858', '.'], { stdio: 'inherit' });
-});
+  done();
+}));
 
-gulp.task('package', ['copy-libs'], function () {
+gulp.task('debug', gulp.series('copy-libs', function (done) {
+  childProcess.spawn(electron, ['--inspect-brk=5858', '.'], {
+    stdio: 'inherit'
+  });
+
+  done();
+}));
+
+gulp.task('package-win32', gulp.series('copy-libs', function (done) {
   var opts = extend_options({}, packger_options, {
-    platform: 'all',
-    arch: 'x64',
+    platform: 'win32',
+    arch: 'all',
   });
   electron_packger(opts, function (err, appPaths) {
     if (err) {
       console.log(`${appPaths}: ${err}`);
     }
+  }).then(function () {
+    done();
   });
-});
+}));
 
-gulp.task('package-all', ['copy-libs'], function () {
+gulp.task('package-linux', gulp.series('copy-libs', function (done) {
+  var opts = extend_options({}, packger_options, {
+    platform: 'linux',
+    arch: 'all',
+  });
+  electron_packger(opts, function (err, appPaths) {
+    if (err) {
+      console.log(`${appPaths}: ${err}`);
+    }
+  }).then(function () {
+    done();
+  });
+}));
+
+gulp.task('package-darwin', gulp.series('copy-libs', function (done) {
+  var opts = extend_options({}, packger_options, {
+    platform: 'darwin',
+    arch: 'all',
+  });
+  electron_packger(opts, function (err, appPaths) {
+    if (err) {
+      console.log(`${appPaths}: ${err}`);
+    }
+  }).then(function () {
+    done();
+  });
+}));
+
+gulp.task('package-all', gulp.series('copy-libs', function (done) {
   var opts = extend_options({}, packger_options, {
     platform: 'all',
     arch: 'all',
@@ -85,10 +126,12 @@ gulp.task('package-all', ['copy-libs'], function () {
     if (err) {
       console.log(`${appPaths}: ${err}`);
     }
+  }).then(function () {
+    done();
   });
-});
+}));
 
-gulp.task('package-test', ['copy-libs'], function () {
+gulp.task('package-test', gulp.series('copy-libs', function (done) {
   var opts = extend_options({}, packger_options, {
     platform: 'win32',
     arch: 'x64',
@@ -98,5 +141,7 @@ gulp.task('package-test', ['copy-libs'], function () {
     if (err) {
       console.log(`${appPaths}: ${err}`);
     }
+  }).then(function () {
+    done();
   });
-});
+}));
