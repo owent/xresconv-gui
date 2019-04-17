@@ -691,7 +691,7 @@ function alert_warning(content, tittle, options) {
             },
             log_error: function (content) {
               if (content) {
-                run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + shell_color_to_html(content) + '</div>\r\n');
+                run_log.append('<div style="color: Red;">[CONV EVENT] ' + shell_color_to_html(content) + '</div>\r\n');
                 run_log.scrollTop(run_log.prop('scrollHeight'));
               }
             },
@@ -748,7 +748,7 @@ function alert_warning(content, tittle, options) {
                       }, evt_obj.vm_script.timeout);
                     } catch (e) {
                       const err_msg = e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "");
-                      run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + err_msg + '</div>\r\n');
+                      run_log.append('<div style="color: Red;">[CONV EVENT] ' + err_msg + '</div>\r\n');
                       run_log.scrollTop(run_log.prop('scrollHeight'));
                       if (null != evt_obj.timer_handle) {
                         clearTimeout(evt_obj.timer_handle);
@@ -772,7 +772,7 @@ function alert_warning(content, tittle, options) {
           });
           current_promise = append_event(current_promise, conv_data.gui.on_after_convert);
         } catch (e) {
-          run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "") + '</div>\r\n');
+          run_log.append('<div style="color: Red;">[CONV EVENT] ' + e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "") + '</div>\r\n');
           run_log.scrollTop(run_log.prop('scrollHeight'));
         }
       } else {
@@ -783,7 +783,7 @@ function alert_warning(content, tittle, options) {
 
       // 结束
       current_promise = current_promise.catch(function (onrejected) {
-        run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + onrejected.toString() + '</div>\r\n');
+        run_log.append('<div style="color: Red;">[CONV EVENT] ' + onrejected.toString() + '</div>\r\n');
         run_log.scrollTop(run_log.prop('scrollHeight'));
       }).finally(function () {
         if (failed_count > 0) {
@@ -801,8 +801,9 @@ function alert_warning(content, tittle, options) {
         run_log.scrollTop(run_log.prop('scrollHeight'));
       });
     } catch (e) {
+      var run_log = $('#conv_list_run_res');
       run_log.append(
-        '<div class="alert alert-danger">' + e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "") + '</div>\r\n');
+        '<div style="color: Red;">' + e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "") + '</div>\r\n');
       run_log.scrollTop(run_log.prop('scrollHeight'));
       alert('出错啦: ' + e.toString());
     }
@@ -930,8 +931,8 @@ function alert_warning(content, tittle, options) {
       $(this).val('');
     });
 
-    const on_load_conv_list_file = function () {
-      var clf = conv_data.input_file;
+    const on_load_conv_list_file = function (input_file) {
+      var clf = input_file;
       $('#conv_list_file_val').val(clf.path);
 
       const fs = require("fs");
@@ -939,9 +940,11 @@ function alert_warning(content, tittle, options) {
         if (err) {
           alert_error(err.toString(), "加载 " + clf.path + " 失败");
           console.error(err.toString());
+          $('#conv_list_file_val').val("加载文件失败！");
         } else {
           reset_conv_data();
 
+          conv_data.input_file = input_file;
           conv_data.file_map[clf.path] = true;
 
           build_conv_tree(data, clf.path, function () {
@@ -952,8 +955,7 @@ function alert_warning(content, tittle, options) {
       });
     };
     $('#conv_list_file').bind('change', function () {
-      conv_data.input_file = get_dom_file('conv_list_file');
-      on_load_conv_list_file();
+      on_load_conv_list_file(get_dom_file('conv_list_file'));
     });
 
     $('#conv_list_btn_select_all').click(function () {
@@ -1022,8 +1024,7 @@ function alert_warning(content, tittle, options) {
         if (input_file && input_file.length > 1) {
           const init_file_path = decodeURIComponent(input_file[1]);
           console.log("open file: " + init_file_path);
-          conv_data.input_file = get_string_file(init_file_path);
-          on_load_conv_list_file();
+          on_load_conv_list_file(get_string_file(init_file_path));
         }
       }
     } catch (e) {
