@@ -13,6 +13,10 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 ======
 点击[此处](https://github.com/xresloader/xresconv-gui/releases)并根据需要下载对应系统的包，直接执行里面的二进制即可。
 
+启动参数
+------
+可以通过增加启动参数 ```--input <文件名>``` 来指定初始的转表清单文件。
+
 示例截图
 ------
 ![示例截图-1](doc/snapshoot-1.png)
@@ -31,8 +35,11 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 
 ```xml
 <gui>
-    <on_before_convert type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="开始转表前的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+    <set_name description="设置转表项的名字字段，每个转表项会调用一次">
         // 事件代码脚本
+    </set_name>
+    <on_before_convert type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="开始转表前的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+        
     </on_before_convert>
     <on_after_convert type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="转表结束后的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
         // 事件代码脚本
@@ -40,7 +47,24 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 </gui>
 ```
 
-在事件系统中，可用的接口如下:
+在 **set_name** 事件系统中，可用的接口如下:
+
+```javascript
+{
+    item_data: {
+        id: id,
+        file: "数据源文件",
+        scheme: "数据源scheme表名",
+        name: "描述名称",
+        cat: "分类名称",
+        options: ["额外选项"],
+        desc: "描述信息",
+        scheme_data: {"元数据Key": "元数据Value"}
+    }
+}
+```
+
+在 **on_before_convert/on_after_convert** 事件系统中，可用的接口如下:
 
 ```javascript
 {

@@ -41,8 +41,21 @@ function createWindow() {
     }
   });
 
+  var main_url = app_config.main;
+  if (process) {
+    var is_input = false;
+    for (const v of process.argv) {
+      if (is_input) {
+        main_url = main_url + "?input=" + encodeURIComponent(v.replace(/\\/g, "/"));
+        break;
+      } else if (v == "--input") {
+        is_input = true;
+      }
+    }
+  }
+
   // and load the index.html of the app.
-  win.loadURL(app_config.main);
+  win.loadURL(main_url);
 
   // Open the DevTools.
   if (app_config.debug) {

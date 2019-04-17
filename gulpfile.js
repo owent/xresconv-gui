@@ -60,7 +60,12 @@ gulp.task('copy-libs', function (done) {
 });
 
 gulp.task('run', gulp.series('copy-libs', function (done) {
-  childProcess.spawn(electron, ['.'], {
+  const args = ['.'];
+  for (const v of process.argv.slice(3)) {
+    args.push(v);
+  }
+  console.log(args);
+  childProcess.spawn(electron, args, {
     stdio: 'inherit'
   });
 
@@ -68,7 +73,12 @@ gulp.task('run', gulp.series('copy-libs', function (done) {
 }));
 
 gulp.task('debug', gulp.series('copy-libs', function (done) {
-  childProcess.spawn(electron, ['--inspect-brk=5858', '.'], {
+  const args = ['--inspect-brk=5858', '.'];
+  for (const v of process.argv.slice(3)) {
+    args.push(v);
+  }
+  console.log(args);
+  childProcess.spawn(electron, args, {
     stdio: 'inherit'
   });
 

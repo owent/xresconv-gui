@@ -8,6 +8,8 @@
 4. 增加事件支持 ```<on_before_convert>NODEJS CODE...</on_before_convert>``` 和 ```<on_after_convert>NODEJS CODE...</on_after_convert>```
 5. 采用Promise模型重构执行任务链
 6. 增加CI的自动发布流程
+7. ```<set_name></set_name>``` 事件改为直接运行，不再需要返回一个function并且在沙箱环境中运行
+8. 增加启动参数 ```--input <文件名>``` 用以支持设置初始加载的转表清单配置
 
 1.4.2
 ------

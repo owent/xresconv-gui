@@ -75,31 +75,19 @@ function alert_warning(content, tittle, options) {
       },
       tree: [],
       category: {},
-      file_map: {}
+      file_map: {},
+      input_file: null
     };
   }
 
-  function get_dom_file(dom_id) {
-    var ret = {
-      file: null,
-      path: '',
+  function get_string_file(file_path) {
+    const ret = {
+      path: file_path,
       filename: '',
       dirname: '.'
     };
 
-    var sel_dom = document.getElementById(dom_id);
-    if (!sel_dom) {
-      return ret;
-    }
-
-    ret.file = sel_dom.files.length > 0 ? sel_dom.files[0] : null;
-    if (ret.file) {
-      ret.path = ret.file.path || sel_dom.value;
-    } else {
-      ret.path = sel_dom.value;
-    }
-
-    var mres = ret.path.match(/[^\/\\]*$/);
+    const mres = ret.path.match(/[^\/\\]*$/);
     if (mres) {
       ret.filename = mres[0];
     }
@@ -112,6 +100,20 @@ function alert_warning(content, tittle, options) {
     }
 
     return ret;
+  }
+
+  function get_dom_file(dom_id) {
+    var sel_dom = document.getElementById(dom_id);
+    if (!sel_dom) {
+      return ret;
+    }
+
+    const file = sel_dom.files.length > 0 ? sel_dom.files[0] : null;
+    if (file) {
+      return get_string_file(file.path || sel_dom.value);
+    } else {
+      return get_string_file(sel_dom.value);
+    }
   }
 
   function build_conv_tree(context, current_path, callback) {
@@ -225,7 +227,10 @@ function alert_warning(content, tittle, options) {
       conv_data.gui.set_name = null;
       $.each(jdom.children('gui').children('set_name'), function (k, dom) {
         try {
-          conv_data.gui.set_name = eval($(dom).html());
+          const vm = require('vm');
+          conv_data.gui.set_name = new vm.Script($(dom).html(), {
+            filename: current_path
+          });
         } catch (err) {
           alert_error(
             'GUI脚本编译错误(gui.set_name):<pre class="form-control conv_pre_default">' +
@@ -339,7 +344,11 @@ function alert_warning(content, tittle, options) {
         // GUI 显示规则
         if (conv_data.gui.set_name) {
           try {
-            item_data = conv_data.gui.set_name(item_data) || item_data;
+            const vm = require('vm');
+            const vm_context = vm.createContext({
+              item_data: item_data
+            });
+            conv_data.gui.set_name.runInContext(vm_context);
           } catch (err) {
             alert_error(
               'GUI脚本执行错误(gui.set_name):<pre class="form-control conv_pre_default">' +
@@ -520,7 +529,7 @@ function alert_warning(content, tittle, options) {
       var work_dir = $('#conv_list_work_dir').val();
       if (work_dir && work_dir[0] != '/' &&
         (work_dir.length < 2 || work_dir[1] != ':')) {
-        work_dir = get_dom_file('conv_list_file').dirname + '/' + work_dir;
+        work_dir = conv_data.input_file.dirname + '/' + work_dir;
       }
 
       var xresloader_path = $('#conv_list_xresloader').val();
@@ -921,30 +930,30 @@ function alert_warning(content, tittle, options) {
       $(this).val('');
     });
 
-    $('#conv_list_file').bind('change', function () {
-      var clf = get_dom_file('conv_list_file');
+    const on_load_conv_list_file = function () {
+      var clf = conv_data.input_file;
       $('#conv_list_file_val').val(clf.path);
 
-      var file_loader = new FileReader();
+      const fs = require("fs");
+      fs.readFile(clf.path, "utf8", function (err, data) {
+        if (err) {
+          alert_error(err.toString(), "加载 " + clf.path + " 失败");
+          console.error(err.toString());
+        } else {
+          reset_conv_data();
 
-      file_loader.onload = function (ev) {
-        reset_conv_data();
+          conv_data.file_map[clf.path] = true;
 
-        conv_data.file_map[clf.path] = true;
-
-        build_conv_tree(ev.target.result, clf.path, function () {
-          // 显示属性树
-          show_conv_tree();
-        });
-      };
-
-      file_loader.onerror = function (ev) {
-        alert('尝试读取文件失败:' + file_path);
-      };
-
-      if (clf.file) {
-        file_loader.readAsText(clf.file);
-      }
+          build_conv_tree(data, clf.path, function () {
+            // 显示属性树
+            show_conv_tree();
+          });
+        }
+      });
+    };
+    $('#conv_list_file').bind('change', function () {
+      conv_data.input_file = get_dom_file('conv_list_file');
+      on_load_conv_list_file();
     });
 
     $('#conv_list_btn_select_all').click(function () {
@@ -1006,5 +1015,19 @@ function alert_warning(content, tittle, options) {
     // });
 
     conv_env_check();
+
+    try {
+      if (location.search) {
+        var input_file = location.search.match(/input=([^\\&\\#]+)/i);
+        if (input_file && input_file.length > 1) {
+          const init_file_path = decodeURIComponent(input_file[1]);
+          console.log("open file: " + init_file_path);
+          conv_data.input_file = get_string_file(init_file_path);
+          on_load_conv_list_file();
+        }
+      }
+    } catch (e) {
+      // ignore load initialize file failed
+    }
   });
 })(jQuery, window);
