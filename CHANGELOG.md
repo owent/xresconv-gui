@@ -6,6 +6,8 @@
 2. 支持xresloader 2.0.0的输出类型
 3. 修复未知的输出目标会导致加载失败的问题
 4. 增加事件支持 ```<on_before_convert>NODEJS CODE...</on_before_convert>``` 和 ```<on_after_convert>NODEJS CODE...</on_after_convert>```
+5. 采用Promise模型重构执行任务链
+6. 增加CI的自动发布流程
 
 1.4.2
 ------

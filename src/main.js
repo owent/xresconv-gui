@@ -170,7 +170,7 @@ function alert_warning(content, tittle, options) {
           if (output_type_cfg.length > 0) {
             $('#conv_list_output_type').get(0).selectedIndex =
               output_type_cfg.get(0)
-              .index;
+                .index;
           } else {
             var parent_node = $('#conv_list_output_type');
             var unknown_node = $('<option></option>').attr("value", val).text("未知格式: " + val);
@@ -239,7 +239,7 @@ function alert_warning(content, tittle, options) {
           var env_jdom = $(dom);
           const vm = require('vm');
           const timeout_str = env_jdom.attr("timeout");
-          var timeout = 300000;
+          var timeout = 30000;
           if (timeout_str) {
             timeout = parseInt(timeout_str);
           }
@@ -263,7 +263,7 @@ function alert_warning(content, tittle, options) {
           var env_jdom = $(dom);
           const vm = require('vm');
           const timeout_str = env_jdom.attr("timeout");
-          var timeout = 300000;
+          var timeout = 30000;
           if (timeout_str) {
             timeout = parseInt(timeout_str);
           }
@@ -591,31 +591,11 @@ function alert_warning(content, tittle, options) {
       var failed_count = 0;
       conv_data.run_seq = run_seq;
 
-      var pending_jobs = []
+      var current_promise = new Promise(function (resolve, reject) {
+        resolve.apply(this, [arguments]);
+      });
 
-      function done() {
-        if (0 == pending_jobs.length) {
-          if (failed_count > 0) {
-            run_log.append(
-              '<span style=\'color: DarkRed;\'>All jobs done, ' +
-              failed_count + ' job(s) failed.</strong>\r\n');
-            run_log.addClass('conv_list_run_error');
-            run_log.removeClass('conv_list_run_running');
-          } else {
-            run_log.append(
-              '<span style=\'color: DarkRed;\'>All jobs done.</strong>\r\n');
-            run_log.addClass('conv_list_run_success');
-            run_log.removeClass('conv_list_run_running');
-          }
-          run_log.scrollTop(run_log.prop('scrollHeight'));
-          return;
-        }
-
-        var next_job = pending_jobs.shift();
-        next_job.apply(this, [done]);
-      };
-
-      function run_all_cmds() {
+      function run_all_cmds(resolve, reject) {
         function run_one_cmd(xresloader_index, xresloader_exec) {
           if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
             var cmd = pending_script.pop();
@@ -670,7 +650,11 @@ function alert_warning(content, tittle, options) {
               }
 
               if (running_count <= 0 && conv_data.run_seq == run_seq) {
-                done.apply(this, [done]);
+                if (failed_count <= 0) {
+                  resolve.apply(this, [arguments]);
+                } else {
+                  reject.apply(this, [arguments]);
+                }
               }
             });
             run_one_cmd(xresloader_index, xresloader_exec);
@@ -702,95 +686,111 @@ function alert_warning(content, tittle, options) {
                 run_log.scrollTop(run_log.prop('scrollHeight'));
               }
             },
-            // done: done,
+            // resolve: resolve,
+            // reject: reject,
             require: require
           };
 
-          if (conv_data.gui.on_before_convert) {
-            for (var i = 0; i < conv_data.gui.on_before_convert.length; ++i) {
-              const evt_obj = {
-                vm_script: conv_data.gui.on_before_convert[i],
-                has_done: false
-              };
-              const done_func = function () {
-                if (evt_obj.has_done) {
-                  return;
-                }
-                evt_obj.has_done = true;
-                done.apply(this, arguments);
-              };
-              pending_jobs.push(function () {
-                try {
-                  const vm_context = vm.createContext(jQuery.extend({
-                    done: done_func,
-                  }, vm_context_obj));
-                  evt_obj.vm_script.fn.runInContext(vm_context, {
-                    displayErrors: true,
-                    timeout: evt_obj.vm_script.timeout,
-                    breakOnSigint: true
-                  });
-                  setTimeout(function () {
-                    if (!evt_obj.has_done) {
-                      vm_context_obj.log_error("Run on_before_convert callback timeout");
-                      done_func.apply(this, [done]);
+          function append_event(cur_promise, evt_list) {
+            if (evt_list) {
+              for (var i = 0; i < evt_list.length; ++i) {
+                const evt_obj = {
+                  vm_script: evt_list[i],
+                  has_done: false,
+                  timer_handle: null
+                };
+                cur_promise = cur_promise.then(function () {
+                  return new Promise(function (resolve, reject) {
+                    try {
+                      const vm_context = vm.createContext(jQuery.extend({
+                        resolve: function (value) {
+                          if (null != evt_obj.timer_handle) {
+                            clearTimeout(evt_obj.timer_handle);
+                            evt_obj.timer_handle = null;
+                          }
+                          if (!evt_obj.has_done) {
+                            evt_obj.has_done = true;
+                            resolve(value);
+                          }
+                        },
+                        reject: function (reason) {
+                          if (null != evt_obj.timer_handle) {
+                            clearTimeout(evt_obj.timer_handle);
+                            evt_obj.timer_handle = null;
+                          }
+                          if (!evt_obj.has_done) {
+                            evt_obj.has_done = true;
+                            reject(reason);
+                          }
+                        }
+                      }, vm_context_obj));
+                      evt_obj.vm_script.fn.runInContext(vm_context, {
+                        displayErrors: true,
+                        timeout: evt_obj.vm_script.timeout,
+                        breakOnSigint: true
+                      });
+                      evt_obj.timer_handle = setTimeout(function () {
+                        evt_obj.timer_handle = null;
+                        if (!evt_obj.has_done) {
+                          evt_obj.has_done = true;
+                          vm_context_obj.log_error("Run event callback callback timeout");
+                          reject("Run event callback callback timeout");
+                        }
+                      }, evt_obj.vm_script.timeout);
+                    } catch (e) {
+                      const err_msg = e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "");
+                      run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + err_msg + '</div>\r\n');
+                      run_log.scrollTop(run_log.prop('scrollHeight'));
+                      if (null != evt_obj.timer_handle) {
+                        clearTimeout(evt_obj.timer_handle);
+                        evt_obj.timer_handle = null;
+                      }
+                      if (!evt_obj.has_done) {
+                        evt_obj.has_done = true;
+                        reject(err_msg);
+                      }
                     }
-                  }, evt_obj.vm_script.timeout);
-                } catch (e) {
-                  run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "") + '</div>\r\n');
-                  run_log.scrollTop(run_log.prop('scrollHeight'));
-                  done_func.apply(this, [done]);
-                }
-              });
+                  });
+                });
+              }
             }
+            return cur_promise;
           }
-          pending_jobs.push(run_all_cmds);
 
-          if (conv_data.gui.on_after_convert) {
-            for (var i = 0; i < conv_data.gui.on_after_convert.length; ++i) {
-              const evt_obj = {
-                vm_script: conv_data.gui.on_after_convert[i],
-                has_done: false
-              };
-              const done_func = function () {
-                if (evt_obj.has_done) {
-                  return;
-                }
-                evt_obj.has_done = true;
-                done.apply(this, arguments);
-              };
-              pending_jobs.push(function () {
-                try {
-                  const vm_context = vm.createContext(jQuery.extend({
-                    done: done_func,
-                  }, vm_context_obj));
-                  evt_obj.vm_script.fn.runInContext(vm_context, {
-                    displayErrors: true,
-                    timeout: evt_obj.vm_script.timeout,
-                    breakOnSigint: true
-                  });
-                  setTimeout(function () {
-                    if (!evt_obj.has_done) {
-                      vm_context_obj.log_error("Run on_after_convert callback timeout");
-                      done_func.apply(this, [done]);
-                    }
-                  }, evt_obj.vm_script.timeout);
-                } catch (e) {
-                  run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "") + '</div>\r\n');
-                  run_log.scrollTop(run_log.prop('scrollHeight'));
-                  done_func.apply(this, [done]);
-                }
-              });
-            }
-          }
+          current_promise = append_event(current_promise, conv_data.gui.on_before_convert);
+          current_promise = current_promise.then(function (onfulfilled, onrejected) {
+            return new Promise(run_all_cmds);
+          });
+          current_promise = append_event(current_promise, conv_data.gui.on_after_convert);
         } catch (e) {
           run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "") + '</div>\r\n');
           run_log.scrollTop(run_log.prop('scrollHeight'));
         }
       } else {
-        pending_jobs.push(run_all_cmds);
+        current_promise = current_promise.then(function (onfulfilled, onrejected) {
+          return new Promise(run_all_cmds);
+        });
       }
 
-      done.apply(this, [done]);
+      // 结束
+      current_promise = current_promise.catch(function (onrejected) {
+        run_log.append('<div class="alert alert-danger">[CONV EVENT] ' + onrejected.toString() + '</div>\r\n');
+        run_log.scrollTop(run_log.prop('scrollHeight'));
+      }).finally(function () {
+        if (failed_count > 0) {
+          run_log.append(
+            '<span style=\'color: DarkRed;\'>All jobs done, ' +
+            failed_count + ' job(s) failed.</strong>\r\n');
+          run_log.addClass('conv_list_run_error');
+          run_log.removeClass('conv_list_run_running');
+        } else {
+          run_log.append(
+            '<span style=\'color: DarkRed;\'>All jobs done.</strong>\r\n');
+          run_log.addClass('conv_list_run_success');
+          run_log.removeClass('conv_list_run_running');
+        }
+        run_log.scrollTop(run_log.prop('scrollHeight'));
+      });
     } catch (e) {
       run_log.append(
         '<div class="alert alert-danger">' + e.toString() + (e.stack ? "\r\n" + e.stack.toString() : "") + '</div>\r\n');

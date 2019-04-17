@@ -31,10 +31,10 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 
 ```xml
 <gui>
-    <on_before_convert type="text/javascript" timeout="超时时间（毫秒）" description="开始转表前的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+    <on_before_convert type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="开始转表前的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
         // 事件代码脚本
     </on_before_convert>
-    <on_after_convert type="text/javascript" timeout="超时时间（毫秒）" description="转表结束后的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+    <on_after_convert type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="转表结束后的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
         // 事件代码脚本
     </on_after_convert>
 </gui>
@@ -53,7 +53,8 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
     alert_error: function(content, title) {}, // 错误弹框
     log_info: function (content) {}, // 打印info日志
     log_error: function (content) {}, // 打印info日志
-    done: function (done) {}, // 通知上层执行结束
+    resolve: function (value) {}, // 通知上层执行结束,相当于Promise的resolve
+    reject: function(reason) {}, // 通知上层执行失败,相当于Promise的reject
     require: function (name) {} // 相当于 nodejs的 require(name) 用于导入nodejs 模块
 }
 ```
