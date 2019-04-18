@@ -12,7 +12,7 @@ matrix:
 before_script:
 - npm install --force
 script:
-- for package_name in *.tar.* ; do rm -f "$package_name" ; done
+- for package_name in *.tar.xz ; do rm -f "$package_name" ; done
 - npm run $PACKAGE_TASK
 - cd out
 - |-
@@ -30,7 +30,6 @@ deploy:
   overwrite: true
   draft: true
   on:
-    repo: xresloader/xresconv-gui
     all_branches: true
     tags: true
 notifications:
