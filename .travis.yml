@@ -14,11 +14,13 @@ before_script:
 script:
 - for package_name in *.tar.xz ; do rm -f "$package_name" ; done
 - npm run $PACKAGE_TASK
-- cd out
 - |-
+  cd "$TRAVIS_BUILD_DIR/out" ;
   for package_name in * ; do
-    tar -Jcvf "../$package_name.tar.xz" "$package_name" ;
+    echo "Packing $package_name into $TRAVIS_BUILD_DIR/$package_name.tar.xz ...";
+    tar -Jcvf "$TRAVIS_BUILD_DIR/$package_name.tar.xz" "$package_name" ;
   done
+  cd "$TRAVIS_BUILD_DIR" ;
 cache: npm
 deploy:
   provider: releases
