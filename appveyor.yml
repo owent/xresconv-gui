@@ -4,11 +4,9 @@ environment:
 version: 1.0.{build}
 
 image: Visual Studio 2017
-environment:
-  nodejs_version: 10
-  matrix:
-  - TARGET: x86_64-pc-windows-msvc
-    PACKAGE_TASK: package-win32
+
+matrix:
+  - PACKAGE_TASK: package-win32
 
 platform:
   - x64
@@ -59,7 +57,7 @@ artifacts:
 deploy:
 - provider: GitHub
   auth_token:
-    secure: pXYJRg9JiTwAA+dSOgtvNDsgRd9dRDHx9LTOT4c4kRWMSEMtOJri1BMfPNuEDxYv
+    secure: dIpxVrO8JURzr07RBbYkmBYRo2S3+88DlPuPD1aJS3nJivC3kgWYp+rRHnRr71qb
   artifact: release-package
   force_update: true
   draft: true

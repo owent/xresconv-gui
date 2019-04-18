@@ -1,58 +1,48 @@
 language: node_js
 node_js:
-  - "10"
-
+- '10'
 matrix:
   include:
-    - os: osx
-      env: PACKAGE_TASK=package-darwin
-    - os: linux
-      dist: xenial
-      sudo: required
-      env: PACKAGE_TASK=package-linux
-
+  - os: osx
+    env: PACKAGE_TASK=package-darwin
+  - os: linux
+    dist: xenial
+    sudo: required
+    env: PACKAGE_TASK=package-linux
 before_script:
-  - npm install --force
-
+- npm install --force
 script:
-  - for package_name in *.tar.* ; do rm -f "$package_name" ; done
-  - npm run $PACKAGE_TASK
-  - cd out
-  - for package_name in * ; do
-
-      if [ -e "../$package_name.tar.xz" ]; then
-        
-        rm -rf "../$package_name.tar.xz";
-
-      fi
-
-      tar -Jcvf "../$package_name.tar.xz" "$package_name" ;
-    
-    done
-
-
+- for package_name in *.tar.* ; do rm -f "$package_name" ; done
+- npm run $PACKAGE_TASK
+- cd out
+- |-
+  for package_name in * ; do
+    if [ -e "../$package_name.tar.xz" ]; then
+      rm -rf "../$package_name.tar.xz";
+    fi
+    tar -Jcvf "../$package_name.tar.xz" "$package_name" ;
+  done
 cache: npm
-
 deploy:
   provider: releases
   api_key:
-    secure: FpssIbMGTjAG4Ny8TYIKn8vmEhkODR2Bqvx46k8/LDRwDRW+CHilULz8KvdZ66CELCjF9n2a88Msnl5B1PVviLX0H+mw8yqqM04gE/BN2l7cNGR941tBlKnGfnT0CPGuLBX+zKETy+9k8FeluYNDwlCklbI2hnGly2F9vpK55Z337TlTd6LFkJhElv6v3fmGH8LRGV/cen5He7NzgmnFq/lqnNUdE9Cg8LQ8tLc8fOHOAWJAmQzP/stKSoHZWGwp1rgc36im4FSkSrF+2k4vK2GurbTTBjOeI2/wyUxcii29t1ACTQMVCNVO27dUoi4F0jEOzbtX5JYsNO+GL3kFj6FeIGAVo8ogoqDfEEmeAuQA+95SWh/m9VVAWTvdIEbUEH3rxHGs0CAzkrxJOxVKgje+cA+ZRz1DmVle74icLL5tV6pQoHeG2iii3e8tpmmu42ovrp9z5qKSrFyVEmQXyN1fs6T8/t8KL4/1dL0gwmuKNdaXLo8TA8jRCJZNdamhtoa1NnrIoy+XPwoD4/su3s6hyBznvNwki07yIcprCc6ubKipj86KLdbhtkaJlIBR+D98jb1b8ngE2Y+OhsPk5DnbPERn7NbR3bP3KanXw9i/h23R9OkoSwku1hio/n4nx2p9Hjn8wICrtuVCSJnf+SVlRT5uzumig1VgDxWLMaw=
+    secure: LhCTOtgoO5bh+8qS6kF22xpnB9z19A8De+6hpV3QMcO6v1QwbvvVjrHuuGJ2OftP+aO7XthDfkMLwn9tH/cvSqG7DgApmcoFIFRENz2UWjsomy9BpHPgOOYBdDYEigIFfRqyPv6hgKRm7Qi1q+hEdx2/M0Y+dgqanZ6ryeQNxSr7euRlJJGfRXYUknsS/zhZpUhzisAeh6jrKJPmrEN+Yk+6UWfZM6lp233Yp79JZyIETa/uG++EeVeQWEoMeAccqZYxaytGoj4qJGqmLFZ5ft/1902aviBDDgUe6tj0QtmnN4WkyNbh1ATJOgKZzB6jKtXumQg/3682Ceoy/R6FHPlkpnbWuJfMVzcjgJs4ONuIBOoagSxI3zTOoBlkFOLCYbjWQ1LT2t40UEzKfelDIyfjbLGA8v+26GB46UFIUmcLc79+rwPhSf82QeM5YpsYK9nxOOsT7CRT3e4Pv2BScfPmYyBsSqX//aGS7CH+kz/BuHA7EqfPx1t/nOKQY3TC4TrxF7XWmOtiIwmlmdgm69p8tHkQyXNZMgJ9EGTNm/deqDxMRhmF6251QWQu6aai9WbM2IpRQ6VgqV4Qg/RNnvEa3eawL/7m5e742Jk2kKZLpQGBLMM6sYKihDxK76GmuA52nhVSBaGvIOgbw+WBmcvq6u0IR4ev1Ptypekemck=
   file_glob: true
   file: "*.tar.xz"
   skip_cleanup: true
   overwrite: true
   draft: true
   on:
+    repo: xresloader/xresconv-gui
     all_branches: true
     tags: true
-
 notifications:
   email:
     recipients:
-      - admin@owent.net
-      - owt5008137@live.com
+    - admin@owent.net
+    - owt5008137@live.com
     on_success: never
     on_failure: never
   irc:
     template:
-      - "%{repository}/%{branch} (%{commit} - %{author}): %{build_url}: %{message}"
+    - "%{repository}/%{branch} (%{commit} - %{author}): %{build_url}: %{message}"
