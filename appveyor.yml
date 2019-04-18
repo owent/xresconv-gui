@@ -1,20 +1,18 @@
 environment:
   nodejs_version: "10"
   matrix:
-  - PACKAGE_TASK: package-win32
+    - PACKAGE_TASK: package-win32
+      platform: x64
 
-version: 1.0.{build}
+version: 2.1.{build}
 
 image: Visual Studio 2017
-
-platform:
-  - x64
 
 install:
 - ps: >-
     Install-Product node $env:nodejs_version
 
-    & npm install
+    & npm install --no-optional --no-shrinkwrap --no-package-lock
 
 cache: 
   - node_modules
