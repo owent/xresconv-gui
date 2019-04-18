@@ -17,9 +17,6 @@ script:
 - cd out
 - |-
   for package_name in * ; do
-    if [ -e "../$package_name.tar.xz" ]; then
-      rm -rf "../$package_name.tar.xz";
-    fi
     tar -Jcvf "../$package_name.tar.xz" "$package_name" ;
   done
 cache: npm

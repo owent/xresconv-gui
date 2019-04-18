@@ -14,9 +14,11 @@ install:
 - ps: >-
     Install-Product node $env:nodejs_version
 
-    & npm install --force
+    & npm install
 
-cache: C:\Users\appveyor\.cargo\registry
+cache: 
+  - node_modules
+  - '%APPDATA%\npm-cache'
 build_script:
 - ps: >-
     $package_list = Get-ChildItem "*.7z"
@@ -40,10 +42,6 @@ build_script:
       $package_name = $package.Name
 
       echo "$package_name"
-
-      if (Test-Path "../$package_name.7z") {
-        Remove-Item -Force "../$package_name.7z"
-      }
       
       & 7z a -y -r "../$package_name.7z" "$package_name"
 
