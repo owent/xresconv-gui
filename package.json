@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
@@ -42,12 +42,10 @@
   },
   "author": "owent",
   "license": "MIT",
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "https://github.com/xresloader/xresconv-gui/blob/master/LICENSE"
-    }
-  ],
+  "licenses": [{
+    "type": "MIT",
+    "url": "https://github.com/xresloader/xresconv-gui/blob/master/LICENSE"
+  }],
   "bugs": {
     "url": "https://github.com/xresloader/xresconv-gui/issues"
   },
