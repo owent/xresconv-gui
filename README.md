@@ -36,6 +36,8 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 
 ![示例截图-3](doc/snapshoot-3.png)
 
+![示例截图-3](doc/snapshoot-4.png)
+
 
 注意事项
 ======

@@ -1,11 +1,28 @@
 更新记录
 ==========
+
+2.2.0
+------
+
+1. 支持多个 ```<output_type></output_type>``` 参数，支持给每个 output_type 单独设置 rename 规则
+2. set_name 事件增加 alert_warning(text)/alert_error(text)/log_info(text)/log_error(text) 函数
+3. set_name 事件增加 work_dir 变量和 configure_file 变量
+4. on_before_convert/on_after_convert 事件增加 configure_file 变量
+5. 采用Promise重构建立节点树的的流程
+6. 更新依赖库
+
+  > electron -> 6.0.7
+  > electron-packager -> 14.0.5
+  > gulp -> 4.0.2
+
 2.1.1
 ------
+
 1. 修复重命名模板的转义问题
 
 2.1.0
 ------
+
 1. 更新依赖库到当前最新版本release（2019-04-18）
 2. 支持xresloader 2.0.0的输出类型
 3. 修复未知的输出目标会导致加载失败的问题
@@ -17,6 +34,7 @@
 
 1.4.2
 ------
+
 1. 增加java环境检测脚本
 2. 升级electron到2.0.4
 3. 更新依赖库到当前最新版本release（2018-07-04）
@@ -24,6 +42,7 @@
 
 1.4.1
 ------
+
 1. 更新依赖库到当前最新版本release（2018-03-08）
 2. 移除jQuery UI
 3. 移除electron-prebuilt，使用electron来执行打包盒开发环境启动
@@ -41,22 +60,26 @@
 
 1.4.0
 ------
+
 1. 更新依赖库到当前最新版本release（2017-11-02）
 2. 支持设置数据版本号(需要xresloader版本1.4.0或以上)
 
 1.3.1
 ------
+
 1. 修复使用boostrap 4之后漏打包tether的问题
 2. 修复插件脚本崩溃会导致功能不正常，并且没有报错的问题
 
 1.3.0
 ------
+
 1. 支持预置scheme参数
 2. 更新electron到1.4.12
 3. 更新npm维护的库-20161211
 
 1.2.2
 ------
+
 1. 支持设置java选项
 2. 更新electron到1.4.10
 3. jquery/bootstrap/jquery.fancytree 采用npm维护版本
@@ -65,23 +88,27 @@
 
 1.2.1
 ------
+
 1. 支持新版本xresloader对web工具输出shell颜色代码
 2. 更新[Electron](http://electron.atom.io)到1.2.5
 3. 更新[Electron-Packager](https://github.com/electron-userland/electron-packager)到7.1.0
 
 1.2.0
 ------
+
 1. 使用[Electron](http://electron.atom.io)重新构建，不再使用[nw.js](http://nwjs.io/)。后者的官方打包脚本问题比较多。
 2. 循环加载的xml文件判定改为使用绝对路径而不是之前的文件名判定
 3. 版本号规则使用node.js的package的三段式
 
 1.1.4.0
 ------
+
 1. 增加javascript的导出支持
 2. 更新nwjs到0.13.3
 
 1.1.3.0
 ------
+
 1. 接入新的返回码定义
 2. 更新bootstrap到3.3.6
 3. 更新jquery到2.2.0
@@ -91,18 +118,22 @@
 
 1.1.2.1
 ------
+
 1. 修复Windows下的一些乱码问题
 
 1.1.2.0
 ------
+
 1. 跟进支持xresloader的多表转换功能，拥有更快的转换速度并消耗更低的资源
 2. 修复加载不同转表文件时载入错误的问题
 3. 增加重置按钮（刷新页面）
 
 1.1.1.1
 ------
+
 1. 修复转表结束提示错误
 
 1.1.1.0
 ------
+
 1. 增加并行转表的功能

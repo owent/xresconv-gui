@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "2.1.1",
+  "version": "2.2.0",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
@@ -16,14 +16,14 @@
   },
   "dependencies": {
     "bootstrap": "^4.3.1",
-    "electron": "^4.0.18",
+    "electron": "^6.0.7",
     "jquery": "^3.4.0",
     "jquery.fancytree": "^2.30.2",
     "popper.js": "^1.15.0"
   },
   "devDependencies": {
-    "electron-packager": "^13.1.1",
-    "gulp": "^4.0.0"
+    "electron-packager": "^14.0.5",
+    "gulp": "^4.0.2"
   },
   "scripts": {
     "prepare": "gulp copy-libs",
@@ -42,10 +42,12 @@
   },
   "author": "owent",
   "license": "MIT",
-  "licenses": [{
-    "type": "MIT",
-    "url": "https://github.com/xresloader/xresconv-gui/blob/master/LICENSE"
-  }],
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/xresloader/xresconv-gui/blob/master/LICENSE"
+    }
+  ],
   "bugs": {
     "url": "https://github.com/xresloader/xresconv-gui/issues"
   },

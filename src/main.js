@@ -116,7 +116,81 @@ function alert_warning(content, tittle, options) {
     }
   }
 
-  function build_conv_tree(context, current_path, callback) {
+  function shell_color_to_html(data) {
+    const style_map = {
+      '1': 'font-weight: bolder;',
+      '4': 'text-decoration: underline;',
+      '30': 'color: black;',
+      '31': 'color: darkred;',
+      '32': 'color: darkgreen;',
+      '33': 'color: brown;',
+      '34': 'color: darkblue;',
+      '35': 'color: purple;',
+      '36': 'color: darkcyan;',
+      '37': 'color: gray;',
+      '40': 'background-color: black;',
+      '41': 'background-color: darkred;',
+      '42': 'background-color: darkgreen;',
+      '43': 'background-color: brown;',
+      '44': 'background-color: darkblue;',
+      '45': 'background-color: purple;',
+      '46': 'background-color: darkcyan;',
+      '47': 'background-color: white;'
+    };
+
+    var split_group = data.toString().split(/(\[[\d;]*m)/g);
+    var span_level = 0;
+
+    function finish_tail() {
+      var ret = '';
+      while (span_level > 0) {
+        --span_level;
+        ret += '</span>';
+      }
+      return ret;
+    }
+    for (var i = 0; i < split_group.length; ++i) {
+      var msg = split_group[i];
+      if (msg.match(/^\[[\d;]*m$/)) {
+        var all_flags = msg.match(/\d+/g);
+        var style_list = [];
+        for (var j = 0; all_flags && j < all_flags.length; ++j) {
+          if ('0' == all_flags[j]) {
+            split_group[i] = finish_tail();
+            break;
+          } else if (style_map[all_flags[j]]) {
+            style_list.push(style_map[all_flags[j]]);
+          }
+        }
+
+        if (style_list.length > 0) {
+          ++span_level;
+          split_group[i] = '<span style="' + style_list.join(' ') + '">';
+        }
+      }
+    }
+
+    return split_group.join('') + finish_tail();
+  }
+
+  function show_output_matrix() {
+    const conv_list_output_custom_multi = document.getElementById('conv_list_output_custom_multi');
+    if (conv_list_output_custom_multi.parentNode.selectedIndex == conv_list_output_custom_multi.index) {
+      const run_log = $('#conv_list_run_res');
+      const hint_dom = conv_list_output_custom_multi.hint_dom;
+      if (hint_dom) {
+        run_log.append(hint_dom);
+      }
+      run_log.scrollTop(run_log.prop('scrollHeight'));
+    } else {
+      const hint_dom = conv_list_output_custom_multi.hint_dom;
+      if (hint_dom) {
+        hint_dom.remove();
+      }
+    }
+  }
+
+  function build_conv_tree(context, current_path) {
     // $("#conv_list").empty();
 
     // 初始化
@@ -136,7 +210,9 @@ function alert_warning(content, tittle, options) {
       }
     });
 
-    var active_run = (function () {
+    var active_run = (function (resolve, reject) {
+      const output_matrix = [];
+
       // 加载并覆盖全局配置
       $.each(jdom.children('global').children(), function (k, dom) {
         var tn = dom.tagName.toLowerCase();
@@ -168,17 +244,11 @@ function alert_warning(content, tittle, options) {
             parent_node.get(0).selectedIndex = unknown_node.get(0).index;
           }
         } else if ('output_type' == tn) {
-          var output_type_cfg = $('#conv_list_output_type option[value=' + val + ']');
-          if (output_type_cfg.length > 0) {
-            $('#conv_list_output_type').get(0).selectedIndex =
-              output_type_cfg.get(0)
-                .index;
-          } else {
-            var parent_node = $('#conv_list_output_type');
-            var unknown_node = $('<option></option>').attr("value", val).text("未知格式: " + val);
-            parent_node.append(unknown_node);
-            parent_node.get(0).selectedIndex = unknown_node.get(0).index;
-          }
+          const output_type_rename_rule = ($(dom).attr("rename") || "").trim();
+          output_matrix.push({
+            type: val,
+            rename: output_type_rename_rule
+          });
         } else if ('option' == tn && val) {
           conv_data.global_options.push({
             name: $(dom).attr('name') || val,
@@ -198,6 +268,71 @@ function alert_warning(content, tittle, options) {
           }
         }
       });
+
+      // select output_type or output_matrix
+      const conv_list_output_custom_multi = document.getElementById('conv_list_output_custom_multi');
+
+      if (output_matrix.length > 1) {
+        conv_list_output_custom_multi.parentNode.selectedIndex = conv_list_output_custom_multi.index;
+        conv_list_output_custom_multi.output_matrix = output_matrix;
+        conv_list_output_custom_multi.disabled = false;
+
+        // build hint dom
+        if (!conv_list_output_custom_multi.hint_dom) {
+          conv_list_output_custom_multi.hint_dom = $('<div class="alert alert-secondary" role="alert"></div>');
+        }
+        const hint_dom = conv_list_output_custom_multi.hint_dom;
+        hint_dom.empty();
+        hint_dom.append(shell_color_to_html('当前选中的是来自配置文件的[1;m多种输出类型[0;m\r\n'));
+
+        for (const output of output_matrix) {
+          if (output.type) {
+            var msg = "\t输出类型: [1;32;m" + ($("option[value=" + output.type + "]", "#conv_list_output_type").html() || "未知类型") + "[0;m(" + output.type + ")";
+            if (output.rename) {
+              msg += "\t重命名规则: \"[1;35;m" + output.rename + "[0;m\"";
+            }
+            msg += "\r\n";
+          }
+
+          hint_dom.append(shell_color_to_html(msg));
+        }
+
+      } else {
+        if (output_matrix.length == 0) {
+          output_matrix.push({
+            type: 'bin',
+            rename: null
+          });
+        }
+        var output_type_cfg = $('#conv_list_output_type option[value=' + output_matrix[0].type + ']');
+        if (output_type_cfg.length > 0) {
+          $('#conv_list_output_type').get(0).selectedIndex =
+            output_type_cfg.get(0)
+            .index;
+        } else {
+          var parent_node = $('#conv_list_output_type');
+          var unknown_node = $('<option></option>').attr("value", output_matrix[0].type).text("未知格式: " + output_matrix[0].type);
+          parent_node.append(unknown_node);
+          parent_node.get(0).selectedIndex = unknown_node.get(0).index;
+        }
+
+        if (output_matrix[0].rename) {
+          $('#conv_list_rename').val(output_matrix[0].rename);
+        }
+
+        conv_list_output_custom_multi.disabled = true;
+        conv_list_output_custom_multi.output_matrix = output_matrix;
+
+        if (conv_list_output_custom_multi.hint_dom) {
+          conv_list_output_custom_multi.hint_dom.empty();
+        }
+      }
+
+      var work_dir = $('#conv_list_work_dir').val();
+      if (work_dir && work_dir[0] != '/' &&
+        (work_dir.length < 2 || work_dir[1] != ':')) {
+        work_dir = prefix_dir + work_dir;
+      }
 
       // 加载分类信息
       var treeData = conv_data.tree;
@@ -346,7 +481,25 @@ function alert_warning(content, tittle, options) {
           try {
             const vm = require('vm');
             const vm_context = vm.createContext({
-              item_data: item_data
+              work_dir: work_dir,
+              configure_file: current_path,
+              item_data: item_data,
+              alert_warning: alert_warning,
+              alert_error: alert_error,
+              log_info: function (content) {
+                if (content) {
+                  const run_log = $('#conv_list_run_res');
+                  run_log.append('[CONV EVENT] ' + shell_color_to_html(content) + '\r\n');
+                  run_log.scrollTop(run_log.prop('scrollHeight'));
+                }
+              },
+              log_error: function (content) {
+                if (content) {
+                  const run_log = $('#conv_list_run_res');
+                  run_log.append('<div style="color: Red;">[CONV EVENT] ' + shell_color_to_html(content) + '</div>\r\n');
+                  run_log.scrollTop(run_log.prop('scrollHeight'));
+                }
+              }
             });
             conv_data.gui.set_name.runInContext(vm_context);
           } catch (err) {
@@ -370,77 +523,60 @@ function alert_warning(content, tittle, options) {
         }
       });
 
-      if (callback) {
-        callback();
-      }
+      // resolve promise
+      resolve.apply(this, [current_path]);
     });
 
+    var ret = null;
 
-    var load_one_by_one = {
-      fn: null
-    };
-    load_one_by_one.fn = function () {
+    while (include_list.length > 0) {
       var file_path = null;
-      var file_inst = null;
-      var fs = require('fs'); // node.js - File System
 
-      while (include_list.length > 0) {
-        file_path = include_list.shift();
+      file_path = include_list.shift();
 
-        try {
-          file_inst = fs.createReadStream(file_path);
-          if (conv_data.file_map[file_path]) {
-            alert('文件 ' + file_path + ' 已被加载过，不能循环include文件');
-            file_path = null;
-            file_inst = null;
+      try {
+        if (conv_data.file_map[file_path]) {
+          alert('文件 ' + file_path + ' 已被加载过，不能循环include文件');
+        } else {
+          conv_data.file_map[file_path] = true;
+
+          var fs = require('fs'); // node.js - File System
+          const file_inst = fs.createReadStream(file_path);
+
+          const load_sub_file = function () {
+            return new Promise(function (resolve, reject) {
+              file_inst.on('data', (content) => {
+                resolve.apply(this, [build_conv_tree(content.toString(), file_path)]);
+              });
+
+              file_inst.on('error', (err) => {
+                console.error(err.toString());
+                console.error(err.stack);
+                alert('尝试读取文件失败:' + file_path);
+
+                reject.apply(this, ['尝试读取文件失败:' + file_path]);
+              });
+            });
+          };
+          if (ret === null) {
+            ret = load_sub_file();
           } else {
-            conv_data.file_map[file_path] = true;
-            break;
+            ret.then(load_sub_file);
           }
-        } catch (e) {
-          alert('文件 ' + file_path + ' 加载失败。' + e.toString());
-          file_inst = null;
         }
+      } catch (e) {
+        alert('文件 ' + file_path + ' 加载失败。' + e.toString());
       }
+    }
 
-      if (file_inst) {
-        var file_loader = new FileReader();
-
-        file_inst.on('data', (content) => {
-          build_conv_tree(content.toString(), file_path, function () {
-            load_one_by_one.fn();
-          });
-        });
-
-        file_inst.on('error', (err) => {
-          console.error(err.toString());
-          console.error(err.stack);
-          alert('尝试读取文件失败:' + file_path);
-          load_one_by_one.fn();
-        });
-
-        // file_loader.onload = (function(ev) {
-        //     build_conv_tree(ev.target.result, file_path, function(){
-        // 		load_one_by_one.fn();
-        // 	});
-        // });
-
-        // 出错则直接回调
-        // file_loader.onerror = (function(){
-        // 	load_one_by_one.fn();
-        // });
-
-        // file_loader.onerror = function(ev) {
-        //     alert("尝试读取文件失败:" +　file_path);
-        // };
-
-        // file_loader.readAsText(file_inst);
-      } else {
-        active_run();
-      }
-    };
-
-    load_one_by_one.fn();
+    if (ret === null) {
+      ret = new Promise(active_run);
+    } else {
+      ret = ret.then(function () {
+        return new Promise(active_run);
+      });
+    }
+    return ret;
   }
 
   function show_conv_tree() {
@@ -463,65 +599,8 @@ function alert_warning(content, tittle, options) {
       cookieId: 'conv_list-ft',
       idPrefix: 'conv_list-ft-'
     });
-  }
 
-  function shell_color_to_html(data) {
-    var style_map = {
-      '1': 'font-weight: bolder;',
-      '4': 'text-decoration: underline;',
-      '30': 'color: black;',
-      '31': 'color: darkred;',
-      '32': 'color: darkgreen;',
-      '33': 'color: brown;',
-      '34': 'color: darkblue;',
-      '35': 'color: purple;',
-      '36': 'color: darkcyan;',
-      '37': 'color: gray;',
-      '40': 'background-color: black;',
-      '41': 'background-color: darkred;',
-      '42': 'background-color: darkgreen;',
-      '43': 'background-color: brown;',
-      '44': 'background-color: darkblue;',
-      '45': 'background-color: purple;',
-      '46': 'background-color: darkcyan;',
-      '47': 'background-color: white;'
-    };
-
-    var split_group = data.toString().split(/(\[[\d;]*m)/g);
-    var span_level = 0;
-
-    function finish_tail() {
-      var ret = '';
-      while (span_level > 0) {
-        --span_level;
-        ret += '</span>';
-      }
-      return ret;
-    }
-    for (var i = 0; i < split_group.length; ++i) {
-      var msg = split_group[i];
-      if (msg.match(/^\[[\d;]*m$/)) {
-        var all_flags = msg.match(/\d+/g);
-        var style_list = [];
-        for (var j = 0; all_flags && j < all_flags.length; ++j) {
-          if ('0' == all_flags[j]) {
-            split_group[i] = finish_tail();
-            break;
-          } else if (style_map[all_flags[j]]) {
-            style_list.push(style_map[all_flags[j]]);
-          }
-        }
-
-        if (style_list.length > 0) {
-          ++span_level;
-          split_group[i] = '<span style="' + style_list.join(' ') + '">';
-        } else {
-          split_group[i] = finish_tail();
-        }
-      }
-    }
-
-    return split_group.join('') + finish_tail();
+    show_output_matrix();
   }
 
   function conv_start() {
@@ -536,12 +615,28 @@ function alert_warning(content, tittle, options) {
 
       var global_options = {
         '-p': $('#conv_list_protocol').val(),
-        '-t': $('#conv_list_output_type').val(),
         '-f': $('#conv_list_proto_file').val(),
         '-o': $('#conv_list_output_dir').val(),
         '-d': $('#conv_list_data_src_dir').val(),
-        '-n': $('#conv_list_rename').val()
       };
+
+      const output_matrix = [];
+      const conv_list_output_custom_multi = document.getElementById('conv_list_output_custom_multi');
+      if (conv_list_output_custom_multi.parentNode.selectedIndex == conv_list_output_custom_multi.index) {
+        const global_output_type = $('#conv_list_output_type').val();
+        const global_rename_rule = $('#conv_list_rename').val();
+        for (const output of conv_list_output_custom_multi.output_matrix) {
+          output_matrix.push({
+            '-t': output.type || global_output_type,
+            '-n': output.rename || global_rename_rule
+          });
+        }
+      } else {
+        output_matrix.push({
+          '-t': $('#conv_list_output_type').val(),
+          '-n': $('#conv_list_rename').val()
+        });
+      }
 
       if ($("#conv_list_data_version").val()) {
         global_options['-a'] = $("#conv_list_data_version").val();
@@ -567,31 +662,40 @@ function alert_warning(content, tittle, options) {
       run_log.removeClass('conv_list_run_success');
       run_log.addClass('conv_list_run_running');
 
+      show_output_matrix();
+
       var pending_script = [];
 
       selNodes.forEach(function (node) {
         if (node.key && conv_data.items[node.key]) {
-          var item_data = conv_data.items[node.key];
-          var cmd_args = cmd_params;
-          $.each(
-            item_data.options,
-            function (k, v) {
-              cmd_args += ' ' + v.value;
-            });
+          for (const output of output_matrix) {
+            var item_data = conv_data.items[node.key];
+            var cmd_args = cmd_params;
 
-          if (item_data.file && item_data.scheme) {
-            cmd_args +=
-              ' -s "' + item_data.file + '" -m "' + item_data.scheme + '"';
-          } else {
-            for (var key in item_data.scheme_data) {
-              var vals = item_data.scheme_data[key];
-              for (var i in vals) {
-                cmd_args += ' -m "' + key + '=' + vals[i] + '"';
+            for (var k in output) {
+              if (output[k]) {
+                cmd_args += ' ' + k + ' "' + output[k] + '"';
               }
             }
-          }
 
-          pending_script.push(cmd_args);
+            for (const item_option of item_data.options) {
+              cmd_args += ' ' + item_option;
+            }
+
+            if (item_data.file && item_data.scheme) {
+              cmd_args +=
+                ' -s "' + item_data.file + '" -m "' + item_data.scheme + '"';
+            } else {
+              for (var key in item_data.scheme_data) {
+                var vals = item_data.scheme_data[key];
+                for (var i in vals) {
+                  cmd_args += ' -m "' + key + '=' + vals[i] + '"';
+                }
+              }
+            }
+
+            pending_script.push(cmd_args);
+          }
         }
       });
 
@@ -677,6 +781,7 @@ function alert_warning(content, tittle, options) {
           const vm = require('vm');
           const vm_context_obj = {
             work_dir: work_dir,
+            configure_file: conv_data.input_file.path,
             xresloader_path: xresloader_path,
             global_options: global_options,
             selected_nodes: selNodes,
@@ -947,10 +1052,11 @@ function alert_warning(content, tittle, options) {
           conv_data.input_file = input_file;
           conv_data.file_map[clf.path] = true;
 
-          build_conv_tree(data, clf.path, function () {
-            // 显示属性树
-            show_conv_tree();
-          });
+          build_conv_tree(data, clf.path)
+            .then(function () {
+              // 显示属性树
+              show_conv_tree();
+            });
         }
       });
     };
@@ -987,34 +1093,23 @@ function alert_warning(content, tittle, options) {
     });
     $('a', '#conv_list_rename_samples').click(function () {
       $('#conv_list_rename').val($(this).attr('data-rename'));
+
+      const conv_list_output_custom_multi = document.getElementById('conv_list_output_custom_multi');
+      if (conv_list_output_custom_multi.parentNode.selectedIndex == conv_list_output_custom_multi.index) {
+        alert_warning("当<strong>输出类型</strong>使用配置文件中的<strong>多种输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。");
+      }
     });
 
-    // var rename_templates = [
-    //   { value: '/\\.bin$/.lua/', label: '.bin后缀 => .lua' },
-    //   { value: '/\\.bin$/.json/', label: '.bin后缀 => .json' },
-    //   { value: '/\\.bin$/.msgpack.bin/', label: '.bin后缀 => .msgpack.bin' },
-    //   { value: '/\\.bin$/.xml/', label: '.bin后缀 => .xml' }
-    // ];
-    // $('#conv_list_rename')
-    //   .autocomplete({
-    //     minLength: 0,
-    //     source: rename_templates,
-    //     focus: function (event, ui) {
-    //       $('#conv_list_rename').val(ui.item.value);
-    //       return false;
-    //     },
-    //     select: function (event, ui) {
-    //       $('#project').val(ui.item.value);
-    //       return false;
-    //     }
-    //   })
-    //   .autocomplete('instance')
-    //   ._renderItem = function (ul, item) {
-    //     return $('<li>').append('<a>' + item.label + '</a>').appendTo(ul);
-    //   };
-    // $('#conv_list_rename').dblclick(function () {
-    //   $('#conv_list_rename').autocomplete('search', '');
-    // });
+    $('#conv_list_rename').bind('change', function () {
+      const conv_list_output_custom_multi = document.getElementById('conv_list_output_custom_multi');
+      if (conv_list_output_custom_multi.parentNode.selectedIndex == conv_list_output_custom_multi.index) {
+        alert_warning("当<strong>输出类型</strong>使用配置文件中的<strong>多种输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。");
+      }
+    });
+
+    $('#conv_list_output_type').bind('change', function () {
+      show_output_matrix();
+    });
 
     conv_env_check();
 
