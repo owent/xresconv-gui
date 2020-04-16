@@ -99,21 +99,23 @@ Gitter on [xresloader](https://github.com/xresloader/xresloader)
 
 ```bash
 # 基本组件安装
-npm install
+npm install -g yarn
+yarn install
 
 # 开发环境安装
-npm install --dev
-npm install -g gulp-cli
+yarn install --dev
+yarn install -g gulp-cli
 
 # 升级依赖包
-npm upgrade --dev
-npm upgrade --save-dev
+npm install -g ncu
+ncu
+ncu -u
 ```
 
 直接启动
 ------
 ```
-npm run-script start
+yarn run-script start
 ```
 
 调试模式启动
@@ -122,7 +124,7 @@ npm run-script start
 先修改[src/setup.js](src/setup.js),把里面的***debug***选项改为true，然后执行
 
 ```
-npm run-script start
+yarn run-script start
 ```
 
 VSCode调试启动
@@ -131,7 +133,7 @@ VSCode调试启动
 先使用设定调试端口并启动
 
 ```
-npm run-script debug
+yarn run-script debug
 ```
 
 然后VSCode打开调试面板Attach到进程上
@@ -145,10 +147,10 @@ npm run-script debug
 打包和发布
 ======
 + 打包发布所有x64架构
-> *npm run-script package*
+> *yarn run-script package*
 
 + 打包发布所有平台
-> *npm run-script package-all*
+> *yarn run-script package-all*
 
 关于加载和调试
 ======
