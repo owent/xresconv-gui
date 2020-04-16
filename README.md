@@ -1,16 +1,8 @@
 xresconv-gui
 ==========
 
-[ci-travis-badge]: https://api.travis-ci.org/xresloader/xresconv-gui.svg?branch=master "macOS & Linux"
-[ci-travis-link]: https://travis-ci.org/xresloader/xresconv-gui "macOS & Linux"
-[ci-appveyor-badge]: https://ci.appveyor.com/api/projects/status/jla48prtf6brkgnf?svg=true "Windows"
-[ci-appveyor-link]: https://ci.appveyor.com/project/owt5008137/xresconv-gui "Windows"
-
-| 构建环境     | [macOS \& Linux][ci-travis-link] | [Windows][ci-appveyor-link] |
-| ------------ | -------------------------------- | --------------------------- |
-| 当前构建状态 | ![ci-travis-badge]               | ![ci-appveyor-badge]        |
-
-
+[ci-github-action]: https://github.com/xresloader/xresconv-gui/workflows/build/badge.svg
+![ci-github-action]
 
 这是一个符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的GUI转表工具，并且使用 [xresloader](https://github.com/xresloader/xresloader) 作为数据导出工具后端。
 

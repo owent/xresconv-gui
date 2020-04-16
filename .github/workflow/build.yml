@@ -1,0 +1,60 @@
+name: build
+
+on: push
+
+jobs:
+  build:
+    name: Build
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Run build.sh
+        run: |
+          if (Test-Path "out") { Remove-Item -Recurse -Force "out" }
+          & npm install -g yarn
+          & yarn install
+          if ( "${{ matrix.os }}" -eq "windows-latest" ) { 
+            & yarn run package-win32
+            cd out
+            $package_list = Get-ChildItem
+            foreach($package in $package_list) { 
+              $package_name = $package.Name
+              echo \"$package_name\"
+              & 7z a -y -r "$package_name.7z" "$package_name"
+            }
+          } elseif ( "${{ matrix.os }}" -eq "macos-latest" ) { 
+            & yarn run package-darwin
+            cd out
+            $package_list = Get-ChildItem
+            foreach($package in $package_list) { 
+              $package_name = $package.Name
+              echo \"$package_name\"
+              & tar -Jcvf "$package_name.tar.xz" "$package_name"
+            }
+          } else {
+            & yarn run package-linux
+            cd out
+            $package_list = Get-ChildItem
+            foreach($package in $package_list) { 
+              $package_name = $package.Name
+              echo \"$package_name\"
+              & tar -Jcvf "$package_name.tar.xz" "$package_name"
+            }
+          }
+          cd ..
+
+        shell: pwsh
+      - name: Release
+        uses: xresloader/upload-to-github-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: "out/*.7z;out/*.tar.xz"
+          tags: true
+          draft: true
+          overwrite: true
+          # verbose: true

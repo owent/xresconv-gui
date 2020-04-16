@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
@@ -15,14 +15,14 @@
     "doc": "doc"
   },
   "dependencies": {
-    "bootstrap": "^4.3.1",
-    "electron": "^6.0.7",
-    "jquery": "^3.4.0",
-    "jquery.fancytree": "^2.30.2",
-    "popper.js": "^1.15.0"
+    "bootstrap": "^4.4.1",
+    "electron": "^8.2.2",
+    "jquery": "^3.5.0",
+    "jquery.fancytree": "^2.35.0",
+    "popper.js": "^1.16.1"
   },
   "devDependencies": {
-    "electron-packager": "^14.0.5",
+    "electron-packager": "^14.2.1",
     "gulp": "^4.0.2"
   },
   "scripts": {
