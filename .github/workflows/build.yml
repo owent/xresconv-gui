@@ -23,9 +23,9 @@ jobs:
           }
           if (Test-Path "out") { Remove-Item -Recurse -Force "out" }
           & npm install -g yarn
-          & yarn install
+          & yarn install --registry https://registry.npmjs.org
           if ( "${{ matrix.os }}" -eq "windows-latest" ) { 
-            & yarn run package-win32
+            & yarn run package-win32 --registry https://registry.npmjs.org
             cd out
             $package_list = Get-ChildItem
             foreach($package in $package_list) { 
@@ -34,7 +34,7 @@ jobs:
               & 7z a -y -r "$package_name.7z" "$package_name"
             }
           } elseif ( "${{ matrix.os }}" -eq "macos-latest" ) { 
-            & yarn run package-darwin
+            & yarn run package-darwin --registry https://registry.npmjs.org
             cd out
             $package_list = Get-ChildItem
             foreach($package in $package_list) { 
@@ -43,7 +43,7 @@ jobs:
               & tar -Jcvf "$package_name.tar.xz" "$package_name"
             }
           } else {
-            & yarn run package-linux
+            & yarn run package-linux --registry https://registry.npmjs.org
             cd out
             $package_list = Get-ChildItem
             foreach($package in $package_list) { 
