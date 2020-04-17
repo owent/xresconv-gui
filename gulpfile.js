@@ -6,7 +6,7 @@ var gulp = require('gulp'),
 
 var packger_options = {
   dir: '.',
-  icon: 'doc/logo.ico',
+  icon: `${__dirname}/doc/logo.ico`,
   ignore: [
     'node_modules/.bin',
     'node_modules/electron',
@@ -27,9 +27,9 @@ var packger_options = {
 
 function extend_options(ret) {
   for (var src_i = 1; src_i < arguments.length; ++src_i) {
-    var src = arguments[src_i] || {};
+    const src = arguments[src_i] || {};
     ret = ret || {};
-    for (var i in src) {
+    for (const i in src) {
       if ('object' == typeof (src[i]) && 'object' == typeof (ret[i])) {
         ret[i] = extend_options(ret[i], src[i]);
       } else {
@@ -117,6 +117,7 @@ gulp.task('package-darwin', gulp.series('copy-libs', function (done) {
   var opts = extend_options({}, packger_options, {
     platform: 'darwin',
     arch: 'all',
+    icon: `${__dirname}/doc/logo.icns`,
   });
   electron_packger(opts, function (err, appPaths) {
     if (err) {
