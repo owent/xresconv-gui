@@ -309,12 +309,16 @@ function alert_warning(content, tittle, options) {
 
         for (const output of output_matrix) {
           if (output.type) {
+            const output_option = document.querySelector(
+              '#conv_list_output_type option[value="' +
+                output.type.toLowerCase() +
+                '"]'
+            );
             var msg =
               "\t输出类型: [1;32;m" +
-              ($(
-                "option[value=" + output.type + "]",
-                "#conv_list_output_type"
-              ).html() || "未知类型") +
+              (output_option
+                ? output_option.innerHTML
+                : "未知类型:" + output.type) +
               "[0;m(" +
               output.type +
               ")";
@@ -334,7 +338,7 @@ function alert_warning(content, tittle, options) {
           });
         }
         var output_type_cfg = $(
-          "#conv_list_output_type option[value=" + output_matrix[0].type + "]"
+          '#conv_list_output_type option[value="' + output_matrix[0].type + '"]'
         );
         if (output_type_cfg.length > 0) {
           $("#conv_list_output_type").get(
@@ -720,7 +724,7 @@ function alert_warning(content, tittle, options) {
         global_options["-a"] = $("#conv_list_data_version").val();
       }
 
-      var tree = $("#conv_list").fancytree("getTree");
+      var tree = $.ui.fancytree.getTree("#conv_list");
       var selNodes = tree.getSelectedNodes();
 
       var cmd_params = "";
@@ -791,6 +795,30 @@ function alert_warning(content, tittle, options) {
       });
 
       function run_all_cmds(resolve, reject) {
+        const path = require("path");
+        const fs = require("fs");
+        const download_hint =
+          'you can download it from <a href="https://github.com/xresloader/xresloader/releases" target="_blank">https://github.com/xresloader/xresloader/releases</>';
+        if (path.isAbsolute(xresloader_path)) {
+          if (!fs.existsSync(xresloader_path)) {
+            run_log.append();
+            failed_count += pending_script.length;
+            reject.apply(this, [
+              `[${work_dir}] ${xresloader_path} not exists, ${download_hint}`,
+            ]);
+            return;
+          }
+        } else {
+          if (!fs.existsSync(path.join(work_dir, xresloader_path))) {
+            failed_count += pending_script.length;
+            reject.apply(this, [
+              `[${work_dir}] ${xresloader_path} not exists, ${download_hint}`,
+            ]);
+            return;
+          }
+        }
+
+        const child_processes = [];
         function run_one_cmd(xresloader_index, xresloader_exec) {
           if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
             var cmd = pending_script.pop();
@@ -800,15 +828,20 @@ function alert_warning(content, tittle, options) {
             xresloader_exec.stdin.write(cmd);
             xresloader_exec.stdin.write("\r\n");
           } else {
-            xresloader_exec.stdin.end();
+            for (const proc of child_processes) {
+              proc.stdin.end();
+            }
+            while (child_processes.length > 0) {
+              child_processes.pop();
+            }
           }
         }
 
         running_count = xconv_gui_options.parallelism;
         for (var i = 0; i < xconv_gui_options.parallelism; ++i) {
           (function (xresloader_index) {
-            var spawn = require("child_process").spawn;
-            var xresloader_cmds = conv_data.java_options.concat([
+            const spawn = require("child_process").spawn;
+            const xresloader_cmds = conv_data.java_options.concat([
               "-jar",
               xresloader_path,
               "--stdin",
@@ -823,10 +856,11 @@ function alert_warning(content, tittle, options) {
                 "\r\n"
             );
             console.log("start xresloader at " + work_dir);
-            var xresloader_exec = spawn("java", xresloader_cmds, {
+            const xresloader_exec = spawn("java", xresloader_cmds, {
               cwd: work_dir,
               encoding: "utf8",
             });
+            child_processes.push(xresloader_exec);
 
             xresloader_exec.stdout.on("data", function (data) {
               run_log.append(
@@ -848,7 +882,7 @@ function alert_warning(content, tittle, options) {
               run_one_cmd(xresloader_index, xresloader_exec);
             });
 
-            xresloader_exec.on("close", function (code) {
+            xresloader_exec.on("exit", function (code) {
               run_log.append("[Process " + xresloader_index + " Exit]\r\n");
               --running_count;
 
@@ -1023,7 +1057,7 @@ function alert_warning(content, tittle, options) {
       current_promise = current_promise
         .catch(function (onrejected) {
           run_log.append(
-            '<div style="color: Red;">[CONV EVENT] ' +
+            '<div class="alert alert-danger text-wrap">[CONV EVENT] ' +
               onrejected.toString() +
               "</div>\r\n"
           );
@@ -1064,7 +1098,17 @@ function alert_warning(content, tittle, options) {
     var run_log = $("#conv_list_run_res");
     var dep_text = "";
     var dep_msg =
-      '<div class="alert alert-danger">请确保已安装<a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html" target="_blank">JRE或JDK 1.8.0</a>或以上</div>\r\n';
+      '<div class="alert alert-danger">请确保已安装<a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html" target="_blank">64位的JRE或JDK 8</a>或以上</div>,推荐发行版如下:\r\n';
+    dep_msg += "<ol>";
+    dep_msg +=
+      '<li><a href="https://developers.redhat.com/products/openjdk/download" target="_blank">OpenJDK</li>';
+    dep_msg +=
+      '<li><a href="https://adoptopenjdk.net/" target="_blank">AdoptopenJDK</li>';
+    dep_msg +=
+      '<li><a href="https://bell-sw.com/" target="_blank">LibericaJDK</li>';
+    dep_msg +=
+      '<li><a href="https://www.azul.com/downloads/zulu-community/" target="_blank">Zulu</li>';
+    dep_msg += "</ol>";
     try {
       var spawn = require("child_process").spawn;
       var java_exec = spawn("java", ["-version"], {
@@ -1077,7 +1121,7 @@ function alert_warning(content, tittle, options) {
       java_exec.stderr.on("data", function (data) {
         dep_text += data;
       });
-      java_exec.on("close", function () {
+      java_exec.on("exit", function () {
         const find_java_version = dep_text.match(/\d+/g);
         if (find_java_version && find_java_version.length < 2) {
           run_log.append(
@@ -1092,6 +1136,9 @@ function alert_warning(content, tittle, options) {
           run_log.append(
             '<div class="alert alert-primary">' + dep_text + "</div>\r\n"
           );
+          if (!dep_text.match(/64-Bit/i)) {
+            run_log.append(dep_msg);
+          }
         } else {
           if (dep_text) {
             run_log.append(
@@ -1242,8 +1289,9 @@ function alert_warning(content, tittle, options) {
     });
 
     $("#conv_list_btn_select_all").click(function () {
-      $("#conv_list")
-        .fancytree("getRootNode")
+      $.ui.fancytree
+        .getTree("#conv_list")
+        .getRootNode()
         .visit(function (node) {
           node.setSelected(true);
         });
