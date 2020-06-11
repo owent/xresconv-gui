@@ -30,13 +30,7 @@ jobs:
           if (Test-Path "out") { Remove-Item -Recurse -Force "out" }
           & npm install -g yarn
           & yarn install --registry https://registry.npmjs.org
-          if ( "${{ matrix.os }}" -eq "windows-latest" ) { 
-            & yarn run package-win32 --registry https://registry.npmjs.org
-          } elseif ( "${{ matrix.os }}" -eq "macos-latest" ) { 
-            & yarn run package-darwin --registry https://registry.npmjs.org
-          } else {
-            & yarn run package-linux --registry https://registry.npmjs.org
-          }
+          & yarn run package-test --registry https://registry.npmjs.org
 
         shell: pwsh
       - name: Release
