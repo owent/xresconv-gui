@@ -1,10 +1,9 @@
-name: build
+name: release
 
 on: # @see https://help.github.com/en/articles/events-that-trigger-workflows#webhook-events
   push:
-    branches: # Array of patterns that match refs/heads
-      - master # Push events on master branch
-      - dev
+    tags:
+      - "*"
 
 jobs:
   build:
@@ -17,7 +16,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@master
         with:
-          lfs: false
+          lfs: true
       - name: Build
         run: |
           New-Item -ItemType Directory -Force ~/.npm-global
@@ -32,11 +31,33 @@ jobs:
           & yarn install --registry https://registry.npmjs.org
           if ( "${{ matrix.os }}" -eq "windows-latest" ) { 
             & yarn run package-win32 --registry https://registry.npmjs.org
+            cd out
+            $package_list = Get-ChildItem
+            foreach($package in $package_list) { 
+              $package_name = $package.Name
+              echo \"$package_name\"
+              & 7z a -y -r "$package_name.7z" "$package_name"
+            }
           } elseif ( "${{ matrix.os }}" -eq "macos-latest" ) { 
             & yarn run package-darwin --registry https://registry.npmjs.org
+            cd out
+            $package_list = Get-ChildItem
+            foreach($package in $package_list) { 
+              $package_name = $package.Name
+              echo \"$package_name\"
+              & tar -Jcvf "$package_name.tar.xz" "$package_name"
+            }
           } else {
             & yarn run package-linux --registry https://registry.npmjs.org
+            cd out
+            $package_list = Get-ChildItem
+            foreach($package in $package_list) { 
+              $package_name = $package.Name
+              echo \"$package_name\"
+              & tar -Jcvf "$package_name.tar.xz" "$package_name"
+            }
           }
+          cd ..
 
         shell: pwsh
       - name: Release

@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
