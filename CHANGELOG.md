@@ -6,6 +6,8 @@
 
 1. 优化错误提示
 2. 修复子进程事件错误导致可能捕获不到子进程退出的BUG
+3. 换一种reload的实现，原先的 ```BrowserWindow.reload()``` 未知原因会导致子进程退出事件丢失
+4. 增加 ```on_before_convert``` 和 ```on_after_convert``` 事件的```selected_items```传入数据，包含 ```{id, file, scheme, name, cat, options: [], desc, scheme_data: {}}``` 用于指示选中的节点信息
 
 2.2.2
 ------

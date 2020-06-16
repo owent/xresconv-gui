@@ -12,6 +12,11 @@ function generate_id() {
   return conv_data.id_index;
 }
 
+function reload_window() {
+  const { ipcRenderer } = require("electron");
+  ipcRenderer.send("ipc-main", "reload");
+}
+
 function alert_error(content, title) {
   jQuery("#dlg_alert_error_title", "#dlg_alert_error_modal").html(
     title || "出错啦"
@@ -725,7 +730,7 @@ function alert_warning(content, tittle, options) {
       }
 
       var tree = $.ui.fancytree.getTree("#conv_list");
-      var selNodes = tree.getSelectedNodes();
+      var selected_nodes = tree.getSelectedNodes();
 
       var cmd_params = "";
       for (var k in global_options) {
@@ -749,9 +754,10 @@ function alert_warning(content, tittle, options) {
       show_output_matrix();
 
       var pending_script = [];
-
-      selNodes.forEach(function (node) {
+      var selected_items = [];
+      selected_nodes.forEach(function (node) {
         if (node.key && conv_data.items[node.key]) {
+          selected_items.push(conv_data.items[node.key]);
           for (const output of output_matrix) {
             var item_data = conv_data.items[node.key];
             var cmd_args = cmd_params;
@@ -818,88 +824,117 @@ function alert_warning(content, tittle, options) {
           }
         }
 
-        const child_processes = [];
-        function run_one_cmd(xresloader_index, xresloader_exec) {
+        function run_one_cmd(xresloader_index, xresloader_proc) {
           if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
             var cmd = pending_script.pop();
             run_log.append("[CONV " + xresloader_index + "] " + cmd + "\r\n");
             run_log.scrollTop(run_log.prop("scrollHeight"));
 
-            xresloader_exec.stdin.write(cmd);
-            xresloader_exec.stdin.write("\r\n");
+            xresloader_proc.exec.stdin.write(cmd);
+            xresloader_proc.exec.stdin.write("\r\n");
           } else {
-            for (const proc of child_processes) {
-              proc.stdin.end();
+            xresloader_proc.exec.stdin.end();
+            if (xresloader_proc.timer) {
+              clearInterval(xresloader_proc.timer);
+              xresloader_proc.timer = null;
             }
-            while (child_processes.length > 0) {
-              child_processes.pop();
-            }
+
+            run_log.append(
+              `[Process ${xresloader_proc.index} close stdin.]\r\n`
+            );
           }
         }
 
         running_count = xconv_gui_options.parallelism;
-        for (var i = 0; i < xconv_gui_options.parallelism; ++i) {
-          (function (xresloader_index) {
-            const spawn = require("child_process").spawn;
-            const xresloader_cmds = conv_data.java_options.concat([
-              "-jar",
-              xresloader_path,
-              "--stdin",
-            ]);
-            run_log.append(
-              "[" +
-                work_dir +
-                "] Process " +
-                xresloader_index +
-                ": " +
-                xresloader_cmds.join(" ") +
-                "\r\n"
-            );
-            console.log("start xresloader at " + work_dir);
-            const xresloader_exec = spawn("java", xresloader_cmds, {
+        function run_one_child_process(xresloader_index) {
+          const spawn = require("child_process").spawn;
+          const xresloader_cmds = conv_data.java_options.concat([
+            "-jar",
+            xresloader_path,
+            "--stdin",
+          ]);
+          run_log.append(
+            "[" +
+              work_dir +
+              "] Process " +
+              xresloader_index +
+              ": " +
+              xresloader_cmds.join(" ") +
+              "\r\n"
+          );
+          console.log("start xresloader at " + work_dir);
+          const xresloader_proc = {
+            exec: spawn("java", xresloader_cmds, {
               cwd: work_dir,
               encoding: "utf8",
-            });
-            child_processes.push(xresloader_exec);
+            }),
+            timer: null,
+            index: xresloader_index,
+          };
 
-            xresloader_exec.stdout.on("data", function (data) {
+          var has_triggered_exit = false;
+          var handle_exit_fn = function (code, signal) {
+            if (has_triggered_exit) {
+              return;
+            }
+            has_triggered_exit = true;
+            if (signal) {
               run_log.append(
-                "<span style='color: Green;'>" +
-                  shell_color_to_html(data) +
-                  "</span>\r\n"
+                `[Process ${xresloader_index} Exit.${signal}]\r\n`
               );
-              run_log.scrollTop(run_log.prop("scrollHeight"));
-              run_one_cmd(xresloader_index, xresloader_exec);
-            });
+            } else {
+              run_log.append(`[Process ${xresloader_index} Exit.]\r\n`);
+            }
+            --running_count;
 
-            xresloader_exec.stderr.on("data", function (data) {
-              run_log.append(
-                '<div class="alert alert-danger">' +
-                  shell_color_to_html(data) +
-                  "</div>\r\n"
-              );
-              run_log.scrollTop(run_log.prop("scrollHeight"));
-              run_one_cmd(xresloader_index, xresloader_exec);
-            });
+            if (code > 0) {
+              failed_count += code;
+            }
 
-            xresloader_exec.on("exit", function (code) {
-              run_log.append("[Process " + xresloader_index + " Exit]\r\n");
-              --running_count;
-
-              if (code > 0) {
-                failed_count += code;
+            if (running_count <= 0 && conv_data.run_seq == run_seq) {
+              if (failed_count <= 0) {
+                resolve.apply(this, [arguments]);
+              } else {
+                reject.apply(this, [arguments]);
               }
+            }
+          };
+          xresloader_proc.exec.on("exit", handle_exit_fn);
+          xresloader_proc.exec.on("error", handle_exit_fn);
+          xresloader_proc.exec.on("close", handle_exit_fn);
 
-              if (running_count <= 0 && conv_data.run_seq == run_seq) {
-                if (failed_count <= 0) {
-                  resolve.apply(this, [arguments]);
-                } else {
-                  reject.apply(this, [arguments]);
-                }
-              }
-            });
-            run_one_cmd(xresloader_index, xresloader_exec);
-          })(i + 1);
+          xresloader_proc.exec.stdout.on("data", function (data) {
+            run_log.append(
+              "<span style='color: Green;'>" +
+                shell_color_to_html(data) +
+                "</span>\r\n"
+            );
+            run_log.scrollTop(run_log.prop("scrollHeight"));
+            run_one_cmd(xresloader_index, xresloader_proc);
+          });
+
+          xresloader_proc.exec.stderr.on("data", function (data) {
+            run_log.append(
+              '<div class="alert alert-danger">' +
+                shell_color_to_html(data) +
+                "</div>\r\n"
+            );
+            run_log.scrollTop(run_log.prop("scrollHeight"));
+            run_one_cmd(xresloader_index, xresloader_proc);
+          });
+
+          xresloader_proc.timer = setInterval(function () {
+            if (!(pending_script.length > 0 && conv_data.run_seq == run_seq)) {
+              run_one_cmd(xresloader_index, xresloader_proc);
+            }
+          }, 3000);
+          setTimeout(function () {
+            run_one_cmd(xresloader_index, xresloader_proc);
+          }, 32);
+        }
+
+        for (var i = 0; i < xconv_gui_options.parallelism; ++i) {
+          run_one_child_process(i + 1);
         }
       }
 
@@ -915,7 +950,8 @@ function alert_warning(content, tittle, options) {
             configure_file: conv_data.input_file.path,
             xresloader_path: xresloader_path,
             global_options: global_options,
-            selected_nodes: selNodes,
+            selected_nodes: selected_nodes,
+            selected_items: selected_items,
             run_seq: run_seq,
             alert_warning: alert_warning,
             alert_error: alert_error,
@@ -1324,6 +1360,7 @@ function alert_warning(content, tittle, options) {
     $("#conv_list_btn_start_conv").click(function () {
       conv_start();
     });
+    $("#conv_list_btn_reload").click(reload_window);
     $("a", "#conv_list_rename_samples").click(function () {
       $("#conv_list_rename").val($(this).attr("data-rename"));
 

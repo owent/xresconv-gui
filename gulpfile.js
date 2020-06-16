@@ -76,6 +76,22 @@ gulp.task(
 );
 
 gulp.task(
+  "debug-run",
+  gulp.series("copy-libs", function (done) {
+    const args = [".", "--debug"];
+    for (const v of process.argv.slice(3)) {
+      args.push(v);
+    }
+    console.log(args);
+    childProcess.spawn(electron, args, {
+      stdio: "inherit",
+    });
+
+    done();
+  })
+);
+
+gulp.task(
   "debug",
   gulp.series("copy-libs", function (done) {
     const args = ["--inspect-brk=5858", "."];
@@ -102,9 +118,14 @@ gulp.task(
       if (err) {
         console.log(`${appPaths}: ${err}`);
       }
-    }).then(function () {
-      done();
-    });
+    })
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );
 
@@ -119,9 +140,14 @@ gulp.task(
       if (err) {
         console.log(`${appPaths}: ${err}`);
       }
-    }).then(function () {
-      done();
-    });
+    })
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );
 
@@ -137,9 +163,14 @@ gulp.task(
       if (err) {
         console.log(`${appPaths}: ${err}`);
       }
-    }).then(function () {
-      done();
-    });
+    })
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );
 
@@ -154,9 +185,14 @@ gulp.task(
       if (err) {
         console.log(`${appPaths}: ${err}`);
       }
-    }).then(function () {
-      done();
-    });
+    })
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );
 
@@ -180,8 +216,13 @@ gulp.task(
       if (err) {
         console.log(`${appPaths}: ${err}`);
       }
-    }).then(function () {
-      done();
-    });
+    })
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );

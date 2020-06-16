@@ -17,17 +17,36 @@ const { BrowserWindow } = electron;
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let win;
+let hold = false;
 
 function createWindow() {
+  var main_url = app_config.main;
+  if (process) {
+    var is_input = false;
+    for (const v of process.argv) {
+      if (is_input) {
+        main_url =
+          main_url + "?input=" + encodeURIComponent(v.replace(/\\/g, "/"));
+        is_input = false;
+        break;
+      } else if (v == "--input") {
+        is_input = true;
+      } else if (v == "--debug") {
+        app_config.debug = true;
+      }
+    }
+  }
+
   // Create the browser window.
   win = new BrowserWindow({
     width: app_config.width,
-    height: app_config.height,
+    height: app_config.height + 28,
     minWidth: app_config.minWidth,
     minHeight: app_config.minHeight,
     resizable: app_config.debug,
     movable: true,
     closable: true,
+    fullscreenable: app_config.debug,
     skipTaskbar: false,
     frame: true,
     autoHideMenuBar: !app_config.debug,
@@ -36,30 +55,7 @@ function createWindow() {
       nodeIntegration: true,
     },
   });
-
-  var main_url = app_config.main;
-  if (process) {
-    var is_input = false;
-    for (const v of process.argv) {
-      if (is_input) {
-        main_url =
-          main_url + "?input=" + encodeURIComponent(v.replace(/\\/g, "/"));
-        break;
-      } else if (v == "--input") {
-        is_input = true;
-      }
-    }
-  }
-
-  // and load the index.html of the app.
-  win.loadURL(main_url);
-
-  // Open the DevTools.
-  if (app_config.debug) {
-    win.webContents.openDevTools();
-  }
-
-  // win.webContents.
+  hold = false;
 
   // Emitted when the window is closed.
   win.on("closed", () => {
@@ -68,7 +64,30 @@ function createWindow() {
     // when you should delete the corresponding element.
     win = null;
   });
+
+  // and load the index.html of the app.
+  win.loadURL(main_url);
+
+  // Open the DevTools.
+  if (app_config.debug) {
+    win.webContents.openDevTools();
+  }
 }
+
+const { ipcMain } = require("electron");
+ipcMain.on("ipc-main", (event, arg) => {
+  if (arg === "reload") {
+    setTimeout(function () {
+      hold = true;
+      if (win) {
+        win.close();
+      }
+      createWindow();
+    }, 50);
+  }
+
+  event.reply("ok");
+});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -79,7 +98,7 @@ app.on("ready", createWindow);
 app.on("window-all-closed", () => {
   // On OS X it is common for applications and their menu bar
   // to stay active until the user quits explicitly with Cmd + Q
-  if (process.platform !== "darwin") {
+  if (!hold && process.platform !== "darwin") {
     app.quit();
   }
 });
@@ -87,7 +106,7 @@ app.on("window-all-closed", () => {
 app.on("activate", () => {
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
-  if (win === null) {
+  if (!hold && win === null) {
     createWindow();
   }
 });

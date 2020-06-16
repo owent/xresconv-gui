@@ -16,19 +16,20 @@
   },
   "dependencies": {
     "bootstrap": "^4.5.0",
-    "electron": "^9.0.3",
+    "electron": "^9.0.4",
     "jquery": "^3.5.1",
     "jquery.fancytree": "^2.35.0",
     "popper.js": "^1.16.1"
   },
   "devDependencies": {
-    "electron": "^9.0.3",
+    "electron": "^9.0.4",
     "electron-packager": "^14.2.1",
     "gulp": "^4.0.2"
   },
   "scripts": {
     "prepare": "gulp copy-libs",
     "start": "gulp run",
+    "debug-start": "gulp debug-run",
     "vscode-start": "electron --debug=5858 .",
     "debug": "gulp debug",
     "package-test": "gulp package-test",
