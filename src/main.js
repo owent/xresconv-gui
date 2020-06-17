@@ -262,21 +262,31 @@ function alert_warning(content, tittle, options) {
             parent_node.get(0).selectedIndex = unknown_node.get(0).index;
           }
         } else if ("output_type" == tn) {
-          const output_type_rename_rule = ($(dom).attr("rename") || "").trim();
+          const output_type_rename_rule = (
+            dom.getAttribute("rename") || ""
+          ).trim();
           output_matrix.push({
             type: val,
             rename: output_type_rename_rule,
+            tags: (dom.getAttribute("tag") || "")
+              .trim()
+              .split(/[\s]+/)
+              .filter((x) => !!x),
+            classes: (dom.getAttribute("class") || "")
+              .trim()
+              .split(/[\s]+/)
+              .filter((x) => !!x),
           });
         } else if ("option" == tn && val) {
           conv_data.global_options.push({
-            name: $(dom).attr("name") || val,
-            desc: $(dom).attr("desc") || val,
+            name: dom.getAttribute("name") || val,
+            desc: dom.getAttribute("desc") || val,
             value: val,
           });
         } else if ("java_option" == tn && val) {
           conv_data.java_options.push(val);
         } else if ("default_scheme" == tn && val) {
-          var scheme_key = $(dom).attr("name").trim();
+          var scheme_key = dom.getAttribute("name").trim();
           if (scheme_key) {
             if (conv_data.default_scheme[scheme_key]) {
               conv_data.default_scheme[scheme_key].push(val);
@@ -328,7 +338,19 @@ function alert_warning(content, tittle, options) {
               output.type +
               ")";
             if (output.rename) {
-              msg += '\t重命名规则: "[1;35;m' + output.rename + '[0;m"';
+              msg += '\r\n\t\t重命名规则: "[1;35;m' + output.rename + '[0;m"';
+            }
+            if (output.tags && output.tags.length > 0) {
+              msg +=
+                '\r\n\t\t限定Tag列表: "[1;35;m' +
+                output.tags.map((x) => x.toString()).join(",") +
+                '[0;m"';
+            }
+            if (output.classes && output.classes.length > 0) {
+              msg +=
+                '\r\n\t\t限定class列表: "[1;35;m' +
+                output.classes.map((x) => x.toString()).join(",") +
+                '[0;m"';
             }
             msg += "\r\n";
           }
@@ -499,6 +521,14 @@ function alert_warning(content, tittle, options) {
           options: [],
           desc: jitem.attr("name").trim() || jitem.attr("desc").trim() || "",
           scheme_data: {},
+          tags: (jitem.attr("tag") || "")
+            .trim()
+            .split(/[\s]+/)
+            .filter((x) => !!x),
+          classes: (jitem.attr("class") || "")
+            .trim()
+            .split(/[\s]+/)
+            .filter((x) => !!x),
         };
 
         $.each(jitem.children("option"), function (k, v) {
@@ -714,14 +744,18 @@ function alert_warning(content, tittle, options) {
         const global_rename_rule = $("#conv_list_rename").val();
         for (const output of conv_list_output_custom_multi.output_matrix) {
           output_matrix.push({
-            "-t": output.type || global_output_type,
-            "-n": output.rename || global_rename_rule,
+            type: output.type || global_output_type,
+            rename: output.rename || global_rename_rule,
+            tags: output.tags || null,
+            classes: output.classes || null,
           });
         }
       } else {
         output_matrix.push({
-          "-t": $("#conv_list_output_type").val(),
-          "-n": $("#conv_list_rename").val(),
+          type: $("#conv_list_output_type").val(),
+          rename: $("#conv_list_rename").val(),
+          tags: null,
+          classes: null,
         });
       }
 
@@ -762,10 +796,31 @@ function alert_warning(content, tittle, options) {
             var item_data = conv_data.items[node.key];
             var cmd_args = cmd_params;
 
-            for (var k in output) {
-              if (output[k]) {
-                cmd_args += " " + k + ' "' + output[k] + '"';
+            if (output.tags && output.tags.length > 0) {
+              if (
+                !output.tags.find((x) =>
+                  (item_data.tags || []).find((y) => x === y)
+                )
+              ) {
+                continue;
               }
+            }
+
+            if (output.classes && output.classes.length > 0) {
+              if (
+                !output.classes.find((x) =>
+                  (item_data.classes || []).find((y) => x === y)
+                )
+              ) {
+                continue;
+              }
+            }
+
+            if (output.type) {
+              cmd_args += ' -t "' + output.type + '"';
+            }
+            if (output.rename) {
+              cmd_args += ' -n "' + output.rename + '"';
             }
 
             for (const item_option of item_data.options) {

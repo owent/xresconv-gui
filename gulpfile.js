@@ -110,6 +110,11 @@ gulp.task(
 gulp.task(
   "package-win32",
   gulp.series("copy-libs", function (done) {
+    const os = require("os");
+    if (os.platform() === "win32") {
+      process.env["PATH"] =
+        process.env["PATH"] + ";C:/Windows/System32/WindowsPowerShell/v1.0";
+    }
     var opts = extend_options({}, packger_options, {
       platform: "win32",
       arch: "all",

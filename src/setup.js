@@ -40,7 +40,7 @@ function createWindow() {
   // Create the browser window.
   win = new BrowserWindow({
     width: app_config.width,
-    height: app_config.height + 28,
+    height: app_config.height + (app_config.debug ? 28 : 0),
     minWidth: app_config.minWidth,
     minHeight: app_config.minHeight,
     resizable: app_config.debug,
