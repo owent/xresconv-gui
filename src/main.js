@@ -1043,8 +1043,9 @@ function alert_warning(content, tittle, options) {
                 };
                 cur_promise = cur_promise.then(function () {
                   return new Promise(function (resolve, reject) {
+                    let vm_context;
                     try {
-                      const vm_context = vm.createContext(
+                      vm_context = vm.createContext(
                         jQuery.extend(
                           {
                             resolve: function (value) {
@@ -1058,6 +1059,7 @@ function alert_warning(content, tittle, options) {
                               }
                             },
                             reject: function (reason) {
+                              ++failed_count;
                               if (null != evt_obj.timer_handle) {
                                 clearTimeout(evt_obj.timer_handle);
                                 evt_obj.timer_handle = null;
@@ -1079,6 +1081,7 @@ function alert_warning(content, tittle, options) {
                       evt_obj.timer_handle = setTimeout(function () {
                         evt_obj.timer_handle = null;
                         if (!evt_obj.has_done) {
+                          ++failed_count;
                           evt_obj.has_done = true;
                           vm_context_obj.log_error(
                             "Run event callback callback timeout"
@@ -1087,11 +1090,12 @@ function alert_warning(content, tittle, options) {
                         }
                       }, evt_obj.vm_script.timeout);
                     } catch (e) {
+                      ++failed_count;
                       const err_msg =
                         e.toString() +
                         (e.stack ? "\r\n" + e.stack.toString() : "");
                       run_log.append(
-                        '<div style="color: Red;">[CONV EVENT] ' +
+                        '<div style="color: Red;">[CONV EVENT EXCEPTION] ' +
                           err_msg +
                           "</div>\r\n"
                       );
