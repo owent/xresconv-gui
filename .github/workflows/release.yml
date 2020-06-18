@@ -19,6 +19,7 @@ jobs:
           lfs: true
       - name: Build
         run: |
+          & git log -n 10 --pretty=oneline
           New-Item -ItemType Directory -Force ~/.npm-global
           npm config set prefix "~/.npm-global"
           if ( "${{ matrix.os }}" -eq "windows-latest" ) { 
