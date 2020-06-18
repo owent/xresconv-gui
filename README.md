@@ -20,13 +20,12 @@ xresconv-gui
 
 可以通过增加启动参数 ```--debug``` 来开启debug模式并启动开发人员工具。
 
-示例截图
+示例
 ------
-![示例截图-1](doc/snapshoot-1.png)
 
-![示例截图-2](doc/snapshoot-2.png)
+![示例截图-1](doc/snapshoot-1.gif)
 
-![示例截图-3](doc/snapshoot-3.png)
+![示例截图-2](doc/snapshoot-2.gif)
 
 ![示例截图-3](doc/snapshoot-4.png)
 
