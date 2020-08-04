@@ -1,8 +1,9 @@
 // 获取依赖
-var gulp = require("gulp"),
+const gulp = require("gulp"),
   childProcess = require("child_process"),
   electron = require("electron"),
-  electron_packger = require("electron-packager");
+  electron_packger = require("electron-packager"),
+  os = require("os");
 
 var packger_options = {
   dir: ".",
@@ -24,6 +25,10 @@ var packger_options = {
   prune: true,
   asar: true,
 };
+
+if ("darwin" == os.platform().toLowerCase()) {
+  packger_options.asar = false; // macOS can not read from asar
+}
 
 function extend_options(ret) {
   for (var src_i = 1; src_i < arguments.length; ++src_i) {
@@ -211,7 +216,6 @@ gulp.task(
       }
     }
 
-    const os = require("os");
     var opts = extend_options({}, test_packger_options, {
       platform: os.platform(),
       arch: "all",
