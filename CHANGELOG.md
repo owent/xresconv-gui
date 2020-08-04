@@ -1,6 +1,11 @@
 更新记录
 ==========
 
+2.2.4
+------
+
+1. Fix icon loading error for darwin platform.
+
 2.2.3
 ------
 

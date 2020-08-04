@@ -1,4 +1,6 @@
-﻿const app_config = {
+﻿const os = require("os");
+
+const app_config = {
   debug: false,
   width: 1280,
   height: 768,
@@ -7,6 +9,10 @@
   icon: `${__dirname}/../doc/logo.ico`,
   main: `file://${__dirname}/index.html`,
 };
+
+if ("darwin" == os.platform().toLowerCase()) {
+  app_config.icon = `${__dirname}/../doc/logo.icns`;
+}
 
 const electron = require("electron");
 // Module to control application life.
