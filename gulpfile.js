@@ -26,9 +26,9 @@ var packger_options = {
   asar: true,
 };
 
-if ("darwin" == os.platform().toLowerCase()) {
-  packger_options.asar = false; // macOS can not read from asar
-}
+// if ("darwin" == os.platform().toLowerCase()) {
+//   packger_options.asar = false; // macOS can not read from asar
+// }
 
 function extend_options(ret) {
   for (var src_i = 1; src_i < arguments.length; ++src_i) {

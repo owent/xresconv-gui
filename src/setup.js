@@ -11,7 +11,7 @@ const app_config = {
 };
 
 if ("darwin" == os.platform().toLowerCase()) {
-  app_config.icon = `${__dirname}/../doc/logo.icns`;
+  app_config.icon = `${__dirname}/../doc/logo.png`; // darwin should use png as icon
 }
 
 const electron = require("electron");
