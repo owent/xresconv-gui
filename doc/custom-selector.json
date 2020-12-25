@@ -1,0 +1,15 @@
+[{
+    "name": "自定义按钮-按Scheme",
+    "by_schemes": [{
+        "file": "资源转换示例.xlsx",
+        "scheme": "glob: *"
+    }],
+    "default_selected": false
+}, {
+    "name": "自定义按钮-按Sheet",
+    "by_sheets": [{
+        "file": "资源转换示例.xlsx",
+        "sheet": "regex: .*"
+    }],
+    "default_selected": true
+}]

@@ -17,6 +17,172 @@ function reload_window() {
   ipcRenderer.send("ipc-main", "reload");
 }
 
+function send_resize_windows() {
+  const new_size = {
+    height: $(document.body).height(),
+    width: $(document.body).width()
+  };
+  console.log(`Send resize message to main frame(height: ${new_size.height}, width: ${new_size.width})`);
+  const { ipcRenderer } = require("electron");
+  ipcRenderer.send("ipc-resize-window", new_size);
+}
+
+function setup_auto_resize_window() {
+  $(document.body).on("resize", function () {
+    send_resize_windows();
+  });
+  send_resize_windows();
+}
+
+function match_string_rule(rule, input) {
+  if (!input && !rule) {
+    return true;
+  }
+
+  if (!input || !rule) {
+    return false;
+  }
+
+  if (rule.toLowerCase().substr(0, 6) == "regex:") {
+    return input.match((new RegExp(rule.substr(6).trim())))
+  } else if (rule.toLowerCase().substr(0, 5) == "glob:") {
+    const minimatch = require('minimatch');
+    return minimatch(input, rule.substr(5).trim());
+  } else {
+    return rule == input;
+  }
+}
+
+function custom_selector_on_click(selector, force_selected) {
+  if (selector.items === undefined) {
+    selector.items = [];
+    for (const item_key in (conv_data.items || {})) {
+      const item = conv_data.items[item_key];
+      if (item.file && item.scheme) {
+        for (const scheme_rule of (selector.by_schemes || [])) {
+          const match_file_name = match_string_rule(scheme_rule.file, item.file);
+          const match_scheme_name = !scheme_rule.scheme || match_string_rule(scheme_rule.scheme, item.scheme);
+          if (match_file_name && match_scheme_name) {
+            selector.items.push(item);
+            break;
+          }
+        }
+      } else if (item.scheme_data && item.scheme_data.DataSource) {
+        const data_srouces = [];
+        if (Array.isArray(item.scheme_data.DataSource)) {
+          for(const data_source of item.scheme_data.DataSource) {
+            data_srouces.push(data_source.split("|"));  
+          }
+        } else {
+          data_srouces.push(item.scheme_data.DataSource.split("|"));
+        }
+        var has_matched = false;
+        for (const sheet_rule of (selector.by_sheets || [])) {
+          if (has_matched) {
+            break;
+          }
+
+          for (const data_srouce of data_srouces) {
+            const match_file_name = match_string_rule(sheet_rule.file, data_srouce[0]);
+            const match_sheet_name = !sheet_rule.sheet || match_string_rule(sheet_rule.sheet, data_srouce[1]);
+            if (match_file_name && match_sheet_name) {
+              selector.items.push(item);
+              has_matched = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    for (const item of selector.items) {
+      console.log(`Custom selector "${selector.name}" add "${item.name}"`);
+    }
+  }
+
+  if (force_selected === undefined) {
+    force_selected = false;
+    for (const item of (selector.items || [])) {
+      if(item.ft_node && !item.ft_node.isSelected()) {
+        force_selected = true;
+        break;
+      }
+    }
+  }
+
+  for (const item of (selector.items || [])) {
+    if(item.ft_node) {
+      item.ft_node.setSelected(force_selected);
+    }
+  }
+}
+
+function setup_custom_selectors() {
+  try {
+    const { ipcRenderer } = require("electron");
+    ipcRenderer.invoke("ipc-get-custom-selectors").then((custom_selectors) => {
+      if (!custom_selectors) {
+        return;
+      }
+
+      const conv_list_custom_btn_group = jQuery("#conv_list_custom_btn_group");
+      conv_list_custom_btn_group.css({
+        "visibility": "visible",
+        "display": "block"
+      });
+      conv_list_custom_btn_group.empty();
+
+      for(const custom_selector of custom_selectors) {
+        var error_message = null;
+
+        if (typeof(custom_selector) == "string") {
+          error_message = custom_selector;
+        } else if (!custom_selector.name) {
+          error_message = "自定义选择器必须配置名称";
+        } else if (!custom_selector.by_schemes && ! custom_selector.by_sheets) {
+          error_message = `自定义选择器 ${custom_selector.name} 没有一个有效的规则`;
+        }
+  
+        if (error_message) {
+          const run_log = $("#conv_list_run_res");
+          if (run_log) {
+            run_log.append(
+              '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' + error_message + "</div>\r\n"
+            );
+            run_log.scrollTop(run_log.prop("scrollHeight"));
+          }
+          console.error(error_message);
+          continue;
+        }
+  
+        // 构建自定义选择器按钮
+        console.log(`Add custom selector ${custom_selector.name}`);
+        const new_btn = jQuery('<button type="button" class="btn btn-outline-secondary"></button>');
+        new_btn.text(custom_selector.name);
+        conv_list_custom_btn_group.append(new_btn);
+        new_btn.on("click", function() { custom_selector_on_click(custom_selector); });
+        custom_selector.dom = new_btn;
+        if (custom_selector.default_selected) {
+          custom_selector_on_click(custom_selector, true);
+        }
+
+        setup_auto_resize_window();
+      }
+
+      conv_data.custom_selectors = custom_selectors;
+    });
+  } catch (e) {
+    const run_log = $("#conv_list_run_res");
+    if (run_log) {
+      run_log.append(
+        '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' + e.toString() + "</div>\r\n"
+      );
+      run_log.scrollTop(run_log.prop("scrollHeight"));
+    }
+    console.error(e.toString());
+  }
+}
+
 function alert_error(content, title) {
   jQuery("#dlg_alert_error_title", "#dlg_alert_error_modal").html(
     title || "出错啦"
@@ -41,7 +207,7 @@ function alert_warning(content, tittle, options) {
   const btn_no = $(
     '<button type="button" class="btn btn-secondary" data-dismiss="modal">否</button>'
   );
-  btn_yes.click(function () {
+  btn_yes.on("click", function () {
     dlg.modal("hide");
     if (typeof options.yes == "function") {
       options.yes.apply(this, [arguments]);
@@ -51,7 +217,7 @@ function alert_warning(content, tittle, options) {
     }
   });
 
-  btn_no.click(function () {
+  btn_no.on("click", function () {
     dlg.modal("hide");
     if (typeof options.no == "function") {
       options.no.apply(this, [arguments]);
@@ -85,7 +251,11 @@ function alert_warning(content, tittle, options) {
       category: {},
       file_map: {},
       input_file: null,
+      custom_selectors: conv_data.custom_selectors || undefined
     };
+    for (const selector of (conv_data.custom_selectors || [])) {
+      selector.items = undefined;
+    }
   }
 
   function get_string_file(file_path) {
@@ -521,6 +691,7 @@ function alert_warning(content, tittle, options) {
           options: [],
           desc: jitem.attr("name").trim() || jitem.attr("desc").trim() || "",
           scheme_data: {},
+          ft_node : null,
           tags: (jitem.attr("tag") || "")
             .trim()
             .split(/[\s]+/)
@@ -618,11 +789,15 @@ function alert_warning(content, tittle, options) {
 
         conv_data.items[item_data.id] = item_data;
 
-        var ft_node = {
+        const ft_node = {
           title: item_data.name,
           tooltip: item_data.desc,
           key: item_data.id,
+          data: {
+            item: item_data
+          }
         };
+        // item_data.ft_node = ft_node;
         if (item_data.cat && cat_map[item_data.cat]) {
           cat_map[item_data.cat].children.push(ft_node);
         } else {
@@ -688,6 +863,17 @@ function alert_warning(content, tittle, options) {
     return ret;
   }
 
+  function rebind_ft_node_and_item(ft_node) {
+    if (ft_node.data && ft_node.data.item) {
+      ft_node.data.item.ft_node = ft_node;
+    }
+
+    if (ft_node.children) {
+      for (const child_node of ft_node.children) {
+        rebind_ft_node_and_item(child_node);
+      }
+    }
+  }
   function show_conv_tree() {
     if ($("#conv_list").children().length > 0) {
       $("#conv_list").fancytree("destroy");
@@ -705,11 +891,20 @@ function alert_warning(content, tittle, options) {
           return false;
         }
       },
+      createNode: function(_, data) {
+        rebind_ft_node_and_item(data.node);
+      },
       cookieId: "conv_list-ft",
       idPrefix: "conv_list-ft-",
     });
 
     show_output_matrix();
+
+    for (const selector of (conv_data.custom_selectors || [])) {
+      if (selector.default_selected) {
+        custom_selector_on_click(selector, true);
+      }
+    }
   }
 
   function conv_start() {
@@ -1258,7 +1453,7 @@ function alert_warning(content, tittle, options) {
     run_log.scrollTop(run_log.prop("scrollHeight"));
   }
 
-  $(document).ready(function () {
+  $(function () {
     // 并行转表选项
     (function () {
       // 获取CPU信息，默认并行度为CPU核心数量/2
@@ -1292,7 +1487,7 @@ function alert_warning(content, tittle, options) {
       }
 
       console.log("转表并发数: " + xconv_gui_options.parallelism);
-      father_dom.change(function () {
+      father_dom.on("change", function () {
         var new_value = parseInt(father_dom.val());
         if (xconv_gui_options.parallelism == new_value) {
           return;
@@ -1330,11 +1525,11 @@ function alert_warning(content, tittle, options) {
       });
     })();
 
-    $("#conv_list_file_btn").click(function () {
+    $("#conv_list_file_btn").on("click", function () {
       $("#conv_list_file").val("");
-      $("#conv_list_file").click();
+      $("#conv_list_file").trigger("click");
     });
-    $("#conv_list_file").click(function () {
+    $("#conv_list_file").on("click", function () {
       $(this).val("");
     });
 
@@ -1343,26 +1538,6 @@ function alert_warning(content, tittle, options) {
       $("#conv_list_file_val").val(clf.path);
 
       const fs = require("fs");
-      /*
-      // some times the async callback will not be called when using async API
-      fs.readFile(clf.path, "utf8", function (err, data) {
-        if (err) {
-          alert_error(err.toString(), "加载 " + clf.path + " 失败");
-          console.error(err.toString());
-          $("#conv_list_file_val").val("加载文件失败！");
-        } else {
-          reset_conv_data();
-
-          conv_data.input_file = input_file;
-          conv_data.file_map[clf.path] = true;
-
-          build_conv_tree(data, clf.path).then(function () {
-            // 显示属性树
-            show_conv_tree();
-          });
-        }
-      });
-      */
       try {
         const data = fs.readFileSync(clf.path, { encoding: "utf8" });
         reset_conv_data();
@@ -1379,11 +1554,11 @@ function alert_warning(content, tittle, options) {
         $("#conv_list_file_val").val("加载文件失败！");
       }
     };
-    $("#conv_list_file").bind("change", function () {
+    $("#conv_list_file").on("change", function () {
       on_load_conv_list_file(get_dom_file("conv_list_file"));
     });
 
-    $("#conv_list_btn_select_all").click(function () {
+    $("#conv_list_btn_select_all").on("click", function () {
       $.ui.fancytree
         .getTree("#conv_list")
         .getRootNode()
@@ -1392,35 +1567,38 @@ function alert_warning(content, tittle, options) {
         });
     });
 
-    $("#conv_list_btn_select_none").click(function () {
-      $("#conv_list")
-        .fancytree("getRootNode")
+    $("#conv_list_btn_select_none").on("click", function () {
+      $.ui.fancytree
+        .getTree("#conv_list")
+        .getRootNode()
         .visit(function (node) {
           node.setSelected(false);
         });
     });
 
-    $("#conv_list_btn_expand").click(function () {
-      $("#conv_list")
-        .fancytree("getRootNode")
+    $("#conv_list_btn_expand").on("click", function () {
+      $.ui.fancytree
+        .getTree("#conv_list")
+        .getRootNode()
         .visit(function (node) {
           node.setExpanded(true);
         });
     });
 
-    $("#conv_list_btn_collapse").click(function () {
-      $("#conv_list")
-        .fancytree("getRootNode")
+    $("#conv_list_btn_collapse").on("click", function () {
+      $.ui.fancytree
+        .getTree("#conv_list")
+        .getRootNode()
         .visit(function (node) {
           node.setExpanded(false);
         });
     });
 
-    $("#conv_list_btn_start_conv").click(function () {
+    $("#conv_list_btn_start_conv").on("click", function () {
       conv_start();
     });
-    $("#conv_list_btn_reload").click(reload_window);
-    $("a", "#conv_list_rename_samples").click(function () {
+    $("#conv_list_btn_reload").on("click", reload_window);
+    $("a", "#conv_list_rename_samples").on("click", function () {
       $("#conv_list_rename").val($(this).attr("data-rename"));
 
       const conv_list_output_custom_multi = document.getElementById(
@@ -1436,7 +1614,7 @@ function alert_warning(content, tittle, options) {
       }
     });
 
-    $("#conv_list_rename").bind("change", function () {
+    $("#conv_list_rename").on("change", function () {
       const conv_list_output_custom_multi = document.getElementById(
         "conv_list_output_custom_multi"
       );
@@ -1450,7 +1628,7 @@ function alert_warning(content, tittle, options) {
       }
     });
 
-    $("#conv_list_output_type").bind("change", function () {
+    $("#conv_list_output_type").on("change", function () {
       show_output_matrix();
     });
 
@@ -1465,6 +1643,9 @@ function alert_warning(content, tittle, options) {
           on_load_conv_list_file(get_string_file(init_file_path));
         }
       }
+
+      setup_custom_selectors();
+      setup_auto_resize_window();
     } catch (e) {
       // ignore load initialize file failed
     }

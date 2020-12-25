@@ -40,7 +40,7 @@
 </head>
 
 <body>
-    <div class="card-group">
+    <div id="conv_tools_main_content" class="card-group">
         <div class="card card-default" id="conv_list_panel">
             <div class="card-header">
                 <h3 class="card-title">转换列表</h3>
@@ -147,18 +147,15 @@
                     <label for="conv_list_file">转换列表文件</label>
                     <pre id="conv_list_run_res" class="form-control" placeholder="运行日志:"></pre>
                 </div>
-
-                <div class="form-group">
-                    <div class="input-group">
-                        <span class="input-group-btn">
-                            <button id="conv_list_btn_select_all" type="button" class="btn btn-default">全部选中</button>
-                            <button id="conv_list_btn_select_none" type="button" class="btn btn-default">全部取消</button>
-                            <button id="conv_list_btn_expand" type="button" class="btn btn-default">全部展开</button>
-                            <button id="conv_list_btn_collapse" type="button" class="btn btn-default">全部收起</button>
-                        </span>
-                        <button id="conv_list_btn_start_conv" type="button" class="btn btn-primary">开始转换</button>
-                        <button id="conv_list_btn_reload" type="button" class="btn btn-success">重置</button>
-                    </div>
+                <div class="btn-group">
+                    <button id="conv_list_btn_select_all" type="button" class="btn btn-outline-secondary">全部选中</button>
+                    <button id="conv_list_btn_select_none" type="button" class="btn btn-outline-secondary">全部取消</button>
+                    <button id="conv_list_btn_expand" type="button" class="btn btn-outline-secondary">全部展开</button>
+                    <button id="conv_list_btn_collapse" type="button" class="btn btn-outline-secondary">全部收起</button>
+                    <button id="conv_list_btn_start_conv" type="button" class="btn btn-primary">开始转换</button>
+                    <button id="conv_list_btn_reload" type="button" class="btn btn-success">重置</button>
+                </div>
+                <div class="btn-group" id="conv_list_custom_btn_group" aria-hidden="true" >
                 </div>
             </form>
         </div>

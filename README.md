@@ -16,9 +16,30 @@ xresconv-gui
 启动参数
 ------
 
-可以通过增加启动参数 ```--input <文件名>``` 来指定初始的转表清单文件。
++ ```--input <文件名>``` : 指定初始的转表清单文件。
++ ```--debug``` : 开启debug模式并启动开发人员工具。
++ ```--custom-selector <json文件名>``` : 增加自定义选择器,允许多个
 
-可以通过增加启动参数 ```--debug``` 来开启debug模式并启动开发人员工具。
+### 自定义选择器规则
+
+文件必须是UTF-8编码。
+
+```json
+{
+    "name": "选择器按钮名称",
+    "by_schemes": [{                                    // item里配置file和scheme属性的选取规则
+        "file": "文件名, 比如: 资源转换示例.xlsx",
+        "scheme": "转表规则名, 比如: scheme_upgrade"    // 此项可以为空，如果为空会命中所有file匹配的条目
+    }],
+    "by_sheets": [{                                     // item里的DataSource子节点配置DataSource的选取规则
+        "file": "文件名, 比如: 资源转换示例.xlsx",
+        "sheet": "文件名, 比如: arr_in_arr"             // 此项可以为空，如果为空会命中所有DataSource中第一个选项和file匹配的条目
+    }],
+    "default_selected": false                           // 默认选中
+}
+```
+
+以上 ```file``` 、 ```scheme``` 、 ```sheet``` 字段都支持 ```完全匹配的名称``` 、 ```glob: 通配符``` 和 ```regex: 正则表达式``` 三种形式。
 
 示例
 ------
@@ -29,6 +50,7 @@ xresconv-gui
 
 ![示例截图-3](doc/snapshoot-4.png)
 
+自定义按钮启动示例: ```./xresconv-gui.exe --custom-selector ./doc/custom-selector.json```
 
 注意事项
 ======
@@ -154,11 +176,11 @@ yarn run debug
 
 + 打包发布所有x64架构
 
-> ```yarn run-script package```
+> ```yarn run package```
 
 + 打包发布所有平台
 
-> ```yarn run-script package-all```
+> ```yarn run package-all```
 
 关于加载和调试
 ======

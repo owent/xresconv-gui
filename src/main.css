@@ -1,96 +1,119 @@
+#conv_tools_main_content {
+  height: 100%;
+}
+
+#conv_list_custom_btn_group {
+  margin-top: 0.2em;
+}
+
 #conv_list_panel {
-    max-width: 30%;
-    min-height: 100%;
-    overflow: auto;
+  max-width: 30%;
+  min-height: 100%;
+  overflow: auto;
 }
 
 #info_list_panel {
-    padding: 16px 0px 5px 0px;
-    margin-bottom: 0px;
-    min-height: 100%;
+  padding: 16px 0px 5px 0px;
+  margin-bottom: 0px;
+  min-height: 100%;
 }
 
-#info_list_panel>form.form-inline>div>div {
-    width: 100%;
+#info_list_panel > form.form-inline > div > div {
+  width: 100%;
 }
 
 #conv_list {
-    padding: 0;
+  padding: 0;
 }
 
 #conv_list_run_res {
-    height: 404px;
-    background-color: LightGray;
+  height: 404px;
+  background-color: LightGray;
 }
 
 #dlg_alert_error_modal .modal-content,
 #dlg_parallelism_warning_modal .modal-content,
 #dlg_alert_error_content,
 #dlg_parallelism_warning_content {
-    min-width: 720px;
-    min-height: 400px;
+  min-width: 720px;
+  min-height: 400px;
 }
 
 .conv_pre_default {
-    background-color: LightGray;
-    min-width: 640px;
-    min-height: 320px;
+  background-color: LightGray;
+  min-width: 640px;
+  min-height: 320px;
 }
 
 #conv_list_file {
-    display: none;
+  display: none;
 }
 
 .conv_list_run_error {
-    border-color: #FF4040;
-    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(255, 64, 64, .6);
-    box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(255, 64, 64, .6);
+  border-color: #ff4040;
+  -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+    0 0 8px rgba(255, 64, 64, 0.6);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+    0 0 8px rgba(255, 64, 64, 0.6);
 }
 
-.conv_list_run_success {}
+.conv_list_run_success {
+}
 
 @keyframes conv_list_run_running_ani {
-    20% {}
+  20% {
+  }
 
-    80% {
-        border-color: #40FF40;
-        -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(64, 255, 64, .6);
-        box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(64, 255, 64, .6);
-    }
+  80% {
+    border-color: #40ff40;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+      0 0 8px rgba(64, 255, 64, 0.6);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+      0 0 8px rgba(64, 255, 64, 0.6);
+  }
 
-    100% {
-        border-color: #40FF40;
-        -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(64, 255, 64, .6);
-        box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(64, 255, 64, .6);
-    }
+  100% {
+    border-color: #40ff40;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+      0 0 8px rgba(64, 255, 64, 0.6);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+      0 0 8px rgba(64, 255, 64, 0.6);
+  }
 }
 
 @-webkit-keyframes conv_list_run_running_ani {
-    20% {}
+  20% {
+  }
 
-    80% {
-        border-color: #40FF40;
-        -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(64, 255, 64, .6);
-        box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(64, 255, 64, .6);
-    }
+  80% {
+    border-color: #40ff40;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+      0 0 8px rgba(64, 255, 64, 0.6);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+      0 0 8px rgba(64, 255, 64, 0.6);
+  }
 
-    100% {
-        border-color: #40FF40;
-        -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(64, 255, 64, .6);
-        box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(64, 255, 64, .6);
-    }
+  100% {
+    border-color: #40ff40;
+    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+      0 0 8px rgba(64, 255, 64, 0.6);
+    box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+      0 0 8px rgba(64, 255, 64, 0.6);
+  }
 }
 
 .conv_list_run_running {
-    border-color: White;
-    -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(255, 255, 255, .6);
-    box-shadow: inset 0 1px 1px rgba(0, 0, 0, .075), 0 0 8px rgba(255, 255, 255, .6);
+  border-color: White;
+  -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+    0 0 8px rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
+    0 0 8px rgba(255, 255, 255, 0.6);
 
-    animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
-    -moz-animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
-    /* Firefox */
-    -webkit-animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
-    /* Safari 和 Chrome */
-    -o-animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
-    /* Opera */
+  animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
+  -moz-animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
+  /* Firefox */
+  -webkit-animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
+  /* Safari 和 Chrome */
+  -o-animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
+  /* Opera */
 }

@@ -23,6 +23,27 @@
       "outFiles": []
     },
     {
+      "name": "Test Custom Selector",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceRoot}/src/setup.js",
+      "stopOnEntry": false,
+      "args": ["--custom-selector", "./doc/custom-selector.json"],
+      "cwd": "${workspaceRoot}",
+      "preLaunchTask": null,
+      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron",
+      "windows": {
+        "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
+      },
+      "runtimeArgs": ["--nolazy"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "internalConsole",
+      "sourceMaps": false,
+      "outFiles": []
+    },
+    {
       "name": "Attach",
       "type": "node",
       "request": "attach",

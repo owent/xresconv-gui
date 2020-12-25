@@ -22,24 +22,112 @@ const { BrowserWindow } = electron;
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
-let win;
+let win = null;
 let hold = false;
+const custom_selectors = {
+  future: null,
+  selectors: []
+};
+
+const INPUT_PARAMS_MODE = {
+  NONE: 0,
+  INPUT_FILE: 1,
+  CUSTOM_SELECTOR: 2
+};
+
+function readCustomSelectors(file_path) {
+  const fs = require("fs");
+  return new Promise((resolve, reject) => {
+    fs.readFile(file_path, {
+      encoding: "utf8",
+      "flag": "r"
+    }, (err, data) => {
+      if (err) {
+        reject(`Read file ${file_path} failed: ${err.toString()}`);
+        return;
+      }
+
+      try {
+        const ret = [];
+        const jsonContent = JSON.parse(data);
+        if (Array.isArray(jsonContent)) {
+          for(var i = 0; i < jsonContent.length; ++ i) {
+            ret.push(jsonContent[i]);
+          }
+        } else {
+          ret.push(jsonContent);
+        }
+        resolve(ret);
+      } catch (e) {
+        reject(`Parse json of ${ile_path} failed: ${e.toString()}`);
+      }
+    });
+  });
+}
+
+async function readAllCustomSelectors(custom_selector_files) {
+  const ret = [];
+  
+  for (const file_path of custom_selector_files) {
+    try {
+      const result = await readCustomSelectors(file_path);
+      if (Array.isArray(result)) {
+        for(var i = 0; i < result.length; ++ i) {
+          ret.push(result[i]);
+        }
+      } else {
+        ret.push(result);
+      }
+    } catch (err) {
+      ret.push(err);
+    }
+  }
+
+  return ret;
+}
 
 function createWindow() {
   var main_url = app_config.main;
+  
   if (process) {
-    var is_input = false;
+    var input_file = null;
+    const custom_selector_files = [];
+    var param_mode = INPUT_PARAMS_MODE.NONE;
     for (const v of process.argv) {
-      if (is_input) {
-        main_url =
-          main_url + "?input=" + encodeURIComponent(v.replace(/\\/g, "/"));
-        is_input = false;
-        break;
-      } else if (v == "--input") {
-        is_input = true;
-      } else if (v == "--debug") {
-        app_config.debug = true;
+      switch(param_mode) {
+        case INPUT_PARAMS_MODE.INPUT_FILE: {
+          input_file = v;
+          param_mode = INPUT_PARAMS_MODE.NONE;
+          break;
+        }
+        case INPUT_PARAMS_MODE.CUSTOM_SELECTOR: {
+          custom_selector_files.push(v);
+          param_mode = INPUT_PARAMS_MODE.NONE;
+          break;
+        }
+        default: {
+          if (v == "--input") {
+            param_mode = INPUT_PARAMS_MODE.INPUT_FILE;
+          } else if (v == "--custom-selector") {
+            param_mode = INPUT_PARAMS_MODE.CUSTOM_SELECTOR;
+          } else if (v == "--debug") {
+            app_config.debug = true;
+          }
+          break;
+        }
       }
+    }
+
+    if (input_file) {
+      main_url = main_url + "?input=" + encodeURIComponent(input_file.replace(/\\/g, "/"));
+    }
+
+    if (custom_selector_files) {
+      custom_selectors.future = readAllCustomSelectors(custom_selector_files).then(ret => {
+        custom_selectors.selectors = ret;
+        custom_selectors.future = null;
+        return ret;
+      });
     }
   }
 
@@ -48,7 +136,7 @@ function createWindow() {
     width: app_config.width,
     height: app_config.height + (app_config.debug ? 28 : 0),
     minWidth: app_config.minWidth,
-    minHeight: app_config.minHeight,
+    minHeight: app_config.minHeight + (app_config.debug ? 28 : 0),
     resizable: app_config.debug,
     movable: true,
     closable: true,
@@ -93,6 +181,25 @@ ipcMain.on("ipc-main", (event, arg) => {
   }
 
   event.reply("ok");
+});
+
+ipcMain.on("ipc-resize-window", (event, arg) => {
+  if (win) {
+    //win.setSize(arg.width, arg.height + app_config.height + (app_config.debug ? 28 : 0));
+    win.setContentSize(
+      Math.min(Math.ceil(arg.width), 1800), 
+      Math.min(Math.ceil(arg.height), 960)
+    );
+  }
+  event.reply("ok");
+});
+
+ipcMain.handle("ipc-get-custom-selectors", async (event, _) => { 
+  if (custom_selectors.future != null) {
+    return await custom_selectors.future;
+  }
+
+  return custom_selectors.selectors;
 });
 
 // This method will be called when Electron has finished
