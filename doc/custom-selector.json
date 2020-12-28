@@ -11,5 +11,6 @@
         "file": "资源转换示例.xlsx",
         "sheet": "regex: .*"
     }],
-    "default_selected": true
+    "default_selected": true,
+    "style": "outline-primary"
 }]

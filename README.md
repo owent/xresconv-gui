@@ -22,24 +22,45 @@ xresconv-gui
 
 ### 自定义选择器规则
 
-文件必须是UTF-8编码。
+文件必须是UTF-8编码
 
 ```json
 {
-    "name": "选择器按钮名称",
-    "by_schemes": [{                                    // item里配置file和scheme属性的选取规则
-        "file": "文件名, 比如: 资源转换示例.xlsx",
-        "scheme": "转表规则名, 比如: scheme_upgrade"    // 此项可以为空，如果为空会命中所有file匹配的条目
+    "name": "选择器按钮名称",                           // [必须] 按钮显示名称
+    "by_schemes": [{                                    // [必须] item里配置file和scheme属性的选取规则（by_schemes和by_sheets里至少要配置一个）
+        "file": "文件名, 比如: 资源转换示例.xlsx",      // [必须]
+        "scheme": "转表规则名, 比如: scheme_upgrade"    // [可选] 此项可以为空，如果为空会命中所有file匹配的条目
     }],
-    "by_sheets": [{                                     // item里的DataSource子节点配置DataSource的选取规则
-        "file": "文件名, 比如: 资源转换示例.xlsx",
-        "sheet": "文件名, 比如: arr_in_arr"             // 此项可以为空，如果为空会命中所有DataSource中第一个选项和file匹配的条目
+    "by_sheets": [{                                     // [必须] item里的DataSource子节点配置DataSource的选取规则（by_schemes和by_sheets里至少要配置一个）
+        "file": "文件名, 比如: 资源转换示例.xlsx",      // [必须]
+        "sheet": "文件名, 比如: arr_in_arr"             // [可选] 此项可以为空，如果为空会命中所有DataSource中第一个选项和file匹配的条目
     }],
-    "default_selected": false                           // 默认选中
+    "default_selected": false,                          // [可选] 默认选中
+    "style": "outline-secondary"                        // [可选] 按钮Style。默认: outline-secondary
 }
 ```
 
 以上 ```file``` 、 ```scheme``` 、 ```sheet``` 字段都支持 ```完全匹配的名称``` 、 ```glob: 通配符``` 和 ```regex: 正则表达式``` 三种形式。
+按钮风格默认是 ```outline-secondary``` 。可选项为(详见: https://getbootstrap.com/docs/5.0/components/buttons/):
+
++ outline-primary
++ outline-secondary
++ outline-success
++ outline-danger
++ outline-warning
++ outline-info
++ outline-light
++ outline-dark
++ primary
++ secondary
++ success
++ danger
++ warning
++ info
++ light
++ dark
+
+> Sample: 使用 [doc/custom-selector.json](doc/custom-selector.json) 和 https://github.com/xresloader/xresconv-conf/blob/master/sample.xml 里的配置，可以使用 ```--custom-selector doc/custom-selector.json``` 来启动。
 
 示例
 ------

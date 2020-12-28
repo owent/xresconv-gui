@@ -19,18 +19,21 @@ function reload_window() {
 
 function send_resize_windows() {
   const new_size = {
-    height: $(document.body).height(),
-    width: $(document.body).width()
+    height: $(document.body).outerHeight(),
+    width: $(document.body).outerWidth(),
   };
-  console.log(`Send resize message to main frame(height: ${new_size.height}, width: ${new_size.width})`);
+  console.log(
+    `Send resize message to main frame(height: ${new_size.height}, width: ${new_size.width})`
+  );
   const { ipcRenderer } = require("electron");
   ipcRenderer.send("ipc-resize-window", new_size);
 }
 
 function setup_auto_resize_window() {
-  $(document.body).on("resize", function () {
+  const resizeObserver = new ResizeObserver((_) => {
     send_resize_windows();
   });
+  resizeObserver.observe(document.body);
   send_resize_windows();
 }
 
@@ -44,9 +47,9 @@ function match_string_rule(rule, input) {
   }
 
   if (rule.toLowerCase().substr(0, 6) == "regex:") {
-    return input.match((new RegExp(rule.substr(6).trim())))
+    return input.match(new RegExp(rule.substr(6).trim()));
   } else if (rule.toLowerCase().substr(0, 5) == "glob:") {
-    const minimatch = require('minimatch');
+    const minimatch = require("minimatch");
     return minimatch(input, rule.substr(5).trim());
   } else {
     return rule == input;
@@ -56,12 +59,17 @@ function match_string_rule(rule, input) {
 function custom_selector_on_click(selector, force_selected) {
   if (selector.items === undefined) {
     selector.items = [];
-    for (const item_key in (conv_data.items || {})) {
+    for (const item_key in conv_data.items || {}) {
       const item = conv_data.items[item_key];
       if (item.file && item.scheme) {
-        for (const scheme_rule of (selector.by_schemes || [])) {
-          const match_file_name = match_string_rule(scheme_rule.file, item.file);
-          const match_scheme_name = !scheme_rule.scheme || match_string_rule(scheme_rule.scheme, item.scheme);
+        for (const scheme_rule of selector.by_schemes || []) {
+          const match_file_name = match_string_rule(
+            scheme_rule.file,
+            item.file
+          );
+          const match_scheme_name =
+            !scheme_rule.scheme ||
+            match_string_rule(scheme_rule.scheme, item.scheme);
           if (match_file_name && match_scheme_name) {
             selector.items.push(item);
             break;
@@ -70,21 +78,26 @@ function custom_selector_on_click(selector, force_selected) {
       } else if (item.scheme_data && item.scheme_data.DataSource) {
         const data_srouces = [];
         if (Array.isArray(item.scheme_data.DataSource)) {
-          for(const data_source of item.scheme_data.DataSource) {
-            data_srouces.push(data_source.split("|"));  
+          for (const data_source of item.scheme_data.DataSource) {
+            data_srouces.push(data_source.split("|"));
           }
         } else {
           data_srouces.push(item.scheme_data.DataSource.split("|"));
         }
         var has_matched = false;
-        for (const sheet_rule of (selector.by_sheets || [])) {
+        for (const sheet_rule of selector.by_sheets || []) {
           if (has_matched) {
             break;
           }
 
           for (const data_srouce of data_srouces) {
-            const match_file_name = match_string_rule(sheet_rule.file, data_srouce[0]);
-            const match_sheet_name = !sheet_rule.sheet || match_string_rule(sheet_rule.sheet, data_srouce[1]);
+            const match_file_name = match_string_rule(
+              sheet_rule.file,
+              data_srouce[0]
+            );
+            const match_sheet_name =
+              !sheet_rule.sheet ||
+              match_string_rule(sheet_rule.sheet, data_srouce[1]);
             if (match_file_name && match_sheet_name) {
               selector.items.push(item);
               has_matched = true;
@@ -102,16 +115,16 @@ function custom_selector_on_click(selector, force_selected) {
 
   if (force_selected === undefined) {
     force_selected = false;
-    for (const item of (selector.items || [])) {
-      if(item.ft_node && !item.ft_node.isSelected()) {
+    for (const item of selector.items || []) {
+      if (item.ft_node && !item.ft_node.isSelected()) {
         force_selected = true;
         break;
       }
     }
   }
 
-  for (const item of (selector.items || [])) {
-    if(item.ft_node) {
+  for (const item of selector.items || []) {
+    if (item.ft_node) {
       item.ft_node.setSelected(force_selected);
     }
   }
@@ -119,48 +132,94 @@ function custom_selector_on_click(selector, force_selected) {
 
 function setup_custom_selectors() {
   try {
+    const availableStyles = [
+      "outline-primary",
+      "outline-secondary",
+      "outline-success",
+      "outline-danger",
+      "outline-warning",
+      "outline-info",
+      "outline-light",
+      "outline-dark",
+      "primary",
+      "secondary",
+      "success",
+      "danger",
+      "warning",
+      "info",
+      "light",
+      "dark",
+    ];
+
     const { ipcRenderer } = require("electron");
     ipcRenderer.invoke("ipc-get-custom-selectors").then((custom_selectors) => {
-      if (!custom_selectors) {
+      const conv_list_custom_btn_group = jQuery("#conv_list_custom_btn_group");
+      const conv_list_btn_reload_custom_btn_group = jQuery(
+        "#conv_list_btn_reload_custom_btn_group"
+      );
+
+      if (!custom_selectors || custom_selectors.length <= 0) {
+        conv_list_custom_btn_group.addClass("visually-hidden");
+        conv_list_btn_reload_custom_btn_group.addClass("visually-hidden");
         return;
       }
 
-      const conv_list_custom_btn_group = jQuery("#conv_list_custom_btn_group");
-      conv_list_custom_btn_group.css({
-        "visibility": "visible",
-        "display": "block"
-      });
+      conv_list_custom_btn_group.removeClass("visually-hidden");
+      conv_list_btn_reload_custom_btn_group.removeClass("visually-hidden");
       conv_list_custom_btn_group.empty();
+      conv_list_btn_reload_custom_btn_group
+        .off("click")
+        .on("click", function () {
+          ipcRenderer.invoke("ipc-reload-custom-selectors").then((_) => {
+            setup_custom_selectors();
+          });
+        });
 
-      for(const custom_selector of custom_selectors) {
+      for (const custom_selector of custom_selectors) {
         var error_message = null;
 
-        if (typeof(custom_selector) == "string") {
+        if (typeof custom_selector == "string") {
           error_message = custom_selector;
         } else if (!custom_selector.name) {
           error_message = "自定义选择器必须配置名称";
-        } else if (!custom_selector.by_schemes && ! custom_selector.by_sheets) {
+        } else if (!custom_selector.by_schemes && !custom_selector.by_sheets) {
           error_message = `自定义选择器 ${custom_selector.name} 没有一个有效的规则`;
         }
-  
+
         if (error_message) {
           const run_log = $("#conv_list_run_res");
           if (run_log) {
             run_log.append(
-              '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' + error_message + "</div>\r\n"
+              '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' +
+                error_message +
+                "</div>\r\n"
             );
             run_log.scrollTop(run_log.prop("scrollHeight"));
           }
           console.error(error_message);
           continue;
         }
-  
+
         // 构建自定义选择器按钮
         console.log(`Add custom selector ${custom_selector.name}`);
-        const new_btn = jQuery('<button type="button" class="btn btn-outline-secondary"></button>');
+        var style = custom_selector.style || undefined;
+        if (
+          !(
+            style &&
+            availableStyles.filter((x) => {
+              return x.toLocaleLowerCase() === style;
+            })
+          )
+        ) {
+          style = "outline-secondary";
+        }
+        const new_btn = jQuery('<button type="button" class="btn"></button>');
+        new_btn.addClass(`btn-${style}`);
         new_btn.text(custom_selector.name);
         conv_list_custom_btn_group.append(new_btn);
-        new_btn.on("click", function() { custom_selector_on_click(custom_selector); });
+        new_btn.on("click", function () {
+          custom_selector_on_click(custom_selector);
+        });
         custom_selector.dom = new_btn;
         if (custom_selector.default_selected) {
           custom_selector_on_click(custom_selector, true);
@@ -175,7 +234,9 @@ function setup_custom_selectors() {
     const run_log = $("#conv_list_run_res");
     if (run_log) {
       run_log.append(
-        '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' + e.toString() + "</div>\r\n"
+        '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' +
+          e.toString() +
+          "</div>\r\n"
       );
       run_log.scrollTop(run_log.prop("scrollHeight"));
     }
@@ -251,9 +312,9 @@ function alert_warning(content, tittle, options) {
       category: {},
       file_map: {},
       input_file: null,
-      custom_selectors: conv_data.custom_selectors || undefined
+      custom_selectors: conv_data.custom_selectors || undefined,
     };
-    for (const selector of (conv_data.custom_selectors || [])) {
+    for (const selector of conv_data.custom_selectors || []) {
       selector.items = undefined;
     }
   }
@@ -298,24 +359,24 @@ function alert_warning(content, tittle, options) {
 
   function shell_color_to_html(data) {
     const style_map = {
-      "1": "font-weight: bolder;",
-      "4": "text-decoration: underline;",
-      "30": "color: black;",
-      "31": "color: darkred;",
-      "32": "color: darkgreen;",
-      "33": "color: brown;",
-      "34": "color: darkblue;",
-      "35": "color: purple;",
-      "36": "color: darkcyan;",
-      "37": "color: gray;",
-      "40": "background-color: black;",
-      "41": "background-color: darkred;",
-      "42": "background-color: darkgreen;",
-      "43": "background-color: brown;",
-      "44": "background-color: darkblue;",
-      "45": "background-color: purple;",
-      "46": "background-color: darkcyan;",
-      "47": "background-color: white;",
+      1: "font-weight: bolder;",
+      4: "text-decoration: underline;",
+      30: "color: black;",
+      31: "color: darkred;",
+      32: "color: darkgreen;",
+      33: "color: brown;",
+      34: "color: darkblue;",
+      35: "color: purple;",
+      36: "color: darkcyan;",
+      37: "color: gray;",
+      40: "background-color: black;",
+      41: "background-color: darkred;",
+      42: "background-color: darkgreen;",
+      43: "background-color: brown;",
+      44: "background-color: darkblue;",
+      45: "background-color: purple;",
+      46: "background-color: darkcyan;",
+      47: "background-color: white;",
     };
 
     var split_group = data.toString().split(/(\[[\d;]*m)/g);
@@ -613,64 +674,69 @@ function alert_warning(content, tittle, options) {
       });
 
       conv_data.gui.on_before_convert = [];
-      $.each(jdom.children("gui").children("on_before_convert"), function (
-        k,
-        dom
-      ) {
-        try {
-          var env_jdom = $(dom);
-          const vm = require("vm");
-          const timeout_str = env_jdom.attr("timeout");
-          var timeout = 30000;
-          if (timeout_str) {
-            timeout = parseInt(timeout_str);
+      $.each(
+        jdom.children("gui").children("on_before_convert"),
+        function (k, dom) {
+          try {
+            var env_jdom = $(dom);
+            const vm = require("vm");
+            const timeout_str = env_jdom.attr("timeout");
+            var timeout = 30000;
+            if (timeout_str) {
+              timeout = parseInt(timeout_str);
+            }
+            var fn = new vm.Script(env_jdom.html(), {
+              filename: current_path,
+            });
+            conv_data.gui.on_before_convert.push({
+              fn: fn,
+              timeout: timeout,
+              enabled: true,
+            });
+
+            // TODO 命名事件可视化
+          } catch (err) {
+            alert_error(
+              'GUI脚本编译错误(gui.on_before_convert):<pre class="form-control conv_pre_default">' +
+                err.toString() +
+                (err.stack ? "\r\n" + err.stack.toString() : "") +
+                "</pre>"
+            );
           }
-          var fn = new vm.Script(env_jdom.html(), {
-            filename: current_path,
-          });
-          conv_data.gui.on_before_convert.push({
-            fn: fn,
-            timeout: timeout,
-          });
-        } catch (err) {
-          alert_error(
-            'GUI脚本编译错误(gui.on_before_convert):<pre class="form-control conv_pre_default">' +
-              err.toString() +
-              (err.stack ? "\r\n" + err.stack.toString() : "") +
-              "</pre>"
-          );
         }
-      });
+      );
 
       conv_data.gui.on_after_convert = [];
-      $.each(jdom.children("gui").children("on_after_convert"), function (
-        k,
-        dom
-      ) {
-        try {
-          var env_jdom = $(dom);
-          const vm = require("vm");
-          const timeout_str = env_jdom.attr("timeout");
-          var timeout = 30000;
-          if (timeout_str) {
-            timeout = parseInt(timeout_str);
+      $.each(
+        jdom.children("gui").children("on_after_convert"),
+        function (k, dom) {
+          try {
+            var env_jdom = $(dom);
+            const vm = require("vm");
+            const timeout_str = env_jdom.attr("timeout");
+            var timeout = 30000;
+            if (timeout_str) {
+              timeout = parseInt(timeout_str);
+            }
+            var fn = new vm.Script(env_jdom.html(), {
+              filename: current_path,
+            });
+            conv_data.gui.on_after_convert.push({
+              fn: fn,
+              timeout: timeout,
+              enabled: true,
+            });
+            // TODO 命名事件可视化
+          } catch (err) {
+            alert_error(
+              'GUI脚本编译错误(gui.on_after_convert):<pre class="form-control conv_pre_default">' +
+                err.toString() +
+                (err.stack ? "\r\n" + err.stack.toString() : "") +
+                "</pre>"
+            );
           }
-          var fn = new vm.Script(env_jdom.html(), {
-            filename: current_path,
-          });
-          conv_data.gui.on_after_convert.push({
-            fn: fn,
-            timeout: timeout,
-          });
-        } catch (err) {
-          alert_error(
-            'GUI脚本编译错误(gui.on_after_convert):<pre class="form-control conv_pre_default">' +
-              err.toString() +
-              (err.stack ? "\r\n" + err.stack.toString() : "") +
-              "</pre>"
-          );
         }
-      });
+      );
 
       $.each(jdom.children("list").children("item"), function (k, item_node) {
         var jitem = $(item_node);
@@ -691,7 +757,7 @@ function alert_warning(content, tittle, options) {
           options: [],
           desc: jitem.attr("name").trim() || jitem.attr("desc").trim() || "",
           scheme_data: {},
-          ft_node : null,
+          ft_node: null,
           tags: (jitem.attr("tag") || "")
             .trim()
             .split(/[\s]+/)
@@ -794,8 +860,8 @@ function alert_warning(content, tittle, options) {
           tooltip: item_data.desc,
           key: item_data.id,
           data: {
-            item: item_data
-          }
+            item: item_data,
+          },
         };
         // item_data.ft_node = ft_node;
         if (item_data.cat && cat_map[item_data.cat]) {
@@ -891,7 +957,7 @@ function alert_warning(content, tittle, options) {
           return false;
         }
       },
-      createNode: function(_, data) {
+      createNode: function (_, data) {
         rebind_ft_node_and_item(data.node);
       },
       cookieId: "conv_list-ft",
@@ -900,7 +966,7 @@ function alert_warning(content, tittle, options) {
 
     show_output_matrix();
 
-    for (const selector of (conv_data.custom_selectors || [])) {
+    for (const selector of conv_data.custom_selectors || []) {
       if (selector.default_selected) {
         custom_selector_on_click(selector, true);
       }
@@ -1238,6 +1304,11 @@ function alert_warning(content, tittle, options) {
                 };
                 cur_promise = cur_promise.then(function () {
                   return new Promise(function (resolve, reject) {
+                    if (!evt_obj.vm_script.enabled) {
+                      evt_obj.has_done = true;
+                      resolve(vm_context_obj);
+                      return;
+                    }
                     let vm_context;
                     try {
                       vm_context = vm.createContext(
