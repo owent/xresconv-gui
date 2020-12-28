@@ -36,7 +36,8 @@ xresconv-gui
         "sheet": "文件名, 比如: arr_in_arr"             // [可选] 此项可以为空，如果为空会命中所有DataSource中第一个选项和file匹配的条目
     }],
     "default_selected": false,                          // [可选] 默认选中
-    "style": "outline-secondary"                        // [可选] 按钮Style。默认: outline-secondary
+    "style": "outline-secondary",                       // [可选] 按钮Style。默认: outline-secondary
+    // "action": "reload"                               // [可选] 特殊行为，目前仅支持reload。
 }
 ```
 
@@ -61,6 +62,10 @@ xresconv-gui
 + dark
 
 > Sample: 使用 [doc/custom-selector.json](doc/custom-selector.json) 和 https://github.com/xresloader/xresconv-conf/blob/master/sample.xml 里的配置，可以使用 ```--custom-selector doc/custom-selector.json``` 来启动。
+
+特殊行为 **action** 字段的特殊功能:
+
++ ```reload``` : 重新加载自定义按钮
 
 示例
 ------

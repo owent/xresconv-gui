@@ -32,8 +32,7 @@
         "--input",
         "../xresconv-conf/sample.xml",
         "--custom-selector",
-        "./doc/custom-selector.json",
-        "--debug"
+        "./doc/custom-selector.json"
       ],
       "cwd": "${workspaceRoot}",
       "preLaunchTask": null,

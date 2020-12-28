@@ -154,26 +154,14 @@ function setup_custom_selectors() {
     const { ipcRenderer } = require("electron");
     ipcRenderer.invoke("ipc-get-custom-selectors").then((custom_selectors) => {
       const conv_list_custom_btn_group = jQuery("#conv_list_custom_btn_group");
-      const conv_list_btn_reload_custom_btn_group = jQuery(
-        "#conv_list_btn_reload_custom_btn_group"
-      );
 
       if (!custom_selectors || custom_selectors.length <= 0) {
         conv_list_custom_btn_group.addClass("visually-hidden");
-        conv_list_btn_reload_custom_btn_group.addClass("visually-hidden");
         return;
       }
 
       conv_list_custom_btn_group.removeClass("visually-hidden");
-      conv_list_btn_reload_custom_btn_group.removeClass("visually-hidden");
       conv_list_custom_btn_group.empty();
-      conv_list_btn_reload_custom_btn_group
-        .off("click")
-        .on("click", function () {
-          ipcRenderer.invoke("ipc-reload-custom-selectors").then((_) => {
-            setup_custom_selectors();
-          });
-        });
 
       for (const custom_selector of custom_selectors) {
         var error_message = null;
@@ -182,8 +170,12 @@ function setup_custom_selectors() {
           error_message = custom_selector;
         } else if (!custom_selector.name) {
           error_message = "自定义选择器必须配置名称";
-        } else if (!custom_selector.by_schemes && !custom_selector.by_sheets) {
-          error_message = `自定义选择器 ${custom_selector.name} 没有一个有效的规则`;
+        } else if (
+          (custom_selector.by_schemes || []).length <= 0 &&
+          (custom_selector.by_sheets || []).length <= 0 &&
+          custom_selector.action !== "reload"
+        ) {
+          error_message = `自定义选择器 ${custom_selector.name} 的规则无效`;
         }
 
         if (error_message) {
@@ -217,18 +209,27 @@ function setup_custom_selectors() {
         new_btn.addClass(`btn-${style}`);
         new_btn.text(custom_selector.name);
         conv_list_custom_btn_group.append(new_btn);
-        new_btn.on("click", function () {
-          custom_selector_on_click(custom_selector);
-        });
-        custom_selector.dom = new_btn;
-        if (custom_selector.default_selected) {
-          custom_selector_on_click(custom_selector, true);
+
+        if (custom_selector.action === "reload") {
+          new_btn.on("click", function () {
+            ipcRenderer.invoke("ipc-reload-custom-selectors").then((_) => {
+              setup_custom_selectors();
+            });
+          });
+        } else {
+          new_btn.on("click", function () {
+            custom_selector_on_click(custom_selector);
+          });
+          if (custom_selector.default_selected) {
+            custom_selector_on_click(custom_selector, true);
+          }
         }
 
-        setup_auto_resize_window();
+        custom_selector.dom = new_btn;
       }
 
       conv_data.custom_selectors = custom_selectors;
+      setup_auto_resize_window();
     });
   } catch (e) {
     const run_log = $("#conv_list_run_res");
