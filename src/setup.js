@@ -186,8 +186,8 @@ ipcMain.on("ipc-resize-window", (event, arg) => {
   if (win) {
     //win.setSize(arg.width, arg.height + app_config.height + (app_config.debug ? 28 : 0));
     win.setContentSize(
-      Math.min(Math.ceil(arg.width), 1800),
-      Math.min(Math.ceil(arg.height), 960)
+      Math.min(Math.ceil(arg.width), 1778),
+      Math.min(Math.ceil(arg.height), 1000)
     );
   }
   event.reply("ok");

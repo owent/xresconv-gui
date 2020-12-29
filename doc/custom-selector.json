@@ -15,6 +15,9 @@
     "style": "outline-primary"
 }, {
     "name": "刷新自定义按钮",
-    "action": "reload",
+    "action": [
+        "unselect_all",
+        "reload"
+    ],
     "style": "outline-dark"
 }]

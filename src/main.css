@@ -13,9 +13,8 @@
 }
 
 #info_list_panel {
-  padding: 16px 0px 5px 0px;
-  margin-bottom: 0px;
-  min-height: 100%;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 #info_list_panel > form.form-inline > div > div {
@@ -24,6 +23,10 @@
 
 #conv_list {
   padding: 0;
+}
+
+#conv_list_event_group {
+  max-height: 30%;
 }
 
 #conv_list_run_res {

@@ -12,19 +12,62 @@ function generate_id() {
   return conv_data.id_index;
 }
 
+function convert_to_boolean(input) {
+  if (!input) {
+    return false;
+  }
+
+  if (Array.isArray(input)) {
+    return input.length > 0;
+  }
+
+  if (typeof input == "string") {
+    const input_lower = input.toLocaleLowerCase();
+    return (
+      input_lower.length > 0 &&
+      input_lower != "no" &&
+      input_lower != "false" &&
+      input_lower != "0" &&
+      input_lower != "disable" &&
+      input_lower != "disabled"
+    );
+  }
+
+  if (typeof input == "number") {
+    return input != 0;
+  }
+
+  if (input instanceof HTMLElement) {
+    if (input.checked === undefined) {
+      return convert_to_boolean(input.value);
+    } else {
+      return convert_to_boolean(input.checked);
+    }
+  }
+
+  return !!input;
+}
+
 function reload_window() {
   const { ipcRenderer } = require("electron");
   ipcRenderer.send("ipc-main", "reload");
 }
 
 function send_resize_windows() {
+  const watch_jdom = jQuery("#conv_details_panel");
+  const new_height =
+    Math.ceil(watch_jdom.outerHeight()) +
+    Math.ceil(watch_jdom.offset().top) * 2;
   const new_size = {
-    height: $(document.body).outerHeight(),
-    width: $(document.body).outerWidth(),
+    height: new_height,
+    width: Math.ceil(new_height / 0.5625),
   };
   console.log(
     `Send resize message to main frame(height: ${new_size.height}, width: ${new_size.width})`
   );
+  jQuery("#conv_list_panel").css({
+    "max-height": new_height,
+  });
   const { ipcRenderer } = require("electron");
   ipcRenderer.send("ipc-resize-window", new_size);
 }
@@ -33,7 +76,7 @@ function setup_auto_resize_window() {
   const resizeObserver = new ResizeObserver((_) => {
     send_resize_windows();
   });
-  resizeObserver.observe(document.body);
+  resizeObserver.observe(document.getElementById("conv_details_panel"));
   send_resize_windows();
 }
 
@@ -130,6 +173,39 @@ function custom_selector_on_click(selector, force_selected) {
   }
 }
 
+function run_custom_button_action(action_type) {
+  if (action_type == "reload") {
+    const { ipcRenderer } = require("electron");
+    return ipcRenderer.invoke("ipc-reload-custom-selectors").then((_) => {
+      setup_custom_selectors();
+    });
+  }
+
+  if (action_type == "select_all") {
+    return new Promise(async () => {
+      $.ui.fancytree
+        .getTree("#conv_list")
+        .getRootNode()
+        .visit(function (node) {
+          node.setSelected(true);
+        });
+    });
+  }
+
+  if (action_type == "unselect_all") {
+    return new Promise(async () => {
+      $.ui.fancytree
+        .getTree("#conv_list")
+        .getRootNode()
+        .visit(function (node) {
+          node.setSelected(false);
+        });
+    });
+  }
+
+  return new Promise(async () => {});
+}
+
 function setup_custom_selectors() {
   try {
     const availableStyles = [
@@ -173,7 +249,7 @@ function setup_custom_selectors() {
         } else if (
           (custom_selector.by_schemes || []).length <= 0 &&
           (custom_selector.by_sheets || []).length <= 0 &&
-          custom_selector.action !== "reload"
+          (custom_selector.action || []).length <= 0
         ) {
           error_message = `自定义选择器 ${custom_selector.name} 的规则无效`;
         }
@@ -203,18 +279,49 @@ function setup_custom_selectors() {
             })
           )
         ) {
-          style = "outline-secondary";
+          if (custom_selector.action) {
+            style = "outline-dark";
+          } else {
+            style = "outline-secondary";
+          }
         }
         const new_btn = jQuery('<button type="button" class="btn"></button>');
         new_btn.addClass(`btn-${style}`);
         new_btn.text(custom_selector.name);
         conv_list_custom_btn_group.append(new_btn);
 
-        if (custom_selector.action === "reload") {
+        if ((custom_selector.action || []).length > 0) {
+          const actions = [];
+          if (Array.isArray(custom_selector.action)) {
+            for (const action_type of custom_selector.action) {
+              actions.push(action_type);
+            }
+          } else {
+            actions.push(action_type);
+          }
+
           new_btn.on("click", function () {
-            ipcRenderer.invoke("ipc-reload-custom-selectors").then((_) => {
-              setup_custom_selectors();
-            });
+            var future = null;
+            for (const action_type of actions) {
+              if (future) {
+                future = future.then(run_custom_button_action(action_type));
+              } else {
+                future = run_custom_button_action(action_type);
+              }
+            }
+
+            if (future) {
+              future.catch(function (err) {
+                const run_log = jQuery("#conv_list_run_res");
+                run_log.append(
+                  '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' +
+                    err.toString() +
+                    "</div>\r\n"
+                );
+                run_log.scrollTop(run_log.prop("scrollHeight"));
+                console.error(err);
+              });
+            }
           });
         } else {
           new_btn.on("click", function () {
@@ -241,7 +348,7 @@ function setup_custom_selectors() {
       );
       run_log.scrollTop(run_log.prop("scrollHeight"));
     }
-    console.error(e.toString());
+    console.error(e);
   }
 }
 
@@ -435,6 +542,83 @@ function alert_warning(content, tittle, options) {
         hint_dom.remove();
       }
     }
+  }
+
+  function clear_conv_list_event_group() {
+    const parent_wrapper_dom = jQuery("#conv_list_event_group_wrapper");
+    const parent_inner_dom = jQuery("#conv_list_event_group_inner");
+    if ((parent_inner_dom.children() || []).length > 0) {
+      parent_inner_dom.empty();
+      parent_wrapper_dom.addClass("visually-hidden");
+    }
+  }
+
+  function append_conv_list_event_group(xml_node, before_convert) {
+    const parent_wrapper_dom = jQuery("#conv_list_event_group_wrapper");
+    const parent_inner_dom = jQuery("#conv_list_event_group_inner");
+    if ((parent_inner_dom.children() || []).length <= 0) {
+      parent_wrapper_dom.removeClass("visually-hidden");
+    }
+
+    const wrapper = jQuery('<div class="form-check form-switch"></div>');
+    const ret = jQuery('<input class="form-check-input" type="checkbox">');
+    const label = jQuery(
+      '<label class="form-check-label">Default switch checkbox input</label>'
+    );
+
+    const event_name = xml_node.getAttribute("name") || "";
+    const default_checked = xml_node.getAttribute("checked");
+    const default_mutable = xml_node.getAttribute("mutable");
+
+    if (event_name.length <= 0) {
+      if (default_checked && default_checked.length > 0) {
+        return convert_to_boolean(default_checked);
+      } else {
+        return true;
+      }
+    }
+
+    let event_type_name;
+    let event_type_desc;
+    if (before_convert) {
+      event_type_name = "on_before_convert";
+      event_type_desc = "转表前执行";
+    } else {
+      event_type_name = "on_after_convert";
+      event_type_desc = "转表后执行";
+    }
+    const id = `conv_list_event_${event_type_name}_${generate_id()}`;
+    ret.attr("id", id);
+
+    if (default_checked && default_checked.length > 0) {
+      ret.prop("checked", convert_to_boolean(default_checked));
+    } else {
+      ret.prop("checked", true);
+    }
+    if (default_mutable && default_mutable.length > 0) {
+      ret.prop("disabled", !convert_to_boolean(default_mutable));
+    } else {
+      ret.prop("disabled", false);
+    }
+    label.attr("for", id);
+    label.text(event_name);
+
+    wrapper.append(ret);
+    wrapper.append(label);
+
+    parent_inner_dom.append(wrapper);
+
+    console.log(`Add ${event_type_name} event ${event_name}: ${id}`);
+
+    wrapper.attr("title", event_type_desc);
+    wrapper.attr("data-bs-toggle", "tooltip");
+    wrapper.attr("data-bs-placement", "top");
+    wrapper.addClass("col-auto");
+
+    // const bootstrap = require("bootstrap");
+    // new bootstrap.Tooltip(wrapper);
+
+    return ret.get(0);
   }
 
   function build_conv_tree(context, current_path) {
@@ -671,9 +855,12 @@ function alert_warning(content, tittle, options) {
               err.toString() +
               "</pre>"
           );
+          console.error(err);
         }
       });
 
+      // 重置 GUI 事件可选项
+      clear_conv_list_event_group();
       conv_data.gui.on_before_convert = [];
       $.each(
         jdom.children("gui").children("on_before_convert"),
@@ -692,10 +879,8 @@ function alert_warning(content, tittle, options) {
             conv_data.gui.on_before_convert.push({
               fn: fn,
               timeout: timeout,
-              enabled: true,
+              enabled: append_conv_list_event_group(env_jdom.get(0), true),
             });
-
-            // TODO 命名事件可视化
           } catch (err) {
             alert_error(
               'GUI脚本编译错误(gui.on_before_convert):<pre class="form-control conv_pre_default">' +
@@ -703,6 +888,7 @@ function alert_warning(content, tittle, options) {
                 (err.stack ? "\r\n" + err.stack.toString() : "") +
                 "</pre>"
             );
+            console.error(err);
           }
         }
       );
@@ -725,9 +911,8 @@ function alert_warning(content, tittle, options) {
             conv_data.gui.on_after_convert.push({
               fn: fn,
               timeout: timeout,
-              enabled: true,
+              enabled: append_conv_list_event_group(env_jdom.get(0), false),
             });
-            // TODO 命名事件可视化
           } catch (err) {
             alert_error(
               'GUI脚本编译错误(gui.on_after_convert):<pre class="form-control conv_pre_default">' +
@@ -851,6 +1036,7 @@ function alert_warning(content, tittle, options) {
                 err.toString() +
                 "</pre>"
             );
+            console.error(err);
           }
         }
 
@@ -917,6 +1103,7 @@ function alert_warning(content, tittle, options) {
         }
       } catch (e) {
         alert("文件 " + file_path + " 加载失败。" + e.toString());
+        console.error(e);
       }
     }
 
@@ -1305,10 +1492,18 @@ function alert_warning(content, tittle, options) {
                 };
                 cur_promise = cur_promise.then(function () {
                   return new Promise(function (resolve, reject) {
-                    if (!evt_obj.vm_script.enabled) {
-                      evt_obj.has_done = true;
-                      resolve(vm_context_obj);
-                      return;
+                    if (evt_obj.vm_script.enabled !== undefined) {
+                      if (evt_obj.vm_script.enabled instanceof HTMLElement) {
+                        if (!convert_to_boolean(evt_obj.vm_script.enabled)) {
+                          evt_obj.has_done = true;
+                          resolve(vm_context_obj);
+                          return;
+                        }
+                      } else if (!evt_obj.vm_script.enabled) {
+                        evt_obj.has_done = true;
+                        resolve(vm_context_obj);
+                        return;
+                      }
                     }
                     let vm_context;
                     try {
@@ -1452,6 +1647,7 @@ function alert_warning(content, tittle, options) {
           "</div>\r\n"
       );
       run_log.scrollTop(run_log.prop("scrollHeight"));
+      console.error(e);
       alert("出错啦: " + e.toString());
     }
   }
@@ -1520,6 +1716,7 @@ function alert_warning(content, tittle, options) {
         '<div class="alert alert-danger">' + e.toString() + "</div>\r\n"
       );
       run_log.append(dep_msg);
+      console.error(e);
     }
 
     run_log.scrollTop(run_log.prop("scrollHeight"));
@@ -1541,6 +1738,7 @@ function alert_warning(content, tittle, options) {
       } catch (e) {
         console.log("judge cpu count require node.js");
         xconv_gui_options.parallelism = 2;
+        console.error(e);
       }
 
       var father_dom = $("#conv_config_parallelism");
@@ -1720,6 +1918,7 @@ function alert_warning(content, tittle, options) {
       setup_auto_resize_window();
     } catch (e) {
       // ignore load initialize file failed
+      console.error(e);
     }
   });
 })(jQuery, window);

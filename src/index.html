@@ -21,7 +21,6 @@
     </script>
 
     <link rel="stylesheet" href="../node_modules/bootstrap/dist/css/bootstrap.min.css">
-    <!-- <script type="text/javascript" src="../node_modules/bootstrap/dist/js/bootstrap.min.js"></script> -->
 
     <link rel="stylesheet" href="../node_modules/jquery.fancytree/dist/skin-lion/ui.fancytree.min.css">
     <!-- <script type="text/javascript" src="../node_modules/jquery.fancytree/dist/jquery.fancytree-all-deps.min.js"></script> -->
@@ -41,137 +40,138 @@
 <body>
     <div id="conv_tools_main_content" class="card-group">
         <div class="card card-default" id="conv_list_panel">
-            <div class="card-header">
-                <h3 class="card-title">转换列表</h3>
-            </div>
-            <div class="card-body" id="conv_list">
+            <div class="card-header"><h3 class="card-title">转换列表</h3></div>
+            <div class="card-body" id="conv_list"></div>
+            <div class="card-footer visually-hidden" id="conv_list_event_group_wrapper">
+                <div class="row gy-2 gx-3 align-items-center" id="conv_list_event_group_inner"></div>
             </div>
         </div>
-
         <div class="jumbotron card" id="info_list_panel">
-            <form class="container">
-                <div class="row">
-                    <div class="col-9">
-                        <div class="input-group">
-                            <span class="input-group-btn" for="conv_list_file_val">
-                                <button class="btn btn-info" type="button" id="conv_list_file_btn" >转换列表文件</button>
-                            </span>
-                            <input class="form-control" type="text" id="conv_list_file_val" placeholder="尚未载入任何文件，需要载入清单列表的xml文件(比如: convert_list.xml)"
-                                disabled="disabled" />
-                        </div>
-                    </div>
-                    <div class="col-3">
-                        <div class="input-group">
-                            <span class="input-group-text">并发数</span>
-                            <select class="form-control" id="conv_config_parallelism"></select>
-                        </div>
-                    </div><input type="file" id="conv_list_file" placeholder="选择转换列表文件" class="visually-hidden" />
-                </div>
-            </form>
-            <br />
-            <form class="container">
-                <div class="row">
-                    <div class="col-4">
-                    <div class="input-group">
-                        <span class="input-group-text">转表工具</span>
-                        <input type="text" class="form-control" id="conv_list_xresloader" placeholder="xresloader.jar的路径" />
-                    </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="input-group">
-                            <span class="input-group-text">执行目录</span>
-                            <input type="text" class="form-control" id="conv_list_work_dir" placeholder="执行目录" />
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="input-group">
-                            <span class="input-group-text">数据版本</span>
-                            <input type="text" class="form-control" id="conv_list_data_version" placeholder="自动生成" />
-                        </div>
-                    </div>
-                </div>
-            </form>
-            <form class="container">
-                <div class="row">
-                    <div class="col-4">
-                        <div class="input-group">
-                            <span class="input-group-text">协议描述</span>
-                            <input type="text" class="form-control" id="conv_list_proto_file" placeholder="协议描述文件" />
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="input-group">
-                            <span class="input-group-text">输出目录</span>
-                            <input type="text" class="form-control" id="conv_list_output_dir" placeholder="输出目录" />
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="input-group">
-                            <span class="input-group-text">数据目录</span>
-                            <input type="text" class="form-control" id="conv_list_data_src_dir" placeholder="数据源目录" />
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-4">
-                        <div class="input-group">
-                            <div class="dropdown">
-                                <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="conv_list_rename_samples_btn" data-bs-toggle="dropdown" aria-expanded="false">输出重命名</button>
-                                <ul class="dropdown-menu" id="conv_list_rename_samples" aria-labelledby="conv_list_rename_samples_btn">
-                                    <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.lua/" >.bin后缀 =&gt; .lua</a></li>
-                                    <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.json/">.bin后缀 =&gt; .json</a></li>
-                                    <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.msgpack.bin/">.bin后缀 =&gt; .msgpack.bin</a></li>
-                                    <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.xml/">.bin后缀 =&gt; .xml</a></li>
-                                    <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.js/">.bin后缀 =&gt; .js</a></li>
-                                </ul>
+            <div class="container" id="conv_details_panel">
+                <form class="container">
+                    <div class="row">
+                        <div class="col-9">
+                            <div class="input-group">
+                                <span class="input-group-btn" for="conv_list_file_val">
+                                    <button class="btn btn-info" type="button" id="conv_list_file_btn" >转换列表文件</button>
+                                </span>
+                                <input class="form-control" type="text" id="conv_list_file_val" placeholder="尚未载入任何文件，需要载入清单列表的xml文件(比如: convert_list.xml)"
+                                    disabled="disabled" />
                             </div>
-                            <input type="text" class="form-control" id="conv_list_rename" placeholder="正则表达式" />
                         </div>
+                        <div class="col-3">
+                            <div class="input-group">
+                                <span class="input-group-text">并发数</span>
+                                <select class="form-select" id="conv_config_parallelism"></select>
+                            </div>
+                        </div><input type="file" id="conv_list_file" placeholder="选择转换列表文件" class="visually-hidden" />
                     </div>
-                    <div class="col-4">
+                </form>
+                <br />
+                <form class="container">
+                    <div class="row">
+                        <div class="col-4">
                         <div class="input-group">
-                            <span class="input-group-text">协议类型</span>
-                            <select class="form-control" id="conv_list_protocol">
-                                <option selected="selected" value="protobuf">protobuf</option>
-                                <option disabled="disabled" value="flatbuffer">flatbuffer</option>
-                                <option disabled="disabled" value="capnproto">capn's proto</option>
-                            </select>
+                            <span class="input-group-text">转表工具</span>
+                            <input type="text" class="form-control" id="conv_list_xresloader" placeholder="xresloader.jar的路径" />
+                        </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="input-group">
+                                <span class="input-group-text">执行目录</span>
+                                <input type="text" class="form-control" id="conv_list_work_dir" placeholder="执行目录" />
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="input-group">
+                                <span class="input-group-text">数据版本</span>
+                                <input type="text" class="form-control" id="conv_list_data_version" placeholder="自动生成" />
+                            </div>
                         </div>
                     </div>
-                    <div class="col-4">
-                        <div class="input-group">
-                            <span class="input-group-text">输出类型</span>
-                            <select class="form-control" id="conv_list_output_type">
-                                <option selected="selected" value="bin">协议二进制</option>
-                                <option value="lua">Lua配置</option>
-                                <option value="msgpack">MsgPack二进制</option>
-                                <option value="json">Json格式</option>
-                                <option value="xml">Xml</option>
-                                <option value="javascript">Javascript配置</option>
-                                <option value="ue-json">UE资源Json格式</option>
-                                <option value="ue-csv">UE资源Csv格式</option>
-                                <option value="custom-multi" disabled="disabled" id="conv_list_output_custom_multi">多种输出类型</option>
-                            </select>
+                </form>
+                <form class="container">
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="input-group">
+                                <span class="input-group-text">协议描述</span>
+                                <input type="text" class="form-control" id="conv_list_proto_file" placeholder="协议描述文件" />
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="input-group">
+                                <span class="input-group-text">输出目录</span>
+                                <input type="text" class="form-control" id="conv_list_output_dir" placeholder="输出目录" />
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="input-group">
+                                <span class="input-group-text">数据目录</span>
+                                <input type="text" class="form-control" id="conv_list_data_src_dir" placeholder="数据源目录" />
+                            </div>
                         </div>
                     </div>
-                </div>
-            </form>
-            <hr />
-            <form class="container">
-                <div class="mb-3">
-                    <label for="conv_list_file">转换列表文件</label>
-                    <pre id="conv_list_run_res" class="form-control" placeholder="运行日志:"></pre>
-                </div>
-                <div class="btn-group">
-                    <button id="conv_list_btn_select_all" type="button" class="btn btn-outline-secondary">全部选中</button>
-                    <button id="conv_list_btn_select_none" type="button" class="btn btn-outline-secondary">全部取消</button>
-                    <button id="conv_list_btn_expand" type="button" class="btn btn-outline-secondary">全部展开</button>
-                    <button id="conv_list_btn_collapse" type="button" class="btn btn-outline-secondary">全部收起</button>
-                    <button id="conv_list_btn_start_conv" type="button" class="btn btn-primary">开始转换</button>
-                    <button id="conv_list_btn_reload" type="button" class="btn btn-success">重置</button>
-                </div>
-                <div class="btn-group visually-hidden" id="conv_list_custom_btn_group"></div>
-            </form>
+                    <div class="row">
+                        <div class="col-4">
+                            <div class="input-group">
+                                <div class="dropdown">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="conv_list_rename_samples_btn" data-bs-toggle="dropdown" aria-expanded="false">输出重命名</button>
+                                    <ul class="dropdown-menu" id="conv_list_rename_samples" aria-labelledby="conv_list_rename_samples_btn">
+                                        <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.lua/" >.bin后缀 =&gt; .lua</a></li>
+                                        <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.json/">.bin后缀 =&gt; .json</a></li>
+                                        <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.msgpack.bin/">.bin后缀 =&gt; .msgpack.bin</a></li>
+                                        <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.xml/">.bin后缀 =&gt; .xml</a></li>
+                                        <li><a class="dropdown-item" href="#" data-rename="/\.bin$/.js/">.bin后缀 =&gt; .js</a></li>
+                                    </ul>
+                                </div>
+                                <input type="text" class="form-control" id="conv_list_rename" placeholder="正则表达式" />
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="input-group">
+                                <span class="input-group-text">协议类型</span>
+                                <select class="form-select" id="conv_list_protocol">
+                                    <option selected="selected" value="protobuf">protobuf</option>
+                                    <option disabled="disabled" value="flatbuffer">flatbuffer</option>
+                                    <option disabled="disabled" value="capnproto">capn's proto</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="input-group">
+                                <span class="input-group-text">输出类型</span>
+                                <select class="form-select" id="conv_list_output_type">
+                                    <option selected="selected" value="bin">协议二进制</option>
+                                    <option value="lua">Lua配置</option>
+                                    <option value="msgpack">MsgPack二进制</option>
+                                    <option value="json">Json格式</option>
+                                    <option value="xml">Xml</option>
+                                    <option value="javascript">Javascript配置</option>
+                                    <option value="ue-json">UE资源Json格式</option>
+                                    <option value="ue-csv">UE资源Csv格式</option>
+                                    <option value="custom-multi" disabled="disabled" id="conv_list_output_custom_multi">多种输出类型</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+                <hr />
+                <form class="container">
+                    <div class="mb-3">
+                        <label for="conv_list_file">转换列表文件</label>
+                        <pre id="conv_list_run_res" class="form-control" placeholder="运行日志:"></pre>
+                    </div>
+                    <div class="btn-group">
+                        <button id="conv_list_btn_select_all" type="button" class="btn btn-outline-secondary">全部选中</button>
+                        <button id="conv_list_btn_select_none" type="button" class="btn btn-outline-secondary">全部取消</button>
+                        <button id="conv_list_btn_expand" type="button" class="btn btn-outline-secondary">全部展开</button>
+                        <button id="conv_list_btn_collapse" type="button" class="btn btn-outline-secondary">全部收起</button>
+                        <button id="conv_list_btn_start_conv" type="button" class="btn btn-primary">开始转换</button>
+                        <button id="conv_list_btn_reload" type="button" class="btn btn-success">重置</button>
+                    </div>
+                    <div class="input-group visually-hidden" id="conv_list_custom_btn_group"></div>
+                </form>
+            </div>
         </div>
 
         <div id="dlg_alert_error_modal" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="dlg_alert_error_title" aria-hidden="true">

@@ -7,12 +7,18 @@
 1. 更新依赖库
 
   > electron -> 11.1.1
-  > bootstrap -> 4.5.3
+  > bootstrap -> 5.0.0-beta1
   > jquery.fancytree -> 2.37.0
   > electron-packer -> 15.2.0
+  > popper.js 替换为 @popperjs/core
 
 2. 增加命令行选项 ```--custom-selector <json文件名>``` 用于增加自定义选择器
 3. 允许事件可勾选是否执行
+4. 转表前事件和转表后事件增加允许在面板中设置开启货关闭，新属性如下:
+   
+   > + ```name``` : 显示名称
+   > + ```checked``` : 默认选中/启用
+   > + ```mutable``` : 是否可以修改选中/启用状态
 
 2.2.4
 ------

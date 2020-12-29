@@ -37,7 +37,7 @@ xresconv-gui
     }],
     "default_selected": false,                          // [可选] 默认选中
     "style": "outline-secondary",                       // [可选] 按钮Style。默认: outline-secondary
-    // "action": "reload"                               // [可选] 特殊行为，目前仅支持reload。
+    // "action": ["unselect_all", "reload"]             // [可选] 特殊行为，具体内容请参考下面的文档。
 }
 ```
 
@@ -66,6 +66,8 @@ xresconv-gui
 特殊行为 **action** 字段的特殊功能:
 
 + ```reload``` : 重新加载自定义按钮
++ ```select_all``` : 全部选中
++ ```unselect_all``` : 全部反选
 
 示例
 ------
@@ -93,10 +95,18 @@ xresconv-gui
     <set_name description="设置转表项的名字字段，每个转表项会调用一次">
         // 事件代码脚本
     </set_name>
-    <on_before_convert type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="开始转表前的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+    <on_before_convert 
+        name="事件名称(可选,如果设置了名称，可以在执行时选择是否关闭)" 
+        checked="true/false(可选,默认是否选中/启用)" 
+        mutable="true/false(可选,是否可修改选中/启用状态)" 
+        type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="开始转表前的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
         
     </on_before_convert>
-    <on_after_convert type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="转表结束后的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+    <on_after_convert 
+        name="事件名称(可选,如果设置了名称，可以在执行时选择是否关闭)" 
+        checked="true/false(可选,默认是否选中/启用)" 
+        mutable="true/false(可选,是否可修改选中/启用状态)"
+        type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="转表结束后的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
         // 事件代码脚本
     </on_after_convert>
 </gui>
