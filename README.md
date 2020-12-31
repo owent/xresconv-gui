@@ -124,6 +124,8 @@ xresconv-gui
 
 ```javascript
 {
+    work_dir: "当前配置下的执行xresloader的工作目录",
+    configure_file: "当前配置XML路径",
     item_data: {
         id: id,
         file: "数据源文件",
@@ -135,7 +137,13 @@ xresconv-gui
         scheme_data: {"元数据Key": "元数据Value"},
         tags: ["tag列表"],     // 版本 >= 2.2.3
         classes: ["class列表"] // 版本 >= 2.2.3
-    }
+    },
+    alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
+    alert_error: function(content, title) {}, // 错误弹框
+    log_info: function (content) {}, // 打印info日志
+    log_notice: function (content) {}, // 打印notice日志, 版本 >= 2.3.0
+    log_warning: function (content) {}, // 打印warning日志, 版本 >= 2.3.0
+    log_error: function (content) {}, // 打印error日志
 }
 ```
 
@@ -152,6 +160,8 @@ xresconv-gui
     alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
     alert_error: function(content, title) {}, // 错误弹框
     log_info: function (content) {}, // 打印info日志
+    log_notice: function (content) {}, // 打印notice日志, 版本 >= 2.3.0
+    log_warning: function (content) {}, // 打印warning日志, 版本 >= 2.3.0
     log_error: function (content) {}, // 打印error日志
     resolve: function (value) {}, // 通知上层执行结束,相当于Promise的resolve
     reject: function(reason) {}, // 通知上层执行失败,相当于Promise的reject
@@ -167,10 +177,12 @@ xresconv-gui
     xresloader_path: "xresloader目录",
     global_options: {"全局选项": "VALUE"},
     selected_nodes: ["选中要执行转表的节点集合"],
-    selected_items: ["选中要执行转表的item对象集合,数据结构同上面的 item_data"], // 版本 >= 2.2.3
+    selected_items: ["选中要执行转表的item对象集合,数据结构同上面的 item_data"],
     alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
     alert_error: function(content, title) {}, // 错误弹框
     log_info: function (content) {}, // 打印info日志
+    log_notice: function (content) {}, // 打印notice日志
+    log_warning: function (content) {}, // 打印warning日志
     log_error: function (content) {}, // 打印error日志
     resolve: function (value) {}, // 通知上层执行结束,相当于Promise的resolve
     reject: function(reason) {}, // 通知上层执行失败,相当于Promise的reject

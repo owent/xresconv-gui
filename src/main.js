@@ -99,6 +99,63 @@ function match_string_rule(rule, input) {
   }
 }
 
+function logger_append_style_message(msg, module_name, style) {
+  const run_log = $("#conv_list_run_res");
+  if (run_log) {
+    if (module_name) {
+      run_log.append(
+        `<div class="alert ${style} text-wrap">[${module_name}]: ${msg.toString()}</div>\r\n`
+      );
+    } else {
+      run_log.append(
+        `<div class="alert ${style} text-wrap">${msg.toString()}</div>\r\n`
+      );
+    }
+
+    run_log.scrollTop(run_log.prop("scrollHeight"));
+  }
+}
+
+function logger_append_info_message(msg, module_name) {
+  if (msg instanceof Error) {
+    logger_append_error_message(
+      logger_format_exception_message(msg, module_name),
+      module_name
+    );
+    return;
+  }
+
+  logger_append_style_message(msg, module_name, "alert-secondary");
+}
+
+function logger_append_notice_message(msg, module_name) {
+  if (msg instanceof Error) {
+    logger_append_error_message(
+      logger_format_exception_message(msg, module_name),
+      module_name
+    );
+    return;
+  }
+
+  logger_append_style_message(msg, module_name, "alert-primary");
+}
+
+function logger_append_warning_message(msg, module_name, need_alert) {
+  if (msg instanceof Error) {
+    logger_append_error_message(
+      logger_format_exception_message(msg, module_name, need_alert),
+      module_name
+    );
+    return;
+  }
+
+  logger_append_style_message(msg, module_name, "alert-warning");
+  console.warn(msg);
+  if (need_alert) {
+    alert_error(msg);
+  }
+}
+
 function logger_append_error_message(msg, module_name, need_alert) {
   if (msg instanceof Error) {
     logger_append_error_message(
@@ -107,20 +164,8 @@ function logger_append_error_message(msg, module_name, need_alert) {
     );
     return;
   }
-  const run_log = $("#conv_list_run_res");
-  if (run_log) {
-    if (module_name) {
-      run_log.append(
-        `<div class="alert alert-danger text-wrap">[${module_name}]${msg.toString()}</div>\r\n`
-      );
-    } else {
-      run_log.append(
-        `<div class="alert alert-danger text-wrap">${msg.toString()}</div>\r\n`
-      );
-    }
 
-    run_log.scrollTop(run_log.prop("scrollHeight"));
-  }
+  logger_append_style_message(msg, module_name, "alert-danger");
   console.error(msg);
 
   if (need_alert) {
@@ -245,14 +290,25 @@ function run_custom_button_action_script(custom_button, script_name) {
         alert_error: alert_error,
         log_info: function (content) {
           if (content) {
-            const run_log = $("#conv_list_run_res");
-            run_log.append(`[GUI SCRIPT] ${content}\r\n`);
-            run_log.scrollTop(run_log.prop("scrollHeight"));
+            logger_append_info_message(content, `CONV SCRIPT:${script_name}`);
+          }
+        },
+        log_notice: function (content) {
+          if (content) {
+            logger_append_notice_message(content, `CONV SCRIPT:${script_name}`);
+          }
+        },
+        log_warning: function (content) {
+          if (content) {
+            logger_append_warning_message(
+              content,
+              `CONV SCRIPT:${script_name}`
+            );
           }
         },
         log_error: function (content) {
           if (content) {
-            logger_append_error_message(content, "GUI SCRIPT");
+            logger_append_error_message(content, `CONV SCRIPT:${script_name}`);
           }
         },
         // resolve: resolve,
@@ -1215,22 +1271,34 @@ function alert_warning(content, tittle, options) {
               alert_error: alert_error,
               log_info: function (content) {
                 if (content) {
-                  const run_log = $("#conv_list_run_res");
-                  run_log.append(
-                    "[CONV EVENT] " + shell_color_to_html(content) + "\r\n"
+                  logger_append_info_message(
+                    shell_color_to_html(content),
+                    "CONV EVENT"
                   );
-                  run_log.scrollTop(run_log.prop("scrollHeight"));
+                }
+              },
+              log_notice: function (content) {
+                if (content) {
+                  logger_append_notice_message(
+                    shell_color_to_html(content),
+                    "CONV EVENT"
+                  );
+                }
+              },
+              log_warning: function (content) {
+                if (content) {
+                  logger_append_warning_message(
+                    shell_color_to_html(content),
+                    `CONV EVENT`
+                  );
                 }
               },
               log_error: function (content) {
                 if (content) {
-                  const run_log = $("#conv_list_run_res");
-                  run_log.append(
-                    '<div style="color: Red;">[CONV EVENT] ' +
-                      shell_color_to_html(content) +
-                      "</div>\r\n"
+                  logger_append_error_message(
+                    shell_color_to_html(content),
+                    "CONV EVENT"
                   );
-                  run_log.scrollTop(run_log.prop("scrollHeight"));
                 }
               },
             });
@@ -1321,7 +1389,7 @@ function alert_warning(content, tittle, options) {
     if (ret === null) {
       ret = new Promise(active_run);
     } else {
-      ret = ret.then(function () {
+      ret = ret.then(() => {
         return new Promise(active_run);
       });
     }
@@ -1593,13 +1661,15 @@ function alert_warning(content, tittle, options) {
               return;
             }
             has_triggered_exit = true;
+            let error_msg;
             if (signal) {
-              run_log.append(
-                `[Process ${xresloader_index} Exit.${signal}]\r\n`
-              );
+              error_msg = `[Process ${xresloader_index} exit with signal ${signal}.]\r\n`;
+            } else if (code != 0) {
+              error_msg = `[Process ${xresloader_index} exit with code ${code}.]\r\n`;
             } else {
-              run_log.append(`[Process ${xresloader_index} Exit.]\r\n`);
+              error_msg = `[Process ${xresloader_index} exit.]\r\n`;
             }
+            run_log.append(error_msg);
             --running_count;
 
             if (code > 0) {
@@ -1610,7 +1680,7 @@ function alert_warning(content, tittle, options) {
               if (failed_count <= 0) {
                 resolve.apply(this, [arguments]);
               } else {
-                reject.apply(this, [arguments]);
+                reject.apply(this, [error_msg]);
               }
             }
           };
@@ -1630,7 +1700,7 @@ function alert_warning(content, tittle, options) {
 
           xresloader_proc.exec.stderr.on("data", function (data) {
             run_log.append(
-              '<div class="alert alert-danger">' +
+              '<div class="alert alert-danger text-wrap">' +
                 shell_color_to_html(data) +
                 "</div>\r\n"
             );
@@ -1672,20 +1742,34 @@ function alert_warning(content, tittle, options) {
             alert_error: alert_error,
             log_info: function (content) {
               if (content) {
-                run_log.append(
-                  "[CONV EVENT] " + shell_color_to_html(content) + "\r\n"
+                logger_append_info_message(
+                  shell_color_to_html(content),
+                  "CONV EVENT"
                 );
-                run_log.scrollTop(run_log.prop("scrollHeight"));
+              }
+            },
+            log_notice: function (content) {
+              if (content) {
+                logger_append_notice_message(
+                  shell_color_to_html(content),
+                  "CONV EVENT"
+                );
+              }
+            },
+            log_warning: function (content) {
+              if (content) {
+                logger_append_warning_message(
+                  shell_color_to_html(content),
+                  `CONV EVENT`
+                );
               }
             },
             log_error: function (content) {
               if (content) {
-                run_log.append(
-                  '<div style="color: Red;">[CONV EVENT] ' +
-                    shell_color_to_html(content) +
-                    "</div>\r\n"
+                logger_append_error_message(
+                  shell_color_to_html(content),
+                  "CONV EVENT"
                 );
-                run_log.scrollTop(run_log.prop("scrollHeight"));
               }
             },
             // resolve: resolve,
@@ -1701,7 +1785,7 @@ function alert_warning(content, tittle, options) {
                   has_done: false,
                   timer_handle: null,
                 };
-                cur_promise = cur_promise.then(function () {
+                cur_promise = cur_promise.then(() => {
                   return new Promise(function (resolve, reject) {
                     if (evt_obj.vm_script.enabled !== undefined) {
                       if (evt_obj.vm_script.enabled instanceof HTMLElement) {
@@ -1792,10 +1876,7 @@ function alert_warning(content, tittle, options) {
             current_promise,
             conv_data.gui.on_before_convert
           );
-          current_promise = current_promise.then(function (
-            onfulfilled,
-            onrejected
-          ) {
+          current_promise = current_promise.then(() => {
             return new Promise(run_all_cmds);
           });
           current_promise = append_event(
@@ -1807,23 +1888,15 @@ function alert_warning(content, tittle, options) {
           logger_append_error_message(err_msg, "CONV EVENT");
         }
       } else {
-        current_promise = current_promise.then(function (
-          onfulfilled,
-          onrejected
-        ) {
+        current_promise = current_promise.then(() => {
           return new Promise(run_all_cmds);
         });
       }
 
       // 结束
       current_promise = current_promise
-        .catch(function (onrejected) {
-          run_log.append(
-            '<div class="alert alert-danger text-wrap">[CONV EVENT] ' +
-              onrejected.toString() +
-              "</div>\r\n"
-          );
-          run_log.scrollTop(run_log.prop("scrollHeight"));
+        .catch(function (msg) {
+          logger_append_error_message(msg, "CONV");
         })
         .finally(function () {
           if (failed_count > 0) {
@@ -1844,14 +1917,7 @@ function alert_warning(content, tittle, options) {
           run_log.scrollTop(run_log.prop("scrollHeight"));
         });
     } catch (err) {
-      var run_log = $("#conv_list_run_res");
-      run_log.append(
-        '<div style="color: Red;">' +
-          err.toString() +
-          (err.stack ? "\r\n" + err.stack.toString() : "") +
-          "</div>\r\n"
-      );
-      run_log.scrollTop(run_log.prop("scrollHeight"));
+      logger_append_error_message(logger_format_exception_message(err), "CONV");
       console.error(err);
       alert("出错啦: " + err.toString());
     }
@@ -2016,7 +2082,7 @@ function alert_warning(content, tittle, options) {
         conv_data.input_file = input_file;
         conv_data.file_map[clf.path] = true;
 
-        build_conv_tree(data, clf.path).then(function () {
+        build_conv_tree(data, clf.path).then(() => {
           // 显示属性树
           show_conv_tree();
         });
