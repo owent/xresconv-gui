@@ -104,11 +104,11 @@ function logger_append_style_message(msg, module_name, style) {
   if (run_log) {
     if (module_name) {
       run_log.append(
-        `<div class="alert ${style} text-wrap">[${module_name}]: ${msg.toString()}</div>\r\n`
+        `<div class="alert ${style} alert-compact text-wrap" role="alert">[${module_name}]: ${msg.toString()}</div>`
       );
     } else {
       run_log.append(
-        `<div class="alert ${style} text-wrap">${msg.toString()}</div>\r\n`
+        `<div class="alert ${style} alert-compact text-wrap" role="alert">${msg.toString()}</div>`
       );
     }
 
@@ -178,11 +178,11 @@ function logger_format_exception_message(err, module_name, msg) {
   if (module_name) {
     return `[${module_name}]: ${msg}<pre class="conv_pre_default conv_pre_error">${err.toString()}${
       err.stack ? "\r\n" + err.stack.toString() : ""
-    }</pre>\r\n`;
+    }</pre>`;
   } else {
     return `${msg}<pre class="conv_pre_default conv_pre_error">${err.toString()}${
       err.stack ? "\r\n" + err.stack.toString() : ""
-    }</pre>\r\n`;
+    }</pre>`;
   }
 }
 
@@ -1700,9 +1700,9 @@ function alert_warning(content, tittle, options) {
 
           xresloader_proc.exec.stderr.on("data", function (data) {
             run_log.append(
-              '<div class="alert alert-danger text-wrap">' +
+              '<div class="alert alert-danger text-wrap" role="alert">' +
                 shell_color_to_html(data) +
-                "</div>\r\n"
+                "</div>"
             );
             run_log.scrollTop(run_log.prop("scrollHeight"));
             run_one_cmd(xresloader_index, xresloader_proc);
@@ -1927,7 +1927,7 @@ function alert_warning(content, tittle, options) {
     var run_log = $("#conv_list_run_res");
     var dep_text = "";
     var dep_msg =
-      '<div class="alert alert-danger">请确保已安装<a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html" target="_blank">64位的JRE或JDK 8</a>或以上</div>,推荐发行版如下:\r\n';
+      '<div class="alert alert-danger" role="alert">请确保已安装<a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html" target="_blank">64位的JRE或JDK 8</a>或以上</div>,推荐发行版如下:\r\n';
     dep_msg += "<ol>";
     dep_msg +=
       '<li><a href="https://developers.redhat.com/products/openjdk/download" target="_blank">OpenJDK</li>';
@@ -1954,7 +1954,7 @@ function alert_warning(content, tittle, options) {
         const find_java_version = dep_text.match(/\d+/g);
         if (find_java_version && find_java_version.length < 2) {
           run_log.append(
-            '<div class="alert alert-danger">查询不到java版本号</div>\r\n'
+            '<div class="alert alert-danger" role="alert">查询不到java版本号</div>'
           );
           run_log.append(dep_msg);
         } else if (
@@ -1963,7 +1963,9 @@ function alert_warning(content, tittle, options) {
             parseInt(find_java_version[1]) >= 8)
         ) {
           run_log.append(
-            '<div class="alert alert-primary">' + dep_text + "</div>\r\n"
+            '<div class="alert alert-primary" role="alert">' +
+              dep_text +
+              "</div>"
           );
           if (!dep_text.match(/64-Bit/i)) {
             run_log.append(dep_msg);
@@ -1971,11 +1973,13 @@ function alert_warning(content, tittle, options) {
         } else {
           if (dep_text) {
             run_log.append(
-              '<div class="alert alert-primary">' + dep_text + "</div>\r\n"
+              '<div class="alert alert-primary" role="alert">' +
+                dep_text +
+                "</div>"
             );
           }
           run_log.append(
-            '<div class="alert alert-danger">检测不到java或java版本号过老</div>\r\n'
+            '<div class="alert alert-danger" role="alert">检测不到java或java版本号过老</div>'
           );
           run_log.append(dep_msg);
         }

@@ -67,6 +67,11 @@
 .conv_list_run_success {
 }
 
+.alert-compact {
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
 @keyframes conv_list_run_running_ani {
   20% {
   }
