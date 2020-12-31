@@ -48,6 +48,10 @@
   min-height: 320px;
 }
 
+.conv_pre_error {
+  color: darkred;
+}
+
 #conv_list_file {
   display: none;
 }

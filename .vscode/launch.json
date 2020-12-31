@@ -31,7 +31,7 @@
       "args": [
         "--input",
         "../xresconv-conf/sample.xml",
-        "--custom-selector",
+        "--custom-button",
         "./doc/custom-selector.json"
       ],
       "cwd": "${workspaceRoot}",

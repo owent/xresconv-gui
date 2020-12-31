@@ -99,6 +99,48 @@ function match_string_rule(rule, input) {
   }
 }
 
+function logger_append_error_message(msg, module_name, need_alert) {
+  if (msg instanceof Error) {
+    logger_append_error_message(
+      logger_format_exception_message(msg, module_name, need_alert),
+      module_name
+    );
+    return;
+  }
+  const run_log = $("#conv_list_run_res");
+  if (run_log) {
+    if (module_name) {
+      run_log.append(
+        `<div class="alert alert-danger text-wrap">[${module_name}]${msg.toString()}</div>\r\n`
+      );
+    } else {
+      run_log.append(
+        `<div class="alert alert-danger text-wrap">${msg.toString()}</div>\r\n`
+      );
+    }
+
+    run_log.scrollTop(run_log.prop("scrollHeight"));
+  }
+  console.error(msg);
+
+  if (need_alert) {
+    alert_error(msg);
+  }
+}
+
+function logger_format_exception_message(err, module_name, msg) {
+  msg = msg || "";
+  if (module_name) {
+    return `[${module_name}]: ${msg}<pre class="conv_pre_default conv_pre_error">${err.toString()}${
+      err.stack ? "\r\n" + err.stack.toString() : ""
+    }</pre>\r\n`;
+  } else {
+    return `${msg}<pre class="conv_pre_default conv_pre_error">${err.toString()}${
+      err.stack ? "\r\n" + err.stack.toString() : ""
+    }</pre>\r\n`;
+  }
+}
+
 function custom_selector_on_click(selector, force_selected) {
   if (selector.items === undefined) {
     selector.items = [];
@@ -173,15 +215,162 @@ function custom_selector_on_click(selector, force_selected) {
   }
 }
 
-function run_custom_button_action(action_type) {
-  if (action_type == "reload") {
+function run_custom_button_action_script(custom_button, script_name) {
+  if (
+    conv_data.gui.scripts &&
+    conv_data.gui.scripts &&
+    conv_data.gui.scripts[script_name]
+  ) {
+    const custom_script = conv_data.gui.scripts[script_name];
+    try {
+      const tree = $.ui.fancytree.getTree("#conv_list");
+      const selected_nodes = tree.getSelectedNodes();
+
+      const selected_items = [];
+      selected_nodes.forEach(function (node) {
+        if (node.key && conv_data.items[node.key]) {
+          selected_items.push(conv_data.items[node.key]);
+        }
+      });
+
+      const vm = require("vm");
+      const vm_context_obj = {
+        work_dir: custom_script.work_dir,
+        configure_file: (conv_data.input_file || {}).path,
+        xresloader_path: jQuery("#conv_list_xresloader").val(),
+        global_options: conv_data.global_options || [],
+        selected_nodes: selected_nodes,
+        selected_items: selected_items,
+        alert_warning: alert_warning,
+        alert_error: alert_error,
+        log_info: function (content) {
+          if (content) {
+            const run_log = $("#conv_list_run_res");
+            run_log.append(`[GUI SCRIPT] ${content}\r\n`);
+            run_log.scrollTop(run_log.prop("scrollHeight"));
+          }
+        },
+        log_error: function (content) {
+          if (content) {
+            logger_append_error_message(content, "GUI SCRIPT");
+          }
+        },
+        // resolve: resolve,
+        // reject: reject,
+        require: require,
+      };
+
+      const evt_obj = {
+        vm_script: custom_script,
+        has_done: false,
+        timer_handle: null,
+      };
+
+      return new Promise(function (resolve, reject) {
+        if (evt_obj.vm_script.enabled !== undefined) {
+          if (evt_obj.vm_script.enabled instanceof HTMLElement) {
+            if (!convert_to_boolean(evt_obj.vm_script.enabled)) {
+              evt_obj.has_done = true;
+              resolve(vm_context_obj);
+              return;
+            }
+          } else if (!evt_obj.vm_script.enabled) {
+            evt_obj.has_done = true;
+            resolve(vm_context_obj);
+            return;
+          }
+        }
+        let vm_context;
+        try {
+          vm_context = vm.createContext(
+            jQuery.extend(
+              {
+                resolve: function (value) {
+                  if (null != evt_obj.timer_handle) {
+                    clearTimeout(evt_obj.timer_handle);
+                    evt_obj.timer_handle = null;
+                  }
+                  if (!evt_obj.has_done) {
+                    evt_obj.has_done = true;
+                    resolve(value);
+                  }
+                },
+                reject: function (reason) {
+                  if (null != evt_obj.timer_handle) {
+                    clearTimeout(evt_obj.timer_handle);
+                    evt_obj.timer_handle = null;
+                  }
+                  if (!evt_obj.has_done) {
+                    evt_obj.has_done = true;
+                    reject(reason);
+                  }
+                },
+              },
+              vm_context_obj
+            )
+          );
+          evt_obj.vm_script.fn.runInContext(vm_context, {
+            displayErrors: true,
+            timeout: evt_obj.vm_script.timeout,
+            breakOnSigint: true,
+          });
+          evt_obj.timer_handle = setTimeout(function () {
+            evt_obj.timer_handle = null;
+            if (!evt_obj.has_done) {
+              evt_obj.has_done = true;
+              reject("timeout");
+            }
+          }, evt_obj.vm_script.timeout);
+        } catch (err) {
+          if (null != evt_obj.timer_handle) {
+            clearTimeout(evt_obj.timer_handle);
+            evt_obj.timer_handle = null;
+          }
+          if (!evt_obj.has_done) {
+            const msg = logger_format_exception_message(
+              err,
+              `gui.script.${script_name}`
+            );
+            evt_obj.has_done = true;
+            reject(msg);
+          }
+        }
+      });
+    } catch (err) {
+      return new Promise(async () => {
+        const msg = logger_format_exception_message(
+          err,
+          `gui.script.${script_name}`
+        );
+        logger_append_error_message(msg, "GUI SCRIPT", true);
+      });
+    }
+  } else {
+    return new Promise(async () => {
+      logger_append_error_message(
+        `script ${script_name} not found.`,
+        "GUI SCRIPT"
+      );
+    });
+  }
+}
+
+function run_custom_button_action(custom_button, action_type) {
+  if (typeof action_type != "string") {
+    return new Promise(async () => {});
+  }
+
+  const trim_action = action_type.trim();
+  const action_name = trim_action.toLowerCase();
+
+  if (action_name == "reload") {
     const { ipcRenderer } = require("electron");
     return ipcRenderer.invoke("ipc-reload-custom-selectors").then((_) => {
       setup_custom_selectors();
     });
   }
 
-  if (action_type == "select_all") {
+  if (action_name == "select_all") {
     return new Promise(async () => {
       $.ui.fancytree
         .getTree("#conv_list")
@@ -192,7 +381,7 @@ function run_custom_button_action(action_type) {
     });
   }
 
-  if (action_type == "unselect_all") {
+  if (action_name == "unselect_all") {
     return new Promise(async () => {
       $.ui.fancytree
         .getTree("#conv_list")
@@ -201,6 +390,20 @@ function run_custom_button_action(action_type) {
           node.setSelected(false);
         });
     });
+  }
+
+  const try_match_script = trim_action.match(/script\s*:(.*)/i);
+  if (try_match_script) {
+    var script_name = try_match_script[1].trim();
+    if (
+      script_name.length >= 2 &&
+      script_name[0] == script_name[script_name.length - 1] &&
+      (script_name[0] == '"' || script_name[0] == "'")
+    ) {
+      script_name = script_name.substr(0, script_name.length - 2);
+    }
+
+    return run_custom_button_action_script(custom_button, script_name);
   }
 
   return new Promise(async () => {});
@@ -255,16 +458,7 @@ function setup_custom_selectors() {
         }
 
         if (error_message) {
-          const run_log = $("#conv_list_run_res");
-          if (run_log) {
-            run_log.append(
-              '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' +
-                error_message +
-                "</div>\r\n"
-            );
-            run_log.scrollTop(run_log.prop("scrollHeight"));
-          }
-          console.error(error_message);
+          logger_append_error_message(error_message, "CUSTOM SELECTOR");
           continue;
         }
 
@@ -304,22 +498,17 @@ function setup_custom_selectors() {
             var future = null;
             for (const action_type of actions) {
               if (future) {
-                future = future.then(run_custom_button_action(action_type));
+                future = future.then(
+                  run_custom_button_action(custom_selector, action_type)
+                );
               } else {
-                future = run_custom_button_action(action_type);
+                future = run_custom_button_action(custom_selector, action_type);
               }
             }
 
             if (future) {
               future.catch(function (err) {
-                const run_log = jQuery("#conv_list_run_res");
-                run_log.append(
-                  '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' +
-                    err.toString() +
-                    "</div>\r\n"
-                );
-                run_log.scrollTop(run_log.prop("scrollHeight"));
-                console.error(err);
+                logger_append_error_message(err, "CUSTOM SELECTOR");
               });
             }
           });
@@ -338,17 +527,8 @@ function setup_custom_selectors() {
       conv_data.custom_selectors = custom_selectors;
       setup_auto_resize_window();
     });
-  } catch (e) {
-    const run_log = $("#conv_list_run_res");
-    if (run_log) {
-      run_log.append(
-        '<div class="alert alert-danger text-wrap">[CUSTOM SELECTOR] ' +
-          e.toString() +
-          "</div>\r\n"
-      );
-      run_log.scrollTop(run_log.prop("scrollHeight"));
-    }
-    console.error(e);
+  } catch (err) {
+    logger_append_error_message(err, "CUSTOM SELECTOR");
   }
 }
 
@@ -415,6 +595,7 @@ function alert_warning(content, tittle, options) {
         set_name: null,
         on_before_convert: [],
         on_after_convert: [],
+        scripts: {},
       },
       tree: [],
       category: {},
@@ -850,79 +1031,103 @@ function alert_warning(content, tittle, options) {
             filename: current_path,
           });
         } catch (err) {
-          alert_error(
-            'GUI脚本编译错误(gui.set_name):<pre class="form-control conv_pre_default">' +
-              err.toString() +
-              "</pre>"
+          const msg = logger_format_exception_message(
+            err,
+            "gui.set_name",
+            "GUI脚本编译错误"
           );
-          console.error(err);
+          logger_append_error_message(msg, "GUI EVENT", true);
         }
       });
 
       // 重置 GUI 事件可选项
       clear_conv_list_event_group();
       conv_data.gui.on_before_convert = [];
-      $.each(
-        jdom.children("gui").children("on_before_convert"),
-        function (k, dom) {
-          try {
-            var env_jdom = $(dom);
-            const vm = require("vm");
-            const timeout_str = env_jdom.attr("timeout");
-            var timeout = 30000;
-            if (timeout_str) {
-              timeout = parseInt(timeout_str);
-            }
-            var fn = new vm.Script(env_jdom.html(), {
-              filename: current_path,
-            });
-            conv_data.gui.on_before_convert.push({
-              fn: fn,
-              timeout: timeout,
-              enabled: append_conv_list_event_group(env_jdom.get(0), true),
-            });
-          } catch (err) {
-            alert_error(
-              'GUI脚本编译错误(gui.on_before_convert):<pre class="form-control conv_pre_default">' +
-                err.toString() +
-                (err.stack ? "\r\n" + err.stack.toString() : "") +
-                "</pre>"
-            );
-            console.error(err);
+      $.each(jdom.children("gui").children("on_before_convert"), (_, dom) => {
+        try {
+          const env_jdom = $(dom);
+          const vm = require("vm");
+          const timeout_str = env_jdom.attr("timeout");
+          var timeout = 30000;
+          if (timeout_str) {
+            timeout = parseInt(timeout_str);
           }
+          const fn = new vm.Script(env_jdom.html(), {
+            filename: current_path,
+          });
+          conv_data.gui.on_before_convert.push({
+            fn: fn,
+            timeout: timeout,
+            enabled: append_conv_list_event_group(env_jdom.get(0), true),
+          });
+        } catch (err) {
+          const msg = logger_format_exception_message(
+            err,
+            "gui.on_before_convert",
+            "GUI脚本编译错误"
+          );
+
+          logger_append_error_message(msg, "GUI EVENT", true);
         }
-      );
+      });
 
       conv_data.gui.on_after_convert = [];
-      $.each(
-        jdom.children("gui").children("on_after_convert"),
-        function (k, dom) {
-          try {
-            var env_jdom = $(dom);
-            const vm = require("vm");
-            const timeout_str = env_jdom.attr("timeout");
-            var timeout = 30000;
-            if (timeout_str) {
-              timeout = parseInt(timeout_str);
-            }
-            var fn = new vm.Script(env_jdom.html(), {
-              filename: current_path,
-            });
-            conv_data.gui.on_after_convert.push({
-              fn: fn,
-              timeout: timeout,
-              enabled: append_conv_list_event_group(env_jdom.get(0), false),
-            });
-          } catch (err) {
-            alert_error(
-              'GUI脚本编译错误(gui.on_after_convert):<pre class="form-control conv_pre_default">' +
-                err.toString() +
-                (err.stack ? "\r\n" + err.stack.toString() : "") +
-                "</pre>"
-            );
+      $.each(jdom.children("gui").children("on_after_convert"), (_, dom) => {
+        try {
+          const env_jdom = $(dom);
+          const vm = require("vm");
+          const timeout_str = env_jdom.attr("timeout");
+          var timeout = 30000;
+          if (timeout_str) {
+            timeout = parseInt(timeout_str);
           }
+          const fn = new vm.Script(env_jdom.html(), {
+            filename: current_path,
+          });
+          conv_data.gui.on_after_convert.push({
+            fn: fn,
+            timeout: timeout,
+            enabled: append_conv_list_event_group(env_jdom.get(0), false),
+          });
+        } catch (err) {
+          const msg = logger_format_exception_message(
+            err,
+            "gui.on_after_convert",
+            "GUI脚本编译错误"
+          );
+          logger_append_error_message(msg, "GUI EVENT", true);
         }
-      );
+      });
+
+      conv_data.gui.scripts = {};
+      $.each(jdom.children("gui").children("script"), (key, dom) => {
+        try {
+          const env_jdom = $(dom);
+          const vm = require("vm");
+          const timeout_str = env_jdom.attr("timeout");
+          var timeout = 30000;
+          if (timeout_str) {
+            timeout = parseInt(timeout_str);
+          }
+          const fn = new vm.Script(env_jdom.html(), {
+            filename: current_path,
+          });
+          const script_name = env_jdom.attr("name") || "";
+          conv_data.gui.scripts[script_name] = {
+            name: script_name,
+            fn: fn,
+            timeout: timeout,
+            work_dir: work_dir,
+          };
+        } catch (err) {
+          const msg = logger_format_exception_message(
+            err,
+            `gui.script.${key}`,
+            "GUI脚本编译错误"
+          );
+          logger_append_error_message(msg, "GUI SCRIPT", true);
+        }
+      });
 
       $.each(jdom.children("list").children("item"), function (k, item_node) {
         var jitem = $(item_node);
@@ -1031,12 +1236,12 @@ function alert_warning(content, tittle, options) {
             });
             conv_data.gui.set_name.runInContext(vm_context);
           } catch (err) {
-            alert_error(
-              'GUI脚本执行错误(gui.set_name):<pre class="form-control conv_pre_default">' +
-                err.toString() +
-                "</pre>"
+            const msg = logger_format_exception_message(
+              err,
+              "gui.set_name",
+              "GUI脚本编译错误"
             );
-            console.error(err);
+            logger_append_error_message(msg, "GUI EVENT", true);
           }
         }
 
@@ -1087,11 +1292,16 @@ function alert_warning(content, tittle, options) {
               });
 
               file_inst.on("error", (err) => {
-                console.error(err.toString());
-                console.error(err.stack);
-                alert("尝试读取文件失败:" + file_path);
+                const msg = logger_format_exception_message(
+                  err,
+                  "IO",
+                  `尝试读取文件失败: ${file_path}`
+                );
+                logger_append_error_message(msg);
+                console.error(err);
+                alert(msg);
 
-                reject.apply(this, ["尝试读取文件失败:" + file_path]);
+                reject.apply(this, [msg]);
               });
             });
           };
@@ -1101,9 +1311,10 @@ function alert_warning(content, tittle, options) {
             ret.then(load_sub_file);
           }
         }
-      } catch (e) {
-        alert("文件 " + file_path + " 加载失败。" + e.toString());
-        console.error(e);
+      } catch (err) {
+        const msg = "文件 " + file_path + " 加载失败。" + err.toString();
+        alert(msg);
+        logger_append_error_message(msg);
       }
     }
 
@@ -1551,17 +1762,16 @@ function alert_warning(content, tittle, options) {
                           reject("Run event callback callback timeout");
                         }
                       }, evt_obj.vm_script.timeout);
-                    } catch (e) {
+                    } catch (err) {
                       ++failed_count;
-                      const err_msg =
-                        e.toString() +
-                        (e.stack ? "\r\n" + e.stack.toString() : "");
-                      run_log.append(
-                        '<div style="color: Red;">[CONV EVENT EXCEPTION] ' +
-                          err_msg +
-                          "</div>\r\n"
+                      const err_msg = logger_format_exception_message(
+                        err,
+                        "event script"
                       );
-                      run_log.scrollTop(run_log.prop("scrollHeight"));
+                      logger_append_error_message(
+                        err_msg,
+                        "CONV EVENT EXCEPTION"
+                      );
                       if (null != evt_obj.timer_handle) {
                         clearTimeout(evt_obj.timer_handle);
                         evt_obj.timer_handle = null;
@@ -1592,14 +1802,9 @@ function alert_warning(content, tittle, options) {
             current_promise,
             conv_data.gui.on_after_convert
           );
-        } catch (e) {
-          run_log.append(
-            '<div style="color: Red;">[CONV EVENT] ' +
-              e.toString() +
-              (e.stack ? "\r\n" + e.stack.toString() : "") +
-              "</div>\r\n"
-          );
-          run_log.scrollTop(run_log.prop("scrollHeight"));
+        } catch (err) {
+          const err_msg = logger_format_exception_message(err, "event script");
+          logger_append_error_message(err_msg, "CONV EVENT");
         }
       } else {
         current_promise = current_promise.then(function (
@@ -1638,17 +1843,17 @@ function alert_warning(content, tittle, options) {
           }
           run_log.scrollTop(run_log.prop("scrollHeight"));
         });
-    } catch (e) {
+    } catch (err) {
       var run_log = $("#conv_list_run_res");
       run_log.append(
         '<div style="color: Red;">' +
-          e.toString() +
-          (e.stack ? "\r\n" + e.stack.toString() : "") +
+          err.toString() +
+          (err.stack ? "\r\n" + err.stack.toString() : "") +
           "</div>\r\n"
       );
       run_log.scrollTop(run_log.prop("scrollHeight"));
-      console.error(e);
-      alert("出错啦: " + e.toString());
+      console.error(err);
+      alert("出错啦: " + err.toString());
     }
   }
 
@@ -1711,12 +1916,9 @@ function alert_warning(content, tittle, options) {
       });
 
       java_exec.stdin.end();
-    } catch (e) {
-      run_log.append(
-        '<div class="alert alert-danger">' + e.toString() + "</div>\r\n"
-      );
+    } catch (err) {
       run_log.append(dep_msg);
-      console.error(e);
+      logger_append_error_message(err);
     }
 
     run_log.scrollTop(run_log.prop("scrollHeight"));
@@ -1735,10 +1937,10 @@ function alert_warning(content, tittle, options) {
         if (xconv_gui_options.parallelism > 2) {
           xconv_gui_options.parallelism = 2;
         }
-      } catch (e) {
+      } catch (err) {
         console.log("judge cpu count require node.js");
         xconv_gui_options.parallelism = 2;
-        console.error(e);
+        console.error(err);
       }
 
       var father_dom = $("#conv_config_parallelism");
@@ -1819,8 +2021,8 @@ function alert_warning(content, tittle, options) {
           show_conv_tree();
         });
       } catch (err) {
+        logger_append_error_message(err);
         alert_error(err.toString(), "加载 " + clf.path + " 失败");
-        console.error(err.toString());
         $("#conv_list_file_val").val("加载文件失败！");
       }
     };
@@ -1916,9 +2118,9 @@ function alert_warning(content, tittle, options) {
 
       setup_custom_selectors();
       setup_auto_resize_window();
-    } catch (e) {
+    } catch (err) {
       // ignore load initialize file failed
-      console.error(e);
+      logger_append_error_message(err);
     }
   });
 })(jQuery, window);

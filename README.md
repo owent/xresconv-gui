@@ -18,7 +18,7 @@ xresconv-gui
 
 + ```--input <文件名>``` : 指定初始的转表清单文件。
 + ```--debug``` : 开启debug模式并启动开发人员工具。
-+ ```--custom-selector <json文件名>``` : 增加自定义选择器,允许多个
++ ```--custom-selector/--custom-button <json文件名>``` : 增加自定义选择器,允许多个
 
 ### 自定义选择器规则
 
@@ -68,6 +68,7 @@ xresconv-gui
 + ```reload``` : 重新加载自定义按钮
 + ```select_all``` : 全部选中
 + ```unselect_all``` : 全部反选
++ ```script: <脚本名字>``` : 执行脚本，**脚本名字** 为 ```//root/gui/script``` 节点的 ```name``` 属性。
 
 示例
 ------
@@ -109,8 +110,15 @@ xresconv-gui
         type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="转表结束后的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
         // 事件代码脚本
     </on_after_convert>
+    <script name="自定义脚本" type="text/javascript" timeout="超时时间（毫秒,默认: 30000）">
+        // 同上
+        alert_warning("自定义脚本，可用于自定义按钮");
+        resolve();
+    </script>
 </gui>
 ```
+
+> 注: 事件的 ```name``` 、 ```checked``` 、 ```mutable``` 和自定义脚本的```<script></script>``` 标签需要版本 **>=2.3.0** 。
 
 在 **set_name** 事件系统中，可用的接口如下:
 
@@ -141,6 +149,25 @@ xresconv-gui
     selected_nodes: ["选中要执行转表的节点集合"],
     selected_items: ["选中要执行转表的item对象集合,数据结构同上面的 item_data"], // 版本 >= 2.2.3
     run_seq: "执行序号",
+    alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
+    alert_error: function(content, title) {}, // 错误弹框
+    log_info: function (content) {}, // 打印info日志
+    log_error: function (content) {}, // 打印error日志
+    resolve: function (value) {}, // 通知上层执行结束,相当于Promise的resolve
+    reject: function(reason) {}, // 通知上层执行失败,相当于Promise的reject
+    require: function (name) {} // 相当于 nodejs的 require(name) 用于导入nodejs 模块
+}
+```
+
+在自定义脚本 **script** 中，可用的接口如下:
+
+```javascript
+{
+    work_dir: "执行xresloader的工作目录",
+    xresloader_path: "xresloader目录",
+    global_options: {"全局选项": "VALUE"},
+    selected_nodes: ["选中要执行转表的节点集合"],
+    selected_items: ["选中要执行转表的item对象集合,数据结构同上面的 item_data"], // 版本 >= 2.2.3
     alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
     alert_error: function(content, title) {}, // 错误弹框
     log_info: function (content) {}, // 打印info日志

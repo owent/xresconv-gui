@@ -20,4 +20,10 @@
         "reload"
     ],
     "style": "outline-dark"
+}, {
+    "name": "执行自定义脚本",
+    "action": [
+        "script: 自定义脚本"
+    ],
+    "style": "outline-dark"
 }]

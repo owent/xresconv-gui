@@ -32,7 +32,7 @@ const custom_selectors = {
 const INPUT_PARAMS_MODE = {
   NONE: 0,
   INPUT_FILE: 1,
-  CUSTOM_SELECTOR: 2,
+  CUSTOM_BUTTON: 2,
 };
 
 function readCustomSelectors(file_path) {
@@ -104,7 +104,7 @@ function createWindow() {
           param_mode = INPUT_PARAMS_MODE.NONE;
           break;
         }
-        case INPUT_PARAMS_MODE.CUSTOM_SELECTOR: {
+        case INPUT_PARAMS_MODE.CUSTOM_BUTTON: {
           custom_selectors.files.push(v);
           param_mode = INPUT_PARAMS_MODE.NONE;
           break;
@@ -112,8 +112,8 @@ function createWindow() {
         default: {
           if (v == "--input") {
             param_mode = INPUT_PARAMS_MODE.INPUT_FILE;
-          } else if (v == "--custom-selector") {
-            param_mode = INPUT_PARAMS_MODE.CUSTOM_SELECTOR;
+          } else if (v == "--custom-selector" || v == "--custom-button") {
+            param_mode = INPUT_PARAMS_MODE.CUSTOM_BUTTON;
           } else if (v == "--debug") {
             app_config.debug = true;
           }

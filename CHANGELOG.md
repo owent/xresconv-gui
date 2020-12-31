@@ -12,7 +12,7 @@
   > electron-packer -> 15.2.0
   > popper.js 替换为 @popperjs/core
 
-2. 增加命令行选项 ```--custom-selector <json文件名>``` 用于增加自定义选择器
+2. 增加命令行选项 ```--custom-selector/--custom-button <json文件名>``` 用于增加自定义选择器
 3. 允许事件可勾选是否执行
 4. 转表前事件和转表后事件增加允许在面板中设置开启货关闭，新属性如下:
    
