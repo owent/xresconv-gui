@@ -322,7 +322,7 @@ function run_custom_button_action_script(custom_button, script_name) {
         timer_handle: null,
       };
 
-      return new Promise(function (resolve, reject) {
+      return new Promise((resolve, reject) => {
         if (evt_obj.vm_script.enabled !== undefined) {
           if (evt_obj.vm_script.enabled instanceof HTMLElement) {
             if (!convert_to_boolean(evt_obj.vm_script.enabled)) {
@@ -341,7 +341,7 @@ function run_custom_button_action_script(custom_button, script_name) {
           vm_context = vm.createContext(
             jQuery.extend(
               {
-                resolve: function (value) {
+                resolve: (value) => {
                   if (null != evt_obj.timer_handle) {
                     clearTimeout(evt_obj.timer_handle);
                     evt_obj.timer_handle = null;
@@ -351,7 +351,7 @@ function run_custom_button_action_script(custom_button, script_name) {
                     resolve(value);
                   }
                 },
-                reject: function (reason) {
+                reject: (reason) => {
                   if (null != evt_obj.timer_handle) {
                     clearTimeout(evt_obj.timer_handle);
                     evt_obj.timer_handle = null;
@@ -361,6 +361,7 @@ function run_custom_button_action_script(custom_button, script_name) {
                     reject(reason);
                   }
                 },
+                data: custom_button.data,
               },
               vm_context_obj
             )
@@ -518,6 +519,9 @@ function setup_custom_selectors() {
           continue;
         }
 
+        // 私有数据
+        custom_selector.data = custom_selector.data || {};
+
         // 构建自定义选择器按钮
         console.log(`Add custom selector ${custom_selector.name}`);
         var style = custom_selector.style || undefined;
@@ -554,9 +558,9 @@ function setup_custom_selectors() {
             var future = null;
             for (const action_type of actions) {
               if (future) {
-                future = future.then(
-                  run_custom_button_action(custom_selector, action_type)
-                );
+                future = future.then(() => {
+                  return run_custom_button_action(custom_selector, action_type);
+                });
               } else {
                 future = run_custom_button_action(custom_selector, action_type);
               }
@@ -1165,13 +1169,13 @@ function alert_warning(content, tittle, options) {
           if (timeout_str) {
             timeout = parseInt(timeout_str);
           }
-          const fn = new vm.Script(env_jdom.html(), {
-            filename: current_path,
-          });
+
           const script_name = env_jdom.attr("name") || "";
           conv_data.gui.scripts[script_name] = {
             name: script_name,
-            fn: fn,
+            fn: new vm.Script(env_jdom.html(), {
+              filename: current_path,
+            }),
             timeout: timeout,
             work_dir: work_dir,
           };
@@ -1267,6 +1271,7 @@ function alert_warning(content, tittle, options) {
               work_dir: work_dir,
               configure_file: current_path,
               item_data: item_data,
+              data: {},
               alert_warning: alert_warning,
               alert_error: alert_error,
               log_info: function (content) {
@@ -1826,6 +1831,7 @@ function alert_warning(content, tittle, options) {
                                 reject(reason);
                               }
                             },
+                            data: {},
                           },
                           vm_context_obj
                         )

@@ -138,6 +138,7 @@ xresconv-gui
         tags: ["tag列表"],     // 版本 >= 2.2.3
         classes: ["class列表"] // 版本 >= 2.2.3
     },
+    data: {}， // 绑定在按钮上的私有数据,可用于保存全局状态, 版本 >= 2.3.0
     alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
     alert_error: function(content, title) {}, // 错误弹框
     log_info: function (content) {}, // 打印info日志
@@ -157,6 +158,7 @@ xresconv-gui
     selected_nodes: ["选中要执行转表的节点集合"],
     selected_items: ["选中要执行转表的item对象集合,数据结构同上面的 item_data"], // 版本 >= 2.2.3
     run_seq: "执行序号",
+    data: {}， // 绑定在按钮上的私有数据,可用于保存全局状态, 版本 >= 2.3.0
     alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
     alert_error: function(content, title) {}, // 错误弹框
     log_info: function (content) {}, // 打印info日志
@@ -178,6 +180,7 @@ xresconv-gui
     global_options: {"全局选项": "VALUE"},
     selected_nodes: ["选中要执行转表的节点集合"],
     selected_items: ["选中要执行转表的item对象集合,数据结构同上面的 item_data"],
+    data: {}， // 绑定在按钮上的私有数据,可用于保存全局状态
     alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
     alert_error: function(content, title) {}, // 错误弹框
     log_info: function (content) {}, // 打印info日志

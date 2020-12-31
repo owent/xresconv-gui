@@ -23,6 +23,7 @@
 }, {
     "name": "执行自定义脚本",
     "action": [
+        "script: delaycall",
         "script: 自定义脚本"
     ],
     "style": "outline-dark"
