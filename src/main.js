@@ -104,11 +104,11 @@ function logger_append_style_message(msg, module_name, style) {
   if (run_log) {
     if (module_name) {
       run_log.append(
-        `<div class="alert ${style} alert-compact text-wrap" role="alert">[${module_name}]: ${msg.toString()}</div>`
+        `<div class="alert ${style} alert-compact" role="alert">[${module_name}]: ${msg.toString()}</div>`
       );
     } else {
       run_log.append(
-        `<div class="alert ${style} alert-compact text-wrap" role="alert">${msg.toString()}</div>`
+        `<div class="alert ${style} alert-compact" role="alert">${msg.toString()}</div>`
       );
     }
 
@@ -260,6 +260,63 @@ function custom_selector_on_click(selector, force_selected) {
   }
 }
 
+function shell_color_to_html(data) {
+  const style_map = {
+    1: "font-weight: bolder;",
+    4: "text-decoration: underline;",
+    30: "color: black;",
+    31: "color: darkred;",
+    32: "color: darkgreen;",
+    33: "color: brown;",
+    34: "color: darkblue;",
+    35: "color: purple;",
+    36: "color: darkcyan;",
+    37: "color: gray;",
+    40: "background-color: black;",
+    41: "background-color: darkred;",
+    42: "background-color: darkgreen;",
+    43: "background-color: brown;",
+    44: "background-color: darkblue;",
+    45: "background-color: purple;",
+    46: "background-color: darkcyan;",
+    47: "background-color: white;",
+  };
+
+  var split_group = data.toString().split(/(\[[\d;]*m)/g);
+  var span_level = 0;
+
+  function finish_tail() {
+    var ret = "";
+    while (span_level > 0) {
+      --span_level;
+      ret += "</span>";
+    }
+    return ret;
+  }
+  for (var i = 0; i < split_group.length; ++i) {
+    var msg = split_group[i];
+    if (msg.match(/^\[[\d;]*m$/)) {
+      var all_flags = msg.match(/\d+/g);
+      var style_list = [];
+      for (var j = 0; all_flags && j < all_flags.length; ++j) {
+        if ("0" == all_flags[j]) {
+          split_group[i] = finish_tail();
+          break;
+        } else if (style_map[all_flags[j]]) {
+          style_list.push(style_map[all_flags[j]]);
+        }
+      }
+
+      if (style_list.length > 0) {
+        ++span_level;
+        split_group[i] = '<span style="' + style_list.join(" ") + '">';
+      }
+    }
+  }
+
+  return split_group.join("") + finish_tail();
+}
+
 function run_custom_button_action_script(custom_button, script_name) {
   if (
     conv_data.gui.scripts &&
@@ -290,25 +347,34 @@ function run_custom_button_action_script(custom_button, script_name) {
         alert_error: alert_error,
         log_info: function (content) {
           if (content) {
-            logger_append_info_message(content, `CONV SCRIPT:${script_name}`);
+            logger_append_info_message(
+              content,
+              `CONV SCRIPT:${shell_color_to_html(script_name)}`
+            );
           }
         },
         log_notice: function (content) {
           if (content) {
-            logger_append_notice_message(content, `CONV SCRIPT:${script_name}`);
+            logger_append_notice_message(
+              content,
+              `CONV SCRIPT:${shell_color_to_html(script_name)}`
+            );
           }
         },
         log_warning: function (content) {
           if (content) {
             logger_append_warning_message(
               content,
-              `CONV SCRIPT:${script_name}`
+              `CONV SCRIPT:${shell_color_to_html(script_name)}`
             );
           }
         },
         log_error: function (content) {
           if (content) {
-            logger_append_error_message(content, `CONV SCRIPT:${script_name}`);
+            logger_append_error_message(
+              content,
+              `CONV SCRIPT:${shell_color_to_html(script_name)}`
+            );
           }
         },
         // resolve: resolve,
@@ -704,63 +770,6 @@ function alert_warning(content, tittle, options) {
     } else {
       return get_string_file(sel_dom.value);
     }
-  }
-
-  function shell_color_to_html(data) {
-    const style_map = {
-      1: "font-weight: bolder;",
-      4: "text-decoration: underline;",
-      30: "color: black;",
-      31: "color: darkred;",
-      32: "color: darkgreen;",
-      33: "color: brown;",
-      34: "color: darkblue;",
-      35: "color: purple;",
-      36: "color: darkcyan;",
-      37: "color: gray;",
-      40: "background-color: black;",
-      41: "background-color: darkred;",
-      42: "background-color: darkgreen;",
-      43: "background-color: brown;",
-      44: "background-color: darkblue;",
-      45: "background-color: purple;",
-      46: "background-color: darkcyan;",
-      47: "background-color: white;",
-    };
-
-    var split_group = data.toString().split(/(\[[\d;]*m)/g);
-    var span_level = 0;
-
-    function finish_tail() {
-      var ret = "";
-      while (span_level > 0) {
-        --span_level;
-        ret += "</span>";
-      }
-      return ret;
-    }
-    for (var i = 0; i < split_group.length; ++i) {
-      var msg = split_group[i];
-      if (msg.match(/^\[[\d;]*m$/)) {
-        var all_flags = msg.match(/\d+/g);
-        var style_list = [];
-        for (var j = 0; all_flags && j < all_flags.length; ++j) {
-          if ("0" == all_flags[j]) {
-            split_group[i] = finish_tail();
-            break;
-          } else if (style_map[all_flags[j]]) {
-            style_list.push(style_map[all_flags[j]]);
-          }
-        }
-
-        if (style_list.length > 0) {
-          ++span_level;
-          split_group[i] = '<span style="' + style_list.join(" ") + '">';
-        }
-      }
-    }
-
-    return split_group.join("") + finish_tail();
   }
 
   function show_output_matrix() {
@@ -1705,7 +1714,7 @@ function alert_warning(content, tittle, options) {
 
           xresloader_proc.exec.stderr.on("data", function (data) {
             run_log.append(
-              '<div class="alert alert-danger text-wrap" role="alert">' +
+              '<div class="alert alert-danger" role="alert">' +
                 shell_color_to_html(data) +
                 "</div>"
             );
