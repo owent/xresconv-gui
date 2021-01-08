@@ -23,6 +23,7 @@
 }, {
     "name": "执行自定义脚本",
     "action": [
+        "unselect_all",
         "script: delaycall",
         "script: 自定义脚本"
     ],

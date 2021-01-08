@@ -89,13 +89,41 @@ function match_string_rule(rule, input) {
     return false;
   }
 
-  if (rule.toLowerCase().substr(0, 6) == "regex:") {
-    return input.match(new RegExp(rule.substr(6).trim()));
-  } else if (rule.toLowerCase().substr(0, 5) == "glob:") {
-    const minimatch = require("minimatch");
-    return minimatch(input, rule.substr(5).trim());
-  } else {
-    return rule == input;
+  return rule.apply(this, [input]);
+}
+
+function build_match_string_rule(rule, name) {
+  if (!rule) {
+    return (input) => {
+      return !input;
+    };
+  }
+
+  try {
+    if (rule.toLowerCase().substr(0, 6) == "regex:") {
+      const regex_rule = new RegExp(rule.substr(6).trim());
+      return (input) => {
+        return (input || "").match(regex_rule);
+      };
+    } else if (rule.toLowerCase().substr(0, 5) == "glob:") {
+      const minimatch = require("minimatch");
+      const glob_rule = new minimatch.Minimatch(rule.substr(5).trim());
+      return (input) => {
+        return glob_rule.match(input);
+      };
+    } else {
+      return (input) => {
+        return input == rule;
+      };
+    }
+  } catch (e) {
+    if (name) {
+      logger_append_error_message(`${name} 的规则无效: ${rule}`);
+    }
+    logger_append_error_message(e);
+    return (input) => {
+      return input == rule;
+    };
   }
 }
 
@@ -143,8 +171,9 @@ function logger_append_notice_message(msg, module_name) {
 function logger_append_warning_message(msg, module_name, need_alert) {
   if (msg instanceof Error) {
     logger_append_error_message(
-      logger_format_exception_message(msg, module_name, need_alert),
-      module_name
+      logger_format_exception_message(msg, module_name),
+      module_name,
+      need_alert
     );
     return;
   }
@@ -159,8 +188,9 @@ function logger_append_warning_message(msg, module_name, need_alert) {
 function logger_append_error_message(msg, module_name, need_alert) {
   if (msg instanceof Error) {
     logger_append_error_message(
-      logger_format_exception_message(msg, module_name, need_alert),
-      module_name
+      logger_format_exception_message(msg, module_name),
+      module_name,
+      need_alert
     );
     return;
   }
@@ -175,14 +205,14 @@ function logger_append_error_message(msg, module_name, need_alert) {
 
 function logger_format_exception_message(err, module_name, msg) {
   msg = msg || "";
+  const html_content = `${err.stack ? err.stack.toString() : err.toString()}`
+    .replace("<", "&lt;")
+    .replace(">", "&gt;");
+
   if (module_name) {
-    return `[${module_name}]: ${msg}<pre class="conv_pre_default conv_pre_error">${err.toString()}${
-      err.stack ? "\r\n" + err.stack.toString() : ""
-    }</pre>`;
+    return `[${module_name}]: ${msg}<pre class="conv_pre_default conv_pre_error">${html_content}</pre>`;
   } else {
-    return `${msg}<pre class="conv_pre_default conv_pre_error">${err.toString()}${
-      err.stack ? "\r\n" + err.stack.toString() : ""
-    }</pre>`;
+    return `${msg}<pre class="conv_pre_default conv_pre_error">${html_content}</pre>`;
   }
 }
 
@@ -193,13 +223,26 @@ function custom_selector_on_click(selector, force_selected) {
       const item = conv_data.items[item_key];
       if (item.file && item.scheme) {
         for (const scheme_rule of selector.by_schemes || []) {
+          if (!scheme_rule.file_fn) {
+            scheme_rule.file_fn = build_match_string_rule(
+              scheme_rule.file,
+              selector.name
+            );
+          }
+          if (scheme_rule.scheme && !scheme_rule.scheme_fn) {
+            scheme_rule.scheme_fn = build_match_string_rule(
+              scheme_rule.scheme,
+              selector.name
+            );
+          }
+          build_match_string_rule;
           const match_file_name = match_string_rule(
-            scheme_rule.file,
+            scheme_rule.file_fn,
             item.file
           );
           const match_scheme_name =
             !scheme_rule.scheme ||
-            match_string_rule(scheme_rule.scheme, item.scheme);
+            match_string_rule(scheme_rule.scheme_fn, item.scheme);
           if (match_file_name && match_scheme_name) {
             selector.items.push(item);
             break;
@@ -220,14 +263,27 @@ function custom_selector_on_click(selector, force_selected) {
             break;
           }
 
+          if (!sheet_rule.file_fn) {
+            sheet_rule.file_fn = build_match_string_rule(
+              sheet_rule.file,
+              selector.name
+            );
+          }
+          if (sheet_rule.sheet && !sheet_rule.sheet_fn) {
+            sheet_rule.sheet_fn = build_match_string_rule(
+              sheet_rule.sheet,
+              selector.name
+            );
+          }
+
           for (const data_srouce of data_srouces) {
             const match_file_name = match_string_rule(
-              sheet_rule.file,
+              sheet_rule.file_fn,
               data_srouce[0]
             );
             const match_sheet_name =
               !sheet_rule.sheet ||
-              match_string_rule(sheet_rule.sheet, data_srouce[1]);
+              match_string_rule(sheet_rule.sheet_fn, data_srouce[1]);
             if (match_file_name && match_sheet_name) {
               selector.items.push(item);
               has_matched = true;
@@ -460,27 +516,27 @@ function run_custom_button_action_script(custom_button, script_name) {
         }
       });
     } catch (err) {
-      return new Promise(async () => {
+      return (async () => {
         const msg = logger_format_exception_message(
           err,
           `gui.script.${script_name}`
         );
         logger_append_error_message(msg, "GUI SCRIPT", true);
-      });
+      })();
     }
   } else {
-    return new Promise(async () => {
+    return (async () => {
       logger_append_error_message(
         `script ${script_name} not found.`,
         "GUI SCRIPT"
       );
-    });
+    })();
   }
 }
 
 function run_custom_button_action(custom_button, action_type) {
   if (typeof action_type != "string") {
-    return new Promise(async () => {});
+    return (async () => {})();
   }
 
   const trim_action = action_type.trim();
@@ -494,25 +550,25 @@ function run_custom_button_action(custom_button, action_type) {
   }
 
   if (action_name == "select_all") {
-    return new Promise(async () => {
-      $.ui.fancytree
+    return (async () => {
+      jQuery.ui.fancytree
         .getTree("#conv_list")
         .getRootNode()
         .visit(function (node) {
           node.setSelected(true);
         });
-    });
+    })();
   }
 
   if (action_name == "unselect_all") {
-    return new Promise(async () => {
-      $.ui.fancytree
+    return (async () => {
+      jQuery.ui.fancytree
         .getTree("#conv_list")
         .getRootNode()
         .visit(function (node) {
           node.setSelected(false);
         });
-    });
+    })();
   }
 
   const try_match_script = trim_action.match(/script\s*:(.*)/i);
@@ -529,7 +585,7 @@ function run_custom_button_action(custom_button, action_type) {
     return run_custom_button_action_script(custom_button, script_name);
   }
 
-  return new Promise(async () => {});
+  return (async () => {})();
 }
 
 function setup_custom_selectors() {
