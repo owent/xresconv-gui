@@ -1,13 +1,24 @@
 {
-    "version": "0.1.0",
+    "version": "2.0.0",
     "command": "npm",
-    "isShellCommand": true,
     "args": [
         "run-script", "gulp-start"
     ],
-    "tasks": [ { 
-      "taskName": "run", 
-      "args": [], 
-      "isBuildCommand": true 
-    }]
+    "tasks": [
+      {
+        "label": "run",
+        "type": "shell",
+        "command": "npm",
+        "args": [
+          "run-script",
+          "gulp-start",
+          "run"
+        ],
+        "problemMatcher": [],
+        "group": {
+          "_id": "build",
+          "isDefault": false
+        }
+      }
+    ]
 }
