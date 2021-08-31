@@ -1,0 +1,22 @@
+{
+  "appenders": {
+    "app": {
+      "type": "file",
+      "filename": "xresconv-gui.info.log",
+      "maxLogSize": 10485760,
+      "numBackups": 3
+    },
+    "errorFile": {
+      "type": "file",
+      "filename": "xresconv-gui.error.log"
+    },
+    "errors": {
+      "type": "logLevelFilter",
+      "level": "ERROR",
+      "appender": "errorFile"
+    }
+  },
+  "categories": {
+    "default": { "appenders": [ "app", "errors" ], "level": "DEBUG" }
+  }
+}

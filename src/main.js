@@ -5,6 +5,7 @@ var xconv_gui_options = {
   parallelism: 4,
   parallelism_max: 16,
 };
+const log4js = require("log4js");
 
 function generate_id() {
   ++conv_data.id_index;
@@ -154,6 +155,12 @@ function logger_append_info_message(msg, module_name) {
   }
 
   logger_append_style_message(msg, module_name, "alert-secondary");
+  if (log4js) {
+    const log = log4js.getLogger(module_name);
+    if (log) {
+      log.info(msg);
+    }
+  }
 }
 
 function logger_append_notice_message(msg, module_name) {
@@ -166,6 +173,12 @@ function logger_append_notice_message(msg, module_name) {
   }
 
   logger_append_style_message(msg, module_name, "alert-primary");
+  if (log4js) {
+    const log = log4js.getLogger(module_name);
+    if (log) {
+      log.info(msg);
+    }
+  }
 }
 
 function logger_append_warning_message(msg, module_name, need_alert) {
@@ -180,6 +193,12 @@ function logger_append_warning_message(msg, module_name, need_alert) {
 
   logger_append_style_message(msg, module_name, "alert-warning");
   console.warn(msg);
+  if (log4js) {
+    const log = log4js.getLogger(module_name);
+    if (log) {
+      log.warn(msg);
+    }
+  }
   if (need_alert) {
     alert_error(msg);
   }
@@ -197,6 +216,12 @@ function logger_append_error_message(msg, module_name, need_alert) {
 
   logger_append_style_message(msg, module_name, "alert-danger");
   console.error(msg);
+  if (log4js) {
+    const log = log4js.getLogger(module_name);
+    if (log) {
+      log.error(msg);
+    }
+  }
 
   if (need_alert) {
     alert_error(msg);
@@ -712,6 +737,24 @@ function setup_custom_selectors() {
   } catch (err) {
     logger_append_error_message(err, "CUSTOM SELECTOR");
   }
+
+  try {
+    const { ipcRenderer } = require("electron");
+    ipcRenderer.invoke("ipc-get-log4js").then((log_configure) => {
+      try {
+        if (log_configure) {
+          log4js.configure(log_configure);
+        } else {
+          log4js.configure(require("./log4js.json"));
+        }
+      } catch (err) {
+        logger_append_error_message(err, "LOG");
+        log4js.configure(require("./log4js.json"));
+      }
+    });
+  } catch (err) {
+    logger_append_error_message(err, "LOG");
+  }
 }
 
 function alert_error(content, title) {
@@ -840,6 +883,12 @@ function alert_warning(content, tittle, options) {
       const hint_dom = conv_list_output_custom_multi.hint_dom;
       if (hint_dom) {
         run_log.append(hint_dom);
+        if (log4js) {
+          const log = log4js.getLogger("default");
+          if (log) {
+            log.info(hint_dom.text());
+          }
+        }
       }
       run_log.scrollTop(run_log.prop("scrollHeight"));
     } else {
@@ -931,7 +980,12 @@ function alert_warning(content, tittle, options) {
     // $("#conv_list").empty();
 
     // 初始化
-    var jdom = $(context);
+    let jdom;
+    try {
+      jdom = $(context);
+    } catch (e) {
+      logger_append_error_message(e.toString(), `CONFIGURE: ${current_path}`);
+    }
 
     var include_list = [];
     // nw.js/electron 获取文件路径
@@ -972,9 +1026,8 @@ function alert_warning(content, tittle, options) {
         } else if ("proto" == tn) {
           var protocol_cfg = $("#conv_list_protocol option[value=" + val + "]");
           if (protocol_cfg.length > 0) {
-            $("#conv_list_protocol").get(0).selectedIndex = protocol_cfg.get(
-              0
-            ).index;
+            $("#conv_list_protocol").get(0).selectedIndex =
+              protocol_cfg.get(0).index;
           } else {
             var parent_node = $("#conv_list_protocol");
             var unknown_node = $("<option></option>")
@@ -1090,9 +1143,8 @@ function alert_warning(content, tittle, options) {
           '#conv_list_output_type option[value="' + output_matrix[0].type + '"]'
         );
         if (output_type_cfg.length > 0) {
-          $("#conv_list_output_type").get(
-            0
-          ).selectedIndex = output_type_cfg.get(0).index;
+          $("#conv_list_output_type").get(0).selectedIndex =
+            output_type_cfg.get(0).index;
         } else {
           var parent_node = $("#conv_list_output_type");
           var unknown_node = $("<option></option>")
@@ -1423,9 +1475,18 @@ function alert_warning(content, tittle, options) {
 
           const load_sub_file = function () {
             return new Promise(function (resolve, reject) {
+              let buffer_list = [];
               file_inst.on("data", (content) => {
+                buffer_list.push(content);
+              });
+
+              file_inst.on("end", (content) => {
+                const buffer = require("buffer");
                 resolve.apply(this, [
-                  build_conv_tree(content.toString(), file_path),
+                  build_conv_tree(
+                    buffer.Buffer.concat(buffer_list).toString(),
+                    file_path
+                  ),
                 ]);
               });
 
@@ -1653,6 +1714,11 @@ function alert_warning(content, tittle, options) {
         resolve.apply(this, [arguments]);
       });
 
+      let logger = null;
+      if (log4js) {
+        logger = log4js.getLogger("default");
+      }
+
       function run_all_cmds(resolve, reject) {
         const path = require("path");
         const fs = require("fs");
@@ -1660,7 +1726,7 @@ function alert_warning(content, tittle, options) {
           'you can download it from <a href="https://github.com/xresloader/xresloader/releases" target="_blank">https://github.com/xresloader/xresloader/releases</>';
         if (path.isAbsolute(xresloader_path)) {
           if (!fs.existsSync(xresloader_path)) {
-            run_log.append();
+            //run_log.append();
             failed_count += pending_script.length;
             reject.apply(this, [
               `[${work_dir}] ${xresloader_path} not exists, ${download_hint}`,
@@ -1678,9 +1744,11 @@ function alert_warning(content, tittle, options) {
         }
 
         function run_one_cmd(xresloader_index, xresloader_proc) {
+          let msg;
           if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
             var cmd = pending_script.pop();
-            run_log.append("[CONV " + xresloader_index + "] " + cmd + "\r\n");
+            msg = `[CONV ${xresloader_index}] ${cmd}\r\n`;
+            run_log.append(msg);
             run_log.scrollTop(run_log.prop("scrollHeight"));
 
             xresloader_proc.exec.stdin.write(cmd);
@@ -1692,9 +1760,12 @@ function alert_warning(content, tittle, options) {
               xresloader_proc.timer = null;
             }
 
-            run_log.append(
-              `[Process ${xresloader_proc.index} close stdin.]\r\n`
-            );
+            msg = `[Process ${xresloader_proc.index} close stdin.]\r\n`;
+            run_log.append(msg);
+          }
+
+          if (logger) {
+            log.info(msg);
           }
         }
 
@@ -1706,15 +1777,14 @@ function alert_warning(content, tittle, options) {
             xresloader_path,
             "--stdin",
           ]);
-          run_log.append(
-            "[" +
-              work_dir +
-              "] Process " +
-              xresloader_index +
-              ": " +
-              xresloader_cmds.join(" ") +
-              "\r\n"
-          );
+          const msg = `[${work_dir}] Process ${xresloader_index} : ${xresloader_cmds.join(
+            " "
+          )}\r\n`;
+          run_log.append(msg);
+          if (logger) {
+            log.info(msg);
+          }
+
           console.log("start xresloader at " + work_dir);
           const xresloader_proc = {
             exec: spawn("java", xresloader_cmds, {
@@ -1734,10 +1804,19 @@ function alert_warning(content, tittle, options) {
             let error_msg;
             if (signal) {
               error_msg = `[Process ${xresloader_index} exit with signal ${signal}.]\r\n`;
+              if (logger) {
+                log.error(error_msg);
+              }
             } else if (code != 0) {
               error_msg = `[Process ${xresloader_index} exit with code ${code}.]\r\n`;
+              if (logger) {
+                log.error(error_msg);
+              }
             } else {
               error_msg = `[Process ${xresloader_index} exit.]\r\n`;
+              if (logger) {
+                log.info(error_msg);
+              }
             }
             run_log.append(error_msg);
             --running_count;
@@ -1764,6 +1843,9 @@ function alert_warning(content, tittle, options) {
                 shell_color_to_html(data) +
                 "</span>\r\n"
             );
+            if (logger) {
+              log.info(data);
+            }
             run_log.scrollTop(run_log.prop("scrollHeight"));
             run_one_cmd(xresloader_index, xresloader_proc);
           });
@@ -1774,6 +1856,9 @@ function alert_warning(content, tittle, options) {
                 shell_color_to_html(data) +
                 "</div>"
             );
+            if (logger) {
+              log.error(data);
+            }
             run_log.scrollTop(run_log.prop("scrollHeight"));
             run_one_cmd(xresloader_index, xresloader_proc);
           });
@@ -1978,12 +2063,18 @@ function alert_warning(content, tittle, options) {
             );
             run_log.addClass("conv_list_run_error");
             run_log.removeClass("conv_list_run_running");
+            if (logger) {
+              log.error(`All jobs done, ${failed_count} job(s) failed.`);
+            }
           } else {
             run_log.append(
               "<span style='color: DarkRed;'>All jobs done.</strong>\r\n"
             );
             run_log.addClass("conv_list_run_success");
             run_log.removeClass("conv_list_run_running");
+            if (logger) {
+              log.info("All jobs done.");
+            }
           }
           run_log.scrollTop(run_log.prop("scrollHeight"));
         });
@@ -2009,6 +2100,11 @@ function alert_warning(content, tittle, options) {
     dep_msg +=
       '<li><a href="https://www.azul.com/downloads/zulu-community/" target="_blank">Zulu</li>';
     dep_msg += "</ol>";
+
+    let logger = null;
+    if (log4js) {
+      logger = log4js.getLogger("default");
+    }
     try {
       var spawn = require("child_process").spawn;
       var java_exec = spawn("java", ["-version"], {
@@ -2028,6 +2124,10 @@ function alert_warning(content, tittle, options) {
             '<div class="alert alert-danger" role="alert">查询不到java版本号</div>'
           );
           run_log.append(dep_msg);
+          if (logger) {
+            logger.error("查询不到java版本号");
+            logger.info(dep_msg);
+          }
         } else if (
           find_java_version &&
           (parseInt(find_java_version[0]) > 1 ||
@@ -2038,8 +2138,14 @@ function alert_warning(content, tittle, options) {
               dep_text +
               "</div>"
           );
+          if (logger) {
+            logger.error(dep_text);
+          }
           if (!dep_text.match(/64-Bit/i)) {
             run_log.append(dep_msg);
+            if (logger) {
+              logger.info(dep_msg);
+            }
           }
         } else {
           if (dep_text) {
@@ -2048,17 +2154,27 @@ function alert_warning(content, tittle, options) {
                 dep_text +
                 "</div>"
             );
+            if (logger) {
+              logger.info(dep_text);
+            }
           }
           run_log.append(
             '<div class="alert alert-danger" role="alert">检测不到java或java版本号过老</div>'
           );
           run_log.append(dep_msg);
+          if (logger) {
+            logger.error("检测不到java或java版本号过老");
+            logger.info(dep_msg);
+          }
         }
       });
 
       java_exec.stdin.end();
     } catch (err) {
       run_log.append(dep_msg);
+      if (logger) {
+        logger.error(dep_msg);
+      }
       logger_append_error_message(err);
     }
 

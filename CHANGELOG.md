@@ -1,16 +1,28 @@
 更新记录
 ==========
 
+2.3.0-rc2
+------
+
+1. 增加 `--log-configure` 选项，用于指定log4js日志配置。增加默认的本地文件日志。
+2. 修复配置文件过大被拆分的BUG
+3. 更新依赖库
+
+  > + electron -> 14.0.0
+  > + bootstrap -> 5.1.0
+  > + jquery.fancytree -> 2.38.0
+  > + electron-packer -> 15.3.0
+
 2.3.0-rc1
 ------
 
 1. 更新依赖库
 
-  > electron -> 11.1.1
-  > bootstrap -> 5.0.0-beta1
-  > jquery.fancytree -> 2.37.0
-  > electron-packer -> 15.2.0
-  > popper.js 替换为 @popperjs/core
+  > + electron -> 11.1.1
+  > + bootstrap -> 5.0.0-beta1
+  > + jquery.fancytree -> 2.37.0
+  > + electron-packer -> 15.2.0
+  > + popper.js 替换为 @popperjs/core
 
 2. 增加命令行选项 ```--custom-selector/--custom-button <json文件名>``` 用于增加自定义选择器
 3. 允许事件可勾选是否执行

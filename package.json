@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "2.3.0-rc1",
+  "version": "2.3.0-rc2",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI\r ==========",
   "main": "src/setup.js",
@@ -19,10 +19,11 @@
     "bootstrap": "^5.1.0",
     "jquery": "^3.6.0",
     "jquery.fancytree": "^2.38.0",
+    "log4js": "^6.3.0",
     "minimatch": "^3.0.4"
   },
   "devDependencies": {
-    "electron": "^13.2.1",
+    "electron": "^14.0.0",
     "electron-packager": "^15.3.0",
     "gulp": "^4.0.2"
   },

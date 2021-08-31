@@ -8,6 +8,7 @@ const app_config = {
   minHeight: 768,
   icon: `${__dirname}/../doc/logo.ico`,
   main: `file://${__dirname}/index.html`,
+  log_configure: null,
 };
 
 if ("darwin" == os.platform().toLowerCase()) {
@@ -33,6 +34,7 @@ const INPUT_PARAMS_MODE = {
   NONE: 0,
   INPUT_FILE: 1,
   CUSTOM_BUTTON: 2,
+  LOG_CONFIGURE: 3,
 };
 
 function readCustomSelectors(file_path) {
@@ -109,6 +111,11 @@ function createWindow() {
           param_mode = INPUT_PARAMS_MODE.NONE;
           break;
         }
+        case INPUT_PARAMS_MODE.LOG_CONFIGURE: {
+          app_config.log_configure = v;
+          param_mode = INPUT_PARAMS_MODE.NONE;
+          break;
+        }
         default: {
           if (v == "--input") {
             param_mode = INPUT_PARAMS_MODE.INPUT_FILE;
@@ -116,6 +123,8 @@ function createWindow() {
             param_mode = INPUT_PARAMS_MODE.CUSTOM_BUTTON;
           } else if (v == "--debug") {
             app_config.debug = true;
+          } else if (v == "--log-configure") {
+            param_mode = INPUT_PARAMS_MODE.LOG_CONFIGURE;
           }
           break;
         }
@@ -146,6 +155,9 @@ function createWindow() {
     icon: app_config.icon,
     webPreferences: {
       nodeIntegration: true,
+      nodeIntegrationInWorker: true,
+      nodeIntegrationInSubFrames: true,
+      contextIsolation: false,
     },
   });
   hold = false;
@@ -210,6 +222,10 @@ ipcMain.handle("ipc-get-custom-selectors", async (event, _) => {
 
 ipcMain.handle("ipc-reload-custom-selectors", (event, _) => {
   custom_selectors.selectors = [];
+});
+
+ipcMain.handle("ipc-get-log4js", async (event, _) => {
+  return app_config.log_configure;
 });
 
 // This method will be called when Electron has finished
