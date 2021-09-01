@@ -1765,7 +1765,7 @@ function alert_warning(content, tittle, options) {
           }
 
           if (logger) {
-            log.info(msg);
+            logger.info(msg);
           }
         }
 
@@ -1782,7 +1782,7 @@ function alert_warning(content, tittle, options) {
           )}\r\n`;
           run_log.append(msg);
           if (logger) {
-            log.info(msg);
+            logger.info(msg);
           }
 
           console.log("start xresloader at " + work_dir);
@@ -1805,17 +1805,17 @@ function alert_warning(content, tittle, options) {
             if (signal) {
               error_msg = `[Process ${xresloader_index} exit with signal ${signal}.]\r\n`;
               if (logger) {
-                log.error(error_msg);
+                logger.error(error_msg);
               }
             } else if (code != 0) {
               error_msg = `[Process ${xresloader_index} exit with code ${code}.]\r\n`;
               if (logger) {
-                log.error(error_msg);
+                logger.error(error_msg);
               }
             } else {
               error_msg = `[Process ${xresloader_index} exit.]\r\n`;
               if (logger) {
-                log.info(error_msg);
+                logger.info(error_msg);
               }
             }
             run_log.append(error_msg);
@@ -1844,7 +1844,7 @@ function alert_warning(content, tittle, options) {
                 "</span>\r\n"
             );
             if (logger) {
-              log.info(data);
+              logger.info(data);
             }
             run_log.scrollTop(run_log.prop("scrollHeight"));
             run_one_cmd(xresloader_index, xresloader_proc);
@@ -1857,7 +1857,7 @@ function alert_warning(content, tittle, options) {
                 "</div>"
             );
             if (logger) {
-              log.error(data);
+              logger.error(data);
             }
             run_log.scrollTop(run_log.prop("scrollHeight"));
             run_one_cmd(xresloader_index, xresloader_proc);
@@ -2064,7 +2064,7 @@ function alert_warning(content, tittle, options) {
             run_log.addClass("conv_list_run_error");
             run_log.removeClass("conv_list_run_running");
             if (logger) {
-              log.error(`All jobs done, ${failed_count} job(s) failed.`);
+              logger.error(`All jobs done, ${failed_count} job(s) failed.`);
             }
           } else {
             run_log.append(
@@ -2073,7 +2073,7 @@ function alert_warning(content, tittle, options) {
             run_log.addClass("conv_list_run_success");
             run_log.removeClass("conv_list_run_running");
             if (logger) {
-              log.info("All jobs done.");
+              logger.info("All jobs done.");
             }
           }
           run_log.scrollTop(run_log.prop("scrollHeight"));

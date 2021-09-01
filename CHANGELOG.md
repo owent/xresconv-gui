@@ -1,6 +1,11 @@
 更新记录
 ==========
 
+2.3.0-rc3
+------
+
+1. 修复 [\#12](https://github.com/xresloader/xresconv-gui/issues/12)
+
 2.3.0-rc2
 ------
 
