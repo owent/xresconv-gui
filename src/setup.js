@@ -228,6 +228,11 @@ ipcMain.handle("ipc-get-log4js", async (event, _) => {
   return app_config.log_configure;
 });
 
+ipcMain.handle("ipc-get-app-version", async (event, _) => {
+  const appVersion = app.getVersion();
+  return appVersion;
+});
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.

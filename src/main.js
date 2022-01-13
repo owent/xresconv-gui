@@ -129,7 +129,7 @@ function build_match_string_rule(rule, name) {
 }
 
 function logger_append_style_message(msg, module_name, style) {
-  const run_log = $("#conv_list_run_res");
+  const run_log = $("#conv_list_run_log_panel");
   if (run_log) {
     if (module_name) {
       run_log.append(
@@ -879,7 +879,7 @@ function alert_warning(content, tittle, options) {
       conv_list_output_custom_multi.parentNode.selectedIndex ==
       conv_list_output_custom_multi.index
     ) {
-      const run_log = $("#conv_list_run_res");
+      const run_log = $("#conv_list_run_log_panel");
       const hint_dom = conv_list_output_custom_multi.hint_dom;
       if (hint_dom) {
         run_log.append(hint_dom);
@@ -1623,7 +1623,10 @@ function alert_warning(content, tittle, options) {
       }
 
       var tree = $.ui.fancytree.getTree("#conv_list");
-      var selected_nodes = tree.getSelectedNodes();
+      var selected_nodes = [];
+      if (tree) {
+        selected_nodes = tree.getSelectedNodes() || [];
+      }
 
       var cmd_params = "";
       for (var k in global_options) {
@@ -1638,7 +1641,7 @@ function alert_warning(content, tittle, options) {
         }
       });
 
-      var run_log = $("#conv_list_run_res");
+      var run_log = $("#conv_list_run_log_panel");
       run_log.empty();
       run_log.removeClass("conv_list_run_error");
       run_log.removeClass("conv_list_run_success");
@@ -2086,7 +2089,7 @@ function alert_warning(content, tittle, options) {
   }
 
   function conv_env_check() {
-    var run_log = $("#conv_list_run_res");
+    var run_log = $("#conv_list_run_log_panel");
     var dep_text = "";
     var dep_msg =
       '<div class="alert alert-danger" role="alert">请确保已安装<a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html" target="_blank">64位的JRE或JDK 8</a>或以上</div>,推荐发行版如下:\r\n';
@@ -2105,6 +2108,19 @@ function alert_warning(content, tittle, options) {
     if (log4js) {
       logger = log4js.getLogger("default");
     }
+    try {
+      const { ipcRenderer } = require("electron");
+      ipcRenderer.invoke("ipc-get-app-version").then((app_version) => {
+        const app_version_text = `xresconv-gui version: ${app_version}`;
+        run_log.append(
+          `<div class="alert alert-primary alert-compact" role="alert">${app_version_text}</div>`
+        );
+        if (logger) {
+          logger.info(app_version_text);
+        }
+      });
+    } catch (_) {}
+
     try {
       var spawn = require("child_process").spawn;
       var java_exec = spawn("java", ["-version"], {
@@ -2134,7 +2150,7 @@ function alert_warning(content, tittle, options) {
             parseInt(find_java_version[1]) >= 8)
         ) {
           run_log.append(
-            '<div class="alert alert-primary" role="alert">' +
+            '<div class="alert alert-primary alert-compact" role="alert">' +
               dep_text +
               "</div>"
           );
@@ -2150,7 +2166,7 @@ function alert_warning(content, tittle, options) {
         } else {
           if (dep_text) {
             run_log.append(
-              '<div class="alert alert-primary" role="alert">' +
+              '<div class="alert alert-primary alert-compact" role="alert">' +
                 dep_text +
                 "</div>"
             );

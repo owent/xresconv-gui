@@ -1,3 +1,7 @@
+hr {
+  margin: 0.25rem 0 0.25rem 0;
+}
+
 #conv_tools_main_content {
   height: 100%;
 }
@@ -7,9 +11,13 @@
 }
 
 #conv_list_panel {
-  max-width: 30%;
+  max-width: 23%;
   min-height: 100%;
   overflow: auto;
+}
+
+#conv_list_event_group_wrapper {
+  font-size: 0.9rem;
 }
 
 #info_list_panel {
@@ -25,13 +33,30 @@
   padding: 0;
 }
 
+#conv_details_panel {
+  padding: 0;
+}
+
 #conv_list_event_group {
   max-height: 30%;
 }
 
-#conv_list_run_res {
-  height: 404px;
+#conv_list_run_log_group {
+  margin-top: 0.3rem !important;
+  margin-bottom: 0.3rem !important;
+}
+
+#conv_list_run_log_panel {
+  height: 510px;
   background-color: LightGray;
+  padding: 0.2rem;
+  margin-top: 0;
+  margin-bottom: 0;
+  tab-size: 2;
+}
+
+#conv_list_run_log_panel > div.alert {
+  overflow-x: auto;
 }
 
 #dlg_alert_error_modal .modal-content,
@@ -39,7 +64,7 @@
 #dlg_alert_error_content,
 #dlg_parallelism_warning_content {
   min-width: 720px;
-  min-height: 400px;
+  min-height: 506px;
 }
 
 .conv_pre_default {
