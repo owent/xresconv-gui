@@ -23,7 +23,7 @@
     "minimatch": "^3.0.4"
   },
   "devDependencies": {
-    "electron": "^16.0.7",
+    "electron": "^16.2.6",
     "electron-packager": "^15.4.0",
     "gulp": "^4.0.2"
   },
