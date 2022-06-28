@@ -2,10 +2,23 @@
 
 const app_config = {
   debug: false,
-  width: 1280,
-  height: 768,
+  size: {
+    default: {
+      width: 1366,
+      height: 768,
+    },
+    r2k: {
+      width: 1920,
+      height: 1080,
+    },
+    r4k: {
+      width: 2845,
+      height: 1600,
+    },
+  },
+  useSize: null,
   minWidth: 1280,
-  minHeight: 768,
+  minHeight: 720,
   icon: `${__dirname}/../doc/logo.ico`,
   main: `file://${__dirname}/index.html`,
   log_configure: null,
@@ -93,6 +106,25 @@ async function readAllCustomSelectors(custom_selector_files) {
 }
 
 function createWindow() {
+  const electron = require("electron");
+
+  const { screen } = electron;
+  // Create a window that fills the screen's available work area.
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const screen_width = primaryDisplay.workAreaSize.width;
+  const screen_height = primaryDisplay.workAreaSize.height;
+
+  if (screen_width >= 3600 && screen_height >= 1920) {
+    app_config.useSize = app_config.size.r4k;
+  } else if (screen_width >= 2440 && screen_height >= 1280) {
+    app_config.useSize = app_config.size.r2k;
+  } else {
+    app_config.useSize = app_config.size.default;
+  }
+  console.log(
+    `Initialize screen size: ${screen_width}x${screen_height},  window size: ${app_config.useSize.width}x${app_config.useSize.height}`
+  );
+
   var main_url = app_config.main;
 
   if (process) {
@@ -141,8 +173,8 @@ function createWindow() {
 
   // Create the browser window.
   win = new BrowserWindow({
-    width: app_config.width,
-    height: app_config.height + (app_config.debug ? 28 : 0),
+    width: app_config.useSize.width,
+    height: app_config.useSize.height + (app_config.debug ? 28 : 0),
     minWidth: app_config.minWidth,
     minHeight: app_config.minHeight + (app_config.debug ? 28 : 0),
     resizable: app_config.debug,
@@ -196,7 +228,7 @@ ipcMain.on("ipc-main", (event, arg) => {
 
 ipcMain.on("ipc-resize-window", (event, arg) => {
   if (win) {
-    //win.setSize(arg.width, arg.height + app_config.height + (app_config.debug ? 28 : 0));
+    //win.setSize(arg.width, arg.height + app_config.useSize.height + (app_config.debug ? 28 : 0));
     win.setContentSize(
       Math.min(Math.ceil(arg.width), 1778),
       Math.min(Math.ceil(arg.height), 1000)
@@ -236,7 +268,9 @@ ipcMain.handle("ipc-get-app-version", async (event, _) => {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on("ready", createWindow);
+app.whenReady().then(() => {
+  createWindow();
+});
 
 // Quit when all windows are closed.
 app.on("window-all-closed", () => {

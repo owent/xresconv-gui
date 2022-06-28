@@ -54,7 +54,18 @@ function reload_window() {
   ipcRenderer.send("ipc-main", "reload");
 }
 
-function send_resize_windows() {
+function on_resize_windows() {
+  const window_height = jQuery(window).outerHeight();
+  const info_list_panel_height = jQuery("#info_list_panel").outerHeight();
+  const logs_panel_height = jQuery("#conv_list_run_log_panel").outerHeight();
+
+  jQuery("#conv_list_panel").css({
+    "max-height": window_height,
+  });
+  jQuery("#conv_list_run_log_panel").css({
+    height: window_height - info_list_panel_height + logs_panel_height,
+  });
+  /**
   const watch_jdom = jQuery("#conv_details_panel");
   const new_height =
     Math.ceil(watch_jdom.outerHeight()) +
@@ -71,14 +82,23 @@ function send_resize_windows() {
   });
   const { ipcRenderer } = require("electron");
   ipcRenderer.send("ipc-resize-window", new_size);
+  **/
 }
 
 function setup_auto_resize_window() {
-  const resizeObserver = new ResizeObserver((_) => {
-    send_resize_windows();
+  jQuery(window).on("resize", () => {
+    on_resize_windows();
   });
-  resizeObserver.observe(document.getElementById("conv_details_panel"));
-  send_resize_windows();
+
+  // jQuery('#conv_list_internal_btn_group').outerHeight();
+  // jQuery('#conv_list_custom_btn_group').outerHeight();
+  // jQuery('#conv_details_options_panel').outerHeight();
+  // jQuery('#conv_list_action_panel').outerHeight() -
+  // const resizeObserver = new ResizeObserver((_) => {
+  //   on_resize_windows();
+  // });
+  // resizeObserver.observe(document.getElementById("conv_details_panel"));
+  on_resize_windows();
 }
 
 function match_string_rule(rule, input) {
@@ -1751,7 +1771,10 @@ function alert_warning(content, tittle, options) {
           if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
             var cmd = pending_script.pop();
             msg = `[CONV ${xresloader_index}] ${cmd}\r\n`;
-            run_log.append(msg);
+            logger_append_info_message(
+              shell_color_to_html(cmd),
+              `[CONV ${xresloader_index}]`
+            );
             run_log.scrollTop(run_log.prop("scrollHeight"));
 
             xresloader_proc.exec.stdin.write(cmd);
@@ -1764,7 +1787,7 @@ function alert_warning(content, tittle, options) {
             }
 
             msg = `[Process ${xresloader_proc.index} close stdin.]\r\n`;
-            run_log.append(msg);
+            logger_append_info_message(msg, null);
           }
 
           if (logger) {
@@ -1783,7 +1806,12 @@ function alert_warning(content, tittle, options) {
           const msg = `[${work_dir}] Process ${xresloader_index} : ${xresloader_cmds.join(
             " "
           )}\r\n`;
-          run_log.append(msg);
+          logger_append_info_message(
+            shell_color_to_html(
+              `Process ${xresloader_index} : ${xresloader_cmds.join(" ")}\r\n`
+            ),
+            `${work_dir}`
+          );
           if (logger) {
             logger.info(msg);
           }
@@ -1806,22 +1834,22 @@ function alert_warning(content, tittle, options) {
             has_triggered_exit = true;
             let error_msg;
             if (signal) {
-              error_msg = `[Process ${xresloader_index} exit with signal ${signal}.]\r\n`;
+              error_msg = `[Process ${xresloader_index} exit with signal ${signal}.]`;
               if (logger) {
                 logger.error(error_msg);
               }
             } else if (code != 0) {
-              error_msg = `[Process ${xresloader_index} exit with code ${code}.]\r\n`;
+              error_msg = `[Process ${xresloader_index} exit with code ${code}.]`;
               if (logger) {
                 logger.error(error_msg);
               }
             } else {
-              error_msg = `[Process ${xresloader_index} exit.]\r\n`;
+              error_msg = `[Process ${xresloader_index} exit.]`;
               if (logger) {
                 logger.info(error_msg);
               }
             }
-            run_log.append(error_msg);
+            logger_append_notice_message(shell_color_to_html(error_msg));
             --running_count;
 
             if (code > 0) {
@@ -1841,10 +1869,10 @@ function alert_warning(content, tittle, options) {
           xresloader_proc.exec.on("close", handle_exit_fn);
 
           xresloader_proc.exec.stdout.on("data", function (data) {
-            run_log.append(
+            logger_append_notice_message(
               "<span style='color: Green;'>" +
                 shell_color_to_html(data) +
-                "</span>\r\n"
+                "</span>"
             );
             if (logger) {
               logger.info(data);
@@ -1854,11 +1882,7 @@ function alert_warning(content, tittle, options) {
           });
 
           xresloader_proc.exec.stderr.on("data", function (data) {
-            run_log.append(
-              '<div class="alert alert-danger" role="alert">' +
-                shell_color_to_html(data) +
-                "</div>"
-            );
+            logger_append_error_message(shell_color_to_html(data));
             if (logger) {
               logger.error(data);
             }

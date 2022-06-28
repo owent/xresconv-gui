@@ -47,7 +47,7 @@ function extend_options(ret) {
 }
 
 // 创建 gulp 任务
-gulp.task("copy-libs", done => {
+gulp.task("copy-libs", (done) => {
   // gulp.src('./node_modules/bootstrap/**')
   //   .pipe(gulp.dest('./src/node_modules/bootstrap'))
   //   ;
@@ -66,8 +66,8 @@ gulp.task("copy-libs", done => {
 
 gulp.task(
   "run",
-  gulp.series("copy-libs", done => {
-    const args = ["."];
+  gulp.series("copy-libs", (done) => {
+    const args = ["--", "."];
     for (const v of process.argv.slice(3)) {
       args.push(v);
     }
@@ -82,8 +82,8 @@ gulp.task(
 
 gulp.task(
   "debug-run",
-  gulp.series("copy-libs", done => {
-    const args = [".", "--debug"];
+  gulp.series("copy-libs", (done) => {
+    const args = ["--", ".", "--debug"];
     for (const v of process.argv.slice(3)) {
       args.push(v);
     }
@@ -98,8 +98,8 @@ gulp.task(
 
 gulp.task(
   "debug",
-  gulp.series("copy-libs", done => {
-    const args = ["--inspect-brk=5858", "."];
+  gulp.series("copy-libs", (done) => {
+    const args = ["--inspect-brk=5858", "--", "."];
     for (const v of process.argv.slice(3)) {
       args.push(v);
     }
@@ -114,7 +114,7 @@ gulp.task(
 
 gulp.task(
   "package-win32",
-  gulp.series("copy-libs", done => {
+  gulp.series("copy-libs", (done) => {
     const os = require("os");
     if (os.platform() === "win32") {
       process.env["PATH"] =
@@ -129,19 +129,19 @@ gulp.task(
         console.log(`${appPaths}: ${err}`);
       }
     })
-    .then(function () {
-      done();
-    })
-    .catch(function (reason) {
-      console.error(`Package failed: ${reason}`);
-      done();
-    });
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );
 
 gulp.task(
   "package-linux",
-  gulp.series("copy-libs", done => {
+  gulp.series("copy-libs", (done) => {
     var opts = extend_options({}, packger_options, {
       platform: "linux",
       arch: "all",
@@ -151,19 +151,19 @@ gulp.task(
         console.log(`${appPaths}: ${err}`);
       }
     })
-    .then(function () {
-      done();
-    })
-    .catch(function (reason) {
-      console.error(`Package failed: ${reason}`);
-      done();
-    });
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );
 
 gulp.task(
   "package-darwin",
-  gulp.series("copy-libs", done => {
+  gulp.series("copy-libs", (done) => {
     var opts = extend_options({}, packger_options, {
       platform: "darwin",
       arch: "all",
@@ -174,19 +174,19 @@ gulp.task(
         console.log(`${appPaths}: ${err}`);
       }
     })
-    .then(function () {
-      done();
-    })
-    .catch(function (reason) {
-      console.error(`Package failed: ${reason}`);
-      done();
-    });
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );
 
 gulp.task(
   "package-all",
-  gulp.series("copy-libs", done => {
+  gulp.series("copy-libs", (done) => {
     var opts = extend_options({}, packger_options, {
       platform: "all",
       arch: "all",
@@ -196,19 +196,19 @@ gulp.task(
         console.log(`${appPaths}: ${err}`);
       }
     })
-    .then(function () {
-      done();
-    })
-    .catch(function (reason) {
-      console.error(`Package failed: ${reason}`);
-      done();
-    });
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );
 
 gulp.task(
   "package-test",
-  gulp.series("copy-libs", done => {
+  gulp.series("copy-libs", (done) => {
     const test_packger_options = {};
     for (const key in packger_options) {
       if (key != "icon") {
@@ -226,12 +226,12 @@ gulp.task(
         console.log(`${appPaths}: ${err}`);
       }
     })
-    .then(function () {
-      done();
-    })
-    .catch(function (reason) {
-      console.error(`Package failed: ${reason}`);
-      done();
-    });
+      .then(function () {
+        done();
+      })
+      .catch(function (reason) {
+        console.error(`Package failed: ${reason}`);
+        done();
+      });
   })
 );

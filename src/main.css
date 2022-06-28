@@ -16,6 +16,35 @@ hr {
   overflow: auto;
 }
 
+#conv_list_panel span.fancytree-checkbox,
+#conv_list_panel span.fancytree-drag-helper-img,
+#conv_list_panel span.fancytree-empty,
+#conv_list_panel span.fancytree-expander,
+#conv_list_panel span.fancytree-icon,
+#conv_list_panel span.fancytree-vline {
+  vertical-align: middle;
+}
+
+@media all and (min-width: 1900px) and (max-width: 2824px) {
+  #conv_list_panel ul.fancytree-container,
+  #conv_details_options_panel,
+  #conv_list_internal_btn_group,
+  #conv_list_custom_btn_group,
+  :root {
+    font-size: 16px;
+  }
+}
+
+@media all and (min-width: 2825px) {
+  #conv_list_panel ul.fancytree-container,
+  #conv_details_options_panel,
+  #conv_list_internal_btn_group,
+  #conv_list_custom_btn_group,
+  :root {
+    font-size: 20px;
+  }
+}
+
 #conv_list_event_group_wrapper {
   font-size: 0.9rem;
 }
@@ -47,7 +76,7 @@ hr {
 }
 
 #conv_list_run_log_panel {
-  height: 510px;
+  min-height: 510px;
   background-color: LightGray;
   padding: 0.2rem;
   margin-top: 0;
@@ -57,6 +86,7 @@ hr {
 
 #conv_list_run_log_panel > div.alert {
   overflow-x: auto;
+  white-space: normal;
 }
 
 #dlg_alert_error_modal .modal-content,
@@ -87,9 +117,6 @@ hr {
     0 0 8px rgba(255, 64, 64, 0.6);
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075),
     0 0 8px rgba(255, 64, 64, 0.6);
-}
-
-.conv_list_run_success {
 }
 
 .alert-compact {
@@ -153,4 +180,13 @@ hr {
   /* Safari 和 Chrome */
   -o-animation: conv_list_run_running_ani 1s linear 0s infinite alternate;
   /* Opera */
+}
+
+.container,
+.container-lg,
+.container-md,
+.container-sm,
+.container-xl,
+.container-xxl {
+  max-width: 100%;
 }
