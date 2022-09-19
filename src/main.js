@@ -2119,13 +2119,15 @@ function alert_warning(content, tittle, options) {
       '<div class="alert alert-danger" role="alert">请确保已安装<a href="http://www.oracle.com/technetwork/java/javase/downloads/index.html" target="_blank">64位的JRE或JDK 8</a>或以上</div>,推荐发行版如下:\r\n';
     dep_msg += "<ol>";
     dep_msg +=
-      '<li><a href="https://developers.redhat.com/products/openjdk/download" target="_blank">OpenJDK</li>';
+      '<li><a href="https://adoptium.net/" target="_blank">TemurinJDK</li>';
     dep_msg +=
-      '<li><a href="https://adoptopenjdk.net/" target="_blank">AdoptopenJDK</li>';
+      '<li><a href="https://www.microsoft.com/openjdk" target="_blank">Microsoft JDK</li>';
     dep_msg +=
       '<li><a href="https://bell-sw.com/" target="_blank">LibericaJDK</li>';
     dep_msg +=
       '<li><a href="https://www.azul.com/downloads/zulu-community/" target="_blank">Zulu</li>';
+    dep_msg +=
+      '<li><a href="https://developers.redhat.com/products/openjdk/download" target="_blank">OpenJDK</li>';
     dep_msg += "</ol>";
 
     let logger = null;
