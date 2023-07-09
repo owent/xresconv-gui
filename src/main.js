@@ -1025,6 +1025,7 @@ function alert_warning(content, tittle, options) {
       const output_matrix = [];
 
       // 加载并覆盖全局配置
+      const conv_list_proto_files = [];
       $.each(jdom.children("global").children(), function (k, dom) {
         var tn = dom.tagName.toLowerCase();
         var val = $(dom).html().trim();
@@ -1034,7 +1035,7 @@ function alert_warning(content, tittle, options) {
         } else if ("xresloader_path" == tn) {
           $("#conv_list_xresloader").val(val);
         } else if ("proto_file" == tn) {
-          $("#conv_list_proto_file").val(val);
+          conv_list_proto_files.push(val);
         } else if ("output_dir" == tn) {
           $("#conv_list_output_dir").val(val);
         } else if ("data_version" == tn) {
@@ -1091,6 +1092,14 @@ function alert_warning(content, tittle, options) {
           }
         }
       });
+
+      if (conv_list_proto_files.length > 0) {
+        if (conv_list_proto_files.length == 1) {
+          $("#conv_list_proto_file").val(conv_list_proto_files[0]);
+        } else {
+          $("#conv_list_proto_file").val(JSON.stringify(conv_list_proto_files));
+        }
+      }
 
       // select output_type or output_matrix
       const conv_list_output_custom_multi = document.getElementById(
@@ -1606,7 +1615,6 @@ function alert_warning(content, tittle, options) {
 
       var global_options = {
         "-p": $("#conv_list_protocol").val(),
-        "-f": $("#conv_list_proto_file").val(),
         "-o": $("#conv_list_output_dir").val(),
         "-d": $("#conv_list_data_src_dir").val(),
       };
@@ -1660,6 +1668,18 @@ function alert_warning(content, tittle, options) {
           cmd_params += " " + v.value;
         }
       });
+
+      conv_list_proto_files_str = $("#conv_list_proto_file").val().trim();
+      if (
+        conv_list_proto_files_str.length > 0 &&
+        conv_list_proto_files_str[0] == "["
+      ) {
+        for (const file of JSON.parse(conv_list_proto_files_str)) {
+          cmd_params += ' -f "' + file + '"';
+        }
+      } else {
+        cmd_params += ' -f "' + conv_list_proto_files_str + '"';
+      }
 
       var run_log = $("#conv_list_run_log_panel");
       run_log.empty();
