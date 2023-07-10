@@ -1026,6 +1026,8 @@ function alert_warning(content, tittle, options) {
 
       // 加载并覆盖全局配置
       const conv_list_proto_files = [];
+      let conv_list_data_src_dirs = undefined;
+
       $.each(jdom.children("global").children(), function (k, dom) {
         var tn = dom.tagName.toLowerCase();
         var val = $(dom).html().trim();
@@ -1040,8 +1042,13 @@ function alert_warning(content, tittle, options) {
           $("#conv_list_output_dir").val(val);
         } else if ("data_version" == tn) {
           $("#conv_list_data_version").val(val);
-        } else if ("data_src_dir" == tn) {
-          $("#conv_list_data_src_dir").val(val);
+        } else if ("data_src_dir" == tn || "data_source_dir" == tn) {
+          if (conv_list_data_src_dirs == undefined) {
+            conv_list_data_src_dirs = [];
+          }
+          if (val) {
+            conv_list_data_src_dirs.push(val);
+          }
         } else if ("rename" == tn) {
           $("#conv_list_rename").val(val);
         } else if ("proto" == tn) {
@@ -1101,6 +1108,19 @@ function alert_warning(content, tittle, options) {
         }
       }
 
+      if (conv_list_data_src_dirs !== undefined) {
+        if (conv_list_data_src_dirs.length == 0) {
+          $("#conv_list_data_source_dir").val("");
+        }
+        if (conv_list_data_src_dirs.length == 1) {
+          $("#conv_list_data_source_dir").val(conv_list_data_src_dirs[0]);
+        } else {
+          $("#conv_list_data_source_dir").val(
+            JSON.stringify(conv_list_data_src_dirs)
+          );
+        }
+      }
+
       // select output_type or output_matrix
       const conv_list_output_custom_multi = document.getElementById(
         "conv_list_output_custom_multi"
@@ -1122,7 +1142,7 @@ function alert_warning(content, tittle, options) {
         hint_dom.empty();
         hint_dom.append(
           shell_color_to_html(
-            "当前选中的是来自配置文件的[1;m多种输出类型[0;m\r\n"
+            "当前选中的是来自配置文件的[1;m多种输出类型[0;m<br />\r\n"
           )
         );
 
@@ -1134,7 +1154,7 @@ function alert_warning(content, tittle, options) {
                 '"]'
             );
             var msg =
-              "\t输出类型: [1;32;m" +
+              "&nbsp;&nbsp;&nbsp;&nbsp;输出类型: [1;32;m" +
               (output_option
                 ? output_option.innerHTML
                 : "未知类型:" + output.type) +
@@ -1156,7 +1176,7 @@ function alert_warning(content, tittle, options) {
                 output.classes.map((x) => x.toString()).join(",") +
                 '[0;m"';
             }
-            msg += "\r\n";
+            msg += "<br />\r\n";
           }
 
           hint_dom.append(shell_color_to_html(msg));
@@ -1616,7 +1636,6 @@ function alert_warning(content, tittle, options) {
       var global_options = {
         "-p": $("#conv_list_protocol").val(),
         "-o": $("#conv_list_output_dir").val(),
-        "-d": $("#conv_list_data_src_dir").val(),
       };
 
       const output_matrix = [];
@@ -1669,7 +1688,7 @@ function alert_warning(content, tittle, options) {
         }
       });
 
-      conv_list_proto_files_str = $("#conv_list_proto_file").val().trim();
+      const conv_list_proto_files_str = $("#conv_list_proto_file").val().trim();
       if (
         conv_list_proto_files_str.length > 0 &&
         conv_list_proto_files_str[0] == "["
@@ -1679,6 +1698,20 @@ function alert_warning(content, tittle, options) {
         }
       } else {
         cmd_params += ' -f "' + conv_list_proto_files_str + '"';
+      }
+
+      const conv_list_data_src_dir_str = $("#conv_list_data_source_dir")
+        .val()
+        .trim();
+      if (
+        conv_list_data_src_dir_str.length > 0 &&
+        conv_list_data_src_dir_str[0] == "["
+      ) {
+        for (const file of JSON.parse(conv_list_data_src_dir_str)) {
+          cmd_params += ' -d "' + file + '"';
+        }
+      } else {
+        cmd_params += ' -d "' + conv_list_data_src_dir_str + '"';
       }
 
       var run_log = $("#conv_list_run_log_panel");

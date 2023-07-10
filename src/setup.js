@@ -172,7 +172,7 @@ function createWindow() {
   }
 
   // Create the browser window.
-  win = new BrowserWindow({
+  const current_win = new BrowserWindow({
     width: app_config.useSize.width,
     height: app_config.useSize.height + (app_config.debug ? 28 : 0),
     minWidth: app_config.minWidth,
@@ -195,20 +195,24 @@ function createWindow() {
   hold = false;
 
   // Emitted when the window is closed.
-  win.on("closed", () => {
+  current_win.on("closed", () => {
     // Dereference the window object, usually you would store windows
     // in an array if your app supports multi windows, this is the time
     // when you should delete the corresponding element.
-    win = null;
+    if (win == current_win) {
+      win = null;
+    }
   });
 
   // and load the index.html of the app.
-  win.loadURL(main_url);
+  current_win.loadURL(main_url);
 
   // Open the DevTools.
   if (app_config.debug) {
-    win.webContents.openDevTools();
+    current_win.webContents.openDevTools();
   }
+
+  win = current_win;
 }
 
 const { ipcMain } = require("electron");
