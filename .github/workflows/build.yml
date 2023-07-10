@@ -5,7 +5,7 @@ on: # @see https://help.github.com/en/articles/events-that-trigger-workflows#web
     branches: # Array of patterns that match refs/heads
       - main # Push events on master branch
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@master
+        uses: actions/checkout@v3
         with:
           lfs: false
       - name: Build

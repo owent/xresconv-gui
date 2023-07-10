@@ -15,16 +15,16 @@
     "doc": "doc"
   },
   "dependencies": {
-    "@popperjs/core": "^2.11.6",
-    "bootstrap": "^5.2.1",
-    "jquery": "^3.6.1",
-    "jquery.fancytree": "^2.38.2",
-    "log4js": "^6.6.1",
-    "minimatch": "^5.1.0"
+    "@popperjs/core": "^2.11.8",
+    "bootstrap": "^5.3.0",
+    "jquery": "^3.7.0",
+    "jquery.fancytree": "^2.38.3",
+    "log4js": "^6.9.1",
+    "minimatch": "^9.0.3"
   },
   "devDependencies": {
-    "electron": "^20.1.4",
-    "electron-packager": "^16.0.0",
+    "electron": "^25.2.0",
+    "electron-packager": "^17.1.1",
     "gulp": "^4.0.2"
   },
   "scripts": {
