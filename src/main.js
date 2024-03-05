@@ -436,7 +436,7 @@ function run_custom_button_action_script(custom_button, script_name) {
         }
       });
 
-      const vm = require("vm");
+      const vm = require("node:vm");
       const vm_context_obj = {
         work_dir: custom_script.work_dir,
         configure_file: (conv_data.input_file || {}).path,
@@ -891,6 +891,28 @@ function alert_warning(content, tittle, options) {
     }
   }
 
+  function check_matrix_rule(matrix_rule, item_data) {
+    if (matrix_rule.tags && matrix_rule.tags.length > 0) {
+      if (
+        !output.tags.find((x) => (item_data.tags || []).find((y) => x === y))
+      ) {
+        return false;
+      }
+    }
+
+    if (matrix_rule.classes && matrix_rule.classes.length > 0) {
+      if (
+        !matrix_rule.classes.find((x) =>
+          (item_data.classes || []).find((y) => x === y)
+        )
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   function show_output_matrix() {
     const conv_list_output_custom_multi = document.getElementById(
       "conv_list_output_custom_multi"
@@ -911,10 +933,61 @@ function alert_warning(content, tittle, options) {
         }
       }
       run_log.scrollTop(run_log.prop("scrollHeight"));
+
+      // Disable all invalid nodes for matrix
+      if (conv_list_output_custom_multi.output_matrix_with_rule) {
+        $.ui.fancytree
+          .getTree("#conv_list")
+          .getRootNode()
+          .visit(function (node) {
+            if (node.isFolder()) {
+              return;
+            }
+            var allow_selected = false;
+            for (const matrix_rule of conv_list_output_custom_multi.output_matrix) {
+              if (check_matrix_rule(matrix_rule, node.data.item)) {
+                allow_selected = true;
+                break;
+              }
+            }
+
+            if (!allow_selected) {
+              node.data.option.auto_select = node.isSelected();
+              node.setSelected(false);
+              node.unselectable = true;
+              node.render();
+            }
+          });
+      }
     } else {
       const hint_dom = conv_list_output_custom_multi.hint_dom;
       if (hint_dom) {
         hint_dom.remove();
+      }
+
+      // Enable all nodes for matrix
+      if (conv_list_output_custom_multi.output_matrix_with_rule) {
+        $.ui.fancytree
+          .getTree("#conv_list")
+          .getRootNode()
+          .visit(function (node) {
+            if (node.isFolder()) {
+              return;
+            }
+            var allow_selected = false;
+            for (const matrix_rule of conv_list_output_custom_multi.output_matrix) {
+              if (check_matrix_rule(matrix_rule, node.data.item)) {
+                allow_selected = true;
+                break;
+              }
+            }
+
+            if (!allow_selected) {
+              node.unselectable = false;
+              node.setSelected(node.data.option.auto_select);
+              node.render();
+            }
+          });
       }
     }
   }
@@ -1126,7 +1199,21 @@ function alert_warning(content, tittle, options) {
         "conv_list_output_custom_multi"
       );
 
-      if (output_matrix.length > 1) {
+      conv_list_output_custom_multi.output_matrix_with_rule =
+        output_matrix.length > 0;
+      for (const matrix_rule of output_matrix) {
+        if (matrix_rule.tags.length === 0 && matrix_rule.classes.length === 0) {
+          conv_list_output_custom_multi.output_matrix_with_rule = false;
+          break;
+        }
+      }
+
+      if (
+        output_matrix.length > 1 ||
+        (output_matrix.length == 1 &&
+          (output_matrix[0].tags.length > 0 ||
+            output_matrix[0].classes.length > 0))
+      ) {
         conv_list_output_custom_multi.parentNode.selectedIndex =
           conv_list_output_custom_multi.index;
         conv_list_output_custom_multi.output_matrix = output_matrix;
@@ -1142,7 +1229,7 @@ function alert_warning(content, tittle, options) {
         hint_dom.empty();
         hint_dom.append(
           shell_color_to_html(
-            "当前选中的是来自配置文件的[1;m多种输出类型[0;m<br />\r\n"
+            "当前选中的是来自配置文件的[1;m自定义输出类型[0;m<br />\r\n"
           )
         );
 
@@ -1252,7 +1339,7 @@ function alert_warning(content, tittle, options) {
       conv_data.gui.set_name = null;
       $.each(jdom.children("gui").children("set_name"), function (k, dom) {
         try {
-          const vm = require("vm");
+          const vm = require("node:vm");
           conv_data.gui.set_name = new vm.Script($(dom).html(), {
             filename: current_path,
           });
@@ -1272,7 +1359,7 @@ function alert_warning(content, tittle, options) {
       $.each(jdom.children("gui").children("on_before_convert"), (_, dom) => {
         try {
           const env_jdom = $(dom);
-          const vm = require("vm");
+          const vm = require("node:vm");
           const timeout_str = env_jdom.attr("timeout");
           var timeout = 30000;
           if (timeout_str) {
@@ -1301,7 +1388,7 @@ function alert_warning(content, tittle, options) {
       $.each(jdom.children("gui").children("on_after_convert"), (_, dom) => {
         try {
           const env_jdom = $(dom);
-          const vm = require("vm");
+          const vm = require("node:vm");
           const timeout_str = env_jdom.attr("timeout");
           var timeout = 30000;
           if (timeout_str) {
@@ -1329,7 +1416,7 @@ function alert_warning(content, tittle, options) {
       $.each(jdom.children("gui").children("script"), (key, dom) => {
         try {
           const env_jdom = $(dom);
-          const vm = require("vm");
+          const vm = require("node:vm");
           const timeout_str = env_jdom.attr("timeout");
           var timeout = 30000;
           if (timeout_str) {
@@ -1359,12 +1446,6 @@ function alert_warning(content, tittle, options) {
         var jitem = $(item_node);
         var id = generate_id();
 
-        var scheme_info_text =
-          ' -- 文件名: "' +
-          jitem.attr("file") +
-          '" 描述信息: "' +
-          jitem.attr("scheme") +
-          '"';
         var item_data = {
           id: id,
           file: jitem.attr("file"),
@@ -1384,6 +1465,24 @@ function alert_warning(content, tittle, options) {
             .split(/[\s]+/)
             .filter((x) => !!x),
         };
+        const item_tag_class_text = [];
+        if (item_data.tags && item_data.tags.length > 0) {
+          item_tag_class_text.push("Tags: " + item_data.tags.join(","));
+        }
+        if (item_data.classes && item_data.classes.length > 0) {
+          item_tag_class_text.push("Classes: " + item_data.classes.join(","));
+        }
+        const item_data_source_text = [];
+
+        if (item_data.file && item_data.scheme) {
+          item_data_source_text.push(
+            '文件名: "' +
+              jitem.attr("file") +
+              '" 描述信息: "' +
+              jitem.attr("scheme") +
+              '"'
+          );
+        }
 
         $.each(jitem.children("option"), function (k, v) {
           var nj_node = $(v);
@@ -1408,15 +1507,16 @@ function alert_warning(content, tittle, options) {
               var data_source = nj_node.html().split("|");
               if (data_source && data_source.length > 1) {
                 item_data.file = data_source[0];
-                scheme_info_text =
-                  ' -- 文件名: "' +
-                  data_source[0] +
-                  '" 表: "' +
-                  data_source[1] +
-                  '"';
+                item_data_source_text.push(
+                  '文件名: "' +
+                    data_source[0] +
+                    '" 表: "' +
+                    data_source[1] +
+                    '"'
+                );
               } else if (data_source) {
                 item_data.file = data_source[0];
-                scheme_info_text = ' -- 文件名: "' + data_source[0];
+                item_data_source_text.push('文件名: "' + data_source[0]);
               }
             }
           }
@@ -1427,12 +1527,19 @@ function alert_warning(content, tittle, options) {
           }
         }
 
+        var scheme_info_text = "";
+        if (item_data_source_text) {
+          scheme_info_text += "\n -- " + item_data_source_text.join("\n -- ");
+        }
+        if (item_tag_class_text) {
+          scheme_info_text += "\nLimit:\n\t" + item_tag_class_text.join("\n\t");
+        }
         item_data.desc = item_data.desc + scheme_info_text;
 
         // GUI 显示规则
         if (conv_data.gui.set_name) {
           try {
-            const vm = require("vm");
+            const vm = require("node:vm");
             const vm_context = vm.createContext({
               work_dir: work_dir,
               configure_file: current_path,
@@ -1492,6 +1599,9 @@ function alert_warning(content, tittle, options) {
           key: item_data.id,
           data: {
             item: item_data,
+            option: {
+              auto_select: false,
+            },
           },
         };
         // item_data.ft_node = ft_node;
@@ -1731,24 +1841,8 @@ function alert_warning(content, tittle, options) {
             var item_data = conv_data.items[node.key];
             var cmd_args = cmd_params;
 
-            if (output.tags && output.tags.length > 0) {
-              if (
-                !output.tags.find((x) =>
-                  (item_data.tags || []).find((y) => x === y)
-                )
-              ) {
-                continue;
-              }
-            }
-
-            if (output.classes && output.classes.length > 0) {
-              if (
-                !output.classes.find((x) =>
-                  (item_data.classes || []).find((y) => x === y)
-                )
-              ) {
-                continue;
-              }
+            if (!check_matrix_rule(output, item_data)) {
+              continue;
             }
 
             if (output.type) {
@@ -1964,7 +2058,7 @@ function alert_warning(content, tittle, options) {
         (conv_data.gui.on_before_convert || conv_data.gui.on_after_convert)
       ) {
         try {
-          const vm = require("vm");
+          const vm = require("node:vm");
           const vm_context_obj = {
             work_dir: work_dir,
             configure_file: conv_data.input_file.path,
@@ -2387,6 +2481,9 @@ function alert_warning(content, tittle, options) {
         .getTree("#conv_list")
         .getRootNode()
         .visit(function (node) {
+          if (!node.isFolder() && !node.unselectable) {
+            return;
+          }
           node.setSelected(true);
         });
     });
@@ -2433,7 +2530,7 @@ function alert_warning(content, tittle, options) {
         conv_list_output_custom_multi.index
       ) {
         alert_warning(
-          "当<strong>输出类型</strong>使用配置文件中的<strong>多种输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。"
+          "当<strong>输出类型</strong>使用配置文件中的<strong>自定义输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。"
         );
       }
     });
@@ -2447,7 +2544,7 @@ function alert_warning(content, tittle, options) {
         conv_list_output_custom_multi.index
       ) {
         alert_warning(
-          "当<strong>输出类型</strong>使用配置文件中的<strong>多种输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。"
+          "当<strong>输出类型</strong>使用配置文件中的<strong>自定义输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。"
         );
       }
     });

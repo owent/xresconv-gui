@@ -62,6 +62,7 @@
                             </div>
                             <div class="col-3">
                                 <div class="input-group">
+                                    <button type="button" class="btn btn-secondary" id="conv_config_switch_detail_panel" data-bs-toggle="collapse" data-bs-target="#conv_config_tool_configure_detail_panel" aria-expanded="false" aria-controls="conv_config_tool_configure_detail_panel">展开/隐藏详细配置</button>
                                     <span class="input-group-text">并发数</span>
                                     <select class="form-select" id="conv_config_parallelism"></select>
                                 </div>
@@ -70,45 +71,45 @@
                     </form>
                     <br />
                     <form class="container">
-                        <div class="row">
-                            <div class="col-4">
-                            <div class="input-group">
-                                <span class="input-group-text">转表工具</span>
-                                <input type="text" class="form-control" id="conv_list_xresloader" placeholder="xresloader.jar的路径" />
-                            </div>
-                            </div>
-                            <div class="col-4">
+                        <div class="collapse" id="conv_config_tool_configure_detail_panel">
+                            <div class="row">
+                                <div class="col-4">
                                 <div class="input-group">
-                                    <span class="input-group-text">执行目录</span>
-                                    <input type="text" class="form-control" id="conv_list_work_dir" placeholder="执行目录" />
+                                    <span class="input-group-text">转表工具</span>
+                                    <input type="text" class="form-control" id="conv_list_xresloader" placeholder="xresloader.jar的路径" />
+                                </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">执行目录</span>
+                                        <input type="text" class="form-control" id="conv_list_work_dir" placeholder="执行目录" />
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">数据版本</span>
+                                        <input type="text" class="form-control" id="conv_list_data_version" placeholder="自动生成" />
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-4">
-                                <div class="input-group">
-                                    <span class="input-group-text">数据版本</span>
-                                    <input type="text" class="form-control" id="conv_list_data_version" placeholder="自动生成" />
+                            <div class="row">
+                                <div class="col-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">协议描述</span>
+                                        <input type="text" class="form-control" id="conv_list_proto_file" placeholder="协议描述文件" />
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
-                    </form>
-                    <form class="container">
-                        <div class="row">
-                            <div class="col-4">
-                                <div class="input-group">
-                                    <span class="input-group-text">协议描述</span>
-                                    <input type="text" class="form-control" id="conv_list_proto_file" placeholder="协议描述文件" />
+                                <div class="col-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">输出目录</span>
+                                        <input type="text" class="form-control" id="conv_list_output_dir" placeholder="输出目录" />
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="col-4">
-                                <div class="input-group">
-                                    <span class="input-group-text">输出目录</span>
-                                    <input type="text" class="form-control" id="conv_list_output_dir" placeholder="输出目录" />
-                                </div>
-                            </div>
-                            <div class="col-4">
-                                <div class="input-group">
-                                    <span class="input-group-text">数据目录</span>
-                                    <input type="text" class="form-control" id="conv_list_data_source_dir" placeholder="数据源目录" />
+                                <div class="col-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">数据目录</span>
+                                        <input type="text" class="form-control" id="conv_list_data_source_dir" placeholder="数据源目录" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -150,7 +151,7 @@
                                         <option value="javascript">Javascript配置</option>
                                         <option value="ue-json">UE资源Json格式</option>
                                         <option value="ue-csv">UE资源Csv格式</option>
-                                        <option value="custom-multi" disabled="disabled" id="conv_list_output_custom_multi">多种输出类型</option>
+                                        <option value="custom-multi" disabled="disabled" id="conv_list_output_custom_multi">自定义输出类型</option>
                                     </select>
                                 </div>
                             </div>
