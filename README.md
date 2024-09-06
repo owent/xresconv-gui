@@ -1,5 +1,4 @@
-xresconv-gui
-==========
+# xresconv-gui
 
 [ci-github-action]: https://github.com/xresloader/xresconv-gui/workflows/build/badge.svg
 ![ci-github-action]
@@ -8,13 +7,11 @@ xresconv-gui
 
 本项目基于 [Electron](http://electron.atom.io/) 项目，所以支持[Electron](http://electron.atom.io/)支持得所有平台（Linux、macOS和Windows）
 
-下载和使用
-======
+## 下载和使用
 
 点击[此处](https://github.com/xresloader/xresconv-gui/releases)并根据需要下载对应系统的包，直接执行里面的二进制即可。
 
-启动参数
-------
+### 启动参数
 
 + `--input <文件名>` : 指定初始的转表清单文件。
 + `--debug` : 开启debug模式并启动开发人员工具。
@@ -42,8 +39,8 @@ xresconv-gui
 }
 ```
 
-以上 ```file``` 、 ```scheme``` 、 ```sheet``` 字段都支持 ```完全匹配的名称``` 、 ```glob: 通配符``` 和 ```regex: 正则表达式``` 三种形式。
-按钮风格默认是 ```outline-secondary``` 。可选项为(详见: https://getbootstrap.com/docs/5.0/components/buttons/):
+以上 `file` 、 `scheme` 、 `sheet` 字段都支持 `完全匹配的名称` 、 `glob: 通配符` 和 `regex: 正则表达式` 三种形式。
+按钮风格默认是 `outline-secondary` 。可选项为(详见: https://getbootstrap.com/docs/5.0/components/buttons/):
 
 + outline-primary
 + outline-secondary
@@ -62,17 +59,16 @@ xresconv-gui
 + light
 + dark
 
-> Sample: 使用 [doc/custom-selector.json](doc/custom-selector.json) 和 https://github.com/xresloader/xresconv-conf/blob/master/sample.xml 里的配置，可以使用 ```--custom-selector doc/custom-selector.json``` 来启动。
+> Sample: 使用 [doc/custom-selector.json](doc/custom-selector.json) 和 https://github.com/xresloader/xresconv-conf/blob/master/sample.xml 里的配置，可以使用 `--custom-selector doc/custom-selector.json` 来启动。
 
 特殊行为 **action** 字段的特殊功能:
 
-+ ```reload``` : 重新加载自定义按钮
-+ ```select_all``` : 全部选中
-+ ```unselect_all``` : 全部反选
-+ ```script: <脚本名字>``` : 执行脚本，**脚本名字** 为 ```//root/gui/script``` 节点的 ```name``` 属性。
++ `reload` : 重新加载自定义按钮
++ `select_all` : 全部选中
++ `unselect_all` : 全部反选
++ `script: <脚本名字>` : 执行脚本，**脚本名字** 为 `//root/gui/script` 节点的 `name` 属性。
 
-示例
-------
+## 示例
 
 ![示例截图-1](doc/snapshoot-1.gif)
 
@@ -80,15 +76,13 @@ xresconv-gui
 
 ![示例截图-3](doc/snapshoot-4.png)
 
-自定义按钮启动示例: ```./xresconv-gui.exe --custom-selector ./doc/custom-selector.json```
+自定义按钮启动示例: `./xresconv-gui.exe --custom-selector ./doc/custom-selector.json`
 
-注意事项
-======
+## 注意事项
 
 1. 文件名最好全英文，因为GUI工具中的编码统一使用UTF-8，而Windows默认编码是GBK。如果转表工具也使用UTF-8的话Windows下会找不到中文文件名。
 
-事件支持
-======
+## 事件支持
 
 2.1.0 版本开始增加了事件支持。事件格式如下：
 
@@ -119,9 +113,11 @@ xresconv-gui
 </gui>
 ```
 
-> 注: 事件的 ```name``` 、 ```checked``` 、 ```mutable``` 和自定义脚本的```<script></script>``` 标签需要版本 **>=2.3.0** 。
+> 注: 事件的 `name` 、 `checked` 、 `mutable` 和自定义脚本的 `<script></script>` 标签需要版本 **>=2.3.0** 。
 
-在 **set_name** 事件系统中，可用的接口如下:
+### **set_name** 事件
+
+**set_name** 事件用户自定义修改转表结构树的显示，可用的接口如下:
 
 ```javascript
 {
@@ -149,7 +145,9 @@ xresconv-gui
 }
 ```
 
-在 **on_before_convert/on_after_convert** 事件系统中，可用的接口如下:
+### **on_before_convert/on_after_convert** 事件
+
+**on_before_convert/on_after_convert** 事件用于控制转表前操作和转表后操作，会按顺序执行。可用的接口如下:
 
 ```javascript
 {
@@ -171,6 +169,8 @@ xresconv-gui
     require: function (name) {} // 相当于 nodejs的 require(name) 用于导入nodejs 模块
 }
 ```
+
+### 自定义脚本 **script**
 
 在自定义脚本 **script** 中，可用的接口如下:
 
@@ -194,15 +194,39 @@ xresconv-gui
 }
 ```
 
-开发使用说明
-======
+### **on_append_log** 事件
+
+日志Hook回调 **on_append_log** 事件（2.5.0 版本开始）用于抓取和控制日志输出。可用的接口如下：
+
+{
+    work_dir: "执行xresloader的工作目录",
+    xresloader_path: "xresloader目录",
+    global_options: {"全局选项": "VALUE"},
+    selected_nodes: ["选中要执行转表的节点集合"],
+    selected_items: ["选中要执行转表的item对象集合,数据结构同上面的 item_data"],
+    data: {
+        message: "原始日志正文",
+        module_name: "模块名，可能为空",
+        style: "输出格式", // alert-primary, alert-secondary, alert-warning, alert-danger, alert-compact
+    }， // 绑定在按钮上的私有数据,可用于保存全局状态
+    alert_warning: function(content, title, options) {}, // 警告弹框， options 结构是 {yes: 点击是按钮回调, no: 点击否按钮回调, on_close: 关闭后回调}
+    alert_error: function(content, title) {}, // 错误弹框
+    log_info: function (content) {}, // 打印info日志
+    log_notice: function (content) {}, // 打印notice日志
+    log_warning: function (content) {}, // 打印warning日志
+    log_error: function (content) {}, // 打印error日志
+    require: function (name) {} // 相当于 nodejs的 require(name) 用于导入nodejs 模块
+}
+
+此接口可以通过修改 `data` 内的数据修改输出的日志内容和样式。但是此接口不会排队执行。
+
+## 开发使用说明
 
 以下内容仅是对这个工具的开发和维护进行说明，直接使用的话[下载预发布包](https://github.com/xresloader/xresconv-gui/releases)即可
 
-环境准备
-======
+### 环境准备
 
-1. 请自行安装node.js和npm（详见： https://nodejs.org ）
+1. 请自行安装node.js和npm（详见：<https://nodejs.org> ）
 
 ```bash
 # 基本组件安装
@@ -219,22 +243,19 @@ ncu
 ncu -u
 ```
 
-直接启动
-------
+### 直接启动
 
 ```bash
 yarn run start
 ```
 
-调试模式启动
-------
+### 调试模式启动
 
 ```bash
 yarn run debug-start
 ```
 
-VSCode调试启动
-------
+### VSCode调试启动
 
 先使用设定调试端口并启动
 
@@ -244,25 +265,23 @@ yarn run debug
 
 然后VSCode打开调试面板Attach到进程上
 
-直接VSCode Lanch调试的方法见: https://electronjs.org/docs/tutorial/debugging-main-process-vscode
+直接VSCode Lanch调试的方法见: <https://electronjs.org/docs/tutorial/debugging-main-process-vscode>
 
 > *VSCode里直接Launch的方式仅在Windows下有效*
 
 **注：VSCode连接成功后，会立刻断点在程序启动处，这时候可以对需要断点的地方打断点，然后直接继续即可。**
 
-打包和发布
-======
+## 打包和发布
 
 + 打包发布所有x64架构
 
-> ```yarn run package```
+> `yarn run package`
 
 + 打包发布所有平台
 
-> ```yarn run package-all```
+> `yarn run package-all`
 
-关于加载和调试
-======
+## 关于加载和调试
 
 本软件中大部分的外部库加载都没有问题，但是由于默认走的是node.js的沙箱机制，所以html内的script标签里某些库不会写出到全局。这时候需要手动加一下，比如：
 
@@ -274,20 +293,23 @@ window.jQuery = require(`${__dirname}/lib/jquery/jquery.min.js`);
 无法调试[Electron](http://electron.atom.io/)中[BrowserWindow](http://electron.atom.io/docs/api/browser-window/)的沙箱里的代码。
 所以如果要调试[BrowserWindow](http://electron.atom.io/docs/api/browser-window/)内的代码还是要在[src/setup.js](src/setup.js)中把***debug***选项改为true。
 
-关于NPM下载加速
-======
+## 关于NPM下载加速
 
 1. 关闭npm的https
-> ```npm config set strict-ssl false```
+
+> `npm config set strict-ssl false`
 
 2. 设置npm的软件源
-> ```npm config set registry http://registry.npmjs.org/```
-> ```npm config set registry https://mirrors.tencent.com/npm/```
-> ```npm config set registry https://registry.npm.taobao.org/```
-> ```npm install -g cnpm --registry=https://registry.npm.taobao.org```
 
-1. 代理
-> + 设置代理： ```npm config set proxy=http://代理服务器ip:代理服务器端口```
-> + 取消代理： ```npm config delete http-proxy```
-> + 取消代理： ```npm config delete https-proxy```
-> + 单独设置代理： ```npm install --save-dev electron-prebuilt --proxy http://代理服务器ip:代理服务器端口```
+> `npm config set registry http://registry.npmjs.org/`
+> `npm config set registry https://mirrors.tencent.com/npm/`
+> `npm config set registry https://registry.npm.taobao.org/`
+> `npm install -g cnpm --registry=https://registry.npm.taobao.org`
+
+3. 代理
+
+> + 设置代理： `npm config set proxy=http://代理服务器ip:代理服务器端口`
+> + 取消代理： `npm config delete http-proxy`
+> + 取消代理： `npm config delete https-proxy`
+> + 单独设置代理： `npm install --save-dev electron-prebuilt --proxy http://代理服务器ip:代理服务器端口`
+

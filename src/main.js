@@ -150,14 +150,67 @@ function build_match_string_rule(rule, name) {
 
 function logger_append_style_message(msg, module_name, style) {
   const run_log = $("#conv_list_run_log_panel");
+
+  const log_object = {
+    message: msg,
+    module_name: module_name || "",
+    style: style,
+  };
+
+  if (
+    conv_data.gui &&
+    conv_data.gui.append_log_context &&
+    conv_data.gui.on_append_log &&
+    !conv_data.gui.append_log_callback_guard
+  ) {
+    try {
+      conv_data.gui.append_log_callback_guard = true;
+      let vm_context = null;
+      for (const vm_script of conv_data.gui.on_append_log) {
+        if (!vm_script.enabled) {
+          continue;
+        }
+
+        if (!vm_context) {
+          const vm = require("node:vm");
+          vm_context = vm.createContext(
+            jQuery.extend(
+              {
+                data: log_object,
+              },
+              conv_data.gui.append_log_context
+            )
+          );
+        }
+        vm_script.fn.runInContext(vm_context, {
+          displayErrors: true,
+          timeout: vm_script.timeout,
+          breakOnSigint: true,
+        });
+      }
+    } catch (err) {
+      const err_msg = logger_format_exception_message(
+        err,
+        "append log event script"
+      );
+      logger_append_error_message(err_msg, "APPEND LOG EVENT EXCEPTION");
+    }
+
+    conv_data.gui.append_log_callback_guard = false;
+  }
+
   if (run_log) {
-    if (module_name) {
+    if (log_object.module_name) {
       run_log.append(
-        `<div class="alert ${style} alert-compact" role="alert">[${module_name}]: ${msg.toString()}</div>`
+        `<div class="alert ${log_object.style} alert-compact" role="alert">[${
+          log_object.module_name
+        }]: ${log_object.message.toString()}</div>`
       );
     } else {
       run_log.append(
-        `<div class="alert ${style} alert-compact" role="alert">${msg.toString()}</div>`
+        `<div class="alert ${
+          log_object.style
+        } alert-compact" role="alert">${log_object.message.toString()}</div>`
       );
     }
 
@@ -415,7 +468,11 @@ function shell_color_to_html(data) {
     }
   }
 
-  return split_group.join("") + finish_tail();
+  return (split_group.join("") + finish_tail())
+    .replace(/\r\n/g, "\n")
+    .replace(/ /g, "&nbsp;")
+    .replace(/\t/g, "&nbsp;&nbsp;")
+    .replace(/\n/g, "<br />");
 }
 
 function run_custom_button_action_script(custom_button, script_name) {
@@ -840,7 +897,10 @@ function alert_warning(content, tittle, options) {
         set_name: null,
         on_before_convert: [],
         on_after_convert: [],
+        on_append_log: [],
         scripts: {},
+        append_log_context: null,
+        append_log_callback_guard: false,
       },
       tree: [],
       category: {},
@@ -853,11 +913,12 @@ function alert_warning(content, tittle, options) {
     }
   }
 
-  function get_string_file(file_path) {
+  function get_string_file(file_path, data) {
     const ret = {
       path: file_path,
       filename: "",
       dirname: ".",
+      data: data,
     };
 
     const mres = ret.path.match(/[^\/\\]*$/);
@@ -877,7 +938,7 @@ function alert_warning(content, tittle, options) {
     return ret;
   }
 
-  function get_dom_file(dom_id) {
+  async function get_dom_file(dom_id) {
     var sel_dom = document.getElementById(dom_id);
     if (!sel_dom) {
       return ret;
@@ -885,9 +946,25 @@ function alert_warning(content, tittle, options) {
 
     const file = sel_dom.files.length > 0 ? sel_dom.files[0] : null;
     if (file) {
-      return get_string_file(file.path || sel_dom.value);
+      return get_string_file(
+        file.path ||
+          (function () {
+            const { webUtils } = require("electron");
+            return webUtils.getPathForFile(file);
+          })() ||
+          sel_dom.value,
+        await file.text()
+      );
     } else {
-      return get_string_file(sel_dom.value);
+      const fs = require("fs");
+      let data = null;
+      try {
+        data = fs.readFileSync(sel_dom.value, { encoding: "utf8" });
+      } catch (err) {
+        logger_append_error_message(err);
+        alert_error(err.toString(), "加载 " + sel_dom.value + " 失败");
+      }
+      return get_string_file(sel_dom.value, data);
     }
   }
 
@@ -1001,7 +1078,7 @@ function alert_warning(content, tittle, options) {
     }
   }
 
-  function append_conv_list_event_group(xml_node, before_convert) {
+  function append_conv_list_event_group(xml_node, event_type_name) {
     const parent_wrapper_dom = jQuery("#conv_list_event_group_wrapper");
     const parent_inner_dom = jQuery("#conv_list_event_group_inner");
     if ((parent_inner_dom.children() || []).length <= 0) {
@@ -1026,14 +1103,16 @@ function alert_warning(content, tittle, options) {
       }
     }
 
-    let event_type_name;
     let event_type_desc;
-    if (before_convert) {
-      event_type_name = "on_before_convert";
+    if (event_type_name == "on_before_convert") {
       event_type_desc = "转表前执行";
-    } else {
-      event_type_name = "on_after_convert";
+    } else if (event_type_name == "on_after_convert") {
       event_type_desc = "转表后执行";
+    } else if (event_type_name == "on_append_log") {
+      event_type_desc = "日志Hook";
+    } else {
+      event_type_name = "on_unknown_event";
+      event_type_desc = "未知事件";
     }
     const id = `conv_list_event_${event_type_name}_${generate_id()}`;
     ret.attr("id", id);
@@ -1371,7 +1450,10 @@ function alert_warning(content, tittle, options) {
           conv_data.gui.on_before_convert.push({
             fn: fn,
             timeout: timeout,
-            enabled: append_conv_list_event_group(env_jdom.get(0), true),
+            enabled: append_conv_list_event_group(
+              env_jdom.get(0),
+              "on_before_convert"
+            ),
           });
         } catch (err) {
           const msg = logger_format_exception_message(
@@ -1400,7 +1482,10 @@ function alert_warning(content, tittle, options) {
           conv_data.gui.on_after_convert.push({
             fn: fn,
             timeout: timeout,
-            enabled: append_conv_list_event_group(env_jdom.get(0), false),
+            enabled: append_conv_list_event_group(
+              env_jdom.get(0),
+              "on_after_convert"
+            ),
           });
         } catch (err) {
           const msg = logger_format_exception_message(
@@ -1411,6 +1496,38 @@ function alert_warning(content, tittle, options) {
           logger_append_error_message(msg, "GUI EVENT", true);
         }
       });
+
+      const event_on_append_log = [];
+      $.each(jdom.children("gui").children("on_append_log"), (_, dom) => {
+        try {
+          const env_jdom = $(dom);
+          const vm = require("node:vm");
+          const timeout_str = env_jdom.attr("timeout");
+          var timeout = 30000;
+          if (timeout_str) {
+            timeout = parseInt(timeout_str);
+          }
+          const fn = new vm.Script(env_jdom.html(), {
+            filename: current_path,
+          });
+          event_on_append_log.push({
+            fn: fn,
+            timeout: timeout,
+            enabled: append_conv_list_event_group(
+              env_jdom.get(0),
+              "on_append_log"
+            ),
+          });
+        } catch (err) {
+          const msg = logger_format_exception_message(
+            err,
+            "gui.on_append_log",
+            "GUI脚本编译错误"
+          );
+          logger_append_error_message(msg, "GUI EVENT", true);
+        }
+      });
+      conv_data.gui.on_append_log = event_on_append_log;
 
       conv_data.gui.scripts = {};
       $.each(jdom.children("gui").children("script"), (key, dom) => {
@@ -2055,8 +2172,14 @@ function alert_warning(content, tittle, options) {
       // 初始化执行链
       if (
         conv_data.gui &&
-        (conv_data.gui.on_before_convert || conv_data.gui.on_after_convert)
+        (conv_data.gui.on_before_convert ||
+          conv_data.gui.on_after_convert ||
+          conv_data.gui.on_append_log)
       ) {
+        var current_promise = new Promise(function (resolve, reject) {
+          resolve.apply(this, [arguments]);
+        });
+
         try {
           const vm = require("node:vm");
           const vm_context_obj = {
@@ -2105,6 +2228,7 @@ function alert_warning(content, tittle, options) {
             // reject: reject,
             require: require,
           };
+          conv_data.gui.append_log_context = vm_context_obj;
 
           function append_event(cur_promise, evt_list) {
             if (evt_list) {
@@ -2171,9 +2295,9 @@ function alert_warning(content, tittle, options) {
                           ++failed_count;
                           evt_obj.has_done = true;
                           vm_context_obj.log_error(
-                            "Run event callback callback timeout"
+                            "Run event callback timeout"
                           );
-                          reject("Run event callback callback timeout");
+                          reject("Run event callback timeout");
                         }
                       }, evt_obj.vm_script.timeout);
                     } catch (err) {
@@ -2229,6 +2353,8 @@ function alert_warning(content, tittle, options) {
           logger_append_error_message(msg, "CONV");
         })
         .finally(function () {
+          conv_data.gui.append_log_context = null;
+
           if (failed_count > 0) {
             run_log.append(
               "<span style='color: DarkRed;'>All jobs done, " +
@@ -2454,26 +2580,27 @@ function alert_warning(content, tittle, options) {
     const on_load_conv_list_file = function (input_file) {
       var clf = input_file;
       $("#conv_list_file_val").val(clf.path);
+      if (!clf.data) {
+        $("#conv_list_file_val").val("加载文件失败！");
+        return;
+      }
 
-      const fs = require("fs");
       try {
-        const data = fs.readFileSync(clf.path, { encoding: "utf8" });
         reset_conv_data();
         conv_data.input_file = input_file;
         conv_data.file_map[clf.path] = true;
 
-        build_conv_tree(data, clf.path).then(() => {
+        build_conv_tree(clf.data, clf.path).then(() => {
           // 显示属性树
           show_conv_tree();
         });
       } catch (err) {
         logger_append_error_message(err);
         alert_error(err.toString(), "加载 " + clf.path + " 失败");
-        $("#conv_list_file_val").val("加载文件失败！");
       }
     };
-    $("#conv_list_file").on("change", function () {
-      on_load_conv_list_file(get_dom_file("conv_list_file"));
+    $("#conv_list_file").on("change", async function () {
+      on_load_conv_list_file(await get_dom_file("conv_list_file"));
     });
 
     $("#conv_list_btn_select_all").on("click", function () {
