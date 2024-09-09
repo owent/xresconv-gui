@@ -14,7 +14,7 @@
 ### 启动参数
 
 + `--input <文件名>` : 指定初始的转表清单文件。
-+ `--debug` : 开启debug模式并启动开发人员工具。
++ `--debug-mode` : 开启debug模式并启动开发人员工具。
 + `--custom-selector/--custom-button <json文件名>` : 增加自定义选择器,允许多个
 + `--log-configure <log设置文件 json文件名>` : 设置额外的log配置。设置文件结构请参见: https://www.npmjs.com/package/log4js
 
