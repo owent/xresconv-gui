@@ -153,7 +153,7 @@ function createWindow() {
             param_mode = INPUT_PARAMS_MODE.INPUT_FILE;
           } else if (v == "--custom-selector" || v == "--custom-button") {
             param_mode = INPUT_PARAMS_MODE.CUSTOM_BUTTON;
-          } else if (v == "--debug") {
+          } else if (v == "--debug-mode") {
             app_config.debug = true;
           } else if (v == "--log-configure") {
             param_mode = INPUT_PARAMS_MODE.LOG_CONFIGURE;

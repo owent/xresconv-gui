@@ -913,7 +913,17 @@ function alert_warning(content, tittle, options) {
     }
   }
 
-  function get_string_file(file_path, data) {
+  async function get_string_file(file_path, data) {
+    if (!data) {
+      const fs = require("fs");
+      try {
+        data = await fs.promises.readFile(file_path, { encoding: "utf8" });
+      } catch (err) {
+        logger_append_error_message(err);
+        alert_error(err.toString(), "加载 " + file_path + " 失败");
+      }
+    }
+
     const ret = {
       path: file_path,
       filename: "",
@@ -946,7 +956,7 @@ function alert_warning(content, tittle, options) {
 
     const file = sel_dom.files.length > 0 ? sel_dom.files[0] : null;
     if (file) {
-      return get_string_file(
+      return await get_string_file(
         file.path ||
           (function () {
             const { webUtils } = require("electron");
@@ -956,15 +966,7 @@ function alert_warning(content, tittle, options) {
         await file.text()
       );
     } else {
-      const fs = require("fs");
-      let data = null;
-      try {
-        data = fs.readFileSync(sel_dom.value, { encoding: "utf8" });
-      } catch (err) {
-        logger_append_error_message(err);
-        alert_error(err.toString(), "加载 " + sel_dom.value + " 失败");
-      }
-      return get_string_file(sel_dom.value, data);
+      return await get_string_file(sel_dom.value);
     }
   }
 
@@ -2687,8 +2689,10 @@ function alert_warning(content, tittle, options) {
         var input_file = location.search.match(/input=([^\\&\\#]+)/i);
         if (input_file && input_file.length > 1) {
           const init_file_path = decodeURIComponent(input_file[1]);
-          console.log("open file: " + init_file_path);
-          on_load_conv_list_file(get_string_file(init_file_path));
+          (async function () {
+            console.log("open file: " + init_file_path);
+            on_load_conv_list_file(await get_string_file(init_file_path));
+          })();
         }
       }
 
