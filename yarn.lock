@@ -2276,7 +2276,7 @@ xmlbuilder@^9.0.7:
   integrity sha1-Ey7mPS7FVlxVfiD0wi35rKaGsQ0=
 
 "xresconv-gui@file:":
-  version "2.5.1"
+  version "2.5.2"
   resolved "file:"
   dependencies:
     "@popperjs/core" "^2.11.8"

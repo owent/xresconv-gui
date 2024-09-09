@@ -1,4 +1,5 @@
 ﻿// WebKit的编码转换有点奇怪的
+const bootstrap = require("bootstrap");
 
 var conv_data = {};
 var xconv_gui_options = {
@@ -199,106 +200,107 @@ function logger_append_style_message(msg, module_name, style) {
     conv_data.gui.append_log_callback_guard = false;
   }
 
+  const log_item = document.createElement("div");
+  log_item.className = `alert ${log_object.style} alert-compact`;
+  log_item.setAttribute("role", "alert");
+
   if (run_log) {
     if (log_object.module_name) {
-      run_log.append(
-        `<div class="alert ${log_object.style} alert-compact" role="alert">[${
-          log_object.module_name
-        }]: ${log_object.message.toString()}</div>`
-      );
+      log_item.innerHTML = `[${
+        log_object.module_name
+      }]: ${log_object.message.toString()}`;
     } else {
-      run_log.append(
-        `<div class="alert ${
-          log_object.style
-        } alert-compact" role="alert">${log_object.message.toString()}</div>`
-      );
+      log_item.innerHTML = log_object.message.toString();
     }
+    run_log.append(log_item);
 
     run_log.scrollTop(run_log.prop("scrollHeight"));
   }
+
+  return log_item;
 }
 
 function logger_append_info_message(msg, module_name) {
   if (msg instanceof Error) {
-    logger_append_error_message(
+    return logger_append_error_message(
       logger_format_exception_message(msg, module_name),
       module_name
     );
-    return;
   }
 
-  logger_append_style_message(msg, module_name, "alert-secondary");
+  const ret = logger_append_style_message(msg, module_name, "alert-secondary");
   if (log4js) {
     const log = log4js.getLogger(module_name);
     if (log) {
-      log.info(msg);
+      log.info(ret.innerText);
     }
   }
+  return ret;
 }
 
 function logger_append_notice_message(msg, module_name) {
   if (msg instanceof Error) {
-    logger_append_error_message(
+    return logger_append_error_message(
       logger_format_exception_message(msg, module_name),
       module_name
     );
-    return;
   }
 
-  logger_append_style_message(msg, module_name, "alert-primary");
+  const ret = logger_append_style_message(msg, module_name, "alert-primary");
   if (log4js) {
     const log = log4js.getLogger(module_name);
     if (log) {
-      log.info(msg);
+      log.info(ret.innerText);
     }
   }
+  return ret;
 }
 
 function logger_append_warning_message(msg, module_name, need_alert) {
   if (msg instanceof Error) {
-    logger_append_error_message(
+    return logger_append_error_message(
       logger_format_exception_message(msg, module_name),
       module_name,
       need_alert
     );
-    return;
   }
 
-  logger_append_style_message(msg, module_name, "alert-warning");
-  console.warn(msg);
+  const ret = logger_append_style_message(msg, module_name, "alert-warning");
+  console.warn(ret.innerText);
   if (log4js) {
     const log = log4js.getLogger(module_name);
     if (log) {
-      log.warn(msg);
+      log.warn(ret.innerText);
     }
   }
   if (need_alert) {
-    alert_error(msg);
+    alert_error(ret.innerHTML);
   }
+  return ret;
 }
 
 function logger_append_error_message(msg, module_name, need_alert) {
   if (msg instanceof Error) {
-    logger_append_error_message(
+    return logger_append_error_message(
       logger_format_exception_message(msg, module_name),
       module_name,
       need_alert
     );
-    return;
   }
 
-  logger_append_style_message(msg, module_name, "alert-danger");
-  console.error(msg);
+  const ret = logger_append_style_message(msg, module_name, "alert-danger");
+  console.error(ret.innerText);
   if (log4js) {
     const log = log4js.getLogger(module_name);
     if (log) {
-      log.error(msg);
+      log.error(ret.innerText);
     }
   }
 
   if (need_alert) {
-    alert_error(msg);
+    alert_error(ret.innerHTML);
   }
+  return ret;
 }
 
 function logger_format_exception_message(err, module_name, msg) {
@@ -835,22 +837,30 @@ function setup_custom_selectors() {
 }
 
 function alert_error(content, title) {
-  jQuery("#dlg_alert_error_title", "#dlg_alert_error_modal").html(
-    title || "出错啦"
-  );
-  jQuery("#dlg_alert_error_content", "#dlg_alert_error_modal").html(
-    content || ""
-  );
-  jQuery("#dlg_alert_error_modal").modal();
+  const title_dom = document.getElementById("dlg_alert_error_title");
+  if (title_dom) {
+    title_dom.innerHTML = title || "出错啦";
+  }
+  const content_dom = document.getElementById("dlg_alert_error_content");
+  if (content_dom) {
+    content_dom.innerHTML = content || "";
+  }
+  const modal_dom = document.getElementById("dlg_alert_error_modal");
+  if (modal_dom) {
+    if (!modal_dom.bootstrapModal) {
+      modal_dom.bootstrapModal = new bootstrap.Modal(modal_dom);
+    }
+    modal_dom.bootstrapModal.show();
+  }
 }
 
 function alert_warning(content, tittle, options) {
   options = options || {};
-  const dlg = $("#dlg_parallelism_warning_modal");
-  const dlg_body = $("#dlg_parallelism_warning_content", dlg);
-  const dlg_head = $("#dlg_parallelism_warning_title", dlg);
-  dlg_body.empty().append(content || "无内容，参数错误");
-  dlg_head.empty().append(tittle || "警告");
+  const dlg = document.getElementById("dlg_parallelism_warning_modal");
+  const dlg_body = document.getElementById("dlg_parallelism_warning_content");
+  const dlg_head = document.getElementById("dlg_parallelism_warning_title");
+  dlg_body.innerHTML = content || "无内容，参数错误";
+  dlg_head.innerHTML = tittle || "警告";
 
   const btn_yes = $(
     '<button type="button" class="btn btn-secondary" data-dismiss="modal">是</button>'
@@ -859,7 +869,9 @@ function alert_warning(content, tittle, options) {
     '<button type="button" class="btn btn-secondary" data-dismiss="modal">否</button>'
   );
   btn_yes.on("click", function () {
-    dlg.modal("hide");
+    if (dlg.bootstrapModal) {
+      dlg.bootstrapModal.hide();
+    }
     if (typeof options.yes == "function") {
       options.yes.apply(this, [arguments]);
     }
@@ -869,7 +881,9 @@ function alert_warning(content, tittle, options) {
   });
 
   btn_no.on("click", function () {
-    dlg.modal("hide");
+    if (dlg.bootstrapModal) {
+      dlg.bootstrapModal.hide();
+    }
     if (typeof options.no == "function") {
       options.no.apply(this, [arguments]);
     }
@@ -880,7 +894,10 @@ function alert_warning(content, tittle, options) {
   });
   $(".modal-footer", dlg).empty().append(btn_yes).append(btn_no);
 
-  dlg.modal("show");
+  if (!dlg.bootstrapModal) {
+    dlg.bootstrapModal = new bootstrap.Modal(dlg);
+  }
+  dlg.bootstrapModal.show();
 }
 
 (function ($, window) {
@@ -1774,9 +1791,9 @@ function alert_warning(content, tittle, options) {
                   "IO",
                   `尝试读取文件失败: ${file_path}`
                 );
-                logger_append_error_message(msg);
-                console.error(err);
-                alert(msg);
+                const log_item = logger_append_error_message(msg);
+                console.error(log_item.innerText);
+                alert(log_item.innerText);
 
                 reject.apply(this, [msg]);
               });
@@ -2034,10 +2051,11 @@ function alert_warning(content, tittle, options) {
 
         function run_one_cmd(xresloader_index, xresloader_proc) {
           let msg;
+          let log_item;
           if (pending_script.length > 0 && conv_data.run_seq == run_seq) {
             var cmd = pending_script.pop();
             msg = `[CONV ${xresloader_index}] ${cmd}\r\n`;
-            logger_append_info_message(
+            log_item = logger_append_info_message(
               shell_color_to_html(cmd),
               `[CONV ${xresloader_index}]`
             );
@@ -2053,11 +2071,11 @@ function alert_warning(content, tittle, options) {
             }
 
             msg = `[Process ${xresloader_proc.index} close stdin.]\r\n`;
-            logger_append_info_message(msg, null);
+            log_item = logger_append_info_message(msg, null);
           }
 
           if (logger) {
-            logger.info(msg);
+            logger.info(log_item.innerText);
           }
         }
 
@@ -2072,14 +2090,14 @@ function alert_warning(content, tittle, options) {
           const msg = `[${work_dir}] Process ${xresloader_index} : ${xresloader_cmds.join(
             " "
           )}\r\n`;
-          logger_append_info_message(
+          const log_item = logger_append_info_message(
             shell_color_to_html(
               `Process ${xresloader_index} : ${xresloader_cmds.join(" ")}\r\n`
             ),
             `${work_dir}`
           );
           if (logger) {
-            logger.info(msg);
+            logger.info(log_item.innerText);
           }
 
           console.log("start xresloader at " + work_dir);
@@ -2135,22 +2153,34 @@ function alert_warning(content, tittle, options) {
           xresloader_proc.exec.on("close", handle_exit_fn);
 
           xresloader_proc.exec.stdout.on("data", function (data) {
-            logger_append_notice_message(
+            const log_item = logger_append_notice_message(
               "<span style='color: Green;'>" +
                 shell_color_to_html(data) +
                 "</span>"
             );
             if (logger) {
-              logger.info(data);
+              logger.info(log_item.innerText);
             }
             run_log.scrollTop(run_log.prop("scrollHeight"));
             run_one_cmd(xresloader_index, xresloader_proc);
           });
 
           xresloader_proc.exec.stderr.on("data", function (data) {
-            logger_append_error_message(shell_color_to_html(data));
-            if (logger) {
-              logger.error(data);
+            const data_str = data ? data.toString() : "";
+            if (data_str && data_str.substr(0, 5).toLowerCase() == "[warn") {
+              const log_item = logger_append_warning_message(
+                shell_color_to_html(data_str)
+              );
+              if (logger) {
+                logger.warn(log_item.innerText);
+              }
+            } else {
+              const log_item = logger_append_error_message(
+                shell_color_to_html(data_str)
+              );
+              if (logger) {
+                logger.error(log_item.innerText);
+              }
             }
             run_log.scrollTop(run_log.prop("scrollHeight"));
             run_one_cmd(xresloader_index, xresloader_proc);
@@ -2381,8 +2411,11 @@ function alert_warning(content, tittle, options) {
           run_log.scrollTop(run_log.prop("scrollHeight"));
         });
     } catch (err) {
-      logger_append_error_message(logger_format_exception_message(err), "CONV");
-      console.error(err);
+      const log_item = logger_append_error_message(
+        logger_format_exception_message(err),
+        "CONV"
+      );
+      console.error(log_item.innerText);
       alert("出错啦: " + err.toString());
     }
   }
