@@ -2,7 +2,7 @@
 const gulp = require("gulp"),
   childProcess = require("child_process"),
   electron = require("electron"),
-  electron_packger = require("electron-packager"),
+  electron_packger = require("@electron/packager"),
   os = require("os");
 
 var packger_options = {
@@ -14,6 +14,7 @@ var packger_options = {
     "node_modules/electron-prebuilt",
     "node_modules/electron-prebuilt-compile",
     "node_modules/electron-packager",
+    "node_modules/@electron",
     ".git",
     ".gitignore",
     ".vscode",
