@@ -2343,19 +2343,6 @@ xmlbuilder@^9.0.7:
   resolved "https://registry.npmjs.org/xmlbuilder/-/xmlbuilder-9.0.7.tgz"
   integrity sha1-Ey7mPS7FVlxVfiD0wi35rKaGsQ0=
 
-"xresconv-gui@file:.":
-  version "2.5.2"
-  dependencies:
-    "@popperjs/core" "^2.11.8"
-    adm-zip "^0.5.16"
-    bootstrap "^5.3.7"
-    compressing "^1.10.3"
-    jquery "^3.7.1"
-    jquery.fancytree "^2.38.5"
-    log4js "^6.9.1"
-    minimatch "^10.0.3"
-    xresconv-gui "file:C:/Users/owt50/AppData/Local/Yarn/Cache/v6/npm-xresconv-gui-2.5.2-f344d93d-27b7-4f86-8791-a62d99b1adb4-1751889863377/node_modules/xresconv-gui"
-
 xtend@^4.0.0:
   version "4.0.2"
   resolved "https://registry.npmjs.org/xtend/-/xtend-4.0.2.tgz"
