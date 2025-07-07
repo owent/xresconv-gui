@@ -25,6 +25,8 @@ var packger_options = {
   overwrite: true,
   prune: true,
   asar: true,
+  windowsSign: true,
+  osxSign: true,
 };
 
 if ("darwin" == os.platform().toLowerCase()) {
