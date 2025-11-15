@@ -17,16 +17,16 @@
   "dependencies": {
     "@popperjs/core": "^2.11.8",
     "adm-zip": "^0.5.16",
-    "bootstrap": "^5.3.7",
-    "compressing": "^1.10.3",
+    "bootstrap": "^5.3.8",
+    "compressing": "^2.0.0",
     "jquery": "^3.7.1",
     "jquery.fancytree": "^2.38.5",
     "log4js": "^6.9.1",
-    "minimatch": "^10.0.3"
+    "minimatch": "^10.1.1"
   },
   "devDependencies": {
-    "electron": "^37.2.0",
-    "@electron/packager": "^18.3.6",
+    "electron": "^39.2.0",
+    "@electron/packager": "^19.0.1",
     "gulp": "^5.0.1"
   },
   "scripts": {
