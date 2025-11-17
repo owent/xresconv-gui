@@ -2,7 +2,7 @@
 const gulp = require("gulp"),
   childProcess = require("child_process"),
   electron = require("electron"),
-  electron_packger = require("@electron/packager"),
+  { packager: electron_packger } = require("@electron/packager"),
   os = require("os");
 
 var packger_options = {
