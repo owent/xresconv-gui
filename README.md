@@ -220,6 +220,16 @@
 
 此接口可以通过修改 `data` 内的数据修改输出的日志内容和样式。但是此接口不会排队执行。
 
+## 已知问题
+
+### 用户脚本崩溃可能导致GUI白屏
+
+如果用户脚本使用nodejs底层接口且在回调中有未捕获异常，目前没有高效且能够干净的隔离方式。崩溃会传递到GUI层。
+
+比如使用 `require("child_process").spawn` 并在 `spawn(...).on("event name", function(){})` 的回调中抛出异常。
+
+请先确保这类调用用 try 包裹一下并调用 `reject("错误消息")` 接口。
+
 ## 开发使用说明
 
 以下内容仅是对这个工具的开发和维护进行说明，直接使用的话[下载预发布包](https://github.com/xresloader/xresconv-gui/releases)即可

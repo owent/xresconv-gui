@@ -1,4 +1,5 @@
 ﻿// WebKit的编码转换有点奇怪的
+const process = require("node:process");
 const bootstrap = require("bootstrap");
 
 var conv_data = {};
@@ -101,6 +102,19 @@ function setup_auto_resize_window() {
   // resizeObserver.observe(document.getElementById("conv_details_panel"));
   on_resize_windows();
 }
+
+process.on("uncaughtException", function (err) {
+  console.error("Uncaught Exception:", err);
+});
+
+process.on("unhandledRejection", function (reason, promise) {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("SIGINT", function () {
+  console.log("Received SIGINT. Exiting...");
+  // process.exit(0);
+});
 
 function match_string_rule(rule, input) {
   if (!input && !rule) {
