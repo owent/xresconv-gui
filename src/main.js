@@ -452,7 +452,7 @@ function shell_color_to_html(data) {
     47: "background-color: white;",
   };
 
-  var split_group = data.toString().split(/(\[[\d;]*m)/g);
+  const split_group = data.toString().split(/(\x1b?\[[\d;]*m)/g);
   var span_level = 0;
 
   function finish_tail() {
@@ -463,14 +463,15 @@ function shell_color_to_html(data) {
     }
     return ret;
   }
+  const convert_group = [];
   for (var i = 0; i < split_group.length; ++i) {
-    var msg = split_group[i];
-    if (msg.match(/^\[[\d;]*m$/)) {
+    const msg = split_group[i];
+    if (msg.match(/^\x1b?\[[\d;]*m$/)) {
       var all_flags = msg.match(/\d+/g);
       var style_list = [];
       for (var j = 0; all_flags && j < all_flags.length; ++j) {
         if ("0" == all_flags[j]) {
-          split_group[i] = finish_tail();
+          convert_group.push(finish_tail());
           break;
         } else if (style_map[all_flags[j]]) {
           style_list.push(style_map[all_flags[j]]);
@@ -479,12 +480,14 @@ function shell_color_to_html(data) {
 
       if (style_list.length > 0) {
         ++span_level;
-        split_group[i] = '<span style="' + style_list.join(" ") + '">';
+        convert_group.push('<span style="' + style_list.join(" ") + '">');
       }
+    } else if (msg) {
+      convert_group.push(msg);
     }
   }
 
-  return (split_group.join("") + finish_tail())
+  return (convert_group.join("") + finish_tail())
     .replace(/\r\n/g, "\n")
     .replace(/ /g, "&nbsp;")
     .replace(/\t/g, "&nbsp;&nbsp;")

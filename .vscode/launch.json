@@ -10,7 +10,7 @@
       "args": [
         "--debug-mode",
         "--input",
-        "D:/workspace/p4/TGF/TGF_Main/Client/Projects/TGF/Plugins/TGFBattleUtility/Install/Shared/Xml/xresconv.install.verify.xml"
+        "D:/workspace/git/dreame/ProjectY/trunk/Tables/datasource/client_config.xml"
       ],
       "cwd": "${workspaceRoot}",
       "preLaunchTask": null,
@@ -63,6 +63,30 @@
       "outFiles": [],
       "localRoot": "${workspaceRoot}",
       "remoteRoot": null
+    },
+    {
+      "name": "Launch - project",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceRoot}/src/setup.js",
+      "stopOnEntry": false,
+      "args": [
+        "--debug-mode",
+        "--input",
+        "D:/workspace/git/dreame/ProjectY/trunk/Tables/datasource/client_config.xml"
+      ],
+      "cwd": "D:/workspace/git/dreame/ProjectY/trunk/Tables",
+      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron",
+      "windows": {
+        "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron.cmd"
+      },
+      "runtimeArgs": ["--nolazy", "--js-flags=--experimental-worker"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "console": "internalConsole",
+      "sourceMaps": false,
+      "outFiles": []
     }
   ]
 }
