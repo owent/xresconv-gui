@@ -323,3 +323,8 @@ window.jQuery = require(`${__dirname}/lib/jquery/jquery.min.js`);
 > + 取消代理： `npm config delete https-proxy`
 > + 单独设置代理： `npm install --save-dev electron-prebuilt --proxy http://代理服务器ip:代理服务器端口`
 
+4. 信任通用HTTP缓存服务（比如Squid）的CA证书
+
+```powershell
+$env:NODE_EXTRA_CA_CERTS = "D:/workspace/root-ca.crt"
+```
