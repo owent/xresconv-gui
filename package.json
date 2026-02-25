@@ -22,7 +22,7 @@
     "jquery": "^3.7.1",
     "jquery.fancytree": "^2.38.5",
     "log4js": "^6.9.1",
-    "minimatch": "^10.1.1"
+    "minimatch": "^10.2.3"
   },
   "devDependencies": {
     "electron": "^39.2.6",
