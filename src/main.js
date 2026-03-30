@@ -193,8 +193,8 @@ function logger_append_style_message(msg, module_name, style) {
               {
                 data: log_object,
               },
-              conv_data.gui.append_log_context
-            )
+              conv_data.gui.append_log_context,
+            ),
           );
         }
         vm_script.fn.runInContext(vm_context, {
@@ -206,7 +206,7 @@ function logger_append_style_message(msg, module_name, style) {
     } catch (err) {
       const err_msg = logger_format_exception_message(
         err,
-        "append log event script"
+        "append log event script",
       );
       logger_append_error_message(err_msg, "APPEND LOG EVENT EXCEPTION");
     }
@@ -238,7 +238,7 @@ function logger_append_info_message(msg, module_name) {
   if (msg instanceof Error) {
     return logger_append_error_message(
       logger_format_exception_message(msg, module_name),
-      module_name
+      module_name,
     );
   }
 
@@ -256,7 +256,7 @@ function logger_append_notice_message(msg, module_name) {
   if (msg instanceof Error) {
     return logger_append_error_message(
       logger_format_exception_message(msg, module_name),
-      module_name
+      module_name,
     );
   }
 
@@ -275,7 +275,7 @@ function logger_append_warning_message(msg, module_name, need_alert) {
     return logger_append_error_message(
       logger_format_exception_message(msg, module_name),
       module_name,
-      need_alert
+      need_alert,
     );
   }
 
@@ -298,7 +298,7 @@ function logger_append_error_message(msg, module_name, need_alert) {
     return logger_append_error_message(
       logger_format_exception_message(msg, module_name),
       module_name,
-      need_alert
+      need_alert,
     );
   }
 
@@ -340,19 +340,19 @@ function custom_selector_on_click(selector, force_selected) {
           if (!scheme_rule.file_fn) {
             scheme_rule.file_fn = build_match_string_rule(
               scheme_rule.file,
-              selector.name
+              selector.name,
             );
           }
           if (scheme_rule.scheme && !scheme_rule.scheme_fn) {
             scheme_rule.scheme_fn = build_match_string_rule(
               scheme_rule.scheme,
-              selector.name
+              selector.name,
             );
           }
           build_match_string_rule;
           const match_file_name = match_string_rule(
             scheme_rule.file_fn,
-            item.file
+            item.file,
           );
           const match_scheme_name =
             !scheme_rule.scheme ||
@@ -380,20 +380,20 @@ function custom_selector_on_click(selector, force_selected) {
           if (!sheet_rule.file_fn) {
             sheet_rule.file_fn = build_match_string_rule(
               sheet_rule.file,
-              selector.name
+              selector.name,
             );
           }
           if (sheet_rule.sheet && !sheet_rule.sheet_fn) {
             sheet_rule.sheet_fn = build_match_string_rule(
               sheet_rule.sheet,
-              selector.name
+              selector.name,
             );
           }
 
           for (const data_srouce of data_srouces) {
             const match_file_name = match_string_rule(
               sheet_rule.file_fn,
-              data_srouce[0]
+              data_srouce[0],
             );
             const match_sheet_name =
               !sheet_rule.sheet ||
@@ -430,28 +430,28 @@ function custom_selector_on_click(selector, force_selected) {
   }
 }
 
-function shell_color_to_html(data) {
-  const style_map = {
-    1: "font-weight: bolder;",
-    4: "text-decoration: underline;",
-    30: "color: black;",
-    31: "color: darkred;",
-    32: "color: darkgreen;",
-    33: "color: brown;",
-    34: "color: darkblue;",
-    35: "color: purple;",
-    36: "color: darkcyan;",
-    37: "color: gray;",
-    40: "background-color: black;",
-    41: "background-color: darkred;",
-    42: "background-color: darkgreen;",
-    43: "background-color: brown;",
-    44: "background-color: darkblue;",
-    45: "background-color: purple;",
-    46: "background-color: darkcyan;",
-    47: "background-color: white;",
-  };
+const global_shell_color_to_html_style_map = {
+  1: "font-weight: bolder;",
+  4: "text-decoration: underline;",
+  30: "color: black;",
+  31: "color: darkred;",
+  32: "color: darkgreen;",
+  33: "color: brown;",
+  34: "color: darkblue;",
+  35: "color: purple;",
+  36: "color: darkcyan;",
+  37: "color: gray;",
+  40: "background-color: black;",
+  41: "background-color: darkred;",
+  42: "background-color: darkgreen;",
+  43: "background-color: brown;",
+  44: "background-color: darkblue;",
+  45: "background-color: purple;",
+  46: "background-color: darkcyan;",
+  47: "background-color: white;",
+};
 
+function shell_color_to_html(data) {
   const split_group = data.toString().split(/(\x1b?\[[\d;]*m)/g);
   var span_level = 0;
 
@@ -463,6 +463,7 @@ function shell_color_to_html(data) {
     }
     return ret;
   }
+
   const convert_group = [];
   for (var i = 0; i < split_group.length; ++i) {
     const msg = split_group[i];
@@ -473,8 +474,8 @@ function shell_color_to_html(data) {
         if ("0" == all_flags[j]) {
           convert_group.push(finish_tail());
           break;
-        } else if (style_map[all_flags[j]]) {
-          style_list.push(style_map[all_flags[j]]);
+        } else if (global_shell_color_to_html_style_map[all_flags[j]]) {
+          style_list.push(global_shell_color_to_html_style_map[all_flags[j]]);
         }
       }
 
@@ -483,15 +484,19 @@ function shell_color_to_html(data) {
         convert_group.push('<span style="' + style_list.join(" ") + '">');
       }
     } else if (msg) {
-      convert_group.push(msg);
+      convert_group.push(
+        msg
+          .replace("<", "&lt;")
+          .replace(">", "&gt;")
+          .replace(/\r\n/g, "\n")
+          .replace(/ /g, "&nbsp;")
+          .replace(/\t/g, "&nbsp;&nbsp;")
+          .replace(/[\r\n]/g, "<br />"),
+      );
     }
   }
 
-  return (convert_group.join("") + finish_tail())
-    .replace(/\r\n/g, "\n")
-    .replace(/ /g, "&nbsp;")
-    .replace(/\t/g, "&nbsp;&nbsp;")
-    .replace(/\n/g, "<br />");
+  return convert_group.join("") + finish_tail();
 }
 
 function run_custom_button_action_script(custom_button, script_name) {
@@ -526,7 +531,7 @@ function run_custom_button_action_script(custom_button, script_name) {
           if (content) {
             logger_append_info_message(
               content,
-              `CONV SCRIPT:${shell_color_to_html(script_name)}`
+              `CONV SCRIPT:${shell_color_to_html(script_name)}`,
             );
           }
         },
@@ -534,7 +539,7 @@ function run_custom_button_action_script(custom_button, script_name) {
           if (content) {
             logger_append_notice_message(
               content,
-              `CONV SCRIPT:${shell_color_to_html(script_name)}`
+              `CONV SCRIPT:${shell_color_to_html(script_name)}`,
             );
           }
         },
@@ -542,7 +547,7 @@ function run_custom_button_action_script(custom_button, script_name) {
           if (content) {
             logger_append_warning_message(
               content,
-              `CONV SCRIPT:${shell_color_to_html(script_name)}`
+              `CONV SCRIPT:${shell_color_to_html(script_name)}`,
             );
           }
         },
@@ -550,7 +555,7 @@ function run_custom_button_action_script(custom_button, script_name) {
           if (content) {
             logger_append_error_message(
               content,
-              `CONV SCRIPT:${shell_color_to_html(script_name)}`
+              `CONV SCRIPT:${shell_color_to_html(script_name)}`,
             );
           }
         },
@@ -606,8 +611,8 @@ function run_custom_button_action_script(custom_button, script_name) {
                 },
                 data: custom_button.data,
               },
-              vm_context_obj
-            )
+              vm_context_obj,
+            ),
           );
           evt_obj.vm_script.fn.runInContext(vm_context, {
             displayErrors: true,
@@ -629,7 +634,7 @@ function run_custom_button_action_script(custom_button, script_name) {
           if (!evt_obj.has_done) {
             const msg = logger_format_exception_message(
               err,
-              `gui.script.${script_name}`
+              `gui.script.${script_name}`,
             );
             evt_obj.has_done = true;
             reject(msg);
@@ -640,7 +645,7 @@ function run_custom_button_action_script(custom_button, script_name) {
       return (async () => {
         const msg = logger_format_exception_message(
           err,
-          `gui.script.${script_name}`
+          `gui.script.${script_name}`,
         );
         logger_append_error_message(msg, "GUI SCRIPT", true);
       })();
@@ -649,7 +654,7 @@ function run_custom_button_action_script(custom_button, script_name) {
     return (async () => {
       logger_append_error_message(
         `script ${script_name} not found.`,
-        "GUI SCRIPT"
+        "GUI SCRIPT",
       );
     })();
   }
@@ -880,10 +885,10 @@ function alert_warning(content, tittle, options) {
   dlg_head.innerHTML = tittle || "警告";
 
   const btn_yes = $(
-    '<button type="button" class="btn btn-secondary" data-dismiss="modal">是</button>'
+    '<button type="button" class="btn btn-secondary" data-dismiss="modal">是</button>',
   );
   const btn_no = $(
-    '<button type="button" class="btn btn-secondary" data-dismiss="modal">否</button>'
+    '<button type="button" class="btn btn-secondary" data-dismiss="modal">否</button>',
   );
   btn_yes.on("click", function () {
     if (dlg.bootstrapModal) {
@@ -973,7 +978,7 @@ function alert_warning(content, tittle, options) {
     if (ret.filename && ret.path.length > ret.filename.length + 1) {
       ret.dirname = ret.path.substr(
         0,
-        ret.path.length - ret.filename.length - 1
+        ret.path.length - ret.filename.length - 1,
       );
     } else if (ret.filename && ret.path.length == ret.filename.length + 1) {
       ret.dirname = ret.path[0];
@@ -997,7 +1002,7 @@ function alert_warning(content, tittle, options) {
             return webUtils.getPathForFile(file);
           })() ||
           sel_dom.value,
-        await file.text()
+        await file.text(),
       );
     } else {
       return await get_string_file(sel_dom.value);
@@ -1016,7 +1021,7 @@ function alert_warning(content, tittle, options) {
     if (matrix_rule.classes && matrix_rule.classes.length > 0) {
       if (
         !matrix_rule.classes.find((x) =>
-          (item_data.classes || []).find((y) => x === y)
+          (item_data.classes || []).find((y) => x === y),
         )
       ) {
         return false;
@@ -1028,7 +1033,7 @@ function alert_warning(content, tittle, options) {
 
   function show_output_matrix() {
     const conv_list_output_custom_multi = document.getElementById(
-      "conv_list_output_custom_multi"
+      "conv_list_output_custom_multi",
     );
     if (
       conv_list_output_custom_multi.parentNode.selectedIndex ==
@@ -1124,7 +1129,7 @@ function alert_warning(content, tittle, options) {
     const wrapper = jQuery('<div class="form-check form-switch"></div>');
     const ret = jQuery('<input class="form-check-input" type="checkbox">');
     const label = jQuery(
-      '<label class="form-check-label">Default switch checkbox input</label>'
+      '<label class="form-check-label">Default switch checkbox input</label>',
     );
 
     const event_name = xml_node.getAttribute("name") || "";
@@ -1256,9 +1261,11 @@ function alert_warning(content, tittle, options) {
           const output_type_rename_rule = (
             dom.getAttribute("rename") || ""
           ).trim();
+          const output_dir_rule = dom.getAttribute("output_dir") || "";
           output_matrix.push({
             type: val,
             rename: output_type_rename_rule,
+            output_dir: output_dir_rule,
             tags: (dom.getAttribute("tag") || "")
               .trim()
               .split(/[\s]+/)
@@ -1304,14 +1311,14 @@ function alert_warning(content, tittle, options) {
           $("#conv_list_data_source_dir").val(conv_list_data_src_dirs[0]);
         } else {
           $("#conv_list_data_source_dir").val(
-            JSON.stringify(conv_list_data_src_dirs)
+            JSON.stringify(conv_list_data_src_dirs),
           );
         }
       }
 
       // select output_type or output_matrix
       const conv_list_output_custom_multi = document.getElementById(
-        "conv_list_output_custom_multi"
+        "conv_list_output_custom_multi",
       );
 
       conv_list_output_custom_multi.output_matrix_with_rule =
@@ -1337,15 +1344,15 @@ function alert_warning(content, tittle, options) {
         // build hint dom
         if (!conv_list_output_custom_multi.hint_dom) {
           conv_list_output_custom_multi.hint_dom = $(
-            '<div class="alert alert-secondary" role="alert"></div>'
+            '<div class="alert alert-secondary" role="alert"></div>',
           );
         }
         const hint_dom = conv_list_output_custom_multi.hint_dom;
         hint_dom.empty();
         hint_dom.append(
           shell_color_to_html(
-            "当前选中的是来自配置文件的[1;m自定义输出类型[0;m<br />\r\n"
-          )
+            "当前选中的是来自配置文件的[1;m自定义输出类型[0;m<br />\r\n",
+          ),
         );
 
         for (const output of output_matrix) {
@@ -1353,10 +1360,10 @@ function alert_warning(content, tittle, options) {
             const output_option = document.querySelector(
               '#conv_list_output_type option[value="' +
                 output.type.toLowerCase() +
-                '"]'
+                '"]',
             );
             var msg =
-              "&nbsp;&nbsp;&nbsp;&nbsp;输出类型: [1;32;m" +
+              "\t输出类型: [1;32;m" +
               (output_option
                 ? output_option.innerHTML
                 : "未知类型:" + output.type) +
@@ -1365,6 +1372,9 @@ function alert_warning(content, tittle, options) {
               ")";
             if (output.rename) {
               msg += '\r\n\t\t重命名规则: "[1;35;m' + output.rename + '[0;m"';
+            }
+            if (output.output_dir) {
+              msg += '\r\n\t\t输出目录: "[1;35;m' + output.output_dir + '[0;m"';
             }
             if (output.tags && output.tags.length > 0) {
               msg +=
@@ -1378,7 +1388,7 @@ function alert_warning(content, tittle, options) {
                 output.classes.map((x) => x.toString()).join(",") +
                 '[0;m"';
             }
-            msg += "<br />\r\n";
+            msg += "\r\n";
           }
 
           hint_dom.append(shell_color_to_html(msg));
@@ -1391,7 +1401,9 @@ function alert_warning(content, tittle, options) {
           });
         }
         var output_type_cfg = $(
-          '#conv_list_output_type option[value="' + output_matrix[0].type + '"]'
+          '#conv_list_output_type option[value="' +
+            output_matrix[0].type +
+            '"]',
         );
         if (output_type_cfg.length > 0) {
           $("#conv_list_output_type").get(0).selectedIndex =
@@ -1462,7 +1474,7 @@ function alert_warning(content, tittle, options) {
           const msg = logger_format_exception_message(
             err,
             "gui.set_name",
-            "GUI脚本编译错误"
+            "GUI脚本编译错误",
           );
           logger_append_error_message(msg, "GUI EVENT", true);
         }
@@ -1488,14 +1500,14 @@ function alert_warning(content, tittle, options) {
             timeout: timeout,
             enabled: append_conv_list_event_group(
               env_jdom.get(0),
-              "on_before_convert"
+              "on_before_convert",
             ),
           });
         } catch (err) {
           const msg = logger_format_exception_message(
             err,
             "gui.on_before_convert",
-            "GUI脚本编译错误"
+            "GUI脚本编译错误",
           );
 
           logger_append_error_message(msg, "GUI EVENT", true);
@@ -1520,14 +1532,14 @@ function alert_warning(content, tittle, options) {
             timeout: timeout,
             enabled: append_conv_list_event_group(
               env_jdom.get(0),
-              "on_after_convert"
+              "on_after_convert",
             ),
           });
         } catch (err) {
           const msg = logger_format_exception_message(
             err,
             "gui.on_after_convert",
-            "GUI脚本编译错误"
+            "GUI脚本编译错误",
           );
           logger_append_error_message(msg, "GUI EVENT", true);
         }
@@ -1551,14 +1563,14 @@ function alert_warning(content, tittle, options) {
             timeout: timeout,
             enabled: append_conv_list_event_group(
               env_jdom.get(0),
-              "on_append_log"
+              "on_append_log",
             ),
           });
         } catch (err) {
           const msg = logger_format_exception_message(
             err,
             "gui.on_append_log",
-            "GUI脚本编译错误"
+            "GUI脚本编译错误",
           );
           logger_append_error_message(msg, "GUI EVENT", true);
         }
@@ -1589,7 +1601,7 @@ function alert_warning(content, tittle, options) {
           const msg = logger_format_exception_message(
             err,
             `gui.script.${key}`,
-            "GUI脚本编译错误"
+            "GUI脚本编译错误",
           );
           logger_append_error_message(msg, "GUI SCRIPT", true);
         }
@@ -1633,7 +1645,7 @@ function alert_warning(content, tittle, options) {
               jitem.attr("file") +
               '" 描述信息: "' +
               jitem.attr("scheme") +
-              '"'
+              '"',
           );
         }
 
@@ -1665,7 +1677,7 @@ function alert_warning(content, tittle, options) {
                     data_source[0] +
                     '" 表: "' +
                     data_source[1] +
-                    '"'
+                    '"',
                 );
               } else if (data_source) {
                 item_data.file = data_source[0];
@@ -1704,7 +1716,7 @@ function alert_warning(content, tittle, options) {
                 if (content) {
                   logger_append_info_message(
                     shell_color_to_html(content),
-                    "CONV EVENT"
+                    "CONV EVENT",
                   );
                 }
               },
@@ -1712,7 +1724,7 @@ function alert_warning(content, tittle, options) {
                 if (content) {
                   logger_append_notice_message(
                     shell_color_to_html(content),
-                    "CONV EVENT"
+                    "CONV EVENT",
                   );
                 }
               },
@@ -1720,7 +1732,7 @@ function alert_warning(content, tittle, options) {
                 if (content) {
                   logger_append_warning_message(
                     shell_color_to_html(content),
-                    `CONV EVENT`
+                    `CONV EVENT`,
                   );
                 }
               },
@@ -1728,7 +1740,7 @@ function alert_warning(content, tittle, options) {
                 if (content) {
                   logger_append_error_message(
                     shell_color_to_html(content),
-                    "CONV EVENT"
+                    "CONV EVENT",
                   );
                 }
               },
@@ -1738,7 +1750,7 @@ function alert_warning(content, tittle, options) {
             const msg = logger_format_exception_message(
               err,
               "gui.set_name",
-              "GUI脚本编译错误"
+              "GUI脚本编译错误",
             );
             logger_append_error_message(msg, "GUI EVENT", true);
           }
@@ -1797,7 +1809,7 @@ function alert_warning(content, tittle, options) {
                 resolve.apply(this, [
                   build_conv_tree(
                     buffer.Buffer.concat(buffer_list).toString(),
-                    file_path
+                    file_path,
                   ),
                 ]);
               });
@@ -1806,7 +1818,7 @@ function alert_warning(content, tittle, options) {
                 const msg = logger_format_exception_message(
                   err,
                   "IO",
-                  `尝试读取文件失败: ${file_path}`
+                  `尝试读取文件失败: ${file_path}`,
                 );
                 const log_item = logger_append_error_message(msg);
                 console.error(log_item.innerText);
@@ -1898,12 +1910,12 @@ function alert_warning(content, tittle, options) {
 
       var global_options = {
         "-p": $("#conv_list_protocol").val(),
-        "-o": $("#conv_list_output_dir").val(),
       };
+      const global_output_dir = $("#conv_list_output_dir").val();
 
       const output_matrix = [];
       const conv_list_output_custom_multi = document.getElementById(
-        "conv_list_output_custom_multi"
+        "conv_list_output_custom_multi",
       );
       if (
         conv_list_output_custom_multi.parentNode.selectedIndex ==
@@ -1915,6 +1927,7 @@ function alert_warning(content, tittle, options) {
           output_matrix.push({
             type: output.type || global_output_type,
             rename: output.rename || global_rename_rule,
+            output_dir: output.output_dir || global_output_dir || null,
             tags: output.tags || null,
             classes: output.classes || null,
           });
@@ -1923,6 +1936,7 @@ function alert_warning(content, tittle, options) {
         output_matrix.push({
           type: $("#conv_list_output_type").val(),
           rename: $("#conv_list_rename").val(),
+          output_dir: global_output_dir,
           tags: null,
           classes: null,
         });
@@ -2004,6 +2018,11 @@ function alert_warning(content, tittle, options) {
             if (output.rename) {
               cmd_args += ' -n "' + output.rename + '"';
             }
+            if (output.output_dir) {
+              cmd_args += ' -o "' + output.output_dir + '"';
+            } else {
+              cmd_args += ' -o "' + global_output_dir + '"';
+            }
 
             for (const item_option of item_data.options) {
               if (item_option.value) {
@@ -2074,7 +2093,7 @@ function alert_warning(content, tittle, options) {
             msg = `[CONV ${xresloader_index}] ${cmd}\r\n`;
             log_item = logger_append_info_message(
               shell_color_to_html(cmd),
-              `[CONV ${xresloader_index}]`
+              `[CONV ${xresloader_index}]`,
             );
             run_log.scrollTop(run_log.prop("scrollHeight"));
 
@@ -2105,13 +2124,13 @@ function alert_warning(content, tittle, options) {
             "--stdin",
           ]);
           const msg = `[${work_dir}] Process ${xresloader_index} : ${xresloader_cmds.join(
-            " "
+            " ",
           )}\r\n`;
           const log_item = logger_append_info_message(
             shell_color_to_html(
-              `Process ${xresloader_index} : ${xresloader_cmds.join(" ")}\r\n`
+              `Process ${xresloader_index} : ${xresloader_cmds.join(" ")}\r\n`,
             ),
-            `${work_dir}`
+            `${work_dir}`,
           );
           if (logger) {
             logger.info(log_item.innerText);
@@ -2173,7 +2192,7 @@ function alert_warning(content, tittle, options) {
             const log_item = logger_append_notice_message(
               "<span style='color: Green;'>" +
                 shell_color_to_html(data) +
-                "</span>"
+                "</span>",
             );
             if (logger) {
               logger.info(log_item.innerText);
@@ -2186,14 +2205,14 @@ function alert_warning(content, tittle, options) {
             const data_str = data ? data.toString() : "";
             if (data_str && data_str.substr(0, 5).toLowerCase() == "[warn") {
               const log_item = logger_append_warning_message(
-                shell_color_to_html(data_str)
+                shell_color_to_html(data_str),
               );
               if (logger) {
                 logger.warn(log_item.innerText);
               }
             } else {
               const log_item = logger_append_error_message(
-                shell_color_to_html(data_str)
+                shell_color_to_html(data_str),
               );
               if (logger) {
                 logger.error(log_item.innerText);
@@ -2245,7 +2264,7 @@ function alert_warning(content, tittle, options) {
               if (content) {
                 logger_append_info_message(
                   shell_color_to_html(content),
-                  "CONV EVENT"
+                  "CONV EVENT",
                 );
               }
             },
@@ -2253,7 +2272,7 @@ function alert_warning(content, tittle, options) {
               if (content) {
                 logger_append_notice_message(
                   shell_color_to_html(content),
-                  "CONV EVENT"
+                  "CONV EVENT",
                 );
               }
             },
@@ -2261,7 +2280,7 @@ function alert_warning(content, tittle, options) {
               if (content) {
                 logger_append_warning_message(
                   shell_color_to_html(content),
-                  `CONV EVENT`
+                  `CONV EVENT`,
                 );
               }
             },
@@ -2269,7 +2288,7 @@ function alert_warning(content, tittle, options) {
               if (content) {
                 logger_append_error_message(
                   shell_color_to_html(content),
-                  "CONV EVENT"
+                  "CONV EVENT",
                 );
               }
             },
@@ -2330,8 +2349,8 @@ function alert_warning(content, tittle, options) {
                             },
                             data: {},
                           },
-                          vm_context_obj
-                        )
+                          vm_context_obj,
+                        ),
                       );
                       evt_obj.vm_script.fn.runInContext(vm_context, {
                         displayErrors: true,
@@ -2344,7 +2363,7 @@ function alert_warning(content, tittle, options) {
                           ++failed_count;
                           evt_obj.has_done = true;
                           vm_context_obj.log_error(
-                            "Run event callback timeout"
+                            "Run event callback timeout",
                           );
                           reject("Run event callback timeout");
                         }
@@ -2353,11 +2372,11 @@ function alert_warning(content, tittle, options) {
                       ++failed_count;
                       const err_msg = logger_format_exception_message(
                         err,
-                        "event script"
+                        "event script",
                       );
                       logger_append_error_message(
                         err_msg,
-                        "CONV EVENT EXCEPTION"
+                        "CONV EVENT EXCEPTION",
                       );
                       if (null != evt_obj.timer_handle) {
                         clearTimeout(evt_obj.timer_handle);
@@ -2377,14 +2396,14 @@ function alert_warning(content, tittle, options) {
 
           current_promise = append_event(
             current_promise,
-            conv_data.gui.on_before_convert
+            conv_data.gui.on_before_convert,
           );
           current_promise = current_promise.then(() => {
             return new Promise(run_all_cmds);
           });
           current_promise = append_event(
             current_promise,
-            conv_data.gui.on_after_convert
+            conv_data.gui.on_after_convert,
           );
         } catch (err) {
           const err_msg = logger_format_exception_message(err, "event script");
@@ -2408,7 +2427,7 @@ function alert_warning(content, tittle, options) {
             run_log.append(
               "<span style='color: DarkRed;'>All jobs done, " +
                 failed_count +
-                " job(s) failed.</strong>\r\n"
+                " job(s) failed.</strong>\r\n",
             );
             run_log.addClass("conv_list_run_error");
             run_log.removeClass("conv_list_run_running");
@@ -2417,7 +2436,7 @@ function alert_warning(content, tittle, options) {
             }
           } else {
             run_log.append(
-              "<span style='color: DarkRed;'>All jobs done.</strong>\r\n"
+              "<span style='color: DarkRed;'>All jobs done.</strong>\r\n",
             );
             run_log.addClass("conv_list_run_success");
             run_log.removeClass("conv_list_run_running");
@@ -2430,7 +2449,7 @@ function alert_warning(content, tittle, options) {
     } catch (err) {
       const log_item = logger_append_error_message(
         logger_format_exception_message(err),
-        "CONV"
+        "CONV",
       );
       console.error(log_item.innerText);
       alert("出错啦: " + err.toString());
@@ -2464,7 +2483,7 @@ function alert_warning(content, tittle, options) {
       ipcRenderer.invoke("ipc-get-app-version").then((app_version) => {
         const app_version_text = `xresconv-gui version: ${app_version}`;
         run_log.append(
-          `<div class="alert alert-primary alert-compact" role="alert">${app_version_text}</div>`
+          `<div class="alert alert-primary alert-compact" role="alert">${app_version_text}</div>`,
         );
         if (logger) {
           logger.info(app_version_text);
@@ -2488,7 +2507,7 @@ function alert_warning(content, tittle, options) {
         const find_java_version = dep_text.match(/\d+/g);
         if (find_java_version && find_java_version.length < 2) {
           run_log.append(
-            '<div class="alert alert-danger" role="alert">查询不到java版本号</div>'
+            '<div class="alert alert-danger" role="alert">查询不到java版本号</div>',
           );
           run_log.append(dep_msg);
           if (logger) {
@@ -2503,7 +2522,7 @@ function alert_warning(content, tittle, options) {
           run_log.append(
             '<div class="alert alert-primary alert-compact" role="alert">' +
               dep_text +
-              "</div>"
+              "</div>",
           );
           if (logger) {
             logger.error(dep_text);
@@ -2519,14 +2538,14 @@ function alert_warning(content, tittle, options) {
             run_log.append(
               '<div class="alert alert-primary alert-compact" role="alert">' +
                 dep_text +
-                "</div>"
+                "</div>",
             );
             if (logger) {
               logger.info(dep_text);
             }
           }
           run_log.append(
-            '<div class="alert alert-danger" role="alert">检测不到java或java版本号过老</div>'
+            '<div class="alert alert-danger" role="alert">检测不到java或java版本号过老</div>',
           );
           run_log.append(dep_msg);
           if (logger) {
@@ -2554,7 +2573,7 @@ function alert_warning(content, tittle, options) {
       // 获取CPU信息，默认并行度为CPU核心数量/2
       try {
         xconv_gui_options.parallelism = parseInt(
-          (require("os").cpus().length - 1) / 2 + 1
+          (require("os").cpus().length - 1) / 2 + 1,
         );
 
         // 实际使用过程中发现，java的运行时优化反而比并行执行更节省性能
@@ -2702,28 +2721,28 @@ function alert_warning(content, tittle, options) {
       $("#conv_list_rename").val($(this).attr("data-rename"));
 
       const conv_list_output_custom_multi = document.getElementById(
-        "conv_list_output_custom_multi"
+        "conv_list_output_custom_multi",
       );
       if (
         conv_list_output_custom_multi.parentNode.selectedIndex ==
         conv_list_output_custom_multi.index
       ) {
         alert_warning(
-          "当<strong>输出类型</strong>使用配置文件中的<strong>自定义输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。"
+          "当<strong>输出类型</strong>使用配置文件中的<strong>自定义输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。",
         );
       }
     });
 
     $("#conv_list_rename").on("change", function () {
       const conv_list_output_custom_multi = document.getElementById(
-        "conv_list_output_custom_multi"
+        "conv_list_output_custom_multi",
       );
       if (
         conv_list_output_custom_multi.parentNode.selectedIndex ==
         conv_list_output_custom_multi.index
       ) {
         alert_warning(
-          "当<strong>输出类型</strong>使用配置文件中的<strong>自定义输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。"
+          "当<strong>输出类型</strong>使用配置文件中的<strong>自定义输出类型</strong>时，此选项仅影响未配置过重命名规则的输出类型。",
         );
       }
     });

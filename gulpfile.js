@@ -80,13 +80,13 @@ gulp.task(
     });
 
     done();
-  })
+  }),
 );
 
 gulp.task(
   "debug-run",
   gulp.series("copy-libs", (done) => {
-    const args = ["--", ".", "--debug"];
+    const args = ["--", ".", "--debug-mode"];
     for (const v of process.argv.slice(3)) {
       args.push(v);
     }
@@ -96,7 +96,7 @@ gulp.task(
     });
 
     done();
-  })
+  }),
 );
 
 gulp.task(
@@ -112,7 +112,7 @@ gulp.task(
     });
 
     done();
-  })
+  }),
 );
 
 gulp.task(
@@ -139,7 +139,7 @@ gulp.task(
         console.error(`Package failed: ${reason}`);
         done();
       });
-  })
+  }),
 );
 
 gulp.task(
@@ -161,7 +161,7 @@ gulp.task(
         console.error(`Package failed: ${reason}`);
         done();
       });
-  })
+  }),
 );
 
 gulp.task(
@@ -184,7 +184,7 @@ gulp.task(
         console.error(`Package failed: ${reason}`);
         done();
       });
-  })
+  }),
 );
 
 gulp.task(
@@ -206,7 +206,7 @@ gulp.task(
         console.error(`Package failed: ${reason}`);
         done();
       });
-  })
+  }),
 );
 
 gulp.task(
@@ -236,5 +236,5 @@ gulp.task(
         console.error(`Package failed: ${reason}`);
         done();
       });
-  })
+  }),
 );
