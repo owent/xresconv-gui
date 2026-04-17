@@ -18,8 +18,8 @@ importers:
         specifier: ^5.3.8
         version: 5.3.8(@popperjs/core@2.11.8)
       compressing:
-        specifier: ^2.1.0
-        version: 2.1.0
+        specifier: ^2.1.1
+        version: 2.1.1
       jquery:
         specifier: ^4.0.0
         version: 4.0.0
@@ -297,8 +297,8 @@ packages:
     resolution: {integrity: sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==}
     engines: {node: '>= 0.4'}
 
-  call-bind@1.0.8:
-    resolution: {integrity: sha512-oKlSFMcMwpUg2ednkhQ454wfWiU/ul3CkJe/PEHcTKuiX6RpbehUiFMXu13HalGZxfUwCQzZG747YXBn1im9ww==}
+  call-bind@1.0.9:
+    resolution: {integrity: sha512-a/hy+pNsFUTR+Iz8TCJvXudKVLAnz/DyeSUo10I5yvFDQJBFU2s9uqQpoSrJlroHUKoKqzg+epxyP9lqFdzfBQ==}
     engines: {node: '>= 0.4'}
 
   call-bound@1.0.4:
@@ -338,8 +338,8 @@ packages:
     resolution: {integrity: sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==}
     engines: {node: ^12.20.0 || >=14}
 
-  compressing@2.1.0:
-    resolution: {integrity: sha512-CJsNw09YdOqRJ4GJxMIlshK8OEr/0e2jvygRXNf48B73KqsF94OIjcAScq6oargUrT4MZQradg6+5Z+mNYVvDQ==}
+  compressing@2.1.1:
+    resolution: {integrity: sha512-B/sIxBNB1SOY9GPo9nKk/R0K0q+27KdM3x3/LK/kV858UUWGbl9j0lqUvqQvaQrSJY9jSors4b3pbYc3dz+w4w==}
     engines: {node: '>= 18.0.0'}
 
   concat-map@0.0.1:
@@ -1390,8 +1390,8 @@ packages:
     resolution: {integrity: sha512-0QwqXteBNXgnLCdWdvPQBX6FXRHtIH3VhJPTd5Lwn28tJXc34YqSCWUmkOvtJHBmB3gGoPtrOKk3Ts8/kEZ9aA==}
     engines: {node: '>=10.13.0'}
 
-  which-typed-array@1.1.19:
-    resolution: {integrity: sha512-rEvr90Bck4WZt9HHFC4DJMsjvu7x+r6bImz0/BrbWb7A2djJ8hnZMrWnHo9F8ssv0OMErasDhftrfROTyqSDrw==}
+  which-typed-array@1.1.20:
+    resolution: {integrity: sha512-LYfpUkmqwl0h9A2HL09Mms427Q1RZWuOHsukfVcKRq9q95iQxdw0ix1JQrqbcDR9PH1QDwf5Qo8OZb5lksZ8Xg==}
     engines: {node: '>= 0.4'}
 
   which@1.3.1:
@@ -1749,7 +1749,7 @@ snapshots:
       es-errors: 1.3.0
       function-bind: 1.1.2
 
-  call-bind@1.0.8:
+  call-bind@1.0.9:
     dependencies:
       call-bind-apply-helpers: 1.0.2
       es-define-property: 1.0.1
@@ -1800,7 +1800,7 @@ snapshots:
 
   commander@9.5.0: {}
 
-  compressing@2.1.0:
+  compressing@2.1.1:
     dependencies:
       '@eggjs/yauzl': 2.11.0
       flushwritable: 1.0.0
@@ -2314,7 +2314,7 @@ snapshots:
 
   is-typed-array@1.1.15:
     dependencies:
-      which-typed-array: 1.1.19
+      which-typed-array: 1.1.20
 
   is-unc-path@1.0.0:
     dependencies:
@@ -2924,10 +2924,10 @@ snapshots:
       - bare-abort-controller
       - react-native-b4a
 
-  which-typed-array@1.1.19:
+  which-typed-array@1.1.20:
     dependencies:
       available-typed-arrays: 1.0.7
-      call-bind: 1.0.8
+      call-bind: 1.0.9
       call-bound: 1.0.4
       for-each: 0.3.5
       get-proto: 1.0.1
