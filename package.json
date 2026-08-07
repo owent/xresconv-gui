@@ -25,7 +25,7 @@
     "minimatch": "^10.2.4"
   },
   "devDependencies": {
-    "electron": "^41.1.0",
+    "electron": "^41.10.3",
     "@electron/packager": "^19.1.0",
     "gulp": "^5.0.1"
   },
