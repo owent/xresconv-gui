@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "bootstrap": "^5.3.8",
     "compressing": "^2.1.1",
     "jquery": "^4.0.0",
