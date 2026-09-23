@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global>
+        <work_dir>.</work_dir>
+        <xresloader_path>xresloader.jar</xresloader_path>
+        <proto>protobuf</proto>
+        <output_type>bin</output_type>
+        <output_type rename="/(?i)\.bin$/\.json/">json</output_type>
+        <output_type rename="/(?i)\.bin$/\.csv/" output_dir="output_client" class="client" tag="keep">ue-csv</output_type>
+        <proto_file>proto/a.pb</proto_file>
+        <proto_file>proto/b.pb</proto_file>
+        <output_dir>output</output_dir>
+        <data_src_dir>data_a</data_src_dir>
+        <data_src_dir>data_b</data_src_dir>
+        <data_version>1.0.0.0</data_version>
+        <rename>/(?i)\.bin$/\.lua/</rename>
+        <java_option>-Xmx1024m</java_option>
+        <java_option>-Dfile.encoding=UTF-8</java_option>
+        <default_scheme name="KeyRow">2</default_scheme>
+        <default_scheme name="MacroSource">demo.xlsx|macro|2,1</default_scheme>
+        <option name="外部验证器" desc="自定义选项">--validator-rules custom_validator.yaml</option>
+    </global>
+    <list>
+        <item file="demo.xlsx" scheme="scheme_demo" name="演示表" tag="keep drop" class="server"></item>
+        <item file="demo.xlsx" scheme="scheme_other" name="客户端表" class="client server" tag="keep"></item>
+    </list>
+</root>

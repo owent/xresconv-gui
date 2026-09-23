@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <include>include-child-a.xml</include>
+    <include>include-child-b.xml</include>
+    <global>
+        <work_dir>.</work_dir>
+        <xresloader_path>xresloader.jar</xresloader_path>
+        <proto>protobuf</proto>
+        <output_type>bin</output_type>
+        <proto_file>proto/parent.pb</proto_file>
+        <output_dir>output_parent</output_dir>
+        <data_src_dir>data_parent</data_src_dir>
+        <data_version>9.9.9.9</data_version>
+    </global>
+    <list>
+        <item file="parent.xlsx" scheme="scheme_parent" name="父配置条目"></item>
+    </list>
+</root>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global>
+        <work_dir>.</work_dir>
+        <output_type>json</output_type>
+        <data_version>1.0.0.2</data_version>
+        <java_option>-Xmx768m</java_option>
+    </global>
+    <list>
+        <item file="child_b.xlsx" scheme="scheme_b" name="子B条目"></item>
+    </list>
+</root>

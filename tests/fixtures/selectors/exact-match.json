@@ -1,0 +1,8 @@
+[{
+    "name": "精确匹配按钮",
+    "by_schemes": [{
+        "file": "demo.xlsx",
+        "scheme": "scheme_demo"
+    }],
+    "default_selected": true
+}]

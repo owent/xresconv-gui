@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global>
+        <work_dir>.</work_dir>
+        <xresloader_path>xresloader.jar</xresloader_path>
+        <proto>protobuf</proto>
+        <output_type>bin</output_type>
+        <proto_file>proto/kind.pb</proto_file>
+        <output_dir>output</output_dir>
+        <data_src_dir>data</data_src_dir>
+    </global>
+    <list>
+        <item file="demo.xlsx" scheme="scheme_demo" name="演示表"></item>
+    </list>
+</root>

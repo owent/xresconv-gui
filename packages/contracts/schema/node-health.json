@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "node-health",
+  "title": "NodeHealth",
+  "description": "One-shot health line emitted by a Node role entry (guardian/backend) and consumed by the supervising process. The guardian nests the backend's line under `backend`, proving the shell -> guardian -> backend spawn chain. Single source of truth; TypeScript types are generated from this file.",
+  "type": "object",
+  "required": ["ok", "role", "pid", "node"],
+  "additionalProperties": false,
+  "properties": {
+    "ok": { "type": "boolean" },
+    "role": { "enum": ["guardian", "backend"] },
+    "pid": { "type": "integer", "minimum": 1 },
+    "node": { "type": "string", "minLength": 1 },
+    "protocol_version": { "type": "integer", "minimum": 1 },
+    "backend": { "$ref": "#" }
+  }
+}

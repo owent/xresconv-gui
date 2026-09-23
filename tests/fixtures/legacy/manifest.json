@@ -1,0 +1,190 @@
+{
+  "manifest_version": 1,
+  "generated_at": "2026-09-23T06:00:00Z",
+  "updated_at": "2026-09-23T07:30:00Z",
+  "status": "partially-verified",
+  "source_commit": "969b69850fb9970192511a0539cf268d3e7e7c39",
+  "baseline_commit": "3e8ec5773368ce02455a74bcd42d7ff03487be08",
+  "legacy_app": {
+    "version": "2.6.0",
+    "electron": "41.10.3",
+    "node_bundled_by_electron": "Electron 41.10.3（Chromium 系）",
+    "observation_method": "CDP 驱动真实旧应用（build/p0-baseline/drive-gui.mjs）；证据见 build/p0-baseline/evidence-*.json 与 docs/plan/records/P0-04.md"
+  },
+  "external_artifacts": {
+    "xresconv_conf_sample_xml": {
+      "url": "https://raw.githubusercontent.com/xresloader/xresconv-conf/master/sample.xml",
+      "sha256": "66c07a0c71acec97cd145320ac28c132f44a1a8a65eab03777a939b229f2fe29",
+      "bytes": 7084,
+      "fetched_at": "2026-09-23",
+      "local_copy": "build/p0-baseline/sample.xml（不入库）"
+    },
+    "xresloader_jar": {
+      "version": "2.23.6",
+      "url": "https://github.com/owent/xresloader/releases/download/v2.23.6/xresloader-2.23.6.jar",
+      "sha256": "72fd76553ebda4257bebf196b4233a2cd630a176eace1e5467750ddd7f0caa88",
+      "bytes": 28024199,
+      "note": "固定基线 JAR；2.14.1 已实测与 main 样本不兼容（缺 InMacroTable/InValues/Not/InText 验证器），支持范围见 P0-04 记录"
+    },
+    "sample_workbooks": {
+      "资源转换示例.xlsx": {"sha256": "079c667f7fd7a4f64fd016507fbcb24d3c2ead53daa8542af18071cd9b559f09", "bytes": 45962, "source": "xresloader main sample/（Git LFS）"},
+      "proto_v3/kind.pb": {"bytes": 7172, "source": "xresloader main sample/proto_v3/"},
+      "custom_validator.yaml": {"sha256": "e1085a2dc8075fa6e17bb1381f0d26a54082584cc62195c5ebc462c8bde618ec", "source": "xresloader main sample/"}
+    }
+  },
+  "features": [
+    {
+      "fixtureId": "F01-config-load",
+      "feature": "F01",
+      "linked_tests": ["C01", "C02", "C03"],
+      "fixtures": ["config/minimal.xml", "config/include-parent.xml", "config/include-cycle.xml", "config/invalid.xml"],
+      "source_anchors": ["src/main.js:1192 (build_conv_tree)", "src/main.js:1786-1851 (include 循环与竞态)", "src/main.js:955-988 (get_string_file)"],
+      "old_observation": "verified: 2+ include 时仅第一个进入顺序链，后续 include 竞态导致条目丢失但全局值覆盖父配置（3/3 复现）；循环 include alert() 阻塞页面加载约 25s 后继续；非法 XML（未闭合标签）被 HTML 解析容错正常加载",
+      "expected_new": "Rust 解析结果与旧模型一致；include 失败/循环可定位；非法输入给出可定位诊断（不要求复刻 HTML 容错）",
+      "diff_ids": ["BD-05"],
+      "normalization": ["路径分隔符统一为 /", "绝对路径前缀按执行环境归一化"],
+      "gaps": ["重复 key / 空属性样例待补"]
+    },
+    {
+      "fixtureId": "F02-tree-model",
+      "feature": "F02",
+      "linked_tests": ["C01", "C04"],
+      "fixtures": ["config/tree-items.xml", "config/global-options.xml"],
+      "source_anchors": ["src/main.js:1445-1463 (build_tree_fn)", "src/main.js:1610-1778 (item 构建)", "src/main.js:1689-1693 (default_scheme 补全)"],
+      "old_observation": "verified: DataSource 回填 file、default_scheme 补全、desc 拼接、ft_node 双向活引用、目录自动 key=_N、条目数字自增 id（evidence-model-only.json）",
+      "expected_new": "树结构、cat 绑定、DataSource 回填 file、desc 拼接文本与旧版一致",
+      "diff_ids": [],
+      "normalization": [],
+      "gaps": []
+    },
+    {
+      "fixtureId": "F03-tree-selection",
+      "feature": "F03",
+      "linked_tests": ["C04"],
+      "fixtures": ["config/tree-items.xml"],
+      "source_anchors": ["src/main.js:1865-1896 (show_conv_tree)", "src/main.js:2677-2714 (全选/全不选/展开/收起)"],
+      "old_observation": "verified-partial: 全选/级联经 selectMode:3（选择器运行中父节点呈选中传播，evidence-selector-official.json）；禁用条目交互与键盘行为待 UI 阶段实测",
+      "expected_new": "三态级联、禁止条目不可选、键盘空格/双击行为一致",
+      "diff_ids": [],
+      "normalization": [],
+      "gaps": ["禁用条目在全选中的处理、键盘交互待补测"]
+    },
+    {
+      "fixtureId": "F04-custom-selector",
+      "feature": "F04",
+      "linked_tests": ["C05", "C08"],
+      "fixtures": ["selectors/exact-match.json", "selectors/invalid-rule.json", "docs/custom-selector.json"],
+      "source_anchors": ["src/main.js:333-431 (custom_selector_on_click)", "src/main.js:131-164 (build_match_string_rule)"],
+      "old_observation": "verified: default_selected 加载时自动执行；非法 regex 记错误日志并回退为对原规则串精确匹配（无选中）；by_sheets regex 命中 DataSource 条目；force_selected 翻转逻辑（有未选中则全选，否则全不选）",
+      "expected_new": "精确/glob/regex 语义与非法规则回退一致",
+      "diff_ids": [],
+      "normalization": [],
+      "gaps": ["灾难性 regex 回溯耗时未测（旧版同步阻塞渲染进程）"]
+    },
+    {
+      "fixtureId": "F05-button-actions",
+      "feature": "F05",
+      "linked_tests": ["C08"],
+      "fixtures": ["selectors/actions-chain.json", "selectors/empty-invalid.json", "scripts/events-order.xml"],
+      "source_anchors": ["src/main.js:663-715 (run_custom_button_action)", "src/main.js:805-822 (动作链)", "src/main.js:771 (按钮 data 初始化)"],
+      "old_observation": "verified: 官方 sample + 官方选择器运行通过；delaycall 定时器链与 自定义脚本 依次执行；同按钮 data 跨脚本共享（call_times=1 实证）",
+      "expected_new": "动作顺序、共享 data、错误中断、reload 后重绑定一致",
+      "diff_ids": [],
+      "normalization": [],
+      "gaps": ["错误中断路径（脚本 reject 后链停止）未实测"]
+    },
+    {
+      "fixtureId": "F06-java-params",
+      "feature": "F06",
+      "linked_tests": ["C06", "C14"],
+      "fixtures": ["config/global-options.xml", "conversion/（固定 JAR+样本）"],
+      "source_anchors": ["src/main.js:1898-2048 (conv_start 参数拼接)", "src/main.js:2064-2086 (JAR 存在性检查)"],
+      "old_observation": "verified: 命令形态 ` -p \"protobuf\" -a \"1.0.0.0\" <option原样> -f .. -d ..` + 任务段 `-t/-n/-o/-s/-m`；多值 -f/-d 经 JSON 数组展开；java 进程参数 = java_options + [-jar, jar, --stdin]，cwd=work_dir；JAR 缺失时在 run_all_cmds 入口整批拒绝（注意：空 xresloader_path 会漏过存在性检查导致 java -jar 空串失败，exit code 1）",
+      "expected_new": "参数数组不经 shell；多值、中文/空格路径、JAR 缺失诊断一致",
+      "diff_ids": [],
+      "normalization": [],
+      "gaps": ["UNC/长路径/软链接样例未实测"]
+    },
+    {
+      "fixtureId": "F07-output-matrix",
+      "feature": "F07",
+      "linked_tests": ["C07", "C15"],
+      "fixtures": ["config/global-options.xml", "conversion/golden/"],
+      "source_anchors": ["src/main.js:1260-1277 (output_type 解析)", "src/main.js:1320-1430 (矩阵选择与禁用)", "src/main.js:1012-1032 (check_matrix_rule)"],
+      "old_observation": "verified: 基线组合（2.23.6 + main 样本 + 修正选项）3 条目 × bin+json 全绿；golden 输出 6 文件两次运行字节一致（tests/fixtures/conversion/golden/SHA256SUMS.txt）；矩阵 hint、custom-multi 自动选中行为确认",
+      "expected_new": "矩阵组合、tag/class 限定、rename/output_dir 覆盖与实际输出文件一致",
+      "diff_ids": ["BD-03"],
+      "normalization": ["data_version 固定为 1.0.0.0（配置内显式给定）"],
+      "gaps": ["msgpack/xml/javascript/ue-json/ue-csv 格式未跑 golden（依赖更多 scheme 选项）"]
+    },
+    {
+      "fixtureId": "F08-run-lifecycle",
+      "feature": "F08",
+      "linked_tests": ["R06", "R07"],
+      "fixtures": ["conversion/（固定 JAR+样本）"],
+      "source_anchors": ["src/main.js:2118-2237 (进程池)", "src/main.js:2149-2189 (退出归并)", "src/main.js:2719 (重置=窗口 reload)"],
+      "old_observation": "verified: LIFO 派发（嵌套数组→升级表→人物表）；stdout/stderr data 事件驱动下一条派发；exit/error/close 去重；exit code 累计进 failed_count；事件顺序 before→convert→after，转换失败则 after 不执行",
+      "expected_new": "并发、失败累计、重置清理进程树；终态明确",
+      "diff_ids": ["BD-03", "BD-06"],
+      "normalization": [],
+      "gaps": ["重置/取消后 Java 孤儿进程未实测（渲染崩溃后 electron 孤儿进程已观察到 2 例）"]
+    },
+    {
+      "fixtureId": "F09-script-entries",
+      "feature": "F09",
+      "linked_tests": ["C09", "C10", "C11"],
+      "fixtures": ["scripts/events-order.xml", "scripts/append-log.xml", "scripts/alert-warning.xml", "config/script-text-edge.xml", "scripts/contract.md"],
+      "source_anchors": ["src/main.js:1466-1608 (脚本编译)", "src/main.js:2301-2407 (事件链)", "src/main.js:502-661 (按钮脚本)"],
+      "old_observation": "verified: 五类入口上下文按 contract.md；事件 data 每次新建（before-2 读不到 before-1 的 data.step）；按钮 data 共享；script 标签 raw-text 与事件标签转义差异实证；alert_warning yes→on_close 顺序与 ESC 挂起实证；含 name 的事件有开关、anonymous 无 UI",
+      "expected_new": "五类入口上下文、data 生命周期、resolve/reject 单次语义与契约文档一致",
+      "diff_ids": ["BD-01"],
+      "normalization": [],
+      "gaps": ["D3：真实用户脚本样本未收集；require 原生模块 ABI 场景未测"]
+    },
+    {
+      "fixtureId": "F10-logging",
+      "feature": "F10",
+      "linked_tests": ["C12", "C13"],
+      "fixtures": ["scripts/append-log.xml", "faults/fault-log-recursion.xml", "faults/fault-log-storm.xml", "src/log4js.json"],
+      "source_anchors": ["src/main.js:166-235 (logger_append_style_message)", "src/main.js:454-500 (shell_color_to_html)", "src/main.js:842-858 (log4js 配置加载)"],
+      "old_observation": "verified: 同条日志多 hook 共享 context 且改写有序累积；递归守卫拦截嵌套 hook；跨消息 context 不共享；--log-configure 外部配置生效；10 万条日志风暴冻结 GUI 约 121s 后被 VM 超时中止（仅 16,554 条落 DOM，≈137 条/s）",
+      "expected_new": "hook 顺序/共享 context/递归保护一致；ANSI 颜色映射一致；外部 log4js 配置生效；日志有界不冻 GUI",
+      "diff_ids": ["BD-02", "BD-04"],
+      "normalization": [],
+      "gaps": ["ANSI 颜色逐码对照未测（映射表已从源码提取）", "innerHTML 主动内容注入样本未测"]
+    },
+    {
+      "fixtureId": "F11-cli-params",
+      "feature": "F11",
+      "linked_tests": ["C14"],
+      "fixtures": ["（启动参数矩阵，无独立文件）"],
+      "source_anchors": ["src/setup.js:130-172 (参数解析)", "src/setup.js:219-270 (IPC)", "src/main.js:2756-2766 (?input= 处理)"],
+      "old_observation": "verified: --input（全部基线运行使用）、--custom-selector（选择器运行使用）、--log-configure（文件 appender 实证）均生效",
+      "expected_new": "四个参数全部保留；中文路径经 URL 编码一致",
+      "diff_ids": [],
+      "normalization": [],
+      "gaps": ["--debug-mode 窗口/ devtools 未逐项截图；多 --custom-selector 叠加未测"]
+    },
+    {
+      "fixtureId": "F12-platform-env",
+      "feature": "F12",
+      "linked_tests": ["C14", "I10"],
+      "fixtures": ["（环境检查，无独立文件）"],
+      "source_anchors": ["src/main.js:2459-2568 (conv_env_check)", "src/setup.js:108-216 (窗口)", "gulpfile.js (打包参数)"],
+      "old_observation": "verified-partial: JDK 25 检测通过（多数运行）；存在 exit/stdout 竞态导致偶发误报（2/20 复现）；win32 x64 打包 367.66MB 解压/144.47MB zip（P0-05）",
+      "expected_new": "版本显示、java 检测（消除 exit/stdout 竞态）、窗口尺寸档保留",
+      "diff_ids": [],
+      "normalization": [],
+      "gaps": ["Linux/macOS 未测；高分辨率窗口档位未测"]
+    }
+  ],
+  "fault_fixtures": [
+    {"fixtureId": "R01-sync-throw", "path": "faults/fault-sync-throw.xml", "linked_tests": ["R01"], "old_observation": "verified: 同步抛错→链拒绝→GUI 存活→1 job(s) failed"},
+    {"fixtureId": "R01-async-throw", "path": "faults/fault-async-throw.xml", "linked_tests": ["R01"], "old_observation": "verified: 定时器回调抛错→渲染进程无响应≥60s（白屏实证），主进程存活"},
+    {"fixtureId": "R02-infinite-loop", "path": "faults/fault-infinite-loop.xml", "linked_tests": ["R02"], "old_observation": "verified: set_name 同步死循环→加载期渲染完全冻结（CDP Runtime.enable 无响应）"},
+    {"fixtureId": "R02-never-resolve", "path": "faults/fault-never-resolve.xml", "linked_tests": ["R02"], "old_observation": "verified: 外部 setTimeout 兜底，2s 超时拒绝"},
+    {"fixtureId": "R03-process-exit", "path": "faults/fault-process-exit.xml", "linked_tests": ["R03"], "old_observation": "verified: 渲染进程死亡、主进程存活死窗口；残留孤儿 electron 进程"},
+    {"fixtureId": "R05-log-recursion", "path": "faults/fault-log-recursion.xml", "linked_tests": ["R05", "C13"], "old_observation": "verified: 递归守卫拦截嵌套 hook；嵌套日志走原始渲染；每条日志独立 context"},
+    {"fixtureId": "R09-log-storm", "path": "faults/fault-log-storm.xml", "linked_tests": ["R09"], "old_observation": "verified: GUI 冻结约 121s，VM 120s 超时中止，仅 16,554/100,000 条落 DOM"}
+  ]
+}

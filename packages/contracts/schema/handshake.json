@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "handshake",
+  "title": "Handshake",
+  "description": "First message exchanged between UI and the Tauri shell: proves the command round-trip and pins the protocol version both sides speak. Single source of truth; TypeScript types are generated from this file.",
+  "type": "object",
+  "required": ["name", "version", "protocol_version"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "protocol_version": { "type": "integer", "minimum": 1 }
+  }
+}

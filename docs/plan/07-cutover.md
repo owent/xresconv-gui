@@ -6,7 +6,7 @@
 
 ## 切换前核对
 
-- D1–D5 有决定、证据和适用范围，不能以“跨平台”替代具体 OS/版本/架构清单。
+- D1–D6 有决定、证据和适用范围，不能以“跨平台”替代具体 OS/版本/架构清单；Rust 范围只限必要 Tauri 构建/胶水。
 - F01–F12 和全部必需测试项已通过；真实脚本兼容不能只靠示例脚本自测。
 - 引导/离线两变体齐全，macOS 系统运行时特例写入下载页与安装说明。
 - UI、宿主、guardian、Node/模块、原生插件、安装器的 hash 与验收报告一致。
@@ -27,7 +27,8 @@
 
 | 对象 | 删除前检查 | 替代入口 |
 | --- | --- | --- |
-| `src/setup.js`、`src/main.js`、旧 HTML/CSS | CLI、窗口、脚本、配置、日志和所有功能映射齐全 | `src-tauri/`、`crates/`、`apps/desktop/`、Node 包 |
+| `src/setup.js`、`src/main.js`、旧 HTML/CSS | CLI、窗口、脚本、配置、日志和所有功能映射齐全 | 薄 `src-tauri/`、`apps/desktop/`、`packages/backend` 与各 Node 包 |
+| 已有 `crates/config`、`domain`、`process-supervisor`、`protocol` 及 Cargo schema 导出 | P1-00 审计完成，相关合同和测试已迁往 Node 且通过；检查壳引用和 CI | TypeScript backend/guardian、JSON Schema 源；保留 Tauri 所需 Cargo.lock/工具链 |
 | Electron / packager | 不再作为旧应用对照执行的必要工具进入生产构建 | Tauri 构建/发行 |
 | jquery/Fancytree/Bootstrap/Popper | 新 UI、worker、CSS 及动态模块清单均不依赖它们 | React 组件和经测试的节点镜像 |
 | `scripts/patch-fancytree.js`、copy-libs、旧 prepare | 所有引用已移除，不影响新工作区安装 | 新工具链准备/资源组装 |
@@ -53,7 +54,7 @@ XML、选择器 JSON、Java/JAR 和转换输出继续由用户控制，新版加
 | 脚本 API | 五入口准确字段、require 锚点、data/cache 生命周期、节点方法、回调、超时和隔离限制 |
 | CHANGELOG / 迁移说明 | 架构变化、已修复问题、BD 差异、最低系统与平台调整、回退办法 |
 | 安装/离线说明 | 每目标产物、缺 runtime 的行为、权限/重启/离线失败恢复 |
-| 开发/故障排查 | Rust/Node 工具链、日志、guardian、符号文件、真实桌面测试、调试端口约束 |
+| 开发/故障排查 | Node/TypeScript 业务工具链与独立测试、Tauri 必需 Rust 构建、guardian、符号文件、真实桌面测试、调试端口约束 |
 | AGENTS/CLAUDE/来源索引 | 当前实际技术栈、已存在命令、测试和不可猜测的边界；保留用户已有规则 |
 | 示例配置/选择器 | 与真实脚本 API 一致，修正文档 `done()` 与 resolve/reject 的分歧 |
 | Plan 与分册 | 逐任务填写证据；只勾选达到出口的任务，未决问题仍保留 |

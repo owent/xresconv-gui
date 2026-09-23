@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global><work_dir>.</work_dir><output_type>bin</output_type></global>
+    <gui>
+        <on_before_convert name="弹框探针" timeout="4000">
+            log_notice("ALERT-PROBE before-show");
+            alert_warning("探针内容", "探针标题", {
+                yes: function () { log_notice("ALERT-PROBE yes"); },
+                no: function () { log_notice("ALERT-PROBE no"); },
+                on_close: function () {
+                    log_notice("ALERT-PROBE on_close");
+                    resolve();
+                }
+            });
+        </on_before_convert>
+    </gui>
+    <list>
+        <item file="a.xlsx" scheme="s" name="条目甲"></item>
+    </list>
+</root>

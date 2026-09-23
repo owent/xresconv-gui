@@ -1,0 +1,9 @@
+[{
+    "name": "动作链-含脚本",
+    "action": [
+        "unselect_all",
+        "script: chain_step_one",
+        "script: chain_step_two"
+    ],
+    "style": "outline-dark"
+}]

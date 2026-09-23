@@ -33,15 +33,17 @@
 
 ## 技术栈与命令
 
-- Node.js LTS + Electron 41 + gulp 5 + `@electron/packager`。入口 `src/setup.js`（主进程），`src/main.js` + `src/index.html`（渲染进程）。
-- 包管理器：**以 yarn 为准**（README 与 `.github/workflows/build.yml` 一致）。仓库历史遗留 `package-lock.json`、`pnpm-lock.yaml`、`yarn.lock` 三个锁文件，不要混用多个包管理器安装依赖；变更依赖时只更新 `yarn.lock`。
+- Node.js LTS（>=24）+ Electron 44 + gulp 5 + `@electron/packager`。入口 `src/setup.js`（主进程），`src/main.js` + `src/index.html`（渲染进程）。新架构（Tauri 2 薄壳 + Node/TS workspaces）见 `Plan.md` 与 `docs/plan/`。
+- 包管理器：**Yarn 4（corepack，`packageManager: yarn@4.18.0`）为唯一 JS 包管理器**；`package-lock.json`、`pnpm-lock.yaml` 已删除（P1-02），唯一 JS 锁文件为 `yarn.lock`，`Cargo.lock` 仅服务 Tauri 薄壳。安装用 `corepack yarn install`，变更依赖时只更新 `yarn.lock`。
 - 常用命令：
   - 安装依赖：`yarn install`（`prepare` 钩子会执行 `node scripts/patch-fancytree.js && gulp copy-libs`）
   - 启动：`yarn run start`；调试模式：`yarn run debug-start`；VSCode Attach：`yarn run debug`（端口 5858）
   - 打包：`yarn run package-test`（当前平台）、`package-win32` / `package-linux` / `package-darwin` / `package-all`，产物在 `out/`
-- 当前**没有测试框架和 lint/typecheck 配置**。验证手段为：`yarn run package-test` 打包成功 + 手动启动冒烟。新增测试体系前先在 `docs/ai/source-index.md` 记录选型依据。
+- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。旧 Electron 命令保留至 P7 交接；旧架构验证手段为 `yarn run package-test` 打包成功 + 手动冒烟。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
 
 ## 目录结构
+
+- `apps/desktop/`、`packages/{backend,guardian,contracts,script-host,compat-service}/`、`src-tauri/`、`tests/`：新架构骨架（D6，P1 已验收本机范围，见 `docs/plan/records/`）
 
 - `src/`：应用源码（`setup.js` 主进程、`main.js` 渲染进程、`index.html`、`main.css`、`log4js.json` 日志配置）
 - `scripts/patch-fancytree.js`：安装后修补 jquery.fancytree 的脚本（`prepare` 钩子调用）

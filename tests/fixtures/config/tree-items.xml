@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global>
+        <work_dir>.</work_dir>
+        <xresloader_path>xresloader.jar</xresloader_path>
+        <proto>protobuf</proto>
+        <output_type>bin</output_type>
+        <proto_file>proto/kind.pb</proto_file>
+        <output_dir>output</output_dir>
+        <data_src_dir>data</data_src_dir>
+        <default_scheme name="KeyRow">2</default_scheme>
+    </global>
+    <category>
+        <tree id="all_cats" name="大分类">
+            <tree id="kind" name="角色配置"></tree>
+        </tree>
+        <tree id="test" name="测试"></tree>
+    </category>
+    <list>
+        <item file="demo.xlsx" scheme="scheme_kind" name="人物表" cat="kind" class="server">
+            <option name="移除空列表项" desc="自定义选项">--disable-empty-list</option>
+        </item>
+        <item name="嵌套数组测试" cat="test" class="client server" tag="release">
+            <scheme name="DataSource">demo.xlsx|arr_in_arr|3,1</scheme>
+            <scheme name="ProtoName">arr_in_arr_cfg</scheme>
+            <scheme name="OutputFile">arr_in_arr_cfg.bin</scheme>
+        </item>
+        <item name="无分类条目" scheme="scheme_orphan">
+            <scheme name="DataSource">demo2.xlsx|sheet_only</scheme>
+        </item>
+    </list>
+</root>

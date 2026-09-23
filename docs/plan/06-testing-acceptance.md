@@ -2,7 +2,7 @@
 
 [执行索引](README.md) · [上一册](05-packaging-release.md) · [下一册](07-cutover.md)
 
-本册把主计划 C01–C15、R01–R12、I01–I14 展开为可执行场景。**以下全是待实现/待执行用例，没有任何测试被标记为已通过。** 测试 ID 是固定引用，不以预估总用例数作为覆盖证明。
+本册把主计划 C01–C15、R01–R12、I01–I14 展开为可执行场景。**P0 旧版基线已有 [阶段记录](records/README.md)；下列新架构用例及 D6 新增验收仍需实施执行，不继承旧 Rust 骨架的通过状态。** 测试 ID 是固定引用，不以预估总用例数作为覆盖证明。
 
 ## 测试目录与夹具
 
@@ -14,6 +14,7 @@
 | `tests/fixtures/conversion` | 表格、协议、固定 JAR/JDK manifest、预期输出 | 大文件/外部 JAR 按哈希获取，不冒充当前仓库文件 |
 | `tests/helpers/fake-converter` | 可控制 stdin、stdout/stderr、退出和子树的假程序 | argv/stdin 原样捕获；与真实 JAR 测试分开 |
 | `tests/script-host` | 真实 Node worker 和监督进程集成 | 每例有外部截止与清理检查 |
+| `tests/backend` / `tests/guardian` | Node 业务、角色协议、监督与生命周期 | 独立进程故障注入；Node 单元/契约 job 无 Rust 依赖 |
 | `tests/browser` / `tests/desktop` | 浏览器 adapter 测试 / 原生 Tauri 测试 | 报告分别标识，不混称桌面验收 |
 | `tests/installers` | 干净 VM 快照、安装入口、断网与包管理证据 | 只允许显式隔离测试环境执行故障/卸载 |
 
@@ -25,7 +26,7 @@ fake-converter 至少支持：无输出、单条多块输出、多条一次输�
 
 | ID | 准备与执行 | 断言 | 映射 |
 | --- | --- | --- | --- |
-| CF01 | 加载最小/完整/空属性/重复键/CDATA/实体/非法 XML；与旧观察比对 | 脚本文本无改写；scheme/global 数组和默认值一致；非法配置给来源错误 | F01/F02、C01/C06 |
+| CF01 | 加载最小/完整/空属性/重复键/CDATA/实体/非法 XML；与旧观察比对 | 脚本文本不二次转义；scheme/global 数组和默认值一致；按 BD-07 严格拒绝非法 XML 并给来源错误 | F01/F02、C01/C06 |
 | CF02 | 两级 include；相同文件重复、环、大小写/软链接别名；两文件人为不同延迟；加载途中换入口 | 合并顺序可解释；旧竞态记 BD-05；只最新成功候选提交，坏候选不覆盖 | F01、C02、R10 |
 | CF03 | 在中文/空格/UNC/长路径/非 BMP/相对目录执行；变更启动 cwd | include/工作/JAR/资源目录不串用；平台不支持的路径明确诊断 | F01/F06、C03/C14 |
 | CF04 | 父子混选、禁用叶子、空分类、展开/折叠、精确/glob/regex/无效规则和默认选择 | 三态/选中集合与旧版一致；非法和灾难回溯规则不冻结宿主 | F03/F04、C04/C05 |
@@ -42,12 +43,13 @@ CF02 不能只比较一次偶然顺序。用受控延迟复现旧代码并记录
 | SC02 | 五入口逐字段检测；同 item/不同 item；连续两次 before/after；首次转换前、转换中、结束后、下一次转换前及 reset 后日志 | set_name 无 require；data 生命周期正确；日志 hook 上下文的保留/更新/清除符合旧合同 | F09、C09 |
 | SC03 | 同按钮两次点击和动作链、不同按钮；同步 resolve；重复 resolve/reject；从不完成 | data 身份和隔离正确；只结束一次；外部截止生效；失败阻止后续 action | F05/F09、C08/C09、R02/R04/R05 |
 | SC04 | require 内置/相对/动态/npm/原生包；adm-zip/compressing 创建与解压往返；按钮与 hook 共用状态模块；环境变量样本；离线运行 | 加载锚点/ABI/cache/环境符合契约；归档内容/路径正确；跨进程单例差异不可静默忽略 | F09、C11/C12 |
-| SC05 | 节点遍历/选择/展开/标题和循环引用；多 item 共用 default_scheme 数组；跨 hook 对象引用；函数/Buffer/BigInt 存入按钮 data；配置更换后发旧 patch | worker 内对象别名与类型保留，操作只作用合法 revision，不对 data 强制 JSON 化 | F03/F09、C10、R04/R10 |
-| SC06 | 脚本发 alert_warning；分别 yes/no/ESC/关闭/重复点击；脚本结束后回调；worker 失效后点击 | 回调顺序及次数符合基线，合法回调不提前销毁，过期回调不执行 | F05/F09、C09/C10、R04/R05 |
+| SC05 | D3 公开节点合同的读写/操作及对象别名；未公开 Fancytree/DOM 调用；多 item 共用 default_scheme 数组；函数/Buffer/BigInt 存入按钮 data；配置更换后发旧 patch | 公开合同的对象别名与类型保留，操作只作用合法 revision，不对 data 强制 JSON 化；排除接口给诊断与迁移指引 | F03/F09、C10、R04/R10 |
+| SC06 | 脚本发 alert_warning；分别 yes/no/ESC/关闭/重复点击；脚本结束后回调；worker 失效后点击 | 合法回调不提前销毁且只调用一次，过期回调不执行；按 BD-06 修复 ESC 关闭不回调造成的挂起 | F05/F09、C09/C10、R04/R05 |
 | SC07 | 同步 throw、异步 throw、rejection、同步循环、异步循环、process.exit/abort、原生崩溃 | 对应隔离域失败，GUI 可交互、状态可收尾，无无限重启或自动重放 | F09、R01/R02/R03/R11 |
 | SC08 | 可控 heap/Buffer/native 内存压力、派生多层/后台/detached 子进程；取消和强杀 GUI | 实测资源上限与清理；未支持的恶意逃逸边界记录，不能误写“完全沙箱” | F09/F12、R03/R07/R08 |
 | SC09 | 多日志 hook 连续改写、第二个 throw、hook 内再次 log、日志突发和慢 hook | 顺序、递归保护、原始记录和错误可查；管道读取、取消不死锁 | F10、C13、R05/R09 |
 | SC10 | worker 写文件后崩溃；有多个活动 invocation；旧 generation 迟到回包 | 不重试副作用；所有受影响调用进入确定状态；新 worker 不接受旧回复 | F08/F09、R04/R07/R10/R11 |
+| SC11 | 分别阻塞/终止 backend、guardian；worker 伪报 backend 身份、向 stdout 注入帧、发送超大帧；可信 fork 通道断开/背压/发送回调后不响应；壳强杀 | 身份绑定实际通道；按字节限长后再解析不可信消息；发送回调不当作业务完成；独立监督截止可用，UI 故障可见，所属子树清理有实证，不自动重放 | F08/F09/F12、R03/R04/R07/R09/R10/R11/R12 |
 
 ### 必须保留的具体样例
 
@@ -69,7 +71,7 @@ require('node:timers').setTimeout(() => {
 }, 0);
 ```
 
-节点别名样例需选中一个实际叶子；假设依据是 P0 捕获的 Fancytree 对象关系：
+节点对象样例按 P2 冻结的公开合同分类。以下为 P0 观察过的旧对象用法，不能因其曾经可用就自动列为 D3 的兼容承诺：
 
 ```javascript
 const item = selected_items[0];
@@ -78,7 +80,11 @@ item.ft_node.setTitle('新标题');
 resolve();
 ```
 
+P2 必须把上述访问逐项标为公开保留或未公开排除：保留项验证镜像身份/操作可见性，排除项验证诊断与迁移指引。不得为了让这个旧样例无差异运行而恢复 Fancytree/DOM。
+
 SC07/08 必须在外层测试 runner 再加硬超时。循环/资源耗尽用例在隔离 CI/VM，结束时检查该用例的进程树、句柄、临时目录；外层 runner 自身被杀后也要有回收机制。故障测试不能污染下一用例而制造误判。
+
+SC11 在 Windows/macOS/Linux 分别执行，guardian 死亡后的树清理由独立测试 runner 观察，不使用已死亡进程自行上报作为证据。Node 内置 IPC 的接收回调已晚于反序列化，不能用回调中的 Ajv/长度检查冒充不可信输入的分配前大小限制。backend/guardian/worker 的退出、挂起、断连分别验收，不能只杀 worker 即宣称新架构存活性通过。
 
 ## 转换与日志用例
 
@@ -118,8 +124,8 @@ EX05 不仅比较 exit code 或文件存在。确定性格式做字节比较；�
 | PK03 | Windows 无 runtime/无缓存/断网，安装 offline；拒绝提权/策略阻止/需重启 | 真离线完成或明确失败/重启；架构正确，不假成功 | I03/I06/I07/I10 |
 | PK04 | macOS 两架构，签名包断网首次打开；最低系统和不支持系统 | 支持系统可用；旧系统明确拒绝；没有虚构 WKWebView 安装步骤 | I01/I05/I10/I11 |
 | PK05 | Linux 缺 WebKit 的支持桌面，运行 bootstrap；测试参数/退出码/权限 | 引导器能先于 GTK/WebKit 启动，正确安装或诊断 | I02/I04/I06/I09/I12 |
-| PK06 | 每 distro/arch 的最小/已更新桌面，清缓存断网跑 offline；依赖冲突/包锁/损坏/空间不足 | 完整闭包、本地包源、无远端获取/降级/源永久修改；失败可恢复 | I03/I05/I06/I07/I12 |
-| PK07 | 安装目录中文/空格/只读；移除全局 Node/npm/开发工具，运行归档脚本 | 固定 Node 和模块定位正确，动态 require 可用，无网络补包 | I09/I13 |
+| PK06 | 每 distro/arch 的最小/已更新桌面，清缓存断网跑 offline；依赖冲突/包锁/损坏/空间不足 | D2 自含包路径验证随包完整性与系统集成，回退路径验证完整闭包/本地包源；均无远端获取/降级/源永久修改，失败可恢复 | I03/I05/I06/I07/I12 |
+| PK07 | 安装目录中文/空格/只读；移除全局 Node/npm/开发工具，启动全部 Node 角色并运行归档脚本 | 各角色复用单份固定 Node，JS/模块/必要适配定位正确，动态 require 可用，无网络补包 | I09/I13 |
 | PK08 | 核对签名、公证、SBOM、license、最终 hashes 和二进制依赖/端口 | 应用及 sidecar 都有效，无测试服务/私密配置/旧 UI 运行依赖 | I10/I11、G5 |
 | PK09 | 旧版→新版、同版修复、降回旧版、卸载重装；删除 runtime 后启动；无 Java/JAR | 用户数据保留，共享 runtime 不卸载；修复/诊断在 GUI 创建前可用 | I05/I08/I14 |
 
@@ -138,7 +144,7 @@ EX05 不仅比较 exit code 或文件存在。确定性格式做字节比较；�
 
 统一命令采用主计划列出的 `yarn test:unit/test:script-host/test:contracts/test:browser/test:desktop/test:conversion/test:installers`，实施时在各工具真实能力内提供 case/target 过滤，不能捏造某框架不存在的 CLI 参数。所有 runner 必须输出实际发现与执行数量；零用例视为失败。
 
-Rust：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`。生产 feature 和 E2E feature 分别检查，不能用单次 `--all-features` 构建取代生产权限验证。
+Node 业务与契约 job 在不提供 Rust/Cargo 的环境执行 schema 生成、类型检查和相关测试，确认已经解除旧 Cargo 导出依赖。Tauri 原生壳单独执行 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`；workspace 收敛为必要桌面入口/胶水，不含 Rust 业务工程。生产 feature 和 E2E feature 分别检查，不能用单次 `--all-features` 构建取代生产权限验证。
 
 不得把故障测试直接指向开发者机器的真实项目或安装目录。安装器 runner 缺少隔离目标标识时拒绝执行；测试用的卸载、杀进程只作用于 manifest 登记的测试安装/进程所有权。
 
@@ -148,7 +154,7 @@ P0 固定参考硬件/VM、数据、压缩算法和架构。候选门槛沿用�
 
 性能步骤：预热与冷启动分开 → 同负载重复测量 → 保存各次原值 → 计算分布/中位数/p95 → 标明失败/异常样本及原因。冷启动至少 10 次，交互每类至少 100 次作为初始采样计划；实际稳定性不足时增加样本并说明，不只删掉慢样本。
 
-泄漏循环包括加载→选择→转换→取消或完成→重置；检查 GUI、guardian、Node、Java 的进程数、句柄和内存稳定态。UI 日志保留窗口造成的正常增长与孤儿订阅增长分别解释。故障进入终态需在配置截止时间加已验证清理宽限内完成。
+泄漏循环包括加载→选择→转换→取消或完成→重置；分别检查 GUI/WebView、Node backend、Node guardian、worker/helper、Java 的进程数、句柄和内存稳定态，并报告整个进程树总量，避免只看 GUI 而遗漏多 Node 进程成本。UI 日志保留窗口造成的正常增长与孤儿订阅增长分别解释。故障进入终态需在配置截止时间加已验证清理宽限内完成。
 
 报告至少包含以下内容；本次不生成虚假的成功报告：
 

@@ -1,0 +1,19 @@
+{
+  "name": "@xresconv/compat-service",
+  "version": "3.0.0-dev.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "typecheck": "node --check src/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "log4js": "6.9.1",
+    "minimatch": "10.2.6"
+  },
+  "devDependencies": {
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
+  }
+}

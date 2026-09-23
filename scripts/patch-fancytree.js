@@ -1,13 +1,7 @@
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
-const baseDir = path.join(
-  __dirname,
-  "..",
-  "node_modules",
-  "jquery.fancytree",
-  "dist"
-);
+const baseDir = path.join(__dirname, "..", "node_modules", "jquery.fancytree", "dist");
 const files = [
   "modules/jquery.fancytree.js",
   "jquery.fancytree-all-deps.js",

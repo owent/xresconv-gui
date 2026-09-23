@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global>
+        <work_dir>.</work_dir>
+        <xresloader_path>xresloader.jar</xresloader_path>
+        <output_type>bin</output_type>
+    </global>
+    <gui>
+        <on_before_convert name="事件一" checked="true" mutable="true" timeout="5000">
+            data.step = (data.step || []);
+            data.step.push("before-1");
+            log_notice("before-1 data keys: " + Object.keys(data).join(","));
+            resolve();
+        </on_before_convert>
+        <on_before_convert name="事件二" checked="true" mutable="false" timeout="5000">
+            log_notice("before-2 sees data.step: " + JSON.stringify(data.step || null));
+            resolve();
+        </on_before_convert>
+        <on_before_convert checked="false" timeout="5000">
+            log_notice("anonymous-disabled-should-not-run");
+            resolve();
+        </on_before_convert>
+        <on_after_convert name="后处理" timeout="5000">
+            log_notice("after-1 sees data.step: " + JSON.stringify(data.step || null));
+            resolve();
+        </on_after_convert>
+        <script name="chain_step_one" timeout="5000">
+            data.chain = (data.chain || 0) + 1;
+            log_notice("chain_step_one count=" + data.chain);
+            resolve();
+        </script>
+        <script name="chain_step_two" timeout="5000">
+            data.chain = (data.chain || 0) + 1;
+            log_notice("chain_step_two count=" + data.chain);
+            resolve();
+        </script>
+    </gui>
+    <list>
+        <item file="a.xlsx" scheme="s" name="条目甲"></item>
+    </list>
+</root>

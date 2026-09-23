@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global><work_dir>.</work_dir><output_type>bin</output_type></global>
+    <gui>
+        <set_name>
+            while (true) {}
+        </set_name>
+    </gui>
+    <list>
+        <item file="a.xlsx" scheme="s" name="条目甲"></item>
+    </list>
+</root>
