@@ -59,7 +59,7 @@
 + light
 + dark
 
-> Sample: 使用 [doc/custom-selector.json](doc/custom-selector.json) 和 https://github.com/xresloader/xresconv-conf/blob/master/sample.xml 里的配置，可以使用 `--custom-selector doc/custom-selector.json` 来启动。
+> Sample: 使用 [docs/custom-selector.json](docs/custom-selector.json) 和 https://github.com/xresloader/xresconv-conf/blob/master/sample.xml 里的配置，可以使用 `--custom-selector docs/custom-selector.json` 来启动。
 
 特殊行为 **action** 字段的特殊功能:
 
@@ -70,13 +70,13 @@
 
 ## 示例
 
-![示例截图-1](doc/snapshoot-1.gif)
+![示例截图-1](docs/snapshoot-1.gif)
 
-![示例截图-2](doc/snapshoot-2.gif)
+![示例截图-2](docs/snapshoot-2.gif)
 
-![示例截图-3](doc/snapshoot-4.png)
+![示例截图-3](docs/snapshoot-4.png)
 
-自定义按钮启动示例: `./xresconv-gui.exe --custom-selector ./doc/custom-selector.json`
+自定义按钮启动示例: `./xresconv-gui.exe --custom-selector ./docs/custom-selector.json`
 
 ## 注意事项
 

@@ -7,7 +7,7 @@ const gulp = require("gulp"),
 
 var packger_options = {
   dir: ".",
-  icon: `${__dirname}/doc/logo.ico`,
+  icon: `${__dirname}/docs/logo.ico`,
   ignore: [
     "node_modules/.bin",
     "node_modules/electron",
@@ -170,7 +170,7 @@ gulp.task(
     var opts = extend_options({}, packger_options, {
       platform: "darwin",
       arch: "all",
-      icon: `${__dirname}/doc/logo.icns`,
+      icon: `${__dirname}/docs/logo.icns`,
     });
     return electron_packger(opts, function (err, appPaths) {
       if (err) {

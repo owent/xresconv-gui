@@ -19,13 +19,13 @@ const app_config = {
   useSize: null,
   minWidth: 1280,
   minHeight: 720,
-  icon: `${__dirname}/../doc/logo.ico`,
+  icon: `${__dirname}/../docs/logo.ico`,
   main: `file://${__dirname}/index.html`,
   log_configure: null,
 };
 
 if ("darwin" == os.platform().toLowerCase()) {
-  app_config.icon = `${__dirname}/../doc/logo.png`; // darwin should use png as icon
+  app_config.icon = `${__dirname}/../docs/logo.png`; // darwin should use png as icon
 }
 
 const electron = require("electron");
@@ -79,7 +79,7 @@ function readCustomSelectors(file_path) {
         } catch (e) {
           reject(`Parse json of ${file_path} failed: ${e.toString()}`);
         }
-      }
+      },
     );
   });
 }
@@ -122,7 +122,7 @@ function createWindow() {
     app_config.useSize = app_config.size.default;
   }
   console.log(
-    `Initialize screen size: ${screen_width}x${screen_height},  window size: ${app_config.useSize.width}x${app_config.useSize.height}`
+    `Initialize screen size: ${screen_width}x${screen_height},  window size: ${app_config.useSize.width}x${app_config.useSize.height}`,
   );
 
   var main_url = app_config.main;
@@ -235,7 +235,7 @@ ipcMain.on("ipc-resize-window", (event, arg) => {
     //win.setSize(arg.width, arg.height + app_config.useSize.height + (app_config.debug ? 28 : 0));
     win.setContentSize(
       Math.min(Math.ceil(arg.width), 1778),
-      Math.min(Math.ceil(arg.height), 1000)
+      Math.min(Math.ceil(arg.height), 1000),
     );
   }
   event.reply("ok");

@@ -1,0 +1,626 @@
+# xresconv-gui 全面重构执行计划与测试计划
+
+## 0. 执行入口与分册
+
+本文件保留目标、选型、版本快照及 P0–P7 阶段出口；具体任务、接口、测试步骤和证据格式见 [执行计划索引](docs/plan/README.md)。所有实施任务仍为待执行，文档校验通过不代表实施验收通过。
+
+| 阅读顺序 | 分册 | 用途 |
+| --- | --- | --- |
+| 1 | [基线与工具链](docs/plan/01-baseline-toolchain.md) | P0/P1，旧行为取证、依赖升级、工程骨架及回退 |
+| 2 | [接口与脚本宿主](docs/plan/02-contracts-script-host.md) | P2，IPC、脚本上下文、节点镜像、监督与资源回收 |
+| 3 | [配置与转换内核](docs/plan/03-domain-conversion.md) | P3，XML、选择、转换计划、Java 协议及日志 |
+| 4 | [UI 与交互](docs/plan/04-ui.md) | P4，页面组成、状态所有权、可访问性及迁移 |
+| 5 | [安装与 CI 发布](docs/plan/05-packaging-release.md) | P5，双版本安装包、运行时、签名、Actions 和产物矩阵 |
+| 6 | [测试与验收](docs/plan/06-testing-acceptance.md) | P6，fixture、具体步骤/断言、覆盖映射和证据 |
+| 7 | [切换与交接](docs/plan/07-cutover.md) | P7，删除旧架构、数据兼容、回滚和交付清单 |
+
+分册细化主计划，不复制依赖版本表；发生范围或兼容性变化时同时更新主计划和对应合同。未经实测的实现策略均是拟定方案；不能将兼容性风险记成已解决。
+
+## 1. 状态、目标与实施边界
+
+- 编制日期：2026-09-23。
+- 源码基线：`3e8ec5773368ce02455a74bcd42d7ff03487be08`，应用版本 `2.6.0`。
+- 当前状态：**计划已编制，等待实施；本文不代表依赖已升级、功能已实现或实施测试已通过。**
+- 本次只维护计划分册、文档索引和相关来源记录，不安装项目依赖、不调整工作流、不构建新应用、不发布。
+- 上述提交是已提交代码基线；工作树还包含用户的源码、文档迁移及工程规则改动。实施前记录实际工作树快照，保留这些改动，不用旧提交覆盖当前文件。
+
+用户已确定的目标：
+
+1. 将保留的依赖、工具链及全部 GitHub Actions 升级到实施时最新稳定版本。
+2. 采用 **Tauri 2 + 系统 WebView + 独立 Node.js 脚本进程**，不采用 Deno 替代方案。
+3. 全面重构 UI、数据模型、配置加载、转换调度、日志、脚本宿主及发布流程；移除 jQuery、Fancytree、Bootstrap 等旧 UI 依赖。
+4. 保留现有业务功能、XML 配置格式、启动参数、自定义按钮、JavaScript 用户脚本和必要的 Node.js 模块能力。
+5. 用户脚本发生异常、死循环、进程退出或资源超限时，不得导致 GUI 白屏、主进程退出或任务状态永久卡住。
+6. 每个正式支持的平台/架构同时提供引导安装版和离线安装版。系统运行时满足要求时复用，否则引导安装或从包内安装。
+
+实施边界：本仓库负责 GUI 与宿主，不自行变更 xresconv-conf 或 xresloader 的协议。Java 与 xresloader.jar 仍为用户提供的业务运行环境；“离线安装版”默认覆盖本 GUI 的 Node.js 与 WebView/GUI 运行依赖，不擅自附带或升级用户的 JDK、JAR。
+
+完成条件：功能对照表、旧脚本回归、故障隔离、三平台真实应用测试、安装矩阵和产物检查均通过，才允许切换正式发行。体积数字必须来自完整产物，不能以空 Tauri 应用或运行时本体替代。
+
+## 2. 源码事实与待决策事项
+
+### 2.1 已核实的现状
+
+| 范围 | 当前行为与重构影响 | 源码依据 |
+| --- | --- | --- |
+| 桌面入口 | Electron 主进程创建窗口，解析启动参数，提供少量 IPC | `src/setup.js` |
+| 权限与脚本 | 渲染器启用 Node integration、关闭 context isolation；脚本与界面共享渲染进程，使用 `node:vm` | `src/setup.js:188`、`src/main.js:521` |
+| 脚本能力 | 转换事件、按钮脚本、日志事件注入原始 `require`；官方示例使用子进程与定时器 | `src/main.js:564`、`src/main.js:2297`、[配置示例](https://github.com/xresloader/xresconv-conf/blob/master/sample.xml) |
+| UI 耦合 | `selected_nodes` 为真实 Fancytree 对象，`selected_items[].ft_node` 指回节点 | `src/main.js:510`、`src/main.js:1854` |
+| 配置与规则 | XML/include、全局选项、Java 参数、输出矩阵、tag/class、glob 与 JavaScript RegExp | `src/main.js:131`、`src/main.js:1192` |
+| 转换执行 | 启动外部 `java -jar ... --stdin`，维持多个进程，读取 stdout/stderr | `src/main.js:1898`、`src/main.js:2119` |
+| 事件链 | before → 转换 → after；拒绝会中断 Promise 链，不能改为忽略错误继续转换 | `src/main.js:2301`、`src/main.js:2397` |
+| 状态差异 | 按钮 `data` 可跨同一按钮调用共享；当前 `set_name` 和 before/after 的 `data` 每次创建，不能仅按 README 的“全局状态”文字实现 | `src/main.js:612`、`src/main.js:1712`、`src/main.js:2350` |
+| 结束通知 | 实际注入 `resolve/reject`；README 部分 XML 注释仍写 `done()` | `README.md`、`src/main.js:2329` |
+| 打包 | Electron 41.10.3、packager 19.1.0；已有 prune/ASAR，macOS 当前关闭 ASAR | `package.json`、`yarn.lock`、`gulpfile.js` |
+| 工程规则 | Yarn 为唯一包管理器；新增测试体系前记录选型到来源索引 | `AGENTS.md`、`docs/ai/source-index.md` |
+| 测试基础 | 当前没有完整单元/集成/桌面端到端测试体系 | 工程文件清单、`package.json` |
+
+此前实际检查的 v2.6.0 Windows x64 发布包为 97.14 MiB，解压约 363.88 MiB，应用 ASAR 约 20.65 MiB；该发布包使用 Electron 41.1.0，不能当作当前提交的新构建结果。实施 P0 必须重新记录同架构基线、压缩参数、签名状态及依赖清单。[正式发布](https://github.com/owent/xresconv-gui/releases/tag/v2.6.0)
+
+### 2.2 实施前决策门槛
+
+| ID | 未决问题 | 本计划处理方式 | 阻塞范围 |
+| --- | --- | --- | --- |
+| D1 | Windows ia32、Linux armv7l 是否必须进入新架构发行矩阵 | 未收到决定前不视为已允许删除支持。官方最新 Node 二进制不覆盖这两项；评估自维护构建与依赖支持，或明确接受旧版下载保留方案 | 正式平台清单与最终发行 |
+| D2 | Linux 首批支持哪些发行版/版本 | 建议 Ubuntu 22.04/24.04、Debian 12/13 的受支持桌面环境；是否加入 Fedora 尚待确定。每项都需要独立离线依赖闭包与测试 | Linux 最终产物矩阵 |
+| D3 | 真实用户脚本是否使用 DOM、jQuery、Electron 或未记录的 Fancytree 方法 | 收集可脱敏的脚本样本与调用清单；在 P0/P2 建立契约测试。不得默认只使用 README 接口 | 旧脚本完整兼容与移除旧 UI |
+| D4 | 脚本沙箱需要防普通故障，还是也要防恶意访问系统 | 最低要求为进程故障隔离；受限执行策略另行列出平台能力与限制。无限制 `fs/child_process` 与“绝不修改系统/攻击主进程”不能同时保证 | 安全验收声明 |
+| D5 | 对 macOS 的系统 WebView 交付方式 | WKWebView 随操作系统提供，没有等价于 WebView2 的独立安装器；两种发行变体均复用系统，缺失/过旧时只能引导升级操作系统 | macOS 发行说明与安装验收 |
+
+D1/D2 未定不阻止建立架构、契约与通用测试。它们必须在对应平台交付前落实，不能以“跨平台”字样掩盖未支持目标，也不能把建议选项当作用户已确认。
+
+## 3. 新技术栈及选型依据
+
+### 3.1 选定方案
+
+| 层次 | 选择 | 职责与理由 |
+| --- | --- | --- |
+| 桌面壳 | Tauri 2、Rust stable | 窗口、原生对话框、参数、IPC、运行时定位与进程监督；保持 Tauri 2 稳定线，不升级到 Tauri 3 alpha |
+| 前端 | React 19、TypeScript、Vite | 本地静态 SPA，组件与业务状态分离；不需要 SSR、RSC 或额外 Web 服务 |
+| 可访问组件 | React Aria Components | 按钮、选择器、对话框、树与键盘交互；取代依赖 DOM 全局修改的旧组件 |
+| 样式 | CSS Modules、CSS 自定义属性、Grid/Flex | 本地设计令牌与主题，按最低 WebView 实测兼容；避免仅为样式引入新的浏览器版本门槛 |
+| 前端状态 | Zustand | 保存 UI 展示状态及后端快照；任务真相仍由 Rust 管理，避免前后端各自调度 |
+| 大列表 | React Aria 树；日志使用 TanStack Virtual | 树的虚拟化与键盘焦点必须做组合验证；不得把普通列表虚拟化直接当成可访问树实现 |
+| 配置/领域层 | Rust、quick-xml、serde | XML 解析、路径规则、数据模型、转换计划、运行状态和错误模型 |
+| 异步/日志 | Tokio、tracing | 监督子进程、读写管道、硬超时、结构化内部日志 |
+| 旧脚本 | 随包 Node.js、独立脚本执行器 | 保留 JS/Node/CommonJS 语义；与 GUI、主调度、可信日志服务分进程 |
+| 旧语义辅助 | 独立 Node.js 兼容服务/任务 | 保留 minimatch、JavaScript RegExp、log4js 配置等必要行为；不把任意用户脚本放入可信服务 |
+| 契约 | Rust serde + schemars → JSON Schema → TypeScript 类型；Ajv 验证 | 版本化 IPC，生成可核对的类型与运行校验；Rust 侧仍验证字段、范围和状态合法性 |
+| 质量工具 | TypeScript 类型检查、Biome、markdownlint、rustfmt/clippy | JS/TS 类型检查与格式/lint 分工清楚，不使用互不兼容的最新依赖组合 |
+| 测试 | Rust tests、Vitest、Testing Library、Playwright、WebdriverIO Tauri service | 分别验证领域层、脚本接口、UI、浏览器渲染和真实桌面进程 |
+
+React 官方提供 Vite + TypeScript 的客户端应用路线，适合本地 Tauri 应用。[React 指引](https://react.dev/learn/build-a-react-app-from-scratch)、[Tauri Vite 接入](https://v2.tauri.app/start/frontend/vite/)
+
+2026-09-23 查询 npm 官方最近一周统计，React 约 1.327 亿次、Vue 约 1204 万次、Svelte 约 424 万次下载。下载量包含 CI 与间接使用，只作为生态体量依据，不等同于用户数或性能排名。Vue/Svelte 均可实现本工程；选择 React 是为了组件、测试和可访问性生态，而非声称其执行性能绝对最佳。[React 统计](https://api.npmjs.org/downloads/point/last-week/react)、[Vue 统计](https://api.npmjs.org/downloads/point/last-week/vue)、[Svelte 统计](https://api.npmjs.org/downloads/point/last-week/svelte)
+
+Tailwind 4 也是活跃方案，但其现代浏览器要求需要额外约束系统 WebView。本项目优先采用 CSS Modules 与渐进增强，避免为“流行”增加无关运行时依赖。React Aria 的三态选择、树焦点和虚拟化仍必须在实际 WebView 验证。[Tailwind 兼容要求](https://tailwindcss.com/docs/compatibility)、[React Aria Tree](https://react-aria.adobe.com/Tree)
+
+### 3.2 最新版本快照与升级规则
+
+以下版本于 2026-09-23 从 npm registry、crates.io、Rust 发布清单或官方发行页读取；是执行起点，不是永久锁定的“最新版”。P1 开始及正式发布冻结前各复查一次，选择非预发布版本并记录版本、日期、来源、校验值及兼容性证据。
+
+| 组件 | 调研时版本 | 处理 |
+| --- | --- | --- |
+| Node.js | 26.10.0 Current；24.21.0 为最新 LTS | 按“最新稳定”要求以 26.10.0 为候选，明确 Current 非 LTS；若实施时已有更新稳定版则重验升级。LTS 作为兼容测试基线，不静默替换发行目标 |
+| Rust | 1.98.1 stable | 固定 `rust-toolchain.toml`，含 rustfmt/clippy |
+| Tauri Rust crate | 2.11.6 | 使用最新 2.x；当前 3.x alpha 不采用 |
+| Tauri CLI / JS API | 2.11.5 / 2.11.1 | 按官方兼容范围配套，不能要求所有包补丁号相同 |
+| dialog / opener / cli 插件 | 2.7.3 / 2.5.5 / 2.4.1 | 仅引入实际需要的插件，Rust/JS 两侧一起锁定 |
+| React / React DOM / 对应 types | 19.3.0 | 同步更新 |
+| TypeScript | 7.0.2 | 验证 native 编译器发行、构建集成和目标机器开发体验 |
+| Vite / React 插件 | 8.3.0 / 6.1.1 | 对齐 peer 依赖；可选 React Compiler 单独验证后启用 |
+| React Aria Components | 1.21.1 | 可访问组件 |
+| Zustand / TanStack React Virtual | 5.0.15 / 3.14.13 | UI 状态/日志虚拟列表 |
+| Ajv / json-schema-to-typescript | 8.20.0 / 16.0.0 | 契约校验/类型生成 |
+| Biome / markdownlint-cli | 2.5.14 / 0.49.1 | 格式与 lint |
+| Vitest / coverage-v8 / browser-playwright | 5.0.1 | Vitest 配套包保持版本相容 |
+| Testing Library React / DOM / user-event | 16.3.3 / 10.4.2 / 14.6.7 | 组件行为测试 |
+| Playwright Test / axe-core Playwright | 1.63.0 / 4.13.0 | 浏览器与可访问性测试 |
+| WDIO CLI / runner / Mocha / reporter | 9.32.0 | 三平台桌面测试运行器，实施时补齐 webdriverio 本体的最新兼容版 |
+| WDIO Tauri service | 1.4.0 | 配套 Rust 测试插件按官方版本矩阵选择 |
+| Yarn / Corepack | 4.18.0 / 0.36.0 | 固定 `packageManager`，使用 `nodeLinker: node-modules` |
+| Tokio / serde / serde_json | 1.53.1 / 1.0.229 / 1.0.151 | Rust 基础依赖 |
+| quick-xml / schemars | 0.42.0 / 1.2.2 | XML 与契约 |
+| tracing / tracing-subscriber / thiserror | 0.1.44 / 0.3.23 / 2.0.20 | 日志与错误 |
+
+已发现的真实冲突：`typescript-eslint@8.70.1` 的 TypeScript peer 范围为 `>=4.8.4 <6.1.0`，不覆盖最新 TypeScript 7.0.2。因此不引入该组合；采用最新 Biome + TypeScript 自身类型检查，并在 P1 验证语法支持。禁止通过忽略 peer 错误、使用强制安装或悄悄降级来宣称“全部升级成功”。若届时依赖仍无法组合，记录阻塞和替代方案。[npm TypeScript 元数据](https://registry.npmjs.org/typescript/latest)、[typescript-eslint 元数据](https://registry.npmjs.org/typescript-eslint/latest)、[Biome 指引](https://biomejs.dev/guides/getting-started/)
+
+当前依赖的处理清单：
+
+| 当前包 | 最新稳定快照 | 迁移处理 |
+| --- | --- | --- |
+| electron | 44.4.4 | 在可回滚的旧架构升级阶段验证；新架构最终删除 |
+| @electron/packager | 20.3.0 | 同上，迁移完成后删除 |
+| gulp | 5.0.1 | 过渡期保留；最终改为 Yarn/Vite/Cargo/发布脚本并删除 |
+| jquery | 4.0.0 | 不进入新 UI 或 Node 发行依赖 |
+| jquery.fancytree | 2.38.5 | 以数据契约兼容层替代；删除安装修补脚本 |
+| bootstrap / @popperjs/core | 5.3.8 / 2.11.8 | 新 UI 完全删除 |
+| adm-zip / compressing | 0.6.1 / 2.1.3 | 升级并暂保留为脚本可用模块；分别验证归档读写 |
+| log4js | 6.9.1 | 保留 `--log-configure` 兼容服务，不任意换成不兼容的 Rust 配置格式 |
+| minimatch | 10.2.6 | 保留旧 glob 行为；升级前后建立边界案例 |
+
+升级流程：清点直接/传递依赖 → 阅读变更与运行时要求 → 小批升级 → 锁文件与行为差异检查 → 对应测试 → 记录结果。传递依赖只在上游允许且测试通过的范围内更新；不能全局强推不兼容主版本。删除的旧依赖应标记“架构移除”，不能漏出清单。
+
+Yarn 为唯一 JS 包管理器。P1 迁移到 Yarn 4 并更新 `yarn.lock`；采用普通 `node_modules` 布局，便于动态 `require` 和离线部署，不使用 PnP 改变用户脚本解析。旧 `package-lock.json`、`pnpm-lock.yaml` 在统一工具链任务中移除并同步文档；本次不修改。Corepack 单独安装/固定，不能假设最新 Node 自动附带。[Yarn 配置](https://yarnpkg.com/configuration/yarnrc)、[Node 版本清单](https://nodejs.org/dist/index.json)
+
+## 4. 目标架构与职责
+
+```mermaid
+flowchart TD
+    UI[React UI / 系统 WebView] <-->|版本化命令与事件| Host[Tauri Rust 宿主]
+    Host --> Config[XML 解析与配置快照]
+    Host --> Planner[转换计划与状态机]
+    Planner --> Java[Java / xresloader 进程池]
+    Host <-->|私有 IPC| Script[独立 Node 用户脚本执行器]
+    Host <-->|私有 IPC| Compat[独立 Node 兼容服务]
+    Compat --> Logger[log4js 配置与应用日志]
+    Host --> Supervisor[进程树 / 超时 / 资源 / 清理]
+```
+
+### 4.1 拟定目录
+
+```text
+apps/desktop/                  React 页面、组件、样式和 Tauri 客户端适配
+src-tauri/                     Tauri 命令、插件与原生窗口集成
+crates/config/                 XML 解析、路径与配置快照
+crates/domain/                 领域模型、转换计划、状态机
+crates/process-supervisor/     子进程监督、进程树清理、资源策略
+crates/protocol/               IPC 数据类型与 JSON Schema 导出
+packages/contracts/           生成的 TypeScript 类型、校验器与共享样例
+packages/script-host/          用户脚本宿主及旧接口兼容层
+packages/compat-service/       glob/RegExp、log4js 等受控兼容服务
+tests/fixtures/               XML、脚本、Java 输入输出和故障样例
+tests/desktop/                真实桌面 E2E
+tests/installers/             干净系统安装/升级/离线验收
+packaging/                    各平台 bootstrap/offline 配置与运行时清单
+scripts/                      版本核验、资源组装、产物检查
+docs/                         架构、脚本 API、支持矩阵、迁移与发布说明
+```
+
+目录是目标设计，可在 P1 按实际构建约束调整；不得把拆目录本身视为架构完成。所有新增模块必须具有明确输入、输出、所有者和测试边界。
+
+### 4.2 数据与 IPC
+
+- Rust 维护配置、选择集合、转换计划和任务状态的权威版本；UI 持有只读快照及局部输入状态。
+- 区分 `ItemId`、`TreeNodeId`、`ConfigRevision`、`RunId`、`ScriptInvocationId`、`WorkerGeneration`；旧公开数值 ID 通过映射保留，不能仅因新模型改成字符串而破坏脚本。
+- 请求包含协议版本、请求 ID、配置版本与运行 ID；响应为明确结果或结构化错误。UI 在重载/重启后通过全量快照恢复，不依赖丢失的事件。
+- 事件带单调序号，增量更新可补发/重同步；旧运行、旧 worker 的迟到消息不能修改新状态。
+- Rust 与 Node 使用继承管道、匿名管道或受访问控制的本地 IPC；不建立对局域网开放的 HTTP 服务。
+- 控制通道与脚本 stdout/stderr 分离；设置消息长度、队列、日志速率和解析预算，畸形消息只终止对应执行器。
+- 不向脚本发送主进程对象、Rust 句柄或任意 Tauri 命令权限。回传数据和操作逐项验证，禁止原型污染键及未声明操作。
+- 生成契约同时覆盖 Rust 序列化与 JS 校验；通过共享合法/非法样例验证一致性，不能认为生成 TS 类型等于完成运行时校验。
+
+### 4.3 业务流与任务状态
+
+```text
+Idle → Loading → Ready → BeforeHooks → Converting → AfterHooks → Succeeded
+                  │          │             │           │
+                  └──────────┴─────────────┴───────────┴→ Failed / Cancelled
+```
+
+1. 原生选择 XML 或处理 `--input`，规范化路径并读取配置。
+2. 解析 include 图、全局配置、条目、树、输出矩阵与脚本；发现语法错误时保留当前可用会话，不提交半份配置。
+3. 批量在隔离进程执行 `set_name`，验证返回修改后建立树快照。
+4. 根据用户选择、tag/class、scheme/sheet、输出矩阵生成可检查的转换计划。
+5. 冻结 `RunContext`，执行启用的 before 事件，然后运行 Java 转换，成功路径再执行 after 事件。
+6. 把失败、取消、超时、宿主崩溃转换为明确终态；结束按钮状态和资源回收由 Rust 负责。
+
+计划冻结时点须与旧实现做差异测试：旧代码在 before 事件之前已构造待执行命令，不能未经说明把 before 中对象修改改成影响当前命令。新设计若希望调整此行为，必须单独记录兼容变更并提供迁移说明。
+
+## 5. 功能保留与 UI 重构
+
+| 功能 ID | 必须保留的行为 | 新实现与验收重点 |
+| --- | --- | --- |
+| F01 | XML 加载、相对路径、include、循环/重复 include 检测 | Rust 解析，保留脚本文本/CDATA/实体语义；路径与覆盖顺序做 golden 对照 |
+| F02 | tree/category、条目名称/描述、scheme/default_scheme、options、tag/class | 独立领域模型；重复键/数组/缺失属性/空值均有测试 |
+| F03 | 勾选、父子级联、全选/全不选、展开/折叠、键盘空格/双击 | React 树与三态选择，禁止条目继续禁止，焦点不随虚拟化丢失 |
+| F04 | scheme/sheet 自定义选择器，精确/glob/regex 匹配，默认选中 | 保留 JS RegExp/minimatch 语义，含无效规则的旧回退行为 |
+| F05 | reload/select_all/unselect_all/script 自定义按钮动作链 | 保留顺序、共享按钮 data、错误中断及重载后重绑定 |
+| F06 | Java 参数、工作目录、JAR、协议文件/数据目录多值、数据版本 | 跨平台参数编码，原生文件选择，执行前诊断 |
+| F07 | bin/lua/msgpack/json/xml/javascript/ue-json/ue-csv、自定义输出矩阵 | 保留 rename、output_dir、tag/class 限定及未知格式的处理 |
+| F08 | 并发转换、日志输出、运行结果、重置 | Rust 状态机和进程池，重置必须清理旧执行与回调 |
+| F09 | 五类脚本入口及事件 name/checked/mutable/timeout | 原语义兼容、明确故障处理、配置层级可诊断 |
+| F10 | 日志颜色、级别、模块名、日志事件改写、外部 log4js 配置 | 结构化日志、可访问样式、受限富文本与磁盘完整日志 |
+| F11 | 启动参数和调试 | 保留 `--input`、`--debug-mode`、`--custom-selector/--custom-button`、`--log-configure` |
+| F12 | Windows/Linux/macOS、多分辨率、版本与 Java 环境检查 | 正式支持矩阵内逐项验证，原生窗口行为与开发者工具可用 |
+
+新界面布局：顶部为配置文件和环境状态；左侧为可搜索的转换树；右侧为配置/条目详情及输出矩阵；底部为运行进度与日志；自定义按钮和转换事件开关有固定区域。布局可伸缩，支持高 DPI、键盘操作、明暗主题和空状态/错误状态，不依赖固定 1366×768 尺寸。
+
+所有原功能必须有入口。新增搜索、取消、日志筛选等能力不取代原有全选、重置与自定义按钮。产品文案只呈现用户可行动的错误；详细 IPC/进程诊断进入展开详情或日志。
+
+不在新 UI 保留 `$`、`window.jQuery`、全局 DOM 插件初始化或 Bootstrap JS。旧按钮 `style` 字段的 Bootstrap 名称通过语义映射保留视觉含义，而不是重新引入 Bootstrap。界面内富文本采用明确标签/属性白名单，保留必要强调、颜色与安全链接；脚本提供的事件属性、可执行 URL 或脚本标签不得运行。
+
+## 6. 用户脚本兼容与隔离设计
+
+### 6.1 宿主边界
+
+- 随包只带一份指定架构 Node.js；可信兼容服务和脚本执行器分别启动进程，绝不依赖用户 PATH 上的 Node。
+- 执行器内部保留 `vm.Script` 作为上下文管理方式，但安全/故障边界是操作系统进程。UI、Rust 任务调度和可信日志服务不执行用户 JS。
+- 宿主脚本可用 TypeScript 开发，发布为普通 JS；用户输入的脚本仍按既有 JavaScript 方式编译和执行。
+- 初期使用普通脚本文件与经过裁剪的 `node_modules`，不依赖 Node SEA/打包器静态发现动态 `require`。所有允许的运行依赖随包提供，离线执行不能临时访问 npm。
+- `require` 的基准路径、相对导入、模块缓存及允许加载的项目外模块按 P0 契约实现；不能把旧注入 require 的解析基准自动改成 XML 目录。
+- 原生模块分别验证 Node-API 和绑定 V8 ABI 的情况，禁止直接沿用 Electron 构建的二进制扩展。
+
+### 6.2 五类入口的行为
+
+| 入口 | 正常语义 | 异常/超时语义 |
+| --- | --- | --- |
+| set_name | 每个条目执行，允许修改 item_data；按旧数据生命周期创建上下文 | 外部硬超时；记录条目错误并应用已定义的旧行为兼容策略，不冻结加载界面 |
+| on_before_convert | 按顺序执行已启用事件；resolve/reject 控制继续 | 失败则本次运行失败，不启动后续转换 |
+| on_after_convert | 在转换阶段满足旧成功条件后按顺序执行 | 失败显示后处理失败，不伪装整个运行成功 |
+| script | 按钮动作链顺序执行，同按钮 data 保持共享 | 中断对应动作链、报告原因，其他会话仍可操作 |
+| on_append_log | 修改 message/module_name/style；保持同一日志内 hook 顺序和递归保护 | 保留原始日志及错误诊断；隔离故障 hook，不能阻塞 Java 管道读取 |
+
+脚本进程按配置会话/事件契约组织。不能简单“每次脚本启动一个全新进程”而丢失按钮状态，也不能让日志 hook 与长时间按钮脚本共用一个会被相互阻塞的事件循环。P2 确定 worker 分组、重入策略、按钮状态生命周期、require 缓存边界，并用真实脚本验收。
+
+`resolve/reject` 只允许生效一次。完成后的定时器、回调和副作用必须定义归属：不能提前释放正常弹框回调，也不能让过期执行污染新运行。执行器崩溃后的任意 JS 闭包不能承诺恢复；标记会话状态失效并通知用户，禁止自动重放可能已写文件或执行外部命令的脚本。
+
+### 6.3 节点、对象和回调兼容
+
+- 用稳定 ID 和数据镜像建立 `selected_nodes` / `selected_items` / `ft_node` 兼容对象，不传递真实 React/DOM 对象。
+- 在 worker 内重建必要的对象引用关系和函数接口；跨 IPC 只传快照、版本和操作，不直接 JSON 序列化循环对象。
+- P0 收集节点属性和方法。优先覆盖实际使用的读取、遍历、选择、展开、标题修改等方法，并验证同步返回值、回调与修改可见性。
+- worker 的同步读写在本地镜像执行，提交有序操作到 Rust，再由 UI 更新；需要同步 DOM 测量或任意 jQuery 返回对象的调用不能假定可透明模拟。
+- `alert_warning` 的 yes/no/on_close 以回调 ID 往返；超时、取消、窗口关闭后清除回调，不执行旧 generation 的回调。
+- 按钮 data 中的 JS 值留在 worker 内；如需跨执行器持久化，明确允许的数据类型，不能静默 JSON 化函数、Buffer、BigInt 或循环引用。
+
+兼容门槛：若真实脚本依赖任意 DOM/jQuery/Electron，必须提出明确可测试的适配或脚本迁移方案。完全去除旧 UI 与无限制模拟其所有内部对象不具备自动兼容保证；未解决时阻止切换发行，不以“脚本能编译”判定兼容完成。
+
+### 6.4 故障与权限
+
+- 超时器由 Rust 监督进程维护；VM timeout 仅为第二道保护，覆盖同步和异步故障的终止依靠外部截止时间。
+- 限制 worker 数量、内存、CPU/执行时长、消息大小、日志速率和派生进程数量；不要只使用 `--max-old-space-size`，它不覆盖所有原生内存。
+- Windows 使用 Job Object 管理派生进程和资源；Linux 使用进程组并在可用时使用 cgroup；macOS 使用进程组及可验证的系统资源策略。各平台实际能力不同，P2 做原型与验收记录。
+- 不把普通进程组当成防恶意逃逸边界。`detached` 子进程、信号、FFI/原生模块和同用户进程访问必须单列测试；不能证明的强隔离能力不得写成保证。
+- 维持可信脚本兼容策略和受限能力策略的明确区分。受限模式按工作目录、输出目录、网络与程序能力授权；任意 `child_process`/原生模块可削弱限制，不能靠 Node VM 或 Node Permission Model 宣称完全防恶意代码。
+- 在支持范围内，子进程清理必须覆盖取消、超时、GUI 关闭、重置、宿主崩溃和更新。清理失败可观测，不把仍在运行的任务显示成已安全停止。
+
+[Node VM 边界](https://nodejs.org/api/vm.html)、[Node Permission Model](https://nodejs.org/api/permissions.html)、[Electron 原生模块 ABI](https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules)
+
+## 7. 配置、转换协议与日志
+
+### 7.1 配置与规则
+
+- 固定 XML 实体、CDATA、空白、include 覆盖次序、相对路径基准及默认值；禁用外部实体与网络实体解析，避免读取配置触发非预期外部访问。
+- 将文件选择、配置解析和原配置文本分离；任何错误都返回文件、节点/字段、行列或可定位上下文。
+- 保留 JS RegExp 与 minimatch 的语义，不能直接替换为 Rust regex/glob 并声称一致。复杂匹配在受监督的兼容任务内批量执行，防止恶性表达式阻塞 GUI。
+- 对 Windows 盘符、UNC、长路径、空格、中文、非 BMP 字符、大小写与软链接建立测试。工作目录、资源目录、配置目录分别建模。
+
+### 7.2 Java 进程池
+
+已读取 xresloader 提交 `1f34e9b80d2b8c199e62453cdb104e47b87530a3` 的 `Main.java`：`--stdin` 按行读参数，支持单/双引号分组，循环调用转换并累计退出码。**没有据此证明 stdout/stderr 的一次 data 事件就是某条任务完成。** 该上游快照用于设计，用户实际 JAR 版本仍需单独验证。[协议源码](https://github.com/owent/xresloader/blob/1f34e9b80d2b8c199e62453cdb104e47b87530a3/src/org/xresloader/core/Main.java)
+
+- 主进程以参数数组启动 Java，不经 shell 拼接命令。
+- stdin 模式采用符合该解析器的专用编码器；不要套用 shell 转义规则。换行、双类引号等不可表达输入应拒绝并明确诊断，或走经过验证的逐任务 argv 执行路径。
+- 默认设计为可追踪的 worker 分片/有限批次：按确定顺序写入并处理背压，写完关闭 stdin，以进程退出作为该批次完成边界。
+- stdout/stderr 只承担日志流，不用任意数据块驱动调度或判定完成；支持 UTF-8 字符拆包、半行、多行、无换行和尾部缓冲。
+- 无可靠逐条确认协议时，只展示提交数、批次状态和可证明的完成信息，不能伪造精确单项成功计数。
+- 保留多进程复用与并发参数，单独验证失败累计、任务顺序、输出冲突及退出码截断；与旧行为不同的策略必须记录。
+- 取消/重置先冻结状态与禁止新派发，再关闭/终止所属进程树，收集退出结果，最后释放上下文。
+
+### 7.3 日志
+
+- 区分原始进程日志、脚本 hook 处理后的用户日志和应用诊断日志。
+- 日志队列有界；完整日志可落盘，UI 虚拟列表只保留可管理窗口，滚动加载历史。不得悄悄丢弃业务日志来满足性能指标。
+- hook 处理使用有序队列和独立执行器，避免日志回调再次记录日志导致递归；失败回退为原始日志并显示 hook 故障。
+- 保留 `--log-configure` 的 log4js 行为；自定义 appender 作为有副作用的扩展明确隔离，文件轮转、路径、退出 flush 均需验证。
+- 脚本/Java 输出不能作为未过滤 HTML 注入 WebView；保留 ANSI 颜色和受支持富文本的展示效果。
+
+## 8. 跨平台和双版本运行时交付
+
+### 8.1 通用约束
+
+每个支持的目标都提供 `bootstrap` 与 `offline` 两种发行变体；二者包含同一版本 GUI、同一 Node.js 和同一业务依赖。不同之处只在平台运行时的准备方式，不能做成精简功能版/完整版。
+
+统一引导顺序：校验架构/系统 → 检查运行时能力与最低版本 → 已满足则直接启动 → 缺失或过旧则进入对应安装流程 → 复检 → 启动应用。安装检查必须先于创建 WebView；不能指望缺少运行时的 GUI 自己显示修复界面。
+
+运行时清单记录版本、架构、下载来源、SHA-256、签名、许可、支持系统与构建日期。下载失败、安装拒绝、权限不足、需要重启和安装后仍不满足要求均有明确退出码/恢复路径。已经满足要求时不下载、不强制重装、不降级。
+
+“已有则复用”的运行时策略在本方案中用于系统 WebView 及其平台依赖。脚本宿主需要固定 Node/模块 ABI 和可复现的加载行为，因此系统 Node.js 不作为依赖，所有变体内嵌匹配架构的同一份 Node。Java/JAR 缺失仍显示原有环境诊断，不能因 GUI 离线安装成功便宣称业务环境齐全。
+
+### 8.2 Windows
+
+| 变体 | Tauri 配置 | 行为 |
+| --- | --- | --- |
+| bootstrap | `webviewInstallMode.type = embedBootstrapper` | 包内带 Evergreen Bootstrapper；系统无合适 WebView2 时由其下载并安装 |
+| offline | `webviewInstallMode.type = offlineInstaller` | 包内带对应架构离线安装程序；无网络也能安装 WebView2 |
+
+- 主发行采用 NSIS 安装器；根据实际分发需要附 MSI，不能将裸 exe 当作已包含运行时引导。
+- 使用两份可合并的配置覆盖相同公共配置，输出名必须含版本、架构和变体，避免覆盖。
+- 支持 per-user 安装，并测试企业限制/per-machine 需要提权的情形。安装过程中只在必要步骤请求权限。
+- 按实际前端能力设置最低 WebView2 版本；区分已安装旧版和完全未安装。
+- 离线包测试须关闭网络并清空可影响结果的运行时缓存；已有运行时的干净副本再测复用路径。
+
+官方文档列出的离线安装器约增加 127 MB，引导器约 1.8 MB，均随版本变化；离线包不适用“小于旧 Electron 压缩包”的硬要求。必须分开报告应用负载、运行时安装器和整包体积。[Tauri Windows 交付](https://v2.tauri.app/distribute/windows-installer/)、[微软 WebView2 分发](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)
+
+### 8.3 macOS
+
+- 使用系统 WKWebView；不存在可随包安装的独立 WKWebView 运行时。
+- 输出两个明确命名的 DMG/PKG 发行变体，允许共用已签名的应用 payload。manifest 标明 `runtimeStrategy: system-only`，不能伪装存在 WebView 离线安装器。
+- bootstrap：检查受支持 macOS 与 WebKit 能力，版本不足时引导系统更新。
+- offline：在支持的系统上完全离线安装并运行；系统不符合要求时明确无法靠本包补装 WKWebView，不能联网后再声称离线成功。
+- 最新 Node 26 的官方 macOS 最低要求为 13.5；这只是候选下限，最终取 Node、Tauri、前端能力与签名部署目标的交集。若现有用户仍需要更旧系统，在 P0 决策，不能静默提高要求。
+- x64、arm64 分开构建和验证。Universal 包仅在确有需求且 GUI/Node/原生模块均满足双架构时附加提供。
+- 应用、Node sidecar 与原生模块一起验证签名、entitlements、notarization/stapling。离线 Gatekeeper 验证不得依赖首次联网补取票据。
+
+[Tauri WebView](https://v2.tauri.app/reference/webview-versions/)、[macOS Bundle](https://v2.tauri.app/distribute/macos-application-bundle/)、[Node 支持平台](https://github.com/nodejs/node/blob/v26.x/BUILDING.md)
+
+### 8.4 Linux
+
+Linux 没有统一的 WebView2 式安装器。支持范围是明确发行版/版本/架构的桌面系统，不承诺任意发行版或裸服务器离线可运行。
+
+| 变体 | 组成 | 缺少运行时的处理 |
+| --- | --- | --- |
+| bootstrap | 应用 DEB/RPM、独立预检引导器、签名 manifest | 检查 WebKitGTK 4.1、GTK 等依赖，调用对应系统包管理器下载安装 |
+| offline | 同一应用、预检引导器、该发行版/架构的本地依赖闭包与校验元数据 | 使用本地包源安装缺失依赖，不访问远端仓库；已满足的系统包复用 |
+
+- 引导器自身不能依赖尚未安装的 GTK/WebKit。使用系统包管理界面或可见终端呈现必要安装步骤，不先启动 Tauri 动态链接程序。
+- 每个发行版版本/架构独立构建依赖闭包，包含传递依赖及来源校验；覆盖低配桌面镜像和已更新镜像，不能在开发机上解析一次就认为完整。
+- 离线安装器只使用随包本地源，安装前验证所有文件；不永久替换用户软件源，不关闭系统签名校验，不擅自降级或卸载已有包。
+- 缺少权限、包锁、依赖冲突、磁盘不足、安装中断及重试都需要测试。无法安全安装时给出原因和恢复指引。
+- 使用支持矩阵中最老的合适基础系统构建，分别核查 Rust/Node 的 glibc、GTK、WebKitGTK 与图形环境要求；在 X11/Wayland 上执行真实桌面测试。
+- AppImage 可作为额外便携产物，不替代上述两种发行方式；其通常自带依赖，与“优先复用系统运行时”的模式不同，必须单列体积/更新策略。
+
+[Tauri Debian](https://v2.tauri.app/distribute/debian/)、[Tauri RPM](https://v2.tauri.app/distribute/rpm/)、[Tauri AppImage](https://v2.tauri.app/distribute/appimage/)
+
+### 8.5 候选平台矩阵
+
+| 平台 | 主架构 | 首批测试范围 | 交付要求 |
+| --- | --- | --- | --- |
+| Windows | x64、ARM64 | Windows 10/11 的明确受支持版本，ARM64 真机/原生 runner | 各架构 bootstrap + offline |
+| macOS | x64、arm64 | 最低支持系统及当前稳定系统 | 各架构两变体，系统 WKWebView |
+| Linux | x64、arm64 | D2 确定的发行版/版本，X11/Wayland | 每个发行目标两变体 |
+| Windows ia32 / Linux armv7l | 待 D1 决策 | 不将官方缺少二进制解释为已获准移除 | 决策和验证前不标为完成 |
+
+## 9. GitHub Actions 与发布流程
+
+### 9.1 版本快照
+
+| Action | 当前使用 | 最新稳定快照 | 计划 |
+| --- | --- | --- | --- |
+| actions/checkout | v6 | v7.0.1 | 升级并核对 LFS 与 runner 要求 |
+| actions/setup-node | v6 | v7.0.0 | 固定 Node 版本，统一 Yarn 初始化 |
+| actions/stale | v6 | v11.0.0 | 保留 90 天和豁免标签语义，最小 issues/PR 权限 |
+| xresloader/upload-to-github-release | v1 | v1.6.2 | 升级，集中到单一发行汇总 job，继续创建 draft |
+| actions/upload-artifact | 新增 | v7.0.1 | 保存按平台/架构/变体区分的产物与测试证据 |
+| actions/download-artifact | 新增 | v8.0.1 | 汇总全部矩阵结果 |
+| actions/cache | 按需新增 | v6.1.0 | 缓存键覆盖锁文件、OS、架构和工具链 |
+| Swatinem/rust-cache | 新增 | v2.9.2 | 缓存 Rust 构建，不混用发布特性与 E2E 特性产物 |
+| tauri-apps/tauri-action | 新增 | action-v1.0.0 | 构建打包，不让每个矩阵 job 独立发布同一个 release |
+
+版本来自各官方仓库 release API；P1 解析所选稳定 tag 对应的完整 commit SHA 并在 workflow 固定 SHA、注释版本。新增 Action 的传递 `uses` 也要审计。Rust 工具链优先使用 runner 的 rustup 安装锁定版本；如采用 `dtolnay/rust-toolchain`，按其官方策略固定主分支提交和显式 toolchain，不把陈旧的 v1 release 当作当前工具链版本。
+
+[GitHub Actions 固定依赖建议](https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions)、[Tauri Action](https://github.com/tauri-apps/tauri-action/releases)、[Rust toolchain Action](https://github.com/dtolnay/rust-toolchain)
+
+### 9.2 工作流职责
+
+- `ci.yml`：安装锁定工具链、immutable 依赖、格式/类型/契约检查、单元/集成/浏览器测试、原生构建与桌面 E2E。
+- `release.yml`：只在发行标签触发；构建全部变体、签名、产物检查、安装验收；汇总成功后创建一个包含清单、校验值、SBOM、测试摘要的 draft release。
+- `stale.yml`：单独升级并保留现有业务语义。
+- 定期依赖检查：npm/Cargo/Actions/Node/WebView 运行时清单进入更新检查；升级通过 PR 和测试，不在每次构建解析漂移的 `latest`。
+
+具体要求：
+
+1. 先 setup Node，再安装锁定 Corepack/Yarn，再查询或恢复 Yarn 缓存，避免缓存步骤调用错误 Yarn；执行 `yarn install --immutable`、`cargo ... --locked`。
+2. 不继续维护三个 JS 锁文件，不使用 `npm install -g yarn` 获取不固定版本，也不使用与 Yarn 不匹配的 npm cache 配置。
+3. 显式检查外部命令退出码。Windows PowerShell 中命令非零不能被后续步骤掩盖；Rust、Node、签名和压缩失败立即终止当前 job。
+4. PR 验证不发布 release、不使用生产签名密钥；写权限只授予发行汇总 job。保留 draft 行为，不自动正式发布。
+5. 明确 runner 标签、原生架构和最低工具版本；交叉编译产物必须在目标系统运行，不能以编译通过替代验收。
+6. Linux 离线依赖通过独立镜像任务解析，缓存绑定发行版版本/架构及仓库快照；产物不混用不同发行版包。
+7. 测试、打包、签名均有超时和清理；上传失败日志、截图、退出码、进程树与运行时版本，不上传敏感配置。
+8. 不覆盖已发布版本；矩阵缺失任一必需产物即发行失败。自动更新如后续启用，必须保持用户所选 bootstrap/offline 渠道，不绕过其运行时策略。
+
+## 10. 分阶段执行计划
+
+### P0：契约和基线冻结
+
+- [ ] 记录 dirty tree，保护用户文件；归档源码/依赖/旧发布证据，不在工作树内覆盖旧代码做对照。
+- [ ] 完成 D1/D2/D3 资料收集，建立正式平台候选清单和脚本样本集合。
+- [ ] 在 `docs/ai/source-index.md` 记录本计划的测试/框架选型依据，再建立测试体系。
+- [ ] 为 F01–F12 建立旧行为 golden fixtures，包含正常路径、已知错误及文档/源码差异。
+- [ ] 固定一个真实 xresloader/JDK/示例数据组合及哈希作为集成基线；另记录支持的用户 JAR 范围。
+- [ ] 实测旧版压缩/解压大小、冷启动、10k 节点、日志突发、转换吞吐和资源占用。
+- [ ] 将无法兼容的 DOM/Electron/节点行为列为明确阻塞，不默认放弃。
+
+出口：功能与脚本兼容清单可执行，平台/运行时约束有证据。未通过不进入旧架构删除。
+
+### P1：依赖、工具链与新骨架
+
+- [ ] 更新版本快照；升级现有直接依赖和现有 Actions，保留可回滚提交。
+- [ ] 旧 Electron 升级若发现目标架构不再支持，记录 D1 冲突，不能静默取消平台。
+- [ ] 固定 Yarn/Corepack/Node/Rust；统一 JS 锁文件，新增 Cargo.lock 和工具链文件。
+- [ ] 建立 React/TypeScript/Vite、Tauri 和工作区目录；先实现三平台空壳与原生文件对话框。
+- [ ] 建立 JSON Schema、TS 类型生成、错误格式和版本握手。
+- [ ] 加入 Biome、类型检查、Rust 检查、Vitest 和初始桌面测试；验证全部 peer/MSRV。
+
+出口：三平台骨架和质量检查通过；依赖组合可重现，不依赖开发机全局 npm 包。
+
+### P2：脚本隔离与兼容原型（高风险优先）
+
+- [ ] 分发并定位 Node sidecar，完成私有 IPC、外部硬超时和进程树清理。
+- [ ] 实现五类入口、按钮 data、resolve/reject、弹框回调与日志 hook 原型。
+- [ ] 实现节点数据镜像与最小真实方法兼容；验证重复调用、重入、版本冲突和循环引用。
+- [ ] 验证动态 require、模块路径、adm-zip/compressing/log4js、原生模块样本。
+- [ ] 注入同步/异步死循环、process.exit、原生崩溃、内存耗尽、日志风暴和派生子进程故障。
+- [ ] 按平台记录普通故障隔离与受限权限模式的实际边界。
+
+出口：真实脚本样本及故障测试通过；未解决的不兼容阻止切换新架构，不能用 UI 开发完成掩盖。
+
+### P3：配置与转换内核
+
+- [ ] 实现 XML/include/路径与模型；对照全部配置 golden 样例。
+- [ ] 实现匹配辅助、输出矩阵、转换计划与状态机。
+- [ ] 实现 Java 进程池、stdin 编码/背压、日志解码、取消/重置/退出收尾。
+- [ ] 保留 log4js 配置和日志 hook 语义，隔离其故障。
+- [ ] 用模拟子进程验证协议边界，再用固定真实 JAR 验证所有现有输出格式。
+
+出口：不依赖 UI 也能完整执行配置 → 事件 → 转换 → 结果流程，旧功能对照无未解释差异。
+
+### P4：完整 React UI
+
+- [ ] 实现布局、树、配置表单、输出矩阵、事件开关、自定义按钮、日志和结果。
+- [ ] 保留 F01–F12 所有入口，完成旧 style 与节点操作到新组件的映射。
+- [ ] 完成键盘/读屏、DPI、缩放、响应式、主题、空状态和错误恢复。
+- [ ] 虚拟化大树/日志，验证焦点、滚动定位、选中集合与后端状态一致。
+- [ ] 移除新应用中的 jQuery/Fancytree/Bootstrap/Popper，依赖与产物扫描无残留。
+
+出口：浏览器测试和真实 WebView E2E 全通过，界面与业务状态无双重真相。
+
+### P5：各平台双版本安装器
+
+- [ ] 完成 Windows bootstrap/offline 配置、签名和运行时检测。
+- [ ] 完成 macOS 两变体、系统要求检测、签名公证和离线 Gatekeeper 验证。
+- [ ] 完成已确认 Linux 矩阵的预检引导器、在线安装、离线依赖闭包和包签名验证。
+- [ ] 每个变体均内嵌 Node、脚本宿主、运行依赖和许可文件；离线使用零 npm 下载。
+- [ ] 完成 runtime manifest、SHA-256、SBOM、产物命名和大小报告。
+
+出口：每个目标在干净环境完成两种安装路径；运行时已存在、缺失、过旧三类情况均验收。
+
+### P6：全量兼容、性能与恢复验收
+
+- [ ] 执行第 11 节全部必需测试，修复后重跑受影响范围。
+- [ ] 使用真实用户样本检查脚本语义、输出内容与路径、事件顺序、日志和按钮状态。
+- [ ] 完成崩溃/取消/关闭/重开压力测试与孤儿进程检查。
+- [ ] 对每个平台/变体发布体积、启动、内存与吞吐报告，不跨口径比较。
+- [ ] 清理未解决的 P0/P1 级功能、安全、安装和兼容缺陷；不得以平均覆盖率替代关键用例。
+
+出口：所有正式支持目标通过签字式验收记录；无未说明的能力删除。
+
+### P7：移除旧架构与交接
+
+- [ ] 在新架构出口条件满足后删除 Electron、gulp、旧 HTML/main/setup、Fancytree 补丁及失效工作流。
+- [ ] 更新 README、CHANGELOG、脚本 API、安装/离线说明、支持矩阵、调试文档和示例配置。
+- [ ] 更新 `AGENTS.md`、`CLAUDE.md` 中相关引用、`docs/ai/source-index.md` 与本计划状态；只调整与新架构相关的内容，保留用户规则。
+- [ ] 构建一个完整 draft release，复核所有产物；正式发布另按项目发行流程执行。
+- [ ] 保留旧稳定发行与迁移说明，记录回滚入口；不要留下两个无人维护的主实现长期并行。
+
+依赖顺序：P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7。安装器原型可在 P1 后提前验证，但不能绕过平台/脚本兼容门槛。
+
+## 11. 测试计划
+
+### 11.1 测试层次与工具
+
+| 层次 | 工具 | 必测内容 |
+| --- | --- | --- |
+| 静态/契约 | TypeScript、Biome、rustfmt/clippy、Schema fixtures | 边界类型、错误枚举、非法消息、旧版本拒绝、生成结果一致性 |
+| Rust 单元 | cargo test | XML、路径、矩阵、状态机、编码器、调度与退出归并 |
+| JS 单元/宿主 | Vitest、独立 Node 子进程 | 模块加载、脚本 API、回调、状态、异步/退出/超时 |
+| 组件 | Testing Library + Vitest 浏览器环境 | 用户可见行为、键盘、三态选择、表单与弹框；不把 DOM 模拟器当真实 WebView |
+| 浏览器 E2E | Playwright Chromium/WebKit/Firefox、axe | 渲染、CSS、键盘与 IPC mock；不替代真实原生 IPC/安装测试 |
+| 桌面 E2E | WebdriverIO + Tauri service | Windows/Linux/macOS 实际应用、文件对话框适配、IPC、进程和恢复 |
+| 安装 E2E | 干净 VM/原生测试机 | 两变体、运行时准备、权限、断网、升级卸载、签名 |
+| 真实转换 | 固定 JDK/JAR/表格/协议 | 输出格式、内容、退出码、目录和并发结果 |
+
+Tauri 当前官方文档推荐 WDIO Tauri service：其 embedded WebDriver 可覆盖三平台；直接使用传统 tauri-driver 仍只有 Windows/Linux。不能沿用“macOS 完全无法自动化”的旧结论，也不能把 Playwright WebKit 视为 WKWebView 的全部替代。[官方桌面测试](https://v2.tauri.app/develop/tests/webdriver/)、[WDIO Tauri](https://webdriver.io/docs/desktop-testing/tauri/)
+
+embedded WebDriver 与 IPC mocking 插件只在测试构建启用。正式发行包必须检查未包含测试服务器、未开放测试端口、未启用任意命令执行入口；最终签名包另做不依赖测试插件的真实启动/安装冒烟。
+
+### 11.2 功能与兼容用例
+
+| 测试 ID | 场景 | 必须断言 |
+| --- | --- | --- |
+| C01 | 最小/完整 XML、CDATA、转义字符、空属性、非法 XML | 模型及脚本文本与基线一致；失败可定位且不覆盖有效配置 |
+| C02 | 多层 include、重复/循环 include、同名覆盖、跨目录 | 顺序、默认值、错误与路径基准正确 |
+| C03 | 中文/空格/引号/UNC/长路径/软链接 | 文件与 Java 参数实际可用，无错误转义或路径串用 |
+| C04 | 树级联、部分选择、禁止节点、展开收起、键盘 | UI 与 Rust 选择集合一致，重绘/虚拟化不丢状态 |
+| C05 | 精确/glob/regex、大小写、无效规则、灾难回溯 | 旧语义对照；超时不会阻塞 UI |
+| C06 | 多 proto_file/data_src_dir、Java options/default_scheme | 数组和覆盖规则正确，重复值处理与基线一致 |
+| C07 | 所有输出格式及单/多矩阵、tag/class、rename/output_dir | 任务集合、输出路径、实际内容正确；无效组合不能选中 |
+| C08 | 多个选择器文件、默认选中、reload 和动作链 | 顺序、共享 data、错误中断及重载行为一致 |
+| C09 | 五类脚本入口、启用/禁用/mutable、resolve/reject | 调用顺序、上下文、数据生命周期与结束语义符合契约 |
+| C10 | selected_nodes 方法、selected_items.ft_node、回调引用 | 数据镜像和操作回传正确，不依赖 jQuery/真实 DOM |
+| C11 | 动态/相对 require、模块缓存、npm 与原生扩展 | 实际发行目录离线可加载；ABI 不符给出可行动错误 |
+| C12 | adm-zip/compressing、log4js 自定义配置及轮转 | 归档 round-trip、文件日志内容、轮转和退出 flush 正确 |
+| C13 | on_append_log 改写与递归、ANSI 和富文本 | 改写有序、原日志可追溯，不执行 HTML 中主动内容 |
+| C14 | 所有启动参数、开发工具、文件对话框、版本/Java 检查 | 从安装目录/快捷方式/CLI 启动均正确 |
+| C15 | 旧版与新版使用相同真实 JAR/输入 | 可确定输出字节比较；含时间戳等字段按预先定义规则归一化，不能忽略业务差异 |
+
+### 11.3 故障、并发与恢复用例
+
+| 测试 ID | 注入 | 必须断言 |
+| --- | --- | --- |
+| R01 | 同步 throw、异步回调 throw、未处理 rejection | 脚本/任务进入预期失败态，GUI/主进程继续运行 |
+| R02 | 同步死循环、Promise/定时器回调死循环、永不 resolve | 外部截止时间生效，终止并回收 worker，不依赖 worker 自身定时器 |
+| R03 | process.exit、abort、可控原生崩溃、内存/Buffer 耗尽 | 只影响对应隔离域，主任务状态完成收尾，不无限重启 |
+| R04 | resolve/reject 多次、结束后回调、旧 generation 回包 | 最多结束一次，迟到消息被拒绝 |
+| R05 | 按钮连点、重入、多个按钮、日志 hook 同时执行 | 按约定串行/并行，data 不串用，日志不死锁 |
+| R06 | Java 启动失败、非零退出、信号、stdin 关闭、stdout/stderr 分块 | 终态与错误正确，不把日志块当任务完成 |
+| R07 | 运行中取消/重置/关闭窗口/主宿主被终止 | 所属进程树清理，重开后无幽灵任务和旧回调 |
+| R08 | 派生多层子进程、detached、持续后台进程 | 验证各平台清理边界；未满足的强隔离要求阻塞对应安全声明 |
+| R09 | 日志风暴、超大/畸形 IPC、未知方法、版本错配 | 有界处理，拒绝非法输入，不拖垮 GUI |
+| R10 | 两个配置会话、运行中更换配置、输出同名 | 版本隔离正确，旧任务不能覆盖新状态，冲突策略明确 |
+| R11 | 宿主崩溃时已有文件副作用 | 不自动重试脚本或伪造回滚，清楚标记需用户核验 |
+| R12 | 配置/日志富文本注入、危险 URL、原型污染 | 不能进入 UI 执行或调用任意 Tauri 能力 |
+
+资源耗尽和原生崩溃测试在隔离的 CI/VM 中运行，外部监督进程自身有硬截止时间；每个用例结束检查子进程、句柄和临时文件，不在开发者日常环境制造无限资源消耗。
+
+### 11.4 安装与运行时矩阵
+
+每个正式支持的 OS × 发行版版本 × 架构 × bootstrap/offline 均执行下列适用用例；macOS 的系统 WebView 特例按第 8.3 节验收。
+
+| 测试 ID | 初始状态/操作 | 必须断言 |
+| --- | --- | --- |
+| I01 | 已有满足要求的运行时，在线与断网 | 直接复用，无额外下载或安装 |
+| I02 | 无运行时，bootstrap 在线 | 安装引导先于 GUI，安装完成复检后可运行 |
+| I03 | 无运行时，offline 断网且无下载缓存 | 仅包内资源完成安装和启动，捕获网络访问证明 |
+| I04 | 无运行时，bootstrap 断网 | 给出明确恢复办法，不白屏、不循环重试 |
+| I05 | 运行时版本过旧 | 升级或明确拒绝；不误判“文件存在即可用” |
+| I06 | 普通用户、管理员、拒绝提权、企业策略阻止 | 明确结果，无半安装后假成功 |
+| I07 | 安装中断、文件损坏、校验失败、空间不足、包管理锁 | 安全退出，可恢复重试，不破坏已有系统运行时 |
+| I08 | 从旧版升级、同版修复、卸载重装 | 配置和用户数据策略一致，共享系统运行时不随本应用卸载 |
+| I09 | 中文/空格安装目录、只读目录、快捷方式启动 | Node、资源与脚本模块定位正确 |
+| I10 | Windows ARM64、macOS 两架构、Linux 两架构 | 原生运行，无误装其他架构依赖 |
+| I11 | macOS stapled 签名包离线首次打开 | Gatekeeper 与 sidecar 启动通过；过旧系统不伪装可补装 WKWebView |
+| I12 | Linux 最小支持桌面与已更新桌面 | 离线闭包完整、复用已满足依赖，无外部仓库访问或强制降级 |
+| I13 | 无系统 Node、无 npm 网络、无开发工具 | 用户脚本正常运行；不尝试安装开发依赖 |
+| I14 | Java/JAR 缺失或不兼容 | GUI 正常显示诊断，与 GUI 运行时安装状态区分 |
+
+### 11.5 性能、体积和质量门槛
+
+- 以 P0 固定硬件/VM、数据、压缩算法和架构测量；记录冷/热启动、峰值 RSS、进程数、CPU、日志吞吐及转换耗时的多次结果。
+- 候选体积目标：Windows x64 bootstrap 完整交付包较同口径旧版减少至少 50%；这是验收目标，尚非已证实结果。达不到时分析组成，禁止通过删除业务功能、脚本依赖或许可文件达标。
+- offline 包单列应用负载与系统运行时成本，不与不含运行时的 bootstrap 包直接比较百分比。
+- 10k 条目为常规性能用例，100k 为压力用例；包含全选、条件选择、展开/折叠、输出矩阵和日志同时更新。
+- UI 关键交互候选目标为参考环境 p95 小于 100 ms，长任务不得使窗口持续无响应；P0/P4 记录可复现实测和最终阈值。
+- 同 JAR/并发/输入下，转换吞吐目标不低于旧版 90%；计时拆分 JS hooks、Java 启动、转换和 UI 日志，不把后端版本差异归因于重构。
+- 故障测试要求在配置截止时间加明确清理宽限内进入终态；宽限初值 2 秒，在平台原型中验证，不以“进程已发出 kill”替代实际回收。
+- 运行 100 次加载/转换/取消/重置后，无累计孤儿进程和持续单调增长的订阅/句柄；内存回收按稳定态趋势评估。
+- 所有 F/C/R/I 必需用例通过；关键状态机、参数编码器和事件生命周期分支全部有覆盖。整体覆盖率可以报告，但不能替代关键断言。
+
+### 11.6 拟新增验证命令
+
+以下为实施后应提供的统一入口，当前仓库尚不存在这些 scripts：
+
+```text
+yarn install --immutable
+yarn lint
+yarn typecheck
+yarn test:unit
+yarn test:script-host
+yarn test:contracts
+yarn test:browser
+yarn test:desktop
+yarn test:conversion
+yarn test:installers --target <os-distro-arch> --variant <bootstrap|offline>
+yarn package:verify
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+```
+
+每次测试报告记录：提交、OS/架构、运行时版本、工作目录、命令、用例数、退出码、失败证据和清理结果。只完成用例发现、mock 测试或跨编译，不得写为真实桌面/离线安装验收通过。
+
+## 12. 交付物与完成核对
+
+- [ ] 新架构代码、唯一 JS 锁文件、Cargo.lock、固定工具链与依赖版本报告。
+- [ ] 配置/脚本/IPC 契约、真实样本、功能映射与兼容差异说明。
+- [ ] 三平台进程隔离与故障恢复测试报告。
+- [ ] 所有支持目标的 bootstrap/offline 产物及逐项安装证据。
+- [ ] 运行时清单、签名、SHA-256、SBOM、许可证及大小报告。
+- [ ] CI、release、stale 全部 Actions 的最新稳定版本与完整 SHA 审计记录。
+- [ ] README、CHANGELOG、脚本 API、安装/升级/离线/调试说明和 AI 工程指引同步。
+- [ ] 发布回滚路径和旧版本保留说明。
+- [ ] D1–D5 的决定、验证证据及剩余限制；没有用“后续再补”替代强制验收项。
+
+本文应随实施更新任务状态和验证链接；仅在对应出口条件实际满足时勾选，失败与阻塞应明确记录原因和下一步。
