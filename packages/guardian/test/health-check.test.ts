@@ -42,6 +42,15 @@ function runGuardian(env: NodeJS.ProcessEnv = {}) {
 }
 
 describe("guardian health-check entry", () => {
+  it.each([
+    {},
+    { ok: false, role: "backend" },
+    { ok: true, role: "backend", pid: 1, node: "v24", protocol_version: 99 },
+  ])("rejects invalid or unsuccessful backend handshakes: %j", (payload) => {
+    const entry = join(makeTmp(), "bad-health.mjs");
+    writeFileSync(entry, `console.log(${JSON.stringify(JSON.stringify(payload))});\n`);
+    expect(runGuardian({ XRESCONV_BACKEND_ENTRY: entry }).status).not.toBe(0);
+  });
   it("aggregates the backend handshake into a schema-valid line", () => {
     const r = runGuardian();
     expect(r.status, r.stderr).toBe(0);

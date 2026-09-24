@@ -13,8 +13,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "ajv": "8.20.0"
+  },
   "devDependencies": {
-    "ajv": "8.20.0",
+    "@types/node": "26.6.2",
     "json-schema-to-typescript": "16.0.0",
     "typescript": "7.0.2",
     "vite": "8.3.0",

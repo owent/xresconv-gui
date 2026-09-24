@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>.</work_dir>
+    <xresloader_path>run-append-log-recursion.xml</xresloader_path>
+  </global>
+  <list>
+    <item name="one"><scheme name="DataSource">a.xlsx|s1|1,1</scheme></item>
+  </list>
+  <gui>
+    <on_before_convert><![CDATA[log_info("outer"); resolve();]]></on_before_convert>
+    <on_append_log><![CDATA[log_info("inner-from-hook"); data.message = data.message + "!";]]></on_append_log>
+  </gui>
+</root>

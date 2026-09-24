@@ -12,7 +12,8 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "allowImportingTsExtensions": true
   },
   "include": ["src", "test", "vite.config.ts", "vitest.config.ts"]
 }

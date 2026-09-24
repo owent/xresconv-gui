@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "script-invoke",
+  "title": "ScriptInvoke",
+  "description": "guardian -> script-worker: execute one legacy script entry (five kinds, tests/fixtures/scripts/contract.md). `context` carries only JSON-serializable data; functions (require/resolve/reject/log_*/alert_*) are reconstructed inside the worker. Button `data` never crosses the wire: it lives in the session worker keyed by button_id.",
+  "type": "object",
+  "required": ["invocation_id", "entry_kind", "filename", "source", "timeout_ms", "context"],
+  "additionalProperties": false,
+  "properties": {
+    "invocation_id": { "type": "string", "minLength": 1 },
+    "entry_kind": {
+      "enum": ["set_name", "on_before_convert", "on_after_convert", "button", "on_append_log"]
+    },
+    "filename": { "type": "string", "minLength": 1 },
+    "source": { "type": "string" },
+    "timeout_ms": { "type": "integer", "minimum": 1 },
+    "button_id": { "type": "string", "minLength": 1 },
+    "log_group_id": { "type": "string" },
+    "run_seq": { "type": "integer", "minimum": 0 },
+    "context": {
+      "type": "object",
+      "description": "Entry-specific JSON data: work_dir, configure_file, xresloader_path, item_data (set_name), selected_items/selected_nodes mirror data, global_options (object form for events, array form for buttons), log_object (on_append_log: {message, module_name, style})."
+    }
+  }
+}

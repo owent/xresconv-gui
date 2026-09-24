@@ -14,22 +14,26 @@
 import { type ChildProcess, spawn } from "node:child_process";
 
 export class HardDeadlineError extends Error {
-  constructor(
-    readonly program: string,
-    readonly deadlineMs: number,
-  ) {
+  readonly program: string;
+  readonly deadlineMs: number;
+
+  constructor(program: string, deadlineMs: number) {
     super(`process exceeded hard deadline of ${deadlineMs}ms: ${program}`);
     this.name = "HardDeadlineError";
+    this.program = program;
+    this.deadlineMs = deadlineMs;
   }
 }
 
 export class SpawnError extends Error {
-  constructor(
-    readonly program: string,
-    override readonly cause: unknown,
-  ) {
+  readonly program: string;
+  override readonly cause: unknown;
+
+  constructor(program: string, cause: unknown) {
     super(`failed to spawn: ${program}`);
     this.name = "SpawnError";
+    this.program = program;
+    this.cause = cause;
   }
 }
 

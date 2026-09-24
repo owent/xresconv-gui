@@ -17,7 +17,14 @@ function loadSample(name) {
   return JSON.parse(readFileSync(join(root, "samples", name), "utf8"));
 }
 
-describe.each(["handshake", "error-info", "node-health"])("%s schema vs samples", (name) => {
+describe.each([
+  "handshake",
+  "error-info",
+  "node-health",
+  "envelope",
+  "script-invoke",
+  "script-result",
+])("%s schema vs samples", (name) => {
   const validate = ajv.compile(loadSchema(name));
 
   it("accepts the valid sample", () => {

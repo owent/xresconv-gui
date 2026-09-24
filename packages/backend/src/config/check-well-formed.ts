@@ -11,13 +11,14 @@
 import { XMLValidator } from "fast-xml-parser";
 
 export class ConfigError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly details?: Record<string, unknown>,
-  ) {
+  readonly code: string;
+  readonly details?: Record<string, unknown>;
+
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = "ConfigError";
+    this.code = code;
+    this.details = details;
   }
 }
 

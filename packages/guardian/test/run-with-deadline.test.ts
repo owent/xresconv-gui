@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HardDeadlineError, runWithDeadline } from "../src/run-with-deadline.js";
+import { HardDeadlineError, runWithDeadline } from "../src/run-with-deadline.ts";
 
 const node = process.execPath;
 

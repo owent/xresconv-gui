@@ -4,7 +4,7 @@ import {
   canTransition,
   isTerminal,
   RUN_STATES,
-} from "../src/domain/run-state.js";
+} from "../src/domain/run-state.ts";
 
 describe("run state machine", () => {
   it("marks exactly succeeded/failed/cancelled as terminal", () => {

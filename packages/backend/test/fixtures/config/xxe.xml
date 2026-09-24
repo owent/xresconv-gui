@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE root [<!ENTITY xxe SYSTEM "xxe-secret.txt">]>
+<root>
+  <global>
+    <work_dir>&xxe;</work_dir>
+  </global>
+</root>

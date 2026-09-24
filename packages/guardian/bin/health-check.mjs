@@ -20,10 +20,14 @@ const backendEntry =
   process.env.XRESCONV_BACKEND_ENTRY ??
   join(here, "..", "..", "backend", "bin", "health-check.mjs");
 const deadlineMs = Number.parseInt(process.env.XRESCONV_BACKEND_DEADLINE_MS ?? "5000", 10);
+const OUTPUT_LIMIT = 64 * 1024;
 
 function fail(message, code) {
   process.stderr.write(`${JSON.stringify({ ok: false, role: "guardian", error: message })}\n`);
   process.exit(code);
+}
+if (!Number.isSafeInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 2147483647) {
+  fail("invalid backend health deadline", 2);
 }
 
 const child = spawn(process.execPath, [backendEntry], {
@@ -35,13 +39,17 @@ let stderr = "";
 child.stdout.setEncoding("utf8");
 child.stderr.setEncoding("utf8");
 child.stdout.on("data", (chunk) => {
-  stdout += chunk;
+  if (stdout.length + chunk.length > OUTPUT_LIMIT) {
+    overflow = true;
+    child.kill("SIGKILL");
+  } else stdout += chunk;
 });
 child.stderr.on("data", (chunk) => {
-  stderr += chunk;
+  stderr = (stderr + chunk).slice(-OUTPUT_LIMIT);
 });
 
 let deadlineHit = false;
+let overflow = false;
 const timer = setTimeout(() => {
   deadlineHit = true;
   child.kill("SIGKILL");
@@ -54,8 +62,12 @@ child.on("error", (err) => {
   fail(`spawn backend failed: ${err.message}`, 2);
 });
 
-child.on("exit", (code, signal) => {
+child.on("close", (code, signal) => {
   clearTimeout(timer);
+  if (overflow) {
+    fail("backend handshake exceeded output budget", 5);
+    return;
+  }
   if (deadlineHit) {
     fail(`backend exceeded hard deadline of ${deadlineMs}ms`, 3);
     return;
@@ -74,6 +86,17 @@ child.on("exit", (code, signal) => {
     backend = JSON.parse(line);
   } catch {
     fail(`invalid backend handshake JSON: ${line}`, 5);
+    return;
+  }
+  if (
+    backend?.ok !== true ||
+    backend.role !== "backend" ||
+    backend.pid !== child.pid ||
+    typeof backend.node !== "string" ||
+    !/^v\d+\.\d+\.\d+/.test(backend.node) ||
+    backend.protocol_version !== 1
+  ) {
+    fail("invalid or unsuccessful backend handshake", 5);
     return;
   }
   process.stdout.write(

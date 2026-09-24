@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertWellFormed, checkWellFormed } from "../src/config/check-well-formed.js";
+import { assertWellFormed, checkWellFormed } from "../src/config/check-well-formed.ts";
 
 describe("checkWellFormed (BD-07 strict XML)", () => {
   it("accepts well-formed XML", () => {

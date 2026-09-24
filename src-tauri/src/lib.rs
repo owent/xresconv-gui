@@ -47,7 +47,20 @@ fn get_cli_matches(app: tauri::AppHandle) -> serde_json::Value {
 /// `packages/guardian/bin/health-check.mjs`, overridable via
 /// `XRESCONV_GUARDIAN_ENTRY`.
 #[tauri::command]
-fn get_backend_health() -> Result<serde_json::Value, String> {
+async fn get_backend_health() -> Result<serde_json::Value, String> {
+    run_health_probe(probe_backend_health).await
+}
+
+async fn run_health_probe(
+    probe: impl FnOnce() -> Result<serde_json::Value, String> + Send + 'static,
+) -> Result<serde_json::Value, String> {
+    // An async command must also move blocking process waits off its executor.
+    tauri::async_runtime::spawn_blocking(probe)
+        .await
+        .map_err(|e| format!("health check task failed: {e}"))?
+}
+
+fn probe_backend_health() -> Result<serde_json::Value, String> {
     use std::process::{Command, Stdio};
     use std::time::{Duration, Instant};
 
@@ -129,4 +142,29 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running xresconv-gui");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_health_probe;
+    use std::future::Future;
+    use std::task::{Context, Poll, Waker};
+    use std::time::Duration;
+
+    #[test]
+    fn health_probe_yields_while_waiting_for_child() {
+        let (release, wait) = std::sync::mpsc::channel();
+        let mut check = Box::pin(run_health_probe(move || {
+            wait.recv_timeout(Duration::from_secs(1))
+                .map_err(|e| e.to_string())?;
+            Ok(serde_json::json!({ "ok": true }))
+        }));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(matches!(check.as_mut().poll(&mut cx), Poll::Pending));
+        release.send(()).unwrap();
+        assert_eq!(
+            tauri::async_runtime::block_on(check).unwrap(),
+            serde_json::json!({ "ok": true })
+        );
+    }
 }

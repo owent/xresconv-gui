@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>child-work</work_dir>
+    <proto_file>child.pb</proto_file>
+    <output_dir>child-out</output_dir>
+    <output_type>bin</output_type>
+    <option>child-opt</option>
+    <java_option>-Xchild</java_option>
+  </global>
+  <list>
+    <item file="child.xlsx" scheme="s" name="子项"></item>
+  </list>
+</root>

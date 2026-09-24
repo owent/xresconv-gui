@@ -2,7 +2,7 @@
 
 [主计划](../../Plan.md) · [文档索引](../README.md)
 
-状态：**P1 本机范围完成，G1 条件通过（[P1-09](records/P1-09.md)）；Linux/macOS 构建启动证据待 CI-01～CI-03。** D1–D6 决策保持，见 [P0-06](records/P0-06.md) 与主计划 §2.3。更新日期：2026-09-23。
+状态：**P1 Windows 骨架通过复验；P2/P3 已有 worker、IPC、配置、匹配原语、计划/Java、编排和日志原型。本轮修复与测试见 [2026-09-24 代码审查](records/REVIEW-P0-P3-2026-09-24.md)。G2/G3 尚未完整验收：长期监督接线、进程树、NodeMirror、隔离 matcher/XML helper 等仍有缺口。Linux/macOS、P4 UI、P5 安装仍待执行。** D1–D6 决策保持，见 [P0-06](records/P0-06.md) 与主计划 §2.3。更新日期：2026-09-24。
 
 ## 阅读顺序与唯一维护位置
 

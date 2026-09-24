@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <default_scheme name="KeyRow">2</default_scheme>
+    <default_scheme name="MacroSource">res.xlsx|macro|2,1</default_scheme>
+  </global>
+  <category>
+    <tree id="c1" name="分类一">
+      <tree id="c2" name="分类二"></tree>
+    </tree>
+  </category>
+  <list>
+    <item file="a.xlsx" scheme="sch_a" name="表A" cat="c2" tag="t1 t2" class="client"></item>
+    <item name="表B">
+      <option name="on" desc="od"> ov </option>
+      <scheme name="DataSource">b.xlsx|sheet1|3,1</scheme>
+      <scheme name="ProtoName">pb</scheme>
+      <scheme name="ProtoName">pb2</scheme>
+    </item>
+    <item name="表C">
+      <scheme name="KeyRow">9</scheme>
+      <scheme name="datasource">onlyfile.xlsx</scheme>
+    </item>
+    <item name="表D" cat="missing"></item>
+  </list>
+</root>

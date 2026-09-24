@@ -34,6 +34,8 @@
 
 文件读取、include 数量、深度、节点总量和脚本文本分别设预算。超过主事件循环响应预算的解析放入可终止 helper 进程，返回候选快照；guardian 不解析 XML。不得用 `readFileSync`、`spawnSync` 或无界 CPU 循环阻塞取消、健康检查与消息处理。100k 节点压测须覆盖候选构建、序列化和快照传输，不只测 parser。
 
+当前原型的读取预算为单文件 8 MiB、总量 32 MiB、include 深度 64/文件数 1024；严格 UTF-8 且只允许一个 `root` 文档根。以 realpath 判重/循环，声明路径继续决定相对路径。非法/溢出的 hook timeout 诊断并回退 30000ms（合法范围 1–2147481647ms，预留 guardian 宽限）。独立解析 helper、节点/脚本文本独立预算仍是未完成项，不能以字节上限替代响应性验收。修复依据及测试见最新审查记录。
+
 ## 选择与转换计划
 
 Node.js backend 中的 TypeScript `SelectionService` 维护选中叶子、分类派生的三态、禁止节点和版本；UI 焦点/展开状态不参与转换语义。`SelectionRuleService` 批量调用隔离 matcher，维持 JS RegExp 和 minimatch 语义；可能长时间运行的正则仍须在可终止进程中执行。
@@ -92,6 +94,8 @@ hook 修改失败时保留原始记录和错误；若部分合法修改已返回
 Node.js 内部诊断与用户 log4js 日志区分，Tauri 原生诊断只记录壳层问题。guardian 的协议 stdout 不混入任何日志，诊断使用 stderr；backend 的业务日志由独立有界通道传输。log4js 自定义 appender 可能执行代码，不放入 backend 或 guardian；超时、路径、flush 和轮转单独监督。异常 regex 在可终止任务中执行，不能阻塞日志服务。
 
 内存队列必须有界，超出 UI 容量的日志仍落盘并显示可加载范围。磁盘满/权限失败/日志服务挂起时，报告持久化失败并执行既定停止或降级策略；不得既承诺无损又默默丢弃，也不能让无限背压永久卡住转换取消。
+
+当前降级合同：在途 hook 数以日志容量为限，超限记录保留原文并累计 `hookSkippedCount`，可能先于仍在处理的 hook 落队；正常 hook 顺序保持，改写记录保留 `rawMessage`。独立 log4js 子进程限制配置 1 MiB、待发送记录 128 条、单条 256 KiB；超限明确报告未持久化。每个请求 5s 截止，shutdown 默认总预算 5s，终止后额外等待 close 最多 2s；超时/清理未确认均拒绝，不能报告成功 flush。持久化诊断跳过 hook 与落盘 sink，防止递归。此处是过载时的显式降级，完整持久化/轮转/分页及 guardian 接线仍待完成。
 
 ## P3 任务清单
 

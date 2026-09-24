@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "envelope",
+  "title": "Envelope",
+  "description": "Universal message envelope between shell/guardian/backend/script-worker roles (Plan 02 §消息 envelope). Correlation fields are optional per kind; payload is validated per kind by the receiving handler against its own schema. Single source of truth; TypeScript types are generated from this file.",
+  "type": "object",
+  "required": ["protocol_version", "kind", "id", "role", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "protocol_version": { "type": "integer", "const": 1 },
+    "kind": {
+      "enum": [
+        "invoke",
+        "complete",
+        "fail",
+        "log",
+        "dialog_request",
+        "dialog_respond",
+        "event",
+        "health",
+        "shutdown",
+        "fault"
+      ]
+    },
+    "id": { "type": "string", "minLength": 1 },
+    "role": { "enum": ["shell", "guardian", "backend", "script-worker", "compat-service"] },
+    "in_reply_to": { "type": "string", "minLength": 1 },
+    "session_id": { "type": "string" },
+    "revision": { "type": "integer", "minimum": 0 },
+    "run_id": { "type": "string" },
+    "invocation_id": { "type": "string" },
+    "generation": { "type": "integer", "minimum": 0 },
+    "payload": { "type": "object" }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "invocation_id": "inv-43",
+  "entry_kind": "before_convert",
+  "filename": "conv.xml",
+  "source": "resolve();",
+  "timeout_ms": 30000,
+  "context": {}
+}

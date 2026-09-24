@@ -2,7 +2,7 @@
 
 ## 0. 执行入口与分册
 
-本文件保留目标、选型、版本快照及 P0–P7 阶段出口；具体任务、接口、测试步骤和证据格式见 [执行计划索引](docs/plan/README.md)。P0 已有完成记录，工作树已有部分 P1 骨架；本次按最新要求修订后续架构，不重置已有记录，也不把文档校验当实施验收。
+本文件保留目标、选型、版本快照及 P0–P7 阶段出口；具体任务、接口、测试步骤和证据格式见 [执行计划索引](docs/plan/README.md)。P0/P1 已有阶段记录，工作树已有 P2/P3 核心原型；最新复核见 [2026-09-24 代码审查](docs/plan/records/REVIEW-P0-P3-2026-09-24.md)，模块测试通过不等于整个阶段验收。
 
 | 阅读顺序 | 分册 | 用途 |
 | --- | --- | --- |
@@ -20,8 +20,8 @@
 
 - 编制日期：2026-09-23。
 - 源码基线：`3e8ec5773368ce02455a74bcd42d7ff03487be08`，应用版本 `2.6.0`。
-- 当前状态：**P1 本机范围完成，G1 条件通过（[P1-09](docs/plan/records/P1-09.md)）；唯一缺口是 Linux/macOS 构建启动证据，待 CI-01～CI-03（需提交推送后运行）。** 既有验证以各阶段记录为准，本轮不重跑 P0。
-- 本轮范围：执行 P1-04～P1-09（Node 服务入口、握手链、契约、质量入口、Windows 桌面 E2E、G1 审阅）；不提交、不发布，CI 工作流留待用户授权提交后实施。
+- 当前状态（2026-09-24）：**P1 Windows 骨架通过复验；P2/P3 的 worker、IPC、XML、匹配原语、计划/Java 和编排/日志已有实现并完成本轮修复。G2/G3 尚未完整验收：长期 guardian/backend 接线、进程树监督、NodeMirror、隔离 matcher/XML helper 等仍待完成；Linux/macOS 证据待 CI/实机。** 详见最新审查记录，不重置 P0 历史记录。
+- 本轮范围：按 Plan 审查已实现的 P0–P3 代码，修复已复现缺陷并补回归测试；复验 Windows 桌面骨架和六格式真实 JAR 差分。不提交、不发布，不提前实施 P4–P7。
 - 上述提交是已提交代码基线；工作树还包含用户的源码、文档迁移及工程规则改动。实施前记录实际工作树快照，保留这些改动，不用旧提交覆盖当前文件。
 
 用户已确定的目标：
@@ -444,22 +444,22 @@ Linux 没有统一的 WebView2 式安装器。支持范围是明确发行版/版
 
 ### P2：脚本隔离与兼容原型（高风险优先）
 
-- [ ] 分发并定位 Node sidecar，完成私有 IPC、外部硬超时和进程树清理。
-- [ ] 实现五类入口、按钮 data、resolve/reject、弹框回调与日志 hook 原型。
-- [ ] 实现 D3 公开节点数据/操作镜像，诊断排除接口；验证重复调用、重入、版本冲突和循环引用。
-- [ ] 验证动态 require、模块路径、adm-zip/compressing/log4js、原生模块样本。
-- [ ] 注入同步/异步死循环、process.exit、原生崩溃、内存耗尽、日志风暴和派生子进程故障；分别阻塞/终止 Node backend 与 guardian，验证独立监督和壳层恢复。
-- [ ] 按平台记录普通故障隔离与受限权限模式的实际边界。
+- [ ] 分发并定位 Node sidecar，完成私有 IPC、外部硬超时和进程树清理。（worker 帧 IPC 与硬超时完成：[P2-01](docs/plan/records/P2-01.md)、[P2-03](docs/plan/records/P2-03.md)；**sidecar 分发属 P5，进程树 Job Object/进程组属 P2-02 余量，未做**）
+- [x] 实现五类入口、按钮 data、resolve/reject、弹框回调与日志 hook 原型。（worker 五入口 17 例真实进程测试：[P2-03](docs/plan/records/P2-03.md)；编排与 on_append_log 链：[P3-06](docs/plan/records/P3-06.md)）
+- [ ] 实现 D3 公开节点数据/操作镜像，诊断排除接口；验证重复调用、重入、版本冲突和循环引用。（**未做**：当前 selected_nodes 为只读快照降级，P2-05 范围，BD-S9/BD-O7）
+- [ ] 验证动态 require、模块路径、adm-zip/compressing/log4js、原生模块样本。（require 锚定与核心模块已测：[P2-03](docs/plan/records/P2-03.md)；log4js 落盘已测：[P3-06](docs/plan/records/P3-06.md)；**adm-zip/compressing/原生模块样本未测**）
+- [ ] 注入同步/异步死循环、process.exit、原生崩溃、内存耗尽、日志风暴和派生子进程故障；分别阻塞/终止 Node backend 与 guardian，验证独立监督和壳层恢复。（worker 死循环/超时销毁/崩溃补员/毒帧已测：[P2-01](docs/plan/records/P2-01.md)；**process.exit/内存耗尽/日志风暴/壳层恢复未测**）
+- [ ] 按平台记录普通故障隔离与受限权限模式的实际边界。（仅 win32/x64，三平台待 CI）
 
 出口：公开合同内真实脚本样本及故障测试通过；未解决的合同内不兼容阻止切换，D3 排除项须有诊断和迁移说明，不能用 UI 开发完成掩盖。
 
 ### P3：配置与转换内核
 
-- [ ] 在 Node backend 用 TypeScript 实现严格 XML/include/路径与模型；对照配置样例并按 BD-07 修复旧 HTML 解析缺陷。
-- [ ] 实现匹配辅助、输出矩阵、转换计划与状态机。
-- [ ] backend 实现 Java 批次调度、stdin 编码和日志处理，guardian 执行进程生命周期；验证背压、取消/重置/退出收尾。
-- [ ] 保留 log4js 配置和日志 hook 语义，隔离其故障。
-- [ ] 用模拟子进程验证协议边界，再用固定真实 JAR 验证所有现有输出格式。
+- [x] 在 Node backend 用 TypeScript 实现严格 XML/include/路径与模型；对照配置样例并按 BD-07 修复旧 HTML 解析缺陷。（[P3-01](docs/plan/records/P3-01.md)：含官方 sample.xml/sample_include.xml fixture 与 BD-C 清单）
+- [x] 实现匹配辅助、输出矩阵、转换计划与状态机。（[P3-04](docs/plan/records/P3-04.md)、[P3-05](docs/plan/records/P3-05.md)；run-state 复用 P1-00）
+- [ ] backend 实现 Java 批次调度、stdin 编码和日志处理，guardian 执行进程生命周期；验证背压、取消/重置/退出收尾。（[P3-05](docs/plan/records/P3-05.md)、[P3-06](docs/plan/records/P3-06.md)；本轮补齐管道错误、清理后取消终态和 dispose 回归；独立 guardian 接线、进程树及完整 reset/close 仍未实现）
+- [ ] 保留 log4js 配置和日志 hook 语义，隔离其故障。（本轮完成独立 log4js 进程、有界 hook/落盘队列、延迟日志递归保护和 flush 回归，见最新审查；磁盘满/轮转、完整监督和 UI 分页仍待验收）
+- [ ] 用模拟子进程验证协议边界，再用固定真实 JAR 验证所有现有输出格式。（真实 JAR 2.23.7：六格式 stdin 与直接 argv 输出 SHA-256 一致，见 [P3-10](docs/plan/records/P3-10.md) 和最新审查；**ue-json/ue-csv 未覆盖，非完整旧 GUI 兼容验收**）
 
 出口：不依赖 UI 也能完整执行配置 → 事件 → 转换 → 结果流程，旧功能对照无未解释差异。
 

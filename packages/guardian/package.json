@@ -10,9 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@xresconv/contracts": "workspace:*",
+    "@xresconv/ipc": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "26.6.2",
-    "@xresconv/contracts": "workspace:*",
+    "@xresconv/backend": "workspace:*",
+    "@xresconv/script-host": "workspace:*",
     "ajv": "8.20.0",
     "typescript": "7.0.2",
     "vite": "8.3.0",

@@ -17,17 +17,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..", "..");
 
 function run(cmd, args, options = {}) {
-  // Windows shim resolution without `shell: true` (DEP0190): only .cmd
-  // shims need the extension; node/exe paths are spawned directly.
-  const resolved =
-    process.platform === "win32" && !cmd.endsWith(".exe") ? `${cmd}.cmd` : cmd;
-  const r = spawnSync(resolved, args, {
+  const r = spawnSync(cmd, args, {
     cwd: root,
     stdio: "inherit",
     ...options,
   });
   if (r.status !== 0) {
-    console.error(`[e2e] command failed (${r.status}): ${cmd} ${args.join(" ")}`);
+    console.error(`[e2e] command failed (${r.status}): ${cmd} ${args.join(" ")}: ${r.error?.message ?? ""}`);
     process.exit(r.status ?? 1);
   }
 }
@@ -41,7 +37,9 @@ const exe = path.join(
 
 if (!process.env.XRESCONV_E2E_SKIP_BUILD) {
   console.log("[e2e] building debug app (frontend + tauri shell)…");
-  run("corepack", ["yarn", "tauri", "build", "--debug", "--no-bundle"]);
+  // Execute the installed JS entry with Node. Windows cannot spawn .cmd
+  // shims without a shell; argv must also remain literal for spaced paths.
+  run(process.execPath, [path.join(root, "node_modules", "@tauri-apps", "cli", "tauri.js"), "build", "--debug", "--no-bundle"]);
 }
 if (!existsSync(exe)) {
   console.error(`[e2e] app binary not found: ${exe}`);

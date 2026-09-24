@@ -11,8 +11,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@xresconv/compat-service": "workspace:*",
     "@xresconv/contracts": "workspace:*",
-    "fast-xml-parser": "5.11.1"
+    "@xresconv/guardian": "workspace:*",
+    "@xresconv/ipc": "workspace:*",
+    "fast-xml-parser": "5.11.1",
+    "log4js": "6.9.1"
   },
   "devDependencies": {
     "@types/node": "26.6.2",

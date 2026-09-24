@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>.</work_dir>
+    <xresloader_path>run-reject.xml</xresloader_path>
+  </global>
+  <list>
+    <item name="one"><scheme name="DataSource">a.xlsx|s1|1,1</scheme></item>
+  </list>
+  <gui>
+    <on_before_convert><![CDATA[reject("stop-now");]]></on_before_convert>
+    <on_after_convert><![CDATA[log_info("AFTER"); resolve();]]></on_after_convert>
+  </gui>
+</root>
