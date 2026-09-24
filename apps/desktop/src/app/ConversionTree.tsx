@@ -40,7 +40,12 @@ export function filterTreeNodes(nodes: readonly TreeNodeSnap[], term: string): F
         if (matched) {
           hits++;
         }
-        out.push(children.length === node.children.length ? node : { ...node, children });
+        out.push(
+          children.length === node.children.length &&
+            children.every((child, index) => child === node.children[index])
+            ? node
+            : { ...node, children },
+        );
       }
     }
     return out;

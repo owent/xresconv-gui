@@ -5,6 +5,7 @@ import {
   backendRpc,
   type GuardianDeadPayload,
   getBackendSnapshot,
+  invalidateBackendSnapshot,
   type NodeStateChange,
   type TreeNodeKey,
   type TreeNodeSnap,
@@ -31,7 +32,7 @@ interface SessionData {
   connection: ConnectionState;
   /** 最近一次可见错误（加载失败/ops 拒绝/guardian 死亡/版本重同步提示）。 */
   lastError: string | null;
-  /** 当前配置路径（选择文件成功即登记，供重载）。 */
+  /** 当前已成功加载的配置路径。 */
   configPath: string | null;
   /** 事件水位：累计收到的 xresconv-event 帧数。 */
   eventCount: number;
@@ -131,57 +132,72 @@ const initialData: SessionData = {
   focusedKey: null,
 };
 
+let sessionEpoch = 0;
+let snapshotRequest = 0;
+let loadingConfig = false;
+
 export const useSessionStore = create<SessionStore>()((set, get) => {
   /** 选择 ops 串行链：任一环节失败不断链（错误已写入 lastError）。 */
   let selectionChain: Promise<void> = Promise.resolve();
 
   const applySelectionOps = (ops: Record<string, unknown>[]): Promise<void> => {
-    selectionChain = selectionChain.then(async () => {
-      const tree = get().snapshot?.tree;
-      if (tree == null) {
-        return;
-      }
-      const versioned = ops.map((op) => ({ v: tree.version, ...op }));
-      let report: AppliedOpsReport;
-      try {
-        report = await backendRpc<AppliedOpsReport>("applyOps", { ops: versioned });
-      } catch (error) {
-        set({ lastError: describeError(error) });
-        return;
-      }
-      if (report.rejected.some((entry) => entry.reason.includes("stale tree version"))) {
-        // 版本闸拒绝：整批未生效；自动重同步并给出可见提示（04-ui §状态分层）。
-        const ok = await get().refreshSnapshot();
-        set({
-          lastError: ok
-            ? "树状态已被并发更新，已重新同步最新选择，请重试操作"
-            : (get().lastError ?? "树状态已过期且重同步失败"),
-        });
-        return;
-      }
-      const changes = new Map<TreeNodeKey, NodeStateChange>();
-      for (const change of report.stateChanges) {
-        changes.set(change.key, change);
-      }
-      set((state) => {
-        if (state.snapshot?.tree == null) {
-          return {};
+    const epoch = sessionEpoch;
+    if (loadingConfig) return Promise.resolve();
+    selectionChain = selectionChain
+      .catch(() => {})
+      .then(async () => {
+        if (epoch !== sessionEpoch) return;
+        snapshotRequest++;
+        const tree = get().snapshot?.tree;
+        if (tree == null) {
+          return;
         }
-        return {
-          snapshot: {
-            ...state.snapshot,
-            tree: {
-              version: report.version,
-              nodes: applyStateChanges(state.snapshot.tree.nodes, changes).nodes,
+        const versioned = ops.map((op) => ({ v: tree.version, ...op }));
+        let report: AppliedOpsReport;
+        try {
+          report = await backendRpc<AppliedOpsReport>("applyOps", { ops: versioned });
+        } catch (error) {
+          if (epoch === sessionEpoch) set({ lastError: describeError(error) });
+          return;
+        }
+        if (epoch !== sessionEpoch) return;
+        if (report.rejected.some((entry) => entry.reason.includes("stale tree version"))) {
+          // 版本闸拒绝：整批未生效；自动重同步并给出可见提示（04-ui §状态分层）。
+          const ok = await get().refreshSnapshot();
+          if (epoch !== sessionEpoch) return;
+          set({
+            lastError: ok
+              ? "树状态已被并发更新，已重新同步最新选择，请重试操作"
+              : (get().lastError ?? "树状态已过期且重同步失败"),
+          });
+          return;
+        }
+        const changes = new Map<TreeNodeKey, NodeStateChange>();
+        for (const change of report.stateChanges) {
+          changes.set(change.key, change);
+        }
+        set((state) => {
+          if (state.snapshot?.tree == null || state.snapshot.tree.version !== tree.version) {
+            return {};
+          }
+          return {
+            snapshot: {
+              ...state.snapshot,
+              tree: {
+                version: report.version,
+                nodes: applyStateChanges(state.snapshot.tree.nodes, changes).nodes,
+              },
             },
-          },
-          lastError:
-            report.rejected.length > 0
-              ? report.rejected.map((entry) => `${entry.op}: ${entry.reason}`).join("；")
-              : null,
-        };
+            lastError:
+              report.rejected.length > 0
+                ? report.rejected.map((entry) => `${entry.op}: ${entry.reason}`).join("；")
+                : null,
+          };
+        });
+      })
+      .catch((error: unknown) => {
+        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
       });
-    });
     return selectionChain;
   };
 
@@ -197,6 +213,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       }
       return {
         snapshot,
+        configPath:
+          typeof snapshot.config?.path === "string" ? snapshot.config.path : state.configPath,
         connection: "ok",
         lastError: null,
         focusedKey,
@@ -218,35 +236,61 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
     ...initialData,
 
     loadConfig: async (path) => {
-      set({ configPath: path });
+      if (loadingConfig) {
+        set({ lastError: "配置正在加载，请完成后重试" });
+        return false;
+      }
+      const epoch = ++sessionEpoch;
+      snapshotRequest++;
+      loadingConfig = true;
       try {
         const snapshot = await backendRpc<BackendSnapshot>("loadConfig", { path });
+        if (epoch !== sessionEpoch) return false;
         storeSnapshot(snapshot, true);
         return true;
       } catch (error) {
-        set({ lastError: describeError(error), connection: "degraded" });
+        if (epoch === sessionEpoch)
+          set({ lastError: describeError(error), connection: "degraded" });
         return false;
+      } finally {
+        if (epoch === sessionEpoch) loadingConfig = false;
       }
     },
 
     reload: async () => {
+      if (loadingConfig) {
+        set({ lastError: "配置正在加载，请完成后重试" });
+        return false;
+      }
+      const epoch = ++sessionEpoch;
+      snapshotRequest++;
+      loadingConfig = true;
       try {
         const snapshot = await backendRpc<BackendSnapshot>("reload");
+        if (epoch !== sessionEpoch) return false;
         storeSnapshot(snapshot, true);
         return true;
       } catch (error) {
-        set({ lastError: describeError(error), connection: "degraded" });
+        if (epoch === sessionEpoch)
+          set({ lastError: describeError(error), connection: "degraded" });
         return false;
+      } finally {
+        if (epoch === sessionEpoch) loadingConfig = false;
       }
     },
 
     refreshSnapshot: async () => {
+      if (loadingConfig) return false;
+      const epoch = sessionEpoch;
+      const request = ++snapshotRequest;
       try {
         const snapshot = await getBackendSnapshot();
+        if (epoch !== sessionEpoch || request !== snapshotRequest) return false;
         storeSnapshot(snapshot, false);
         return true;
       } catch (error) {
-        set({ lastError: describeError(error), connection: "degraded" });
+        if (epoch === sessionEpoch && request === snapshotRequest)
+          set({ lastError: describeError(error), connection: "degraded" });
         return false;
       }
     },
@@ -290,6 +334,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
     setFocusedKey: (key) => set({ focusedKey: key }),
 
     recordBackendEvent: (event) => {
+      const payload = event.payload as { source?: string; type?: string; message?: string } | null;
+      if (
+        event.kind === "event" &&
+        payload?.source === "backend-supervisor" &&
+        payload.type === "died"
+      ) {
+        get().markGuardianDead({ reason: payload.message });
+      }
       set((state) => {
         const next: Partial<SessionData> = { eventCount: state.eventCount + 1 };
         if (event.kind === "event") {
@@ -306,6 +358,9 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
     },
 
     markGuardianDead: (payload) => {
+      sessionEpoch++;
+      loadingConfig = false;
+      invalidateBackendSnapshot();
       set({
         connection: "degraded",
         lastError: `后端进程已退出${payload.reason ? `：${payload.reason}` : ""}`,
@@ -316,5 +371,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
 
 /** 测试隔离：重置数据字段，保留 actions。 */
 export function resetSessionStore(): void {
+  sessionEpoch++;
+  loadingConfig = false;
+  invalidateBackendSnapshot();
   useSessionStore.setState({ ...initialData, expandedKeys: new Set<TreeNodeKey>() });
 }

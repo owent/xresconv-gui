@@ -234,6 +234,7 @@ export class BackendRpcApp {
   private readonly pendingDialogs = new Map<string, (choice: DialogChoice) => void>();
   private startPromise: Promise<void> | null = null;
   private disposed = false;
+  private disposePromise: Promise<void> | null = null;
 
   constructor(options: BackendRpcAppOptions) {
     this.pool = options.pool;
@@ -278,7 +279,7 @@ export class BackendRpcApp {
 
   /** 当前快照（未加载配置时 config/tree 为 null、selectedItems 为空、settings.effective 为 null）。 */
   snapshot(): BackendSnapshot {
-    return {
+    return structuredClone({
       state: this.session.getState(),
       runSeq: this.session.getRunSeq(),
       config: this.session.getConfig(),
@@ -288,7 +289,7 @@ export class BackendRpcApp {
         overrides: this.session.getOverrides(),
         effective: this.session.getEffectiveSettings(),
       },
-    };
+    });
   }
 
   /**
@@ -331,19 +332,27 @@ export class BackendRpcApp {
   }
 
   /** 收尾：会话 dispose（有界）后关 worker 池。幂等。 */
-  async dispose(): Promise<void> {
-    if (this.disposed) {
-      return;
-    }
+  dispose(): Promise<void> {
+    if (this.disposePromise !== null) return this.disposePromise;
     this.disposed = true;
-    await this.session.dispose();
-    await this.pool.shutdown();
+    this.disposePromise = (async () => {
+      try {
+        await this.session.dispose();
+      } finally {
+        await this.pool.shutdown();
+      }
+    })();
+    return this.disposePromise;
   }
 
   /** 运行中（含加载中）不允许的动作统一在此拦截。 */
   private assertIdleLike(action: string): void {
+    if (this.disposed) {
+      throw new RpcError("INVALID_STATE", "backend rpc app is disposed");
+    }
     const state = this.session.getState();
     if (
+      this.session.hasActiveRun() ||
       state === "loading" ||
       state === "before_hooks" ||
       state === "converting" ||
@@ -360,6 +369,7 @@ export class BackendRpcApp {
     }
     this.assertIdleLike("load config");
     await this.start();
+    this.assertIdleLike("load config");
     try {
       await this.session.loadConfig(path);
     } catch (err) {
@@ -375,6 +385,7 @@ export class BackendRpcApp {
     }
     this.assertIdleLike("reload config");
     await this.start();
+    this.assertIdleLike("reload config");
     try {
       await this.session.loadConfig(config.path);
     } catch (err) {
@@ -384,6 +395,7 @@ export class BackendRpcApp {
   }
 
   private rpcApplyOps(params: Record<string, unknown>): AppliedOpsReport {
+    this.assertIdleLike("apply UI operations");
     const ops = params.ops;
     if (!Array.isArray(ops)) {
       throw new RpcError("INVALID_PARAMS", "applyOps requires params.ops (array)");
@@ -433,7 +445,7 @@ export class BackendRpcApp {
     for (const task of plan.tasks) {
       const outputDir = task.outputDir ?? "";
       const rename = task.rename ?? "";
-      const key = `${outputDir} ${rename}`;
+      const key = JSON.stringify([outputDir, rename]);
       let group = groups.get(key);
       if (group === undefined) {
         group = { outputDir, rename, items: [], count: 0 };
@@ -473,6 +485,7 @@ export class BackendRpcApp {
     }
     // run 的 before 链即需 worker：先确保池已启动（start 幂等）。
     await this.start();
+    this.assertIdleLike("start a run");
     // runConversion 在首个 await 前同步完成校验、generation++ 与 before_hooks 迁移，
     // 故调用返回后 runSeq 已是本次代际；预检保证不会因状态违例即刻 reject。
     const run = this.session.runConversion();

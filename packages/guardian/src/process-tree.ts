@@ -207,9 +207,10 @@ class ProcessScopeImpl implements ProcessScope {
   readonly name: string;
   readonly backend: ProcessTreeBackend;
   private readonly children = new Map<number, RegisteredChild>();
-  private readonly job: unknown = null;
+  private job: unknown = null;
   private readonly jobApi: Win32JobApi | null = null;
   private terminatePromise: Promise<TreeTerminateReport> | null = null;
+  private disposePromise: Promise<void> | null = null;
 
   constructor(name: string, forcedBackend?: ProcessTreeBackend) {
     this.name = name;
@@ -232,6 +233,9 @@ class ProcessScopeImpl implements ProcessScope {
   }
 
   decorateSpawnOptions<T extends SpawnOptions>(options: T): T {
+    if (this.terminatePromise !== null || this.disposePromise !== null) {
+      throw new Error("process scope is closed or terminating");
+    }
     if (this.backend === "process-group") {
       return { ...options, detached: true };
     }
@@ -239,6 +243,10 @@ class ProcessScopeImpl implements ProcessScope {
   }
 
   register(child: ChildProcess): void {
+    if (this.terminatePromise !== null || this.disposePromise !== null) {
+      child.kill("SIGKILL");
+      throw new Error("process scope is closed or terminating");
+    }
     const pid = child.pid;
     if (pid === undefined) {
       return;
@@ -246,10 +254,6 @@ class ProcessScopeImpl implements ProcessScope {
     let handle: unknown = null;
     if (this.jobApi !== null) {
       handle = this.jobApi.openProcess(pid);
-      if (handle !== null && this.job !== null) {
-        // 子进程可能在 register 前已退出；失败分配无害（进程已终结）。
-        this.jobApi.assign(this.job, handle);
-      }
     }
     const entry: RegisteredChild = { child, pid, handle, closed: false };
     this.children.set(pid, entry);
@@ -260,9 +264,14 @@ class ProcessScopeImpl implements ProcessScope {
         entry.handle = null;
       }
     });
-    // 终止已经开始后才登记的进程：立即补杀，不放生。
-    if (this.terminatePromise !== null) {
-      void this.terminate(0);
+    if (
+      this.job !== null &&
+      this.jobApi !== null &&
+      (handle === null || !this.jobApi.assign(this.job, handle))
+    ) {
+      child.kill("SIGKILL");
+      void this.dispose();
+      throw new Error(`cannot assign child ${pid} to process job`);
     }
   }
 
@@ -271,12 +280,18 @@ class ProcessScopeImpl implements ProcessScope {
     return this.terminatePromise;
   }
 
-  async dispose(): Promise<void> {
+  dispose(): Promise<void> {
+    this.disposePromise ??= Promise.resolve().then(() => this.disposeOnce());
+    return this.disposePromise;
+  }
+
+  private async disposeOnce(): Promise<void> {
     if ([...this.children.values()].some((entry) => !entry.closed)) {
       await this.terminate(0);
     }
     if (this.job !== null && this.jobApi !== null) {
       this.jobApi.closeHandle(this.job);
+      this.job = null;
     }
     for (const entry of this.children.values()) {
       if (entry.handle !== null && this.jobApi !== null) {
@@ -290,14 +305,15 @@ class ProcessScopeImpl implements ProcessScope {
   private async doTerminate(graceMs: number): Promise<TreeTerminateReport> {
     const live = [...this.children.values()].filter((entry) => !entry.closed);
     if (this.backend === "job-object" && this.job !== null && this.jobApi !== null) {
-      if (live.length > 0) {
+      if (this.children.size > 0) {
         this.jobApi.terminateJob(this.job, 1);
       }
     } else if (this.backend === "taskkill") {
       await Promise.all(live.map((entry) => runTaskkill(entry.pid)));
     } else {
       // POSIX：组级 SIGTERM → 宽限 → 组级 SIGKILL；ESRCH 表示组已消亡，忽略。
-      for (const entry of live) {
+      const groups = [...this.children.values()];
+      for (const entry of groups) {
         try {
           process.kill(-entry.pid, "SIGTERM");
         } catch {
@@ -307,10 +323,7 @@ class ProcessScopeImpl implements ProcessScope {
       if (graceMs > 0) {
         await Promise.all(live.map((entry) => waitForClose(entry, graceMs)));
       }
-      for (const entry of live) {
-        if (entry.closed) {
-          continue;
-        }
+      for (const entry of groups) {
         try {
           process.kill(-entry.pid, "SIGKILL");
         } catch {

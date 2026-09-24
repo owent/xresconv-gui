@@ -1,8 +1,9 @@
-import type { NodeHealth } from "@xresconv/contracts";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Label, ListBox, ListBoxItem } from "react-aria-components";
+import { onBackendEvent } from "../adapters/backend";
 import {
   type AppInfo,
+  type GuardianHealth,
   getAppInfo,
   getBackendHealth,
   getCliMatches,
@@ -18,7 +19,7 @@ import { useSessionStore } from "./session-store";
 export function EnvironmentStatus() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [cliArgs, setCliArgs] = useState<Record<string, unknown>>({});
-  const [health, setHealth] = useState<NodeHealth | null>(null);
+  const [health, setHealth] = useState<GuardianHealth | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const configPath = useSessionStore((state) => state.configPath);
   const loadConfig = useSessionStore((state) => state.loadConfig);
@@ -35,6 +36,20 @@ export function EnvironmentStatus() {
         setHealthError(String(error));
       });
   }, []);
+
+  useEffect(
+    () =>
+      onBackendEvent((event) => {
+        const payload = event.payload as { source?: string; type?: string } | null;
+        if (
+          event.kind === "event" &&
+          payload?.source === "backend-supervisor" &&
+          (payload.type === "ready" || payload.type === "died")
+        )
+          refreshHealth();
+      }),
+    [refreshHealth],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -65,10 +80,14 @@ export function EnvironmentStatus() {
   }, []);
 
   const pickConfig = async () => {
-    const selected = await pickXmlConfig();
-    if (selected !== null) {
-      // 选择即加载：快照入 session store（P4-03）；失败经 store.lastError 可见。
-      await loadConfig(selected);
+    try {
+      const selected = await pickXmlConfig();
+      if (selected !== null) {
+        // 选择即加载：快照入 session store（P4-03）；失败经 store.lastError 可见。
+        await loadConfig(selected);
+      }
+    } catch (error) {
+      useSessionStore.setState({ lastError: String(error) });
     }
   };
 
@@ -104,9 +123,9 @@ export function EnvironmentStatus() {
       <div className="backend-health">
         {health ? (
           <p role="status" aria-label="后端状态" data-testid="backend-health">
-            {`guardian ok · node ${health.node} · pid ${health.pid}`}
+            {`guardian ${health.ok ? "ok" : "failed"} · node ${health.node} · pid ${health.pid}`}
             {health.backend
-              ? ` · backend ok · pid ${health.backend.pid} · protocol v${health.backend.protocol_version}`
+              ? ` · backend ${health.backend.state} · pid ${health.backend.pid ?? "—"} · generation ${health.backend.generation}`
               : ""}
           </p>
         ) : healthError !== null ? (

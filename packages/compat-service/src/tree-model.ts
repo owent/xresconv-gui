@@ -214,10 +214,21 @@ export class SelectionTree {
    */
   applyNodeStates(changes: readonly NodeStateChange[]): void {
     for (const change of changes) {
+      if (
+        change === null ||
+        typeof change !== "object" ||
+        typeof change.selected !== "boolean" ||
+        typeof change.partsel !== "boolean"
+      ) {
+        throw new Error("node state requires boolean selected and partsel");
+      }
       const node = this.byKey.get(change.key);
       if (node === undefined) {
         throw new Error(`unknown tree node key: ${String(change.key)}`);
       }
+    }
+    for (const change of changes) {
+      const node = this.mustGet(change.key);
       node.selected = change.selected;
       node.partsel = change.partsel;
     }

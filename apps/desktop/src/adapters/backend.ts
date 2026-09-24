@@ -1,5 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { BackendRpc } from "@xresconv/contracts";
 
 /**
  * 业务 RPC 与事件适配层（P4-02 壳通道 ↔ backend，P4-03 前端接线）。
@@ -49,15 +50,7 @@ export interface BackendSnapshot {
   selectedItems: unknown[];
 }
 
-export type BackendRpcMethod =
-  | "loadConfig"
-  | "reload"
-  | "getSnapshot"
-  | "applyOps"
-  | "run"
-  | "cancel"
-  | "reset"
-  | "respondDialog";
+export type BackendRpcMethod = Extract<BackendRpc, { type: "request" }>["method"];
 
 export interface NodeStateChange {
   key: TreeNodeKey;
@@ -94,6 +87,7 @@ export function backendRpc<T>(
   params: Record<string, unknown> = {},
   timeoutMs?: number,
 ): Promise<T> {
+  if (method !== "getSnapshot") invalidateBackendSnapshot();
   const args: Record<string, unknown> = { method, params };
   if (timeoutMs !== undefined) {
     args.timeoutMs = timeoutMs;
@@ -110,7 +104,7 @@ function dedupeInflight<T>(key: string, run: () => Promise<T>): Promise<T> {
     return pending as Promise<T>;
   }
   const promise = run().finally(() => {
-    inflight.delete(key);
+    if (inflight.get(key) === promise) inflight.delete(key);
   });
   inflight.set(key, promise);
   return promise;
@@ -121,6 +115,10 @@ export function getBackendSnapshot(): Promise<BackendSnapshot> {
   return dedupeInflight("backend_rpc:getSnapshot", () =>
     backendRpc<BackendSnapshot>("getSnapshot"),
   );
+}
+
+export function invalidateBackendSnapshot(): void {
+  inflight.delete("backend_rpc:getSnapshot");
 }
 
 type EventHandler = (payload: never) => void;

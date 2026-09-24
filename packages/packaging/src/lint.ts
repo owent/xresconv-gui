@@ -9,7 +9,7 @@ export interface ManifestLintFinding {
   pointer: string;
   /** Stable rule id, e.g. windows-drive-path, secret-key, private-key-block. */
   rule: string;
-  /** Truncated offending content for diagnostics. */
+  /** Truncated content; secret values are always redacted. */
   excerpt: string;
 }
 
@@ -57,26 +57,43 @@ export function lintManifest(value: unknown): ManifestLintFinding[] {
   const findings: ManifestLintFinding[] = [];
   const walk = (node: unknown, pointer: string, key: string | null): void => {
     if (typeof node === "string") {
+      const secret =
+        (key !== null &&
+          SECRET_KEY_PATTERN.test(key) &&
+          node.length > 0 &&
+          !PLACEHOLDER_PATTERN.test(node)) ||
+        SECRET_VALUE_RULES.some(({ pattern }) => pattern.test(node));
+      const detail = secret ? "<redacted>" : excerpt(node);
       if (key !== null && SECRET_KEY_PATTERN.test(key) && node.length > 0) {
         if (!PLACEHOLDER_PATTERN.test(node)) {
-          findings.push({ pointer, rule: "secret-key", excerpt: excerpt(node) });
+          findings.push({ pointer, rule: "secret-key", excerpt: detail });
         }
       }
       for (const { rule, pattern } of SECRET_VALUE_RULES) {
         if (pattern.test(node)) {
-          findings.push({ pointer, rule, excerpt: excerpt(node) });
+          findings.push({ pointer, rule, excerpt: detail });
         }
       }
       for (const { rule, pattern } of ABSOLUTE_PATH_RULES) {
         if (pattern.test(node)) {
-          findings.push({ pointer, rule, excerpt: excerpt(node) });
+          findings.push({ pointer, rule, excerpt: detail });
         }
+      }
+      if (
+        /^\/(?:files\/\d+\/path|nativeAddonAbi\/modules\/\d+\/path|verificationReport\/reportPath)$/.test(
+          pointer,
+        ) &&
+        (/[\\:]/.test(node) ||
+          [...node].some((char) => char.charCodeAt(0) < 32) ||
+          node.split("/").some((part) => part === "" || part === "." || part === ".."))
+      ) {
+        findings.push({ pointer, rule: "nonportable-relative-path", excerpt: detail });
       }
       return;
     }
     if (Array.isArray(node)) {
       for (const [index, item] of node.entries()) {
-        walk(item, `${pointer}/${index}`, null);
+        walk(item, `${pointer}/${index}`, key);
       }
       return;
     }

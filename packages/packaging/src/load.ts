@@ -77,6 +77,13 @@ function checkDomains(target: ReleaseTarget): void {
 }
 
 function checkCoherence(target: ReleaseTarget): void {
+  const arch = target.arch === "x64" ? "x86_64" : target.arch === "arm64" ? "aarch64" : target.arch;
+  const suffix = { windows: "pc-windows-msvc", macos: "apple-darwin", linux: "unknown-linux-gnu" }[
+    target.os
+  ];
+  if (target.targetTriple !== `${arch}-${suffix}`) {
+    fail("INCOHERENT_TARGET", target, "targetTriple must match the target OS and architecture");
+  }
   switch (target.os) {
     case "windows":
     case "macos": {
@@ -104,7 +111,7 @@ function checkCoherence(target: ReleaseTarget): void {
       if (target.webviewStrategy !== want) {
         fail("INCOHERENT_TARGET", target, `windows ${target.variant} requires ${want}`);
       }
-      if (typeof target.minimumWebview !== "string") {
+      if (typeof target.minimumWebview !== "string" || target.minimumWebview.length === 0) {
         fail("INCOHERENT_TARGET", target, "windows targets must declare a WebView2 floor");
       }
       break;
@@ -236,6 +243,8 @@ export function validateRuntimeManifest(
   if (!validate(data)) {
     throw schemaError("runtime-manifest.json", validate.errors);
   }
+  checkDomains(data as RuntimeManifest);
+  checkCoherence(data as RuntimeManifest);
   if (options.lint !== false) {
     const findings = lintManifest(data);
     if (findings.length > 0) {

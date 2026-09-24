@@ -8,7 +8,7 @@
 
 每个支持目标生成 `bootstrap` 和 `offline`。命名模式为 `xresconv-gui-<version>-<os>-<distro?>-<arch>-<variant>.<ext>`，另带 SHA-256、签名/公证信息、SBOM、许可和测试报告索引。产物矩阵先写清单再构建，汇总 job 检查集合完全相等，不用通配符“找到多少发多少”。
 
-拟新增 `packaging/targets.json` 与 `runtime-manifest.json`；字段至少包括：
+P5-01 已有 `packaging/targets.json` 与 `packaging/schema/runtime-manifest.schema.json`。清单与矩阵生成入口都校验目标集合及 OS/arch/triple 一致性；安装路径必须是无 `.`/`..` 段的正斜杠相对路径；疑似秘密不能回显到诊断。回归见 [增量审查](records/REVIEW-P2-P5-2026-09-24.md)。产物侧 `runtime-manifest.json` 字段至少包括：
 
 ```text
 schemaVersion / appVersion / sourceCommit / targetTriple

@@ -1,6 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { NodeHealth } from "@xresconv/contracts";
+
+/** Persistent guardian health carries supervisor state (not the one-shot NodeHealth). */
+export interface GuardianHealth {
+  ok: boolean;
+  pid: number;
+  node: string;
+  backend: {
+    state: "idle" | "starting" | "ready" | "dead" | "shutdown";
+    pid?: number;
+    generation: number;
+  };
+}
 
 export interface AppInfo {
   name: string;
@@ -41,8 +52,8 @@ export function getCliMatches(): Promise<Record<string, unknown>> {
   );
 }
 
-export function getBackendHealth(): Promise<NodeHealth> {
-  return dedupeInflight("get_backend_health", () => invoke<NodeHealth>("get_backend_health"));
+export function getBackendHealth(): Promise<GuardianHealth> {
+  return dedupeInflight("get_backend_health", () => invoke<GuardianHealth>("get_backend_health"));
 }
 
 /** 打开原生 XML 配置选择框；用户取消时返回 null。 */

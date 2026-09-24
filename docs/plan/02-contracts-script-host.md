@@ -2,7 +2,9 @@
 
 [执行索引](README.md) · [上一册](01-baseline-toolchain.md) · [下一册](03-domain-conversion.md)
 
-对应 P2，同时定义 P1/P3/P4 共用接口。本轮按 D6 改为 TypeScript/Node.js 业务和监督层；现有协议骨架保留到迁移完成，不能当成新进程拓扑已验证。接口名和阈值须通过原型与兼容样例后冻结。
+对应 P2，同时定义 P1/P3/P4 共用接口。D6 的 Node/TypeScript 业务和监督层已有 Windows 实测，协议 v1 冻结规则见 [P2-12](records/P2-12.md)；跨平台范围仍以实际记录为准。
+
+增量审查明确的完成边界：重复启动/关闭须等待同一结果；终止后的 scope 禁止再登记进程；RPC deadline 包含管道写入等待。Rust 壳写队列最多 16 帧、待决请求最多 128；guardian 出站积压最多 8 MiB，单帧仍为 1 MiB。过大 RPC 回复返回关联的 `RESPONSE_TOO_LARGE`，超时/通道失效不自动重放。实现与回归见 [增量审查](records/REVIEW-P2-P5-2026-09-24.md)。
 
 ## 进程职责与最小原生边界
 

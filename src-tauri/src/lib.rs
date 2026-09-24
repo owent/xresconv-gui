@@ -116,10 +116,18 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             // 窗口关闭 → 显式关闭 guardian 通道（子树自清，P2-09）。
-            if let tauri::WindowEvent::CloseRequested { .. } = event
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event
                 && let Some(state) = window.try_state::<std::sync::Arc<guardian::GuardianState>>()
             {
-                let _ = state.shutdown();
+                api.prevent_close();
+                let state = state.inner().clone();
+                let window = window.clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    if let Err(error) = state.shutdown() {
+                        eprintln!("guardian shutdown failed: {error}");
+                    }
+                    let _ = window.destroy();
+                });
             }
         })
         .invoke_handler(tauri::generate_handler![

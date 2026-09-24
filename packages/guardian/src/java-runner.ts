@@ -165,8 +165,7 @@ export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult
       signal?.removeEventListener("abort", onAbort);
       // 句柄释放（Windows job/process handle）；若有残留成员，dispose 内的
       // KILL_ON_JOB_CLOSE 关闭句柄即内核级最终清扫。
-      void scope.dispose();
-      fn();
+      void scope.dispose().then(fn, reject);
     };
 
     // 进程树终止（P2-02）：Windows job-object/回退 taskkill /T /F 立即整树终止，

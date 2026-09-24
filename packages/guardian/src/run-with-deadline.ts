@@ -68,11 +68,12 @@ export function runWithDeadline(program: string, options: RunOptions): Promise<R
     let child: ChildProcess;
     try {
       child = spawn(program, args, scope.decorateSpawnOptions({ cwd, env, stdio: "ignore" }));
+      scope.register(child);
     } catch (err) {
+      void scope.dispose();
       reject(new SpawnError(program, err));
       return;
     }
-    scope.register(child);
 
     let settled = false;
     let deadlineExpired = false;
@@ -80,8 +81,7 @@ export function runWithDeadline(program: string, options: RunOptions): Promise<R
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      void scope.dispose();
-      fn();
+      void scope.dispose().then(fn, reject);
     };
     const timer = setTimeout(() => {
       if (settled) return;
@@ -99,7 +99,7 @@ export function runWithDeadline(program: string, options: RunOptions): Promise<R
       settle(() => reject(new SpawnError(program, err)));
     });
 
-    child.once("exit", (exitCode, signal) => {
+    child.once("close", (exitCode, signal) => {
       // 截止后树终止导致的退出仍须报 HardDeadlineError（TerminateJobObject 的
       // 退出码是普通数值，不能据此当正常结束）。
       settle(() =>

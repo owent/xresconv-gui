@@ -24,7 +24,7 @@ vi.mock("@tauri-apps/api/core", () => ({
         role: "guardian",
         pid: 1234,
         node: "v24.21.0",
-        backend: { ok: true, role: "backend", pid: 1235, node: "v24.21.0", protocol_version: 1 },
+        backend: { state: "ready", pid: 1235, generation: 1 },
       };
     }
     throw new Error(`unexpected command: ${cmd}`);
@@ -39,6 +39,14 @@ const mockedInvoke = invoke as unknown as Mock<(cmd: string) => Promise<unknown>
 const mockedOpen = open as unknown as Mock<(options?: unknown) => Promise<string | null>>;
 
 function defaultInvokeImpl(cmd: string): Promise<unknown> {
+  if (cmd === "backend_rpc")
+    return Promise.resolve({
+      state: "ready",
+      runSeq: 0,
+      config: { path: "D:/conf/convert_list.xml" },
+      tree: null,
+      selectedItems: [],
+    });
   if (cmd === "get_app_info") {
     return Promise.resolve({ name: "xresconv-gui", version: "3.0.0-dev.0", protocol_version: 1 });
   }
@@ -51,7 +59,7 @@ function defaultInvokeImpl(cmd: string): Promise<unknown> {
       role: "guardian",
       pid: 1234,
       node: "v24.21.0",
-      backend: { ok: true, role: "backend", pid: 1235, node: "v24.21.0", protocol_version: 1 },
+      backend: { state: "ready", pid: 1235, generation: 1 },
     });
   }
   return Promise.reject(new Error(`unexpected command: ${cmd}`));
@@ -127,7 +135,7 @@ describe("App shell (P4-01)", () => {
     await renderAndSettle();
     const text = screen.getByTestId("backend-health").textContent ?? "";
     expect(text).toContain("guardian ok · node v24.21.0");
-    expect(text).toContain("backend ok · pid 1235 · protocol v1");
+    expect(text).toContain("backend ready · pid 1235 · generation 1");
   });
 
   it("shows an error state when the health probe fails but keeps the shell usable", async () => {

@@ -113,8 +113,10 @@ describe("process tree scope (P2-02)", () => {
   it(
     "terminate on an empty or already-exited scope resolves cleanly",
     async () => {
-      const scope = createProcessScope({ name: "t-empty" });
-      await expect(scope.terminate(0)).resolves.toMatchObject({ unreapedPids: [] });
+      const empty = createProcessScope({ name: "t-empty" });
+      await expect(empty.terminate(0)).resolves.toMatchObject({ unreapedPids: [] });
+      await empty.dispose();
+      const scope = createProcessScope({ name: "t-exited" });
       const child = spawn(
         process.execPath,
         ["-e", "process.exit(0)"],

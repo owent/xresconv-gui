@@ -88,6 +88,7 @@ export class ConversionSession {
   private cancelRequested = false;
   private activeRun: Promise<RunSummary> | null = null;
   private disposed = false;
+  private disposePromise: Promise<void> | null = null;
 
   constructor(options: ConversionSessionOptions) {
     this.pool = options.pool;
@@ -121,6 +122,10 @@ export class ConversionSession {
     return this.state;
   }
 
+  hasActiveRun(): boolean {
+    return this.javaAbort !== null;
+  }
+
   getConfig(): ParsedConfig | null {
     return this.config;
   }
@@ -147,8 +152,9 @@ export class ConversionSession {
       for (const diagnostic of config.diagnostics) {
         void this.pipeline.warning(`${diagnostic.message} (${diagnostic.file})`, "CONFIG");
       }
+      const tree = new SessionTreeState(config, (this.treeState?.selectionVersion ?? 0) + 1);
       this.config = config;
-      this.treeState = new SessionTreeState(config);
+      this.treeState = tree;
       // 表单随配置重填：上次配置的 overrides 不带入新配置（P4-04a）。
       this.overrides = {};
       this.transition("ready");
@@ -175,7 +181,7 @@ export class ConversionSession {
 
   /** 当前持有的转换参数覆盖（P4-04a；拷贝返回，外部改写不影响会话）。 */
   getOverrides(): ConversionOverrides {
-    return { ...this.overrides };
+    return structuredClone(this.overrides);
   }
 
   /** 表单有效值（配置默认 ⊕ overrides）；未加载配置时为 null。 */
@@ -184,7 +190,7 @@ export class ConversionSession {
     if (config === null) {
       return null;
     }
-    return resolveEffectiveSettings(config, this.overrides);
+    return structuredClone(resolveEffectiveSettings(config, this.overrides));
   }
 
   /**
@@ -198,12 +204,12 @@ export class ConversionSession {
     if (config === null) {
       throw new Error("updateSettings requires a loaded config (call loadConfig first)");
     }
-    this.overrides = { ...this.overrides, ...fields };
+    this.overrides = structuredClone({ ...this.overrides, ...fields });
     const effective = resolveEffectiveSettings(config, this.overrides);
     if (fields.matrix !== undefined && this.treeState !== null) {
-      this.treeState.applyMatrixEligibility(effective.matrix, isMatrixMode(effective.matrix));
+      this.treeState.replaceMatrixEligibility(effective.matrix, isMatrixMode(effective.matrix));
     }
-    return effective;
+    return structuredClone(effective);
   }
 
   /**
@@ -276,7 +282,7 @@ export class ConversionSession {
       this.activeRun = executeRun({
         config,
         selection: effectiveSelection,
-        overrides: overrides ?? this.overrides,
+        overrides: structuredClone(overrides ?? this.overrides),
         pool: this.pool,
         pipeline: this.pipeline,
         runner: this.runner,
@@ -324,22 +330,26 @@ export class ConversionSession {
   }
 
   /** 收尾：清空 hook 窗口、等队列 drain、flush log4js（有界）。不 shutdown 共享池。 */
-  async dispose(): Promise<void> {
-    if (this.disposed) {
-      return; // 幂等（EX03 同请求重投）
-    }
+  dispose(): Promise<void> {
+    if (this.disposePromise !== null) return this.disposePromise;
     this.disposed = true;
+    this.disposePromise = this.disposeOnce();
+    return this.disposePromise;
+  }
+
+  private async disposeOnce(): Promise<void> {
     this.cancel();
     const run = this.activeRun;
     if (run !== null) {
       // 实际回收后才算清理成功：run 的 settle 发生在 runner 终止确认之后。
       // 超时不冒充成功——记诊断后继续（EX03/SC11：清理未确认必须可见）。
+      let timer: NodeJS.Timeout | undefined;
       const outcome = await Promise.race([
         run.then(() => "settled" as const),
-        new Promise<"timeout">((resolve) =>
-          setTimeout(() => resolve("timeout"), DISPOSE_RUN_TIMEOUT_MS),
-        ),
-      ]);
+        new Promise<"timeout">((resolve) => {
+          timer = setTimeout(() => resolve("timeout"), DISPOSE_RUN_TIMEOUT_MS);
+        }),
+      ]).finally(() => clearTimeout(timer));
       if (outcome === "timeout") {
         void this.pipeline.error(
           `dispose: active run cleanup unconfirmed within ${String(DISPOSE_RUN_TIMEOUT_MS)}ms`,

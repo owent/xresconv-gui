@@ -1,5 +1,6 @@
 import { targetKey } from "./baseline.ts";
 import { PackagingError } from "./errors.ts";
+import { validateTargets } from "./load.ts";
 import type { ArtifactFormat, MatrixArtifact, ReleaseTarget, TargetsFile } from "./types.ts";
 
 /** Semver with optional prerelease; also what CI tags use. No path separators possible. */
@@ -58,6 +59,7 @@ function compareKeys(a: string, b: string): number {
  * the built artifact name set against these names for exact set equality.
  */
 export function buildMatrix(file: TargetsFile, version: string): MatrixArtifact[] {
+  validateTargets(file);
   const artifacts = file.targets.map((target) => {
     const name = artifactName(target, version);
     return {

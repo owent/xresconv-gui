@@ -59,6 +59,7 @@ export interface MatcherServiceOptions {
 
 interface MatchRequest {
   id: string;
+  count: number;
   resolve: (results: boolean[]) => void;
   reject: (err: Error) => void;
   timer: NodeJS.Timeout;
@@ -71,6 +72,7 @@ interface WorkerSlot {
   ready: boolean;
   dead: boolean;
   killing: boolean;
+  cleanup: Promise<void> | null;
 }
 
 function defaultWorkerEntry(): string {
@@ -94,6 +96,9 @@ export class MatcherService {
     timer: NodeJS.Timeout;
   }> = [];
   private shuttingDown = false;
+  private startPromise: Promise<void> | null = null;
+  private shutdownPromise: Promise<void> | null = null;
+  private queued = 0;
 
   constructor(options: MatcherServiceOptions = {}) {
     this.workerEntry = options.workerEntry ?? defaultWorkerEntry();
@@ -116,10 +121,8 @@ export class MatcherService {
     if (this.shuttingDown) {
       return Promise.reject(new MatcherWorkerExitError("matcher service is shut down"));
     }
-    if (this.slot !== null) {
-      return Promise.resolve();
-    }
-    return this.spawnWorker();
+    this.startPromise ??= this.spawnWorker();
+    return this.startPromise;
   }
 
   /** 诊断快照（pid/就绪态）；测试与运维可见性。 */
@@ -136,17 +139,26 @@ export class MatcherService {
    * buildMatchStringRule，旧版懒缓存语义等价）。超时/死亡只拒绝本请求。
    */
   matchBatch(rule: string, inputs: readonly string[]): Promise<boolean[]> {
+    if (this.shuttingDown || this.queued >= 128) {
+      return Promise.reject(
+        new MatcherWorkerExitError("matcher is shut down or queue limit reached"),
+      );
+    }
+    const snapshot = [...inputs];
+    this.queued++;
     // 串行化：一个 worker 同一时刻只处理一个请求（单并发，CPU 求值）。
-    const result = this.queueTail.then(() => this.dispatch(rule, inputs));
+    const result = this.queueTail
+      .then(() => this.dispatch(rule, snapshot))
+      .finally(() => {
+        this.queued--;
+      });
     this.queueTail = result.catch(() => undefined);
     return result;
   }
 
   /** 终止 worker 并拒绝在途/排队请求。幂等；不补员。 */
-  async shutdown(): Promise<void> {
-    if (this.shuttingDown) {
-      return;
-    }
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise !== null) return this.shutdownPromise;
     this.shuttingDown = true;
     const slot = this.slot;
     this.slot = null;
@@ -155,9 +167,12 @@ export class MatcherService {
       clearTimeout(waiter.timer);
       waiter.reject(new MatcherWorkerExitError("matcher service shut down"));
     }
-    if (slot !== null) {
-      await this.killSlot(slot);
-    }
+    this.shutdownPromise = (async () => {
+      if (slot !== null) await this.killSlot(slot);
+      await this.replenishChain;
+      await this.queueTail;
+    })();
+    return this.shutdownPromise;
   }
 
   /** 等待就绪 slot（补员窗口内的排队请求等补员完成而非失败）；有界。 */
@@ -185,6 +200,9 @@ export class MatcherService {
 
   private async dispatch(rule: string, inputs: readonly string[]): Promise<boolean[]> {
     const slot = await this.waitReadySlot();
+    if (this.shuttingDown || slot.dead || slot.killing || slot !== this.slot) {
+      throw new MatcherWorkerExitError("matcher worker no longer available");
+    }
     const stdin = slot.child.stdin;
     if (stdin === null) {
       return Promise.reject(new MatcherWorkerExitError("matcher worker stdin closed"));
@@ -192,6 +210,7 @@ export class MatcherService {
     const { promise, resolve, reject } = Promise.withResolvers<boolean[]>();
     const request: MatchRequest = {
       id: randomUUID(),
+      count: inputs.length,
       resolve,
       reject,
       timer: setTimeout(() => {
@@ -203,6 +222,7 @@ export class MatcherService {
     this.inFlight = request;
     writeFrame(stdin, { type: "match", id: request.id, rule, inputs: [...inputs] }).catch(
       (err: unknown) => {
+        if (this.inFlight !== request || this.slot !== slot) return;
         this.settleInFlight(new MatcherWorkerExitError(`matcher write failed: ${String(err)}`));
         void this.killAndReplenish(slot, "write failure");
       },
@@ -237,6 +257,7 @@ export class MatcherService {
       ready: false,
       dead: false,
       killing: false,
+      cleanup: null,
     };
     this.slot = slot;
     const { promise, resolve, reject } = Promise.withResolvers<void>();
@@ -246,10 +267,15 @@ export class MatcherService {
     }, this.spawnDeadlineMs);
     const decoder = new FrameDecoder(
       (value: unknown) => {
-        if (slot.dead) {
+        if (slot.dead || slot.killing || this.shuttingDown || this.slot !== slot) {
           return;
         }
         const msg = value as Record<string, unknown>;
+        if (typeof msg !== "object" || msg === null) {
+          this.settleInFlight(new MatcherWorkerExitError("invalid matcher reply"));
+          void this.killAndReplenish(slot, "invalid reply");
+          return;
+        }
         if (!slot.ready) {
           if (
             typeof msg === "object" &&
@@ -277,6 +303,16 @@ export class MatcherService {
             this.onDiag("matcher reply for unknown/stale request, ignored");
             return;
           }
+          if (
+            msg.results.length !== request.count ||
+            msg.results.some((value) => typeof value !== "boolean")
+          ) {
+            this.settleInFlight(
+              new MatcherWorkerExitError("invalid matcher result cardinality or value"),
+            );
+            void this.killAndReplenish(slot, "invalid result");
+            return;
+          }
           this.settleInFlight(null, msg.results as boolean[]);
           return;
         }
@@ -292,12 +328,19 @@ export class MatcherService {
         this.onDiag("matcher worker sent unexpected frame, ignored");
       },
       (error) => {
+        if (this.slot !== slot || slot.dead || slot.killing) return;
         this.onDiag(`matcher frame decode error (${error.code}): ${error.message}`);
         this.settleInFlight(new MatcherWorkerExitError("matcher channel poisoned"));
         void this.killAndReplenish(slot, "frame decode error");
       },
     );
     child.stdout?.on("data", (chunk: Buffer) => decoder.push(chunk));
+    child.on("error", (error) => {
+      clearTimeout(handshakeTimer);
+      reject(new MatcherWorkerExitError(`matcher spawn failed: ${error.message}`));
+      if (this.slot === slot) this.settleInFlight(new MatcherWorkerExitError(error.message));
+      void this.killSlot(slot);
+    });
     child.stderr?.on("data", (chunk: Buffer) => {
       this.onDiag(`[matcher-worker] ${chunk.toString("utf8").trimEnd()}`);
     });
@@ -349,12 +392,18 @@ export class MatcherService {
     }
   }
 
-  private async killSlot(slot: WorkerSlot): Promise<void> {
-    if (slot.killing || slot.dead) {
-      return;
-    }
+  private killSlot(slot: WorkerSlot): Promise<void> {
+    if (slot.cleanup !== null) return slot.cleanup;
     slot.killing = true;
-    await slot.scope.terminate(500);
-    await slot.scope.dispose();
+    slot.cleanup = (async () => {
+      try {
+        const report = await slot.scope.terminate(500);
+        if (report.unreapedPids.length > 0)
+          this.onDiag(`matcher cleanup unconfirmed: ${report.unreapedPids.join(",")}`);
+      } finally {
+        await slot.scope.dispose();
+      }
+    })();
+    return slot.cleanup;
   }
 }

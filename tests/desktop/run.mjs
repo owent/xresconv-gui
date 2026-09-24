@@ -8,7 +8,8 @@
  * - On Windows: `msedgedriver.exe` matching the installed WebView2 runtime,
  *   located via `MSEDGEDRIVER_PATH` env (file or directory) or PATH lookup.
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createProcessScope } from "@xresconv/guardian";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,7 @@ function run(cmd, args, options = {}) {
   const r = spawnSync(cmd, args, {
     cwd: root,
     stdio: "inherit",
+    timeout: 30 * 60 * 1000,
     ...options,
   });
   if (r.status !== 0) {
@@ -58,5 +60,22 @@ if (process.platform === "win32") {
 
 console.log("[e2e] starting WebdriverIO run…");
 const wdioCli = path.join(root, "node_modules", "@wdio", "cli", "bin", "wdio.js");
-run(process.execPath, [wdioCli, "run", path.join("tests", "desktop", "wdio.conf.mjs")], { env });
+const scope = createProcessScope({ name: "desktop-e2e" });
+try {
+  const child = spawn(process.execPath, [wdioCli, "run", path.join("tests", "desktop", "wdio.conf.mjs")],
+    scope.decorateSpawnOptions({ cwd: root, stdio: "inherit", env, windowsHide: true }));
+  scope.register(child);
+  const status = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      void scope.terminate(0);
+      reject(new Error("desktop E2E exceeded 20 minutes"));
+    }, 20 * 60 * 1000);
+    child.once("error", (error) => { clearTimeout(timer); reject(error); });
+    child.once("close", (code) => { clearTimeout(timer); resolve(code); });
+  });
+  if (status !== 0) throw new Error(`WebdriverIO failed (${status})`);
+} finally {
+  await scope.terminate(0);
+  await scope.dispose();
+}
 console.log("[e2e] done");

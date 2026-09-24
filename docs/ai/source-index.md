@@ -9,7 +9,7 @@
 | 包管理器 | `package.json`、`.yarnrc.yml`、`yarn.lock`、工作树状态 | 唯一 JS 锁为 yarn.lock，Cargo.lock 服务 Tauri；2026-09-24 immutable 安装通过，WDIO 既有四项 peer 警告另列于审查记录 | current（Windows 本机） |
 | 构建/打包 | `gulpfile.js`、`package.json` scripts | gulp 5 任务驱动；`@electron/packager` 打包到 `out/`；macOS 必须 `asar=false` | current |
 | 应用图标与 LFS | `docs/brand/app-icon.svg`、`.gitattributes`、`src-tauri/tauri.conf.json`、`.github/workflows/build.yml` / `release.yml` | SVG 母版生成平台图标与 favicon；受跟踪静态资源及不透明二进制走 LFS，两个构建入口均需获取 LFS 内容 | current（2026-09-24 本地核验） |
-| 测试与 lint | [2026-09-24 审查](../plan/records/REVIEW-P0-P3-2026-09-24.md)、[P2-02](../plan/records/P2-02.md)、[P2-05](../plan/records/P2-05.md)、[P2-06](../plan/records/P2-06.md)、[P2-07](../plan/records/P2-07.md)、[P2-08](../plan/records/P2-08.md)、[P2-10](../plan/records/P2-10.md)、[P2-11](../plan/records/P2-11.md)、[P2-12](../plan/records/P2-12.md)、[P3-07](../plan/records/P3-07.md)、[P2-09](../plan/records/P2-09.md)、[P4-01](../plan/records/P4-01.md)、[P4-02](../plan/records/P4-02.md)、[P4-03](../plan/records/P4-03.md)、[P4-04a](../plan/records/P4-04a.md)、[P5-01](../plan/records/P5-01.md)、`package.json`、`tests/` | 454 例 Node/前端（含契约；backend 167、guardian 80、packaging 54、compat-service 43、script-host 41、desktop 36、contracts 23、ipc 10；2026-09-24 P5-01 收编全量复跑实测——P5-01 新增 packaging 54 例，ipc 10 例为 P4-02 既有、此前计数行漏列）+ 5 例 Rust 壳通道回归（guardian 通道/帧编解码/RPC e2e，P4-02）、3 例 WebView2 E2E、**八格式**真实 JAR 差分（含 ue-json/ue-csv 与 UE C++ 代码树，UnreaImportSettings.json 按窄规则归一化）；P2-05 NodeMirror 后 Schema 重新生成无漂移；P4-02 按冻结规则 2 新增 backend-rpc schema 与 envelope rpc/rpc_result kind，P4-04a 再按规则 2 扩展 method 枚举（updateSettings/preview，SHA-256 见 P4-04a 记录），漂移守卫通过 | current（win32/x64；非 G2/G3 完整验收） |
+| 测试与 lint | [2026-09-24 审查](../plan/records/REVIEW-P0-P3-2026-09-24.md)、[P2-02](../plan/records/P2-02.md)、[P2-05](../plan/records/P2-05.md)、[P2-06](../plan/records/P2-06.md)、[P2-07](../plan/records/P2-07.md)、[P2-08](../plan/records/P2-08.md)、[P2-10](../plan/records/P2-10.md)、[P2-11](../plan/records/P2-11.md)、[P2-12](../plan/records/P2-12.md)、[P3-07](../plan/records/P3-07.md)、[P2-09](../plan/records/P2-09.md)、[P4-01](../plan/records/P4-01.md)、[P4-02](../plan/records/P4-02.md)、[P4-03](../plan/records/P4-03.md)、[P4-04a](../plan/records/P4-04a.md)、[P5-01](../plan/records/P5-01.md)、`package.json`、`tests/`、[增量审查](../plan/records/REVIEW-P2-P5-2026-09-24.md) | 489 例 Node/前端、8 例 Rust、3 例真实 WebView2、八格式 30 文件 JAR 差分；新增 35 例 JS/TS 与 3 例 Rust 回归。协议 v1 形状未变，漂移守卫通过；分包计数、复现/修复及限制见增量审查 | current（win32/x64；非 G2/G3 完整验收） |
 | P0 基线环境 | `docs/plan/records/P0-01.md`、`P0-04.md`、`P0-05.md` | 历史基线用 Yarn 1.22.22 + yarn.lock v1；与当前 Yarn 4 工作树区分。固定组合：OpenJDK 25.0.4.1 + xresloader 2.23.6.jar（sha256 `72fd7655…0caa88`）。记录提示旧 Electron 启动前需移除 `ELECTRON_RUN_AS_NODE=1` | 既有记录，本轮未重跑 |
 | 用户脚本沙箱 | `README.md` 事件支持/已知问题 | 事件脚本在渲染进程沙箱执行，未捕获异常导致白屏；须保持 `resolve()`/`reject()` 约定 | current |
 | AI 配置骨架 | 本次初始化任务 | `AGENTS.md` 主入口 + `CLAUDE.md` 导入层 + `.agents/skills/` + `docs/ai/`；不创建占位目录与工具专属薄层 | current |
@@ -33,7 +33,17 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | D3 脚本兼容范围 | 仅承诺文档化公开接口（README + `tests/fixtures/scripts/contract.md`）；DOM/jQuery/Electron/未公开 Fancytree 内部不兼容，检测到给诊断与迁移指引 | current |
 | D4 威胁模型 | 可信脚本 + 故障隔离；允许文件/外部进程；边界是故障不得白屏/杀主进程/卡死任务 + IPC 授权；不声称防恶意沙箱 | current |
 | D5 macOS 交付 | 系统 WKWebView；系统不足引导升级 macOS；最低系统取 Node/Tauri/前端交集（候选 13.5，P5 复核） | current（最低版本待 P5 复核） |
-| D6 实现语言 | 业务、配置、调度、日志和 guardian 采用 TypeScript/Node.js；Tauri 只保留必要 Rust 构建/入口/胶水；用户 JS 继续独立进程隔离 | current（本轮修订计划，迁移待实施） |
+| D6 实现语言 | 业务、配置、调度、日志和 guardian 采用 TypeScript/Node.js；Tauri 只保留必要 Rust 构建/入口/胶水；用户 JS 继续独立进程隔离 | current（Node 业务/监督层与 Tauri 薄壳已实现至当前切片） |
+
+## 增量审查依据（2026-09-24）
+
+| 主题 | 官方来源与锁定实现 | 当前结论 | review_cadence | update_trigger | status |
+| --- | --- | --- | --- | --- | --- |
+| fork 与原生句柄 | [Node child_process](https://nodejs.org/api/child_process.html)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)、`process-tree.ts` / `backend-supervisor.ts` | Node 参数放 execArgv；原生登记结果需检查；启动/关闭复用完成结果，句柄只能释放一次 | 每次运行器修改 | P2/P3 生命周期变更 | 新增回归及 Windows 真进程通过 |
+| Rust 管道与窗口关闭 | [sync_channel](https://doc.rust-lang.org/std/sync/mpsc/fn.sync_channel.html)、[Tauri Window](https://docs.rs/tauri/latest/tauri/window/struct.Window.html)、[Calling Rust](https://v2.tauri.app/develop/calling-rust/) | 有界 writer 把阻塞写移出 RPC 等待路径；deadline 后通道失效；CloseRequested 等待移至后台，清理后 destroy | 每次通道修改 | P4/P5 壳生命周期 | Rust 8 例与真实 WebView2 通过 |
+| React 异步快照 | [useEffect](https://react.dev/reference/react/useEffect)、`session-store.ts` 与适配层 | 过期异步结果不能覆盖新会话；配置加载互斥，代际/请求水位与快照去重缓存同时失效 | 每次状态流修改 | P4 RPC/UI 变更 | 6 个新增异步/搜索回归通过 |
+| 发行目标与诊断 | [Rust target support](https://doc.rust-lang.org/rustc/platform-support.html)、`packaging/targets.json` / schema | OS/arch 与 triple 必须对应；生成矩阵入口同样验证完整集合；路径遵守 schema 的相对路径说明；疑似秘密只输出脱敏诊断 | 每次目标修改 | P5 目标或清单修改 | 9 个新增边界回归通过 |
+| 外部 WebDriver | [官方 service 仓库](https://github.com/webdriverio/desktop-mobile/tree/main/packages/tauri-service)、锁定 `@wdio/tauri-service` 的 `afterCommand` / `ensureActiveWindowFocus` | 显式 switchToWindow 会关闭自动插件焦点探测；本项目 external provider 用原生 WebDriver 选择窗口。普通 protocol 文档页本轮抓取失败，以官方源码及锁定实现核验 | 每次 WDIO 升级 | E2E harness 修改 | 3/3 通过；DEP0190 与退出后 mock 清理告警保留记录 |
 
 ## 外部规范（易变，需定期复核）
 
@@ -86,10 +96,10 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | 三平台桌面自动化 | [Tauri WebDriver](https://v2.tauri.app/develop/tests/webdriver/)、[WDIO Tauri](https://webdriver.io/docs/desktop-testing/tauri/) | embedded provider 可覆盖三平台；测试插件不进入正式包；原生窗口另验。P1-08 已在 win32/x64 用 tauri-driver + msedgedriver 153.0.4234.48（随 WebView2 运行时版本匹配，驱动不进仓库）跑通最小 E2E | 每次 WDIO/Tauri 升级 | P1/P4/P6 | Windows 最小 E2E 通过；Linux/macOS 待 CI |
 | Windows 双变体 | [Windows Installer](https://v2.tauri.app/distribute/windows-installer/) | embedBootstrapper 与 offlineInstaller 分开出包并测试复用/缺失/过旧 | 每次运行时/打包升级 | P5 | 文档已复核，安装未验证 |
 | 系统 WebView / Linux 包 | [WebView Versions](https://v2.tauri.app/reference/webview-versions/)、[Debian](https://v2.tauri.app/distribute/debian/) | macOS 随系统；Linux 离线自含包/闭包是本项目按发行版实现的设计，非 Tauri 自动保证。D2/D5 已定 | 每次支持矩阵变化 | P5 | 文档已复核，平台矩阵已定（D1/D2/D5） |
-| React Aria 树 | [组件源码](https://github.com/adobe/react-spectrum/blob/main/packages/react-aria-components/src/Tree.tsx)、[官方用例](https://github.com/adobe/react-spectrum/blob/main/packages/react-aria-components/stories/Tree.stories.tsx) | 树/虚拟化与旧三态选择需适配和实测；Tree 文档直连本轮失败，使用官方源码/用例核验 | 每次组件升级 | P4 | 来源可用，组合未实测 |
+| React Aria 树 | [组件源码](https://github.com/adobe/react-spectrum/blob/main/packages/react-aria-components/src/Tree.tsx)、[官方用例](https://github.com/adobe/react-spectrum/blob/main/packages/react-aria-components/stories/Tree.stories.tsx) | 树/虚拟化与旧三态选择需适配和实测；Tree 文档直连本轮失败，使用官方源码/用例核验 | 每次组件升级 | P4 | P4-03 三态/搜索已有单测；2026-09-24 补深层过滤回归，虚拟化仍待 P4-08 |
 | 流与进程完成边界 | [Node Streams](https://nodejs.org/api/stream.html)、[child_process](https://nodejs.org/api/child_process.html) | write 回调/error/drain 分别处理，close 用于管道收尾；kill 成功不等于清理确认。本轮修复 IPC 异步写错、Java EPIPE/kill false/继承管道等待 | 每次运行器改动 | P2/P3 | 2026-09-24 官方文档与回归通过 |
 | Java stdin 分词 | [Java 25 Pattern](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/regex/Pattern.html)、相邻 xresloader `Main.java` | 默认 Pattern 的 ASCII 空白集合不同于 JS Unicode 空白；Scanner 行分隔字符也不能进入单任务行。编码器增加 Unicode 空白/换行用例 | 每次 JAR 升级 | P3-06 | 2026-09-24 源码/文档复核，八格式真实 JAR 通过 |
 | log4js 扩展隔离 | [自定义 appender](https://log4js-node.github.io/log4js-node/writing-appenders.html)、`packages/backend/src/service/log-sink*.ts` | configure/append/shutdown 可执行扩展代码，改为独立进程；有界队列与超时明确报告未持久化/清理未确认 | 每次日志实现改动 | P2-08/P3-09 | 2026-09-24 死循环、独立配置与真实文件 flush 通过 |
 | Tauri 命令响应性 | [Calling Rust](https://v2.tauri.app/develop/calling-rust/) | 同步 command 默认在主线程；健康检查改为 async + spawn_blocking，避免轮询子进程阻塞 UI | 每次壳命令改动 | P1/P2 | 2026-09-24 回归、原生门禁和真实 WebView2 通过 |
 
-同步范围：本轮更新实现、回归测试、Plan、配置/日志合同、审查记录及索引。已检查 Agent 规则/Skills、旧 Electron、部署/CI；本轮没有需要同步的接口或部署改动，不以原型替代正式入口。
+同步范围：增量审查更新实现、回归测试、Plan、监督/UI/发行合同与记录索引。Agent 规则/Skills 和旧 Electron 部署配置未变；暂停切片、跨平台与实体安装验收范围保持。

@@ -123,7 +123,11 @@ describe("BackendRpcApp（P4-02）", () => {
 
     const stale = (await app.handleRpc("applyOps", {
       ops: [
-        { v: version + 1, op: "set_node_states", changes: [{ key: node?.key, selected: true }] },
+        {
+          v: version + 1,
+          op: "set_node_states",
+          changes: [{ key: node?.key, selected: true, partsel: true }],
+        },
       ],
     })) as AppliedOpsReport;
     expect(stale.applied).toBe(0);
@@ -131,7 +135,13 @@ describe("BackendRpcApp（P4-02）", () => {
     expect(stale.rejected[0]?.reason).toContain("stale tree version");
 
     const applied = (await app.handleRpc("applyOps", {
-      ops: [{ v: version, op: "set_node_states", changes: [{ key: node?.key, selected: true }] }],
+      ops: [
+        {
+          v: version,
+          op: "set_node_states",
+          changes: [{ key: node?.key, selected: true, partsel: true }],
+        },
+      ],
     })) as AppliedOpsReport;
     expect(applied.applied).toBe(1);
     expect(applied.rejected).toEqual([]);
@@ -198,7 +208,7 @@ describe("BackendRpcApp（P4-02）", () => {
         {
           v: loaded.tree?.version,
           op: "set_node_states",
-          changes: [{ key: node?.key, selected: true }],
+          changes: [{ key: node?.key, selected: true, partsel: true }],
         },
       ],
     })) as AppliedOpsReport;
@@ -387,7 +397,7 @@ describe("BackendRpcApp（P4-02）", () => {
         {
           v: loaded.tree?.version,
           op: "set_node_states",
-          changes: [{ key: node?.key, selected: true }],
+          changes: [{ key: node?.key, selected: true, partsel: true }],
         },
       ],
     });
@@ -427,7 +437,15 @@ describe("BackendRpcApp（P4-02）", () => {
     })) as BackendSnapshot;
     const node = firstItemNode(loaded);
     await app.handleRpc("applyOps", {
-      ops: [{ v: loaded.tree?.version, op: "select_node", key: node?.key, selected: true }],
+      ops: [
+        {
+          v: loaded.tree?.version,
+          op: "select_node",
+          key: node?.key,
+          selected: true,
+          partsel: true,
+        },
+      ],
     });
     await app.handleRpc("updateSettings", { fields: { type: "lua", outputDir: "ui-out" } });
     const preview = (await app.handleRpc("preview")) as PreviewResult;
@@ -473,7 +491,15 @@ describe("BackendRpcApp（P4-02）", () => {
     })) as BackendSnapshot;
     const node = firstItemNode(loaded);
     await app.handleRpc("applyOps", {
-      ops: [{ v: loaded.tree?.version, op: "select_node", key: node?.key, selected: true }],
+      ops: [
+        {
+          v: loaded.tree?.version,
+          op: "select_node",
+          key: node?.key,
+          selected: true,
+          partsel: true,
+        },
+      ],
     });
     // 配置 proto=protobuf；覆盖为 capnproto + 其余字段。
     await app.handleRpc("updateSettings", {

@@ -63,7 +63,12 @@ export function applyLegacyItemField(item: TreeItem, key: string, value: unknown
     target.schemeData = value;
     return;
   }
-  target[key] = value;
+  Object.defineProperty(target, key, {
+    value: structuredClone(value),
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  });
 }
 
 /** 批量应用旧版字段集（value===null → 删键，对齐 worker diffFields 语义）。 */
@@ -83,18 +88,8 @@ export function applyLegacyItemFields(item: TreeItem, fields: Record<string, unk
 
 /** item 模型 → 旧版 item_data 载荷（schemeData→scheme_data、附 id、无 ft_node）。 */
 export function toLegacyItemData(item: TreeItem): Record<string, unknown> {
-  return {
-    id: item.id,
-    file: item.file,
-    scheme: item.scheme,
-    name: item.name,
-    cat: item.cat,
-    options: item.options,
-    desc: item.desc,
-    scheme_data: item.schemeData,
-    tags: item.tags,
-    classes: item.classes,
-  };
+  const { schemeData, ...fields } = structuredClone(item);
+  return { ...fields, scheme_data: schemeData };
 }
 
 export class SessionTreeState {
@@ -103,9 +98,11 @@ export class SessionTreeState {
   /** key → auto_select 活状态（data.option.auto_select，main.js:1766-1769）。 */
   private readonly optionByKey = new Map<string | number, { auto_select: boolean }>();
   private version = 1;
+  private readonly matrixBlocked = new Set<string | number>();
   readonly config: ParsedConfig;
 
-  constructor(config: ParsedConfig) {
+  constructor(config: ParsedConfig, initialVersion = 1) {
+    this.version = initialVersion;
     this.config = config;
     const nodes = config.tree.map((node) => this.toSnapshotNode(node));
     this.selectionTree = new SelectionTree(nodes);
@@ -203,15 +200,30 @@ export class SessionTreeState {
       }
       if (multiSelected) {
         // main.js:1073-1075：先记忆当前勾选，再取消勾选并禁止。
-        option.auto_select = node.selected;
-        this.selectionTree.applyNodeStates([{ key, selected: false, partsel: false }]);
+        if (!this.matrixBlocked.has(key)) {
+          option.auto_select = node.selected;
+        }
+        this.matrixBlocked.add(key);
+        this.selectionTree.applySetSelected(key, false);
         this.selectionTree.applyUnselectable(key, true);
       } else {
+        this.matrixBlocked.delete(key);
         // main.js:1104-1105：恢复可勾选并按记忆的 auto_select 勾选。
         this.selectionTree.applyUnselectable(key, false);
         this.selectionTree.applySetSelected(key, option.auto_select);
       }
     });
+    this.version++;
+  }
+
+  /** Editable matrices must release restrictions imposed by the previous rules. */
+  replaceMatrixEligibility(matrix: OutputMatrixRule[], multiSelected: boolean): void {
+    for (const key of this.matrixBlocked) {
+      this.selectionTree.applyUnselectable(key, false);
+      this.selectionTree.applySetSelected(key, this.optionByKey.get(key)?.auto_select ?? false);
+    }
+    this.matrixBlocked.clear();
+    this.applyMatrixEligibility(matrix, multiSelected);
     this.version++;
   }
 
@@ -283,6 +295,7 @@ export class SessionTreeState {
           }
           try {
             this.selectionTree.applySetExpanded(key, op.expanded === true);
+            mutated = true;
             report.applied++;
           } catch (err) {
             report.rejected.push({
@@ -304,12 +317,13 @@ export class SessionTreeState {
             break;
           }
           const fields = op.fields;
-          if (typeof fields !== "object" || fields === null) {
+          if (typeof fields !== "object" || fields === null || Array.isArray(fields)) {
             report.rejected.push({ op: op.op, reason: "fields must be an object" });
             break;
           }
           applyLegacyItemFields(item, fields as Record<string, unknown>);
           report.applied++;
+          mutated = true;
           break;
         }
         case "set_node_option": {
@@ -327,6 +341,7 @@ export class SessionTreeState {
           if (option !== undefined && "auto_select" in fields) {
             option.auto_select = (fields as Record<string, unknown>).auto_select === true;
             report.applied++;
+            mutated = true;
           }
           break;
         }

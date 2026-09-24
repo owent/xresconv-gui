@@ -15,7 +15,7 @@ import { Console } from "node:console";
 globalThis.console = new Console({ stdout: process.stderr, stderr: process.stderr });
 
 const { PROTOCOL_VERSION, validate } = await import("@xresconv/contracts");
-const { FrameDecoder, writeFrame } = await import("@xresconv/ipc");
+const { encodeFrame, FrameDecoder, writeFrame } = await import("@xresconv/ipc");
 const { BackendRequestError, BackendSupervisor } = await import("../src/backend-supervisor.ts");
 
 function envelope(kind, payload, extra = {}) {
@@ -29,10 +29,43 @@ function envelope(kind, payload, extra = {}) {
   };
 }
 
+let queuedOutputBytes = 0;
+const MAX_QUEUED_OUTPUT_BYTES = 8 * 1024 * 1024;
 function send(kind, payload, extra = {}) {
-  return writeFrame(process.stdout, envelope(kind, payload, extra)).catch((err) => {
-    process.stderr.write(`[guardian] send failed: ${err}\n`);
-  });
+  let value = envelope(kind, payload, extra);
+  let bytes;
+  try {
+    bytes = encodeFrame(value).byteLength;
+  } catch {
+    value =
+      kind === "rpc_result"
+        ? envelope(
+            "rpc_result",
+            {
+              type: "result",
+              ok: false,
+              error: {
+                code: "RESPONSE_TOO_LARGE",
+                message: "Backend response exceeds the shell frame limit; request was not replayed",
+              },
+            },
+            extra,
+          )
+        : envelope("fault", { message: "Outbound event exceeds the shell frame limit" }, extra);
+    bytes = encodeFrame(value).byteLength;
+  }
+  if (queuedOutputBytes + bytes > MAX_QUEUED_OUTPUT_BYTES) {
+    return selfShutdown("shell output backlog exceeded its byte budget");
+  }
+  queuedOutputBytes += bytes;
+  return writeFrame(process.stdout, value)
+    .catch((err) => {
+      process.stderr.write(`[guardian] send failed: ${err}\n`);
+      return selfShutdown("shell output channel failed");
+    })
+    .finally(() => {
+      queuedOutputBytes -= bytes;
+    });
 }
 
 const supervisor = new BackendSupervisor({
@@ -61,8 +94,13 @@ async function selfShutdown(reason) {
   if (shuttingDown) return;
   shuttingDown = true;
   process.stderr.write(`[guardian] shutdown: ${reason}\n`);
-  await supervisor.shutdown();
-  process.exit(0);
+  try {
+    await supervisor.shutdown();
+    process.exit(0);
+  } catch (error) {
+    process.stderr.write(`[guardian] cleanup failed: ${String(error)}\n`);
+    process.exit(1);
+  }
 }
 
 const decoder = new FrameDecoder(
@@ -165,4 +203,6 @@ process.stdin.once("end", () => void selfShutdown("shell channel EOF"));
 process.stdin.once("error", (err) => void selfShutdown(`shell channel error: ${err.message}`));
 
 await send("health", { ok: true, pid: process.pid, node: process.version });
-await supervisor.start();
+await supervisor.start().catch((error) => {
+  if (!shuttingDown) process.stderr.write(`[guardian] backend startup failed: ${String(error)}\n`);
+});

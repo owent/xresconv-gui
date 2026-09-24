@@ -14,8 +14,8 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
@@ -67,7 +67,49 @@ pub fn encode_frame(value: &Value) -> ChannelResult<Vec<u8>> {
     Ok(frame)
 }
 
-type PendingMap = Arc<Mutex<HashMap<String, mpsc::Sender<ChannelResult<Value>>>>>;
+#[derive(Default)]
+struct Pending {
+    requests: HashMap<String, mpsc::Sender<ChannelResult<Value>>>,
+    dead: Option<String>,
+}
+type PendingMap = Arc<Mutex<Pending>>;
+
+fn mark_dead(pending: &PendingMap, reason: String) {
+    if let Ok(mut state) = pending.lock() {
+        state.dead.get_or_insert_with(|| reason.clone());
+        for (_, sender) in state.requests.drain() {
+            let _ = sender.send(Err(ChannelError::Dead(reason.clone())));
+        }
+    }
+}
+
+struct Outbound {
+    frame: Vec<u8>,
+    shutdown: bool,
+}
+
+/// A bounded writer queue keeps pipe backpressure outside the request deadline path.
+fn spawn_writer(
+    mut stdin: impl Write + Send + 'static,
+    pending: PendingMap,
+) -> mpsc::SyncSender<Outbound> {
+    let (tx, rx) = mpsc::sync_channel::<Outbound>(16);
+    std::thread::spawn(move || {
+        while let Ok(outbound) = rx.recv() {
+            if !outbound.shutdown && pending.lock().map_or(true, |state| state.dead.is_some()) {
+                continue;
+            }
+            if let Err(error) = stdin
+                .write_all(&outbound.frame)
+                .and_then(|()| stdin.flush())
+            {
+                mark_dead(&pending, format!("write frame failed: {error}"));
+                break;
+            }
+        }
+    });
+    tx
+}
 
 /// 事件出口：壳侧注入（tauri emit），测试注入 None。
 /// 关键：本模块不得引用 tauri 类型——否则 unit test exe 经 AppHandle 的
@@ -101,17 +143,38 @@ fn spawn_reader(
                 Ok(value) => value,
                 Err(e) => break format!("invalid JSON frame: {e}"),
             };
+            if env.get("protocol_version").and_then(Value::as_u64) != Some(1)
+                || env.get("role").and_then(Value::as_str) != Some("guardian")
+                || !env.get("payload").is_some_and(Value::is_object)
+                || !env
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| !id.is_empty())
+                || !env
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .is_some_and(|kind| ["health", "rpc_result", "event", "fault"].contains(&kind))
+            {
+                break "invalid guardian envelope identity or shape".into();
+            }
             let reply_to = env
                 .get("in_reply_to")
                 .and_then(Value::as_str)
                 .map(str::to_string);
-            let sender =
-                reply_to.and_then(|id| pending.lock().ok().and_then(|mut map| map.remove(&id)));
+            let sender = reply_to.and_then(|id| {
+                pending
+                    .lock()
+                    .ok()
+                    .and_then(|mut state| state.requests.remove(&id))
+            });
             match sender {
                 Some(sender) => {
                     let _ = sender.send(Ok(env));
                 }
                 None => {
+                    if env.get("in_reply_to").is_some() {
+                        continue;
+                    }
                     // 事件帧与无主回复统一转前端事件流（UI 故障可见，SC11）。
                     if let Some(sink) = &sink {
                         let kind = env.get("kind").and_then(Value::as_str).unwrap_or("unknown");
@@ -125,11 +188,7 @@ fn spawn_reader(
             }
         };
         // 死亡结算：清空待决表（不自动重放）并通知前端。
-        if let Ok(mut map) = pending.lock() {
-            for (_, sender) in map.drain() {
-                let _ = sender.send(Err(ChannelError::Dead(dead_reason.clone())));
-            }
-        }
+        mark_dead(&pending, dead_reason.clone());
         if let Some(sink) = &sink {
             sink("xresconv-guardian-dead", json!({ "reason": dead_reason }));
         }
@@ -138,9 +197,10 @@ fn spawn_reader(
 
 pub struct GuardianClient {
     child: Mutex<Child>,
-    stdin: Mutex<ChildStdin>,
+    writer: mpsc::SyncSender<Outbound>,
     pending: PendingMap,
     seq: AtomicU64,
+    shutdown_lock: Mutex<()>,
 }
 
 impl GuardianClient {
@@ -182,13 +242,14 @@ impl GuardianClient {
             .stdin
             .take()
             .ok_or_else(|| ChannelError::Io("guardian stdin not piped".into()))?;
-        let pending: PendingMap = Arc::new(Mutex::new(HashMap::new()));
+        let pending: PendingMap = Arc::new(Mutex::new(Pending::default()));
         spawn_reader(stdout, pending.clone(), sink);
         let client = Self {
             child: Mutex::new(child),
-            stdin: Mutex::new(stdin),
+            writer: spawn_writer(stdin, pending.clone()),
             pending,
             seq: AtomicU64::new(0),
+            shutdown_lock: Mutex::new(()),
         };
         // 握手：guardian 首帧无主 health 由 reader 归入事件流（无 sink 时
         // 丢弃）；这里以请求/应答 health 确认活性与协议版本（reader 按
@@ -224,14 +285,12 @@ impl GuardianClient {
             "payload": payload,
         });
         let frame = encode_frame(&env)?;
-        let mut stdin = self
-            .stdin
-            .lock()
-            .map_err(|_| ChannelError::Dead("stdin lock poisoned".into()))?;
-        stdin
-            .write_all(&frame)
-            .and_then(|()| stdin.flush())
-            .map_err(|e| ChannelError::Io(format!("write frame failed: {e}")))
+        self.writer
+            .try_send(Outbound {
+                frame,
+                shutdown: kind == "shutdown",
+            })
+            .map_err(|e| ChannelError::Io(format!("writer unavailable: {e}")))
     }
 
     /// 请求/应答：注册待决 → 写帧 → 有界等待。in_reply_to 由 reader 精确
@@ -245,14 +304,24 @@ impl GuardianClient {
     ) -> ChannelResult<Value> {
         let id = self.next_id();
         let (tx, rx) = mpsc::channel::<ChannelResult<Value>>();
-        self.pending
-            .lock()
-            .map_err(|_| ChannelError::Dead("pending lock poisoned".into()))?
-            .insert(id.clone(), tx);
+        let started = std::time::Instant::now();
+        {
+            let mut state = self
+                .pending
+                .lock()
+                .map_err(|_| ChannelError::Dead("pending lock poisoned".into()))?;
+            if let Some(reason) = &state.dead {
+                return Err(ChannelError::Dead(reason.clone()));
+            }
+            if state.requests.len() >= 128 {
+                return Err(ChannelError::Io("pending request limit reached".into()));
+            }
+            state.requests.insert(id.clone(), tx);
+        }
         let outcome = (|| {
             self.write_envelope(kind, payload, &id)?;
             let env = rx
-                .recv_timeout(timeout)
+                .recv_timeout(timeout.saturating_sub(started.elapsed()))
                 .map_err(|_| ChannelError::Timeout("reply deadline"))??;
             let kind = env.get("kind").and_then(Value::as_str).unwrap_or("");
             if kind == "fault" {
@@ -271,7 +340,14 @@ impl GuardianClient {
         })();
         // 超时/写失败也要摘掉待决项（迟到回复随后按无主事件处理）。
         if let Ok(mut map) = self.pending.lock() {
-            map.remove(&id);
+            map.requests.remove(&id);
+        }
+        if matches!(outcome, Err(ChannelError::Timeout(_))) {
+            mark_dead(
+                &self.pending,
+                "request deadline exceeded; channel requires explicit restart".into(),
+            );
+            let _ = self.kill();
         }
         outcome
     }
@@ -311,9 +387,14 @@ impl GuardianClient {
 
     /// 显式关闭：发 shutdown，宽限内等退出，超时强杀（guardian 自清子树）。
     pub fn shutdown(&self) -> ChannelResult<()> {
+        let _guard = self
+            .shutdown_lock
+            .lock()
+            .map_err(|_| ChannelError::Dead("shutdown lock poisoned".into()))?;
         let id = self.next_id();
         // 写失败也继续收割进程。
         let _ = self.write_envelope("shutdown", json!({}), &id);
+        mark_dead(&self.pending, "guardian is shutting down".into());
         self.reap()
     }
 
@@ -327,8 +408,12 @@ impl GuardianClient {
             match child.try_wait() {
                 Ok(Some(_)) => return Ok(()),
                 Ok(None) if started.elapsed() > REAP_TIMEOUT => {
-                    let _ = child.kill();
-                    let _ = child.wait();
+                    child
+                        .kill()
+                        .map_err(|e| ChannelError::Io(format!("kill failed: {e}")))?;
+                    child
+                        .wait()
+                        .map_err(|e| ChannelError::Io(format!("reap failed: {e}")))?;
                     return Ok(());
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(10)),
@@ -342,8 +427,14 @@ impl GuardianClient {
             .child
             .lock()
             .map_err(|_| ChannelError::Dead("child lock poisoned".into()))?;
-        let _ = child.kill();
-        let _ = child.wait();
+        if child
+            .try_wait()
+            .map_err(|e| ChannelError::Io(e.to_string()))?
+            .is_none()
+        {
+            child.kill().map_err(|e| ChannelError::Io(e.to_string()))?;
+        }
+        child.wait().map_err(|e| ChannelError::Io(e.to_string()))?;
         Ok(())
     }
 }
@@ -351,7 +442,7 @@ impl GuardianClient {
 impl Drop for GuardianClient {
     fn drop(&mut self) {
         // 壳退出 → stdin 关闭 → guardian EOF 自清子树（P2-09）；这里兜底强杀。
-        let _ = self.kill();
+        let _ = self.shutdown();
     }
 }
 
@@ -359,6 +450,7 @@ impl Drop for GuardianClient {
 pub struct GuardianState {
     client: Mutex<Option<Arc<GuardianClient>>>,
     sink: Option<EventSink>,
+    closed: AtomicBool,
 }
 
 impl GuardianState {
@@ -366,6 +458,7 @@ impl GuardianState {
         Self {
             client: Mutex::new(None),
             sink,
+            closed: AtomicBool::new(false),
         }
     }
 
@@ -376,6 +469,9 @@ impl GuardianState {
             .client
             .lock()
             .map_err(|_| ChannelError::Dead("state lock poisoned".into()))?;
+        if self.closed.load(Ordering::Acquire) {
+            return Err(ChannelError::Dead("shell is closing".into()));
+        }
         if slot.is_none() {
             *slot = Some(Arc::new(GuardianClient::start(self.sink.clone())?));
         }
@@ -389,12 +485,13 @@ impl GuardianState {
             .lock()
             .map_err(|_| ChannelError::Dead("state lock poisoned".into()))?;
         if let Some(client) = slot.take() {
-            let _ = client.shutdown();
+            client.shutdown()?;
         }
         Ok(())
     }
 
     pub fn shutdown(&self) -> ChannelResult<()> {
+        self.closed.store(true, Ordering::Release);
         let mut slot = self
             .client
             .lock()
@@ -418,6 +515,68 @@ impl GuardianState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn forged_reply_cannot_settle_a_request_successfully() {
+        let pending: PendingMap = Arc::new(Mutex::new(Pending::default()));
+        let (tx, rx) = mpsc::channel();
+        pending
+            .lock()
+            .unwrap()
+            .requests
+            .insert("request".into(), tx);
+        let frame = encode_frame(&json!({"protocol_version": 999, "role": "backend",
+            "kind": "health", "id": "bad", "in_reply_to": "request", "payload": {"ok": true}}))
+        .unwrap();
+        spawn_reader(std::io::Cursor::new(frame), pending, None);
+        assert!(rx.recv_timeout(Duration::from_secs(1)).unwrap().is_err());
+    }
+
+    #[test]
+    fn shutdown_state_cannot_spawn_another_guardian() {
+        let state = GuardianState::new(None);
+        state.shutdown().unwrap();
+        let rejected = state.ensure().is_err();
+        state.shutdown().unwrap();
+        assert!(rejected);
+    }
+
+    #[test]
+    fn request_deadline_includes_a_blocked_stdin_write() {
+        let mut child = Command::new("node")
+            .args(["-e", "setInterval(() => {}, 1000)"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.take().unwrap();
+        let pending: PendingMap = Arc::new(Mutex::new(Pending::default()));
+        let client = Arc::new(GuardianClient {
+            child: Mutex::new(child),
+            writer: spawn_writer(stdin, pending.clone()),
+            pending,
+            seq: AtomicU64::new(0),
+            shutdown_lock: Mutex::new(()),
+        });
+        let other = client.clone();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let result = other.request(
+                "rpc",
+                json!({"pad": "x".repeat(MAX_FRAME_BYTES / 2)}),
+                &["rpc_result"],
+                Duration::from_millis(100),
+            );
+            let _ = tx.send(result);
+        });
+        let result = rx.recv_timeout(Duration::from_secs(1));
+        client.kill().unwrap();
+        assert!(
+            matches!(result, Ok(Err(ChannelError::Timeout(_)))),
+            "{result:?}"
+        );
+    }
 
     #[test]
     fn frame_codec_round_trip_big_endian() {

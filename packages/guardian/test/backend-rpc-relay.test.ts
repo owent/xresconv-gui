@@ -14,6 +14,8 @@
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Envelope } from "@xresconv/contracts";
@@ -139,6 +141,29 @@ async function waitExit(child: ChildProcess, label: string, timeoutMs = WAIT_MS)
 }
 
 describe("壳→guardian→backend 业务 RPC（P4-02）", () => {
+  it("returns a correlated failure for an oversized snapshot instead of timing out", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "xresconv-large-snapshot-"));
+    const fixture = path.join(dir, "large.xml");
+    writeFileSync(fixture, `<root><list><item name="${"x".repeat(600_000)}" /></list></root>`);
+    const shell = spawnGuardian();
+    try {
+      await shell.waitFor(
+        (env) => env.kind === "event" && eventPayload(env).type === "ready",
+        "ready",
+      );
+      const response = resultPayload(
+        await shell.rpc({ type: "request", method: "loadConfig", params: { path: fixture } }),
+      );
+      expect(response.ok).toBe(false);
+      expect(response.error?.code).toBe("RESPONSE_TOO_LARGE");
+    } finally {
+      await shell.send("shutdown", {});
+      await waitExit(shell.child, "shutdown");
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
   it("握手→getSnapshot→loadConfig→applyOps 版本闸→事件转发→未知方法/坏 payload→shutdown", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {

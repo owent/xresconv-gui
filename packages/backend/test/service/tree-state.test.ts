@@ -55,6 +55,26 @@ function makeConfig(
 }
 
 describe("SessionTreeState", () => {
+  it("matrix exclusions recompute ancestor selection and restore remembered selections", () => {
+    const config = makeConfig([
+      {
+        kind: "category",
+        id: "group",
+        name: "group",
+        children: [
+          { kind: "item", item: makeItem("one") },
+          { kind: "item", item: makeItem("two") },
+        ],
+      },
+    ]);
+    const state = new SessionTreeState(config);
+    state.applyScriptOps([{ v: state.selectionVersion, op: "select_all" }]);
+    state.replaceMatrixEligibility([{ tags: ["missing"], classes: [], type: "lua" }], true);
+    expect(state.buildSnapshot().nodes[0]).toMatchObject({ selected: false, partsel: false });
+    state.replaceMatrixEligibility([], false);
+    expect(state.buildSnapshot().nodes[0]).toMatchObject({ selected: true, partsel: true });
+    expect(state.getSelectedItems()).toHaveLength(2);
+  });
   it("构建：快照节点为旧版载荷形状（snake_case、id、无 ft_node），版本从 1 起", () => {
     const config = makeConfig([
       {

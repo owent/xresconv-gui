@@ -101,6 +101,8 @@ interface BackendSlot {
   generation: number;
   ready: boolean;
   dead: boolean;
+  cleanup: Promise<void> | null;
+  cancelStart?: () => void;
   /** 在途心跳：ping envelope id → 发出时间。 */
   outstandingPing: { id: string; sentAt: number } | null;
 }
@@ -128,17 +130,19 @@ export class BackendSupervisor {
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private lastRttMs = 0;
   private lastRssBytes = 0;
+  private startPromise: Promise<void> | null = null;
+  private shutdownPromise: Promise<void> | null = null;
   /** 在途业务 RPC（P4-02）：请求 envelope id → 结算函数。 */
   private readonly pendingRequests = new Map<string, PendingRequest>();
 
   constructor(options: BackendSupervisorOptions = {}) {
     this.options = {
+      ...options,
       backendEntry: options.backendEntry ?? defaultBackendEntry(),
       spawnDeadlineMs: options.spawnDeadlineMs ?? DEFAULT_SPAWN_DEADLINE_MS,
       heartbeatMs: options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS,
       heartbeatDeadlineMs: options.heartbeatDeadlineMs ?? DEFAULT_HEARTBEAT_DEADLINE_MS,
       requestTimeoutMs: options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
-      ...options,
     };
     for (const [name, value] of [
       ["spawnDeadlineMs", this.options.spawnDeadlineMs],
@@ -168,13 +172,26 @@ export class BackendSupervisor {
     if (this.state === "shutdown") {
       throw new Error("backend supervisor is shut down");
     }
-    if (this.state === "starting" || this.state === "ready") {
+    if (this.state === "starting") {
+      return this.startPromise ?? undefined;
+    }
+    if (this.state === "ready") {
       return;
     }
     if (this.slot !== null && !this.slot.dead) {
       throw new Error("backend slot still alive");
     }
-    await this.spawnBackend();
+    const previousCleanup = this.slot?.cleanup;
+    this.state = "starting";
+    this.startPromise = (async () => {
+      await previousCleanup;
+      if (this.state === "shutdown") throw new Error("backend supervisor is shut down");
+      await this.spawnBackend();
+    })().catch((error: unknown) => {
+      if (this.state !== "shutdown") this.state = "dead";
+      throw error;
+    });
+    return this.startPromise;
   }
 
   /** 显式恢复入口（Plan 02 §140：只允许显式新建会话恢复）。 */
@@ -182,7 +199,7 @@ export class BackendSupervisor {
     if (this.state !== "dead") {
       throw new Error(`restart requires dead state (current: ${this.state})`);
     }
-    await this.spawnBackend();
+    await this.start();
   }
 
   /**
@@ -253,29 +270,32 @@ export class BackendSupervisor {
   }
 
   /** 终止监督：停止心跳、拒绝在途 RPC、发 shutdown、宽限后整树终止并 dispose。幂等。 */
-  async shutdown(): Promise<void> {
-    if (this.state === "shutdown") {
-      return;
-    }
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise !== null) return this.shutdownPromise;
     this.state = "shutdown";
     this.stopHeartbeat();
     this.rejectAllRequests("backend supervisor shut down");
     const slot = this.slot;
     this.slot = null;
-    if (slot !== null && !slot.dead) {
-      await this.terminateSlot(slot, true);
-    } else if (slot !== null) {
-      await slot.scope.dispose();
+    if (slot !== null) {
+      slot.dead = true;
+      slot.cancelStart?.();
     }
+    this.shutdownPromise = slot === null ? Promise.resolve() : this.terminateSlot(slot, true);
+    return this.shutdownPromise;
   }
 
   private emit(type: BackendSupervisorEvent["type"], message: string, slot?: BackendSlot): void {
-    this.options.onEvent?.({
-      type,
-      message,
-      pid: slot?.pid,
-      generation: slot?.generation ?? this.generation,
-    });
+    try {
+      this.options.onEvent?.({
+        type,
+        message,
+        pid: slot?.pid,
+        generation: slot?.generation ?? this.generation,
+      });
+    } catch {
+      /* A diagnostics subscriber cannot interrupt cleanup. */
+    }
   }
 
   private spawnBackend(): Promise<void> {
@@ -283,9 +303,9 @@ export class BackendSupervisor {
     this.generation += 1;
     const generation = this.generation;
     const scope = this.createScope();
-    const child = fork(this.options.backendEntry, this.options.backendNodeArgs ?? [], {
+    const child = fork(this.options.backendEntry, [], {
       execPath: process.execPath,
-      execArgv: [],
+      execArgv: this.options.backendNodeArgs ?? [],
       silent: true,
       env: { ...process.env, ...this.options.backendEnv },
       ...scope.decorateSpawnOptions({}),
@@ -298,9 +318,11 @@ export class BackendSupervisor {
       generation,
       ready: false,
       dead: false,
+      cleanup: null,
       outstandingPing: null,
     };
     this.slot = slot;
+    child.stdout?.resume();
 
     child.stderr?.setEncoding("utf8");
     child.stderr?.on("data", (chunk: string) => {
@@ -317,9 +339,13 @@ export class BackendSupervisor {
       );
       reject(new Error(`backend did not hand within ${this.options.spawnDeadlineMs}ms`));
     }, this.options.spawnDeadlineMs);
+    slot.cancelStart = () => {
+      clearTimeout(handshakeTimer);
+      reject(new Error("backend startup cancelled"));
+    };
 
     child.on("message", (value: unknown) => {
-      if (slot.dead) {
+      if (slot.dead || this.slot !== slot || this.state === "shutdown") {
         return;
       }
       const env = value as Record<string, unknown>;
@@ -344,7 +370,12 @@ export class BackendSupervisor {
       switch (env.kind) {
         case "health": {
           const payload = env.payload as Record<string, unknown>;
-          if (payload.ok !== true || payload.pid !== slot.pid) {
+          if (
+            typeof payload !== "object" ||
+            payload === null ||
+            payload.ok !== true ||
+            payload.pid !== slot.pid
+          ) {
             void this.declareDead(slot, "backend health identity mismatch");
             if (!slot.ready) {
               clearTimeout(handshakeTimer);
@@ -488,15 +519,21 @@ export class BackendSupervisor {
       return;
     }
     slot.dead = true;
+    slot.cancelStart?.();
     if (this.slot === slot) {
       this.stopHeartbeat();
       if (this.state !== "shutdown") {
         this.state = "dead";
       }
     }
-    this.rejectAllRequests(`backend died: ${reason}`);
+    if (this.slot === slot) this.rejectAllRequests(`backend died: ${reason}`);
+    const cleanup = this.terminateSlot(slot, false);
     this.emit("died", reason, slot);
-    await this.terminateSlot(slot, false);
+    try {
+      await cleanup;
+    } catch (error) {
+      this.emit("diag", `backend cleanup failed: ${String(error)}`, slot);
+    }
   }
 
   /** 结算一个在途 RPC（超时/回复/死亡共用）；未知 id 为迟到回包，静默。 */
@@ -522,31 +559,54 @@ export class BackendSupervisor {
   }
 
   /** 整树终止并 dispose；只有回收完成后才返回（实际回收后才算清理成功）。 */
-  private async terminateSlot(slot: BackendSlot, graceful: boolean): Promise<void> {
+  private terminateSlot(slot: BackendSlot, graceful: boolean): Promise<void> {
+    slot.cleanup ??= Promise.resolve().then(() => this.cleanSlot(slot, graceful));
+    return slot.cleanup;
+  }
+
+  private async cleanSlot(slot: BackendSlot, graceful: boolean): Promise<void> {
     if (graceful && slot.ready) {
       // 先发 shutdown 帧给自行退出机会；宽限后整树终止。
       try {
-        slot.child.send({
-          protocol_version: PROTOCOL_VERSION,
-          kind: "shutdown",
-          id: randomUUID(),
-          role: "guardian",
-          generation: slot.generation,
-          payload: {},
-        });
+        slot.child.send(
+          {
+            protocol_version: PROTOCOL_VERSION,
+            kind: "shutdown",
+            id: randomUUID(),
+            role: "guardian",
+            generation: slot.generation,
+            payload: {},
+          },
+          () => {},
+        );
       } catch {
         // 通道已断，直接进终止路径。
       }
-      const exited = await Promise.race([
-        new Promise<boolean>((resolve) => slot.child.once("exit", () => resolve(true))),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), SHUTDOWN_GRACE_MS)),
-      ]);
+      const exited = await new Promise<boolean>((resolve) => {
+        if (slot.child.exitCode !== null || slot.child.signalCode !== null) {
+          resolve(true);
+          return;
+        }
+        const finish = (exited: boolean): void => {
+          clearTimeout(timer);
+          slot.child.off("exit", onExit);
+          resolve(exited);
+        };
+        const onExit = (): void => finish(true);
+        const timer = setTimeout(() => finish(false), SHUTDOWN_GRACE_MS);
+        slot.child.once("exit", onExit);
+      });
       if (!exited) {
         this.emit("diag", "backend ignored shutdown frame; terminating tree", slot);
       }
     }
-    await slot.scope.terminate(SHUTDOWN_GRACE_MS);
-    await slot.scope.dispose();
+    try {
+      const report = await slot.scope.terminate(SHUTDOWN_GRACE_MS);
+      if (report.unreapedPids.length > 0)
+        throw new Error(`unreaped backend pids: ${report.unreapedPids.join(",")}`);
+    } finally {
+      await slot.scope.dispose();
+    }
   }
 }
 
