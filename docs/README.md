@@ -4,6 +4,7 @@
 - [全面重构主计划](../Plan.md)：Tauri 2 薄壳 + 独立 Node.js 业务/脚本进程的目标、选型、支持边界与阶段出口。
 - [详细执行计划](plan/README.md)：按模块拆分的待执行任务、接口和测试验收。
 - [技术与规则来源](ai/source-index.md)：来源链接、核验状态与复查触发条件。
+- [应用视觉资源](brand/README.md)：图标设计母版、各平台导出文件及 Git LFS 规则。
 - [变更工作流](ai/spec-driven-workflow.md)：设计合同与实施流程，工具采用状态以文档说明为准。
 - [自定义选择器示例](custom-selector.json)：现有按钮、scheme/sheet 选择规则示例。
 

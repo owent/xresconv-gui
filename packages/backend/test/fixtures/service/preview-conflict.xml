@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>.</work_dir>
+    <xresloader_path>preview-conflict.xml</xresloader_path>
+    <output_type output_dir="same-out" rename="/(?i)\.bin$/.lua/" tag="shared">lua</output_type>
+  </global>
+  <list>
+    <item name="one" tag="shared"><scheme name="DataSource">a.xlsx|s1|1,1</scheme></item>
+    <item name="two" tag="shared"><scheme name="DataSource">b.xlsx|s1|1,1</scheme></item>
+  </list>
+</root>

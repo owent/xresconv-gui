@@ -143,7 +143,7 @@ backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java �
 
 | 平台 | 原型要求 | 证明边界 |
 | --- | --- | --- |
-| Windows | 优先现成且经验证的系统/原生生命周期适配；验证 Job Object 创建/继承/关闭策略，或等效满足 D4 的清理方案 | Node core 无通用 Job Object API；不能只以 taskkill 或 child.kill 返回成功证明完整性；若必须自研原生补丁，先记录最小范围与替代比较 |
+| Windows | 优先现成且经验证的系统/原生生命周期适配；P2-02 已落地：koffi（MIT，Node-API 预编译 FFI）调用 Job Object + KILL_ON_JOB_CLOSE，OpenProcess 常驻句柄防 PID 重用，taskkill /T /F 仅降级回退 | Node core 无通用 Job Object API；不能只以 taskkill 或 child.kill 返回成功证明完整性。2026-09-24 win32 实测：terminate 杀树、宿主 SIGKILL 后内核回收整树均通过，未自研原生补丁 |
 | Linux | Node guardian + 所属进程组，必要时现成系统资源机制；适配父端失联 | 不承诺普通进程组拦截 setsid/double-fork；资源能力、cgroup 可用性按实际环境报告 |
 | macOS | Node guardian + 进程组/现成生命周期适配，父端失联清理 | 不照搬 Linux cgroup；不为单个平台恢复整套 Rust 监督框架 |
 

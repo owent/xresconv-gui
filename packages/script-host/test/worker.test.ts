@@ -8,7 +8,7 @@
 import type { ChildProcess } from "node:child_process";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -712,6 +712,118 @@ describe("script worker (P2-03)", () => {
         });
       } finally {
         await client.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "q. dialog callbacks survive invocation settle (合法回调不提前销毁，SC06)",
+    async () => {
+      const client = new WorkerClient();
+      try {
+        const invoke = makeInvoke({
+          source: [
+            'alert_warning("内容", "标题", {',
+            '  yes: function () { log_notice("LATE-YES"); },',
+            '  on_close: function () { log_notice("LATE-CLOSE"); },',
+            "});",
+            "resolve();", // invocation 先结束；旧版 modal 晚于脚本结束仍可点
+          ].join("\n"),
+          timeout_ms: 1000,
+        });
+        client.invoke(invoke);
+        const request = await client.waitFor(
+          (env) => env.kind === "dialog_request" && env.invocation_id === invoke.invocation_id,
+          "dialog_request (late answer)",
+        );
+        // 先等到 invocation 完成，再应答：回调仍必须按序触发。
+        expect((await client.completeOf(invoke.invocation_id)).outcome).toBe("resolved");
+        client.send("dialog_respond", { token: request.payload.token, choice: "yes" });
+        const lateYes = await client.waitFor(
+          (env) => env.kind === "log" && env.payload.message === "LATE-YES",
+          "LATE-YES log",
+        );
+        const lateClose = await client.waitFor(
+          (env) => env.kind === "log" && env.payload.message === "LATE-CLOSE",
+          "LATE-CLOSE log",
+        );
+        expect(lateYes.payload.invocation_id).toBe(invoke.invocation_id);
+        expect(lateClose.payload.invocation_id).toBe(invoke.invocation_id);
+      } finally {
+        await client.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "r. duplicate dialog answers fire callbacks exactly once (重复点击，SC06)",
+    async () => {
+      const client = new WorkerClient();
+      try {
+        const invoke = makeInvoke({ source: ALERT_ORDER_SOURCE, timeout_ms: 2000 });
+        client.invoke(invoke);
+        const request = await client.waitFor(
+          (env) => env.kind === "dialog_request" && env.invocation_id === invoke.invocation_id,
+          "dialog_request (double answer)",
+        );
+        const token = String(request.payload.token);
+        client.send("dialog_respond", { token, choice: "yes" });
+        expect((await client.logOf(invoke.invocation_id)).message).toBe("order=yes,close");
+        expect((await client.completeOf(invoke.invocation_id)).outcome).toBe("resolved");
+
+        // 第二次应答（重复点击/重放）：无回调、worker 记 stale 诊断、进程不受影响。
+        client.send("dialog_respond", { token, choice: "yes" });
+        const probe = makeInvoke({ source: "resolve();", timeout_ms: 1000 });
+        client.invoke(probe);
+        expect((await client.completeOf(probe.invocation_id)).outcome).toBe("resolved");
+        expect(client.stderrText).toContain("unknown/stale token");
+        const orderLogs = client
+          .drainBuffered()
+          .filter((env) => env.kind === "log" && String(env.payload.message).startsWith("order="));
+        expect(orderLogs).toHaveLength(0); // 首条已被 logOf 消费；无第二次触发
+      } finally {
+        await client.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "s. require.cache is process-shared across invocations (P2-04 cache 契约：按钮与 hook 共用模块态)",
+    async () => {
+      // 旧版单渲染进程内 require.cache 全局共享（02 §103 兼容风险）；新版默认
+      // size=1 单 worker（BD-W5），createRequire 的 cache 即进程级 Module._cache，
+      // 跨 invocation/入口类型共享同一模块实例——本用例固化该契约。
+      const dir = mkdtempSync(path.join(os.tmpdir(), "xresconv-cache-"));
+      const modulePath = path.join(dir, "shared-state.cjs");
+      writeFileSync(modulePath, "module.exports = { hits: 0 };\n", "utf8");
+      try {
+        const client = new WorkerClient();
+        try {
+          const first = makeInvoke({
+            entry_kind: "button",
+            button_id: "cache-writer",
+            source: `var m = require(${JSON.stringify(modulePath)}); m.hits += 1; log_notice("w=" + m.hits); resolve();`,
+          });
+          client.invoke(first);
+          expect((await client.logOf(first.invocation_id)).message).toBe("w=1");
+          expect((await client.completeOf(first.invocation_id)).outcome).toBe("resolved");
+
+          // 不同入口类型（事件 hook）读到同一缓存实例：hits 已为 1。
+          const second = makeInvoke({
+            entry_kind: "on_before_convert",
+            source: `var m = require(${JSON.stringify(modulePath)}); log_notice("r=" + m.hits); resolve();`,
+          });
+          client.invoke(second);
+          expect((await client.logOf(second.invocation_id)).message).toBe("r=1");
+          expect((await client.completeOf(second.invocation_id)).outcome).toBe("resolved");
+        } finally {
+          await client.close();
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
       }
     },
     TEST_TIMEOUT_MS,

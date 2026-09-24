@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>.</work_dir>
+    <xresloader_path>run-dialog.xml</xresloader_path>
+    <proto>protobuf</proto>
+  </global>
+  <list>
+    <item name="one"><scheme name="DataSource">a.xlsx|s1|1,1</scheme></item>
+  </list>
+  <gui>
+    <on_before_convert><![CDATA[
+      log_info("BEFORE-DIALOG");
+      alert_warning("探针内容", "探针标题", {
+        yes: function () { log_info("DIALOG-YES"); },
+        no: function () { log_info("DIALOG-NO"); },
+        on_close: function () { resolve(); }
+      });
+    ]]></on_before_convert>
+  </gui>
+</root>

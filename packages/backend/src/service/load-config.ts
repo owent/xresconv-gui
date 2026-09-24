@@ -3,9 +3,14 @@
  *
  * 旧版每个 `<item>` 入树前同步执行一次 gui.set_name（main.js:1704-1758）：
  * - 上下文：work_dir（解析期相对化）、configure_file=set_name 所在文件（main.js:1710）、
- *   item_data 活引用、每 item 新建 data、alert_*、log_*（module "CONV EVENT"），
+ *   item_data 活引用（旧版形状：snake_case scheme_data、含 id、ft_node 尚未赋值）、
+ *   每 item 新建 data、alert_*、log_*（module "CONV EVENT"），
  *   无 require/resolve/reject、vm 无 timeout（main.js:1748）。
  * - 单条异常 → catch 记 error（module "GUI EVENT"）后加载继续（main.js:1749-1757）。
+ *
+ * item id（main.js:1612 generate_id）：解析后即按树文档顺序从 1 赋值，先于
+ * set_name 循环（旧版 set_name 已可见 item_data.id）；每次加载重新从 1 开始
+ * （reload 归零的语义由"每次 loadConfig 重新解析"自然保证）。
  *
  * 新版经 ScriptWorkerPool invoke（entry_kind "set_name"）执行，ops 应用顺序 =
  * invoke 完成顺序 = 树文档顺序（逐条 await）。差异（详见 docs/plan/records/P3-06.md）：
@@ -21,10 +26,11 @@ import { randomUUID } from "node:crypto";
 import type { ScriptResult } from "@xresconv/contracts";
 import type { ScriptWorkerPool } from "@xresconv/guardian";
 import { parseXmlConfig, resolveWorkDir } from "../config/loader.ts";
-import type { ParsedConfig, TreeItem } from "../config/model.ts";
+import type { ParsedConfig } from "../config/model.ts";
 import { flattenTreeItems } from "../domain/selection.ts";
 import { formatUnknownError } from "./format.ts";
 import type { LogPipeline } from "./log-pipeline.ts";
+import { applyLegacyItemFields, toLegacyItemData } from "./tree-state.ts";
 
 /** set_name 单条 invoke 的默认硬超时（BD-O1；旧版无超时，main.js:1748）。 */
 export const DEFAULT_SET_NAME_TIMEOUT_MS = 5000;
@@ -49,6 +55,11 @@ export async function loadConfig(
   options: LoadConfigOptions,
 ): Promise<ParsedConfig> {
   const config = await parseXmlConfig(configPath);
+  // item id：树文档序从 1 赋值（main.js:1612），先于 set_name（旧版其中可见 id）。
+  let nextId = 1;
+  for (const item of flattenTreeItems(config.tree)) {
+    item.id = nextId++;
+  }
   const setName = config.gui.setName;
   if (setName === undefined) {
     return config;
@@ -69,7 +80,9 @@ export async function loadConfig(
           context: {
             work_dir: workDir,
             configure_file: setName.filename,
-            item_data: item,
+            // 旧版形状：scheme_data 等 snake_case 字段 + id；ft_node 此时尚未赋值
+            // （树节点创建于 set_name 之后，main.js:1761-1769），以 null 占位。
+            item_data: { ...toLegacyItemData(item), ft_node: null },
           },
         },
         { timeoutMs },
@@ -91,7 +104,7 @@ export async function loadConfig(
         typeof op.fields === "object" &&
         op.fields !== null
       ) {
-        applyItemFields(item, op.fields as Record<string, unknown>);
+        applyLegacyItemFields(item, op.fields as Record<string, unknown>);
       }
     }
     if (result.outcome === "error") {
@@ -102,16 +115,4 @@ export async function loadConfig(
     }
   }
   return config;
-}
-
-/** 把 set_fields ops 应用到 item（value===null → 删键，对齐 worker diffFields 语义）。 */
-function applyItemFields(item: TreeItem, fields: Record<string, unknown>): void {
-  const target = item as unknown as Record<string, unknown>;
-  for (const [key, value] of Object.entries(fields)) {
-    if (value === null) {
-      delete target[key];
-    } else {
-      target[key] = value;
-    }
-  }
 }

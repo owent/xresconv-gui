@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import type { Envelope, ScriptInvoke, ScriptResult } from "@xresconv/contracts";
 import { PROTOCOL_VERSION, validate } from "@xresconv/contracts";
 import { FrameDecoder, writeFrame } from "@xresconv/ipc";
+import { createProcessScope, type ProcessScope } from "./process-tree.ts";
 
 /**
  * Default pool size 1: button-script `data` and require.cache live inside a
@@ -30,6 +31,12 @@ const KILL_GRACE_MS = 1000;
 const SHUTDOWN_EXIT_WAIT_MS = 2000;
 /** Retained stderr bytes per worker, for diagnostics. */
 const STDERR_TAIL_BYTES = 4096;
+/**
+ * 未应答弹框的默认保留上限（P2-06，BD-W10）：旧版 modal 无限期挂着（ESC 还不
+ * 回调 → BD-06 挂起），新架构 pool/worker 长命，必须给未应答弹框一个有界留存；
+ * 过期按 ESC 语义应答 null（无回调）并通知 UI 关闭。30 分钟对正常交互足够宽。
+ */
+const DEFAULT_DIALOG_TIMEOUT_MS = 30 * 60_000;
 
 export type DialogChoice = "yes" | "no" | null;
 
@@ -66,6 +73,38 @@ export interface ScriptWorkerPoolOptions {
   workerEntry?: string;
   /** Health handshake deadline per spawned worker. */
   spawnDeadlineMs?: number;
+  /** 追加给 worker Node 的参数（如 ["--max-old-space-size=64"]，P2-07 资源限额）。 */
+  workerNodeArgs?: string[];
+  /**
+   * V8 堆上限（MB，P2-07）：等价于追加 `--max-old-space-size=N`。只覆盖 V8 堆；
+   * Buffer/原生内存走 RSS 看门狗（memoryLimitBytes）。
+   */
+  workerMaxOldSpaceMb?: number;
+  /**
+   * 每 worker RSS 看门狗上限（字节，P2-07，BD-W11）：worker 周期自报
+   * memoryUsage（health envelope 携带），超出即销毁并按 WORKER_EXIT 结算在途
+   * invocation，随后补员。缺省不限制（只记录峰值）。
+   */
+  memoryLimitBytes?: number;
+  /** 每 worker 的进程树作用域工厂（P2-02）；测试可注入降级后端。 */
+  createScope?: () => ProcessScope;
+  /** 未应答弹框保留上限（毫秒，默认 30min，BD-W10）；过期按 null 应答并失效。 */
+  dialogTimeoutMs?: number;
+  /**
+   * 追加给 worker 进程的环境变量（P2-04 环境策略/P2-10 发行锚点），覆盖在
+   * 继承的 process.env 之上；值 undefined 表示删除该键。发行接线：
+   * backend 按 runtime manifest 注入 XRESCONV_SCRIPT_MODULE_DIRS（P2-10）。
+   */
+  workerEnv?: Record<string, string | undefined>;
+}
+
+/** 在途弹框（P2-06）：worker 发过 dialog_request 但未最终化的条目。 */
+interface PendingDialog {
+  readonly key: string;
+  readonly slot: WorkerSlot;
+  readonly env: Envelope;
+  readonly createdAt: number;
+  answered: boolean;
 }
 
 interface PendingInvocation {
@@ -80,6 +119,8 @@ interface PendingInvocation {
 interface WorkerSlot {
   readonly child: ChildProcess;
   readonly pid: number | undefined;
+  /** 该 worker 的进程树作用域（P2-02）；终止覆盖脚本派生的子孙进程。 */
+  readonly scope: ProcessScope;
   ready: boolean;
   exited: boolean;
   /** Protocol-fault discard: never replenished (BD-W1). */
@@ -91,12 +132,18 @@ interface WorkerSlot {
   served: number;
   stderrLine: string;
   stderrTail: string;
+  /** 最近一次健康自报（P2-07）；握手帧不带 memory 时为 undefined。 */
+  lastMemory?: { rss: number; heapUsed: number; heapTotal: number };
+  /** 观测到的 RSS 峰值（字节）；stats() 透出。 */
+  maxRssBytes: number;
 }
 
 export interface WorkerStat {
   pid: number | undefined;
   inflight: number;
   served: number;
+  /** 观测到的 RSS 峰值（字节，P2-07）；未收到过自报时为 0。 */
+  maxRssBytes: number;
 }
 
 function defaultWorkerEntry(): string {
@@ -106,16 +153,29 @@ function defaultWorkerEntry(): string {
 export class ScriptWorkerPool {
   /** worker -> guardian dialog request; respond() answers it exactly once. */
   onDialogRequest?: (env: Envelope, respond: (choice: DialogChoice) => void) => void;
+  /**
+   * 弹框失效通知（P2-06）：worker 死亡、TTL 过期（BD-W10）或 dismissPendingDialogs
+   * 显式收尾时触发，UI 据此关闭对应弹框；已失效弹框的迟到应答被丢弃（SC06）。
+   */
+  onDialogInvalidate?: (env: Envelope, reason: string) => void;
   /** kind:"log" envelopes and WorkerDiag diagnostics (stderr/fault/exit). */
   onLog?: (event: Envelope | WorkerDiag) => void;
 
   private readonly size: number;
   private readonly workerEntry: string;
   private readonly spawnDeadlineMs: number;
+  private readonly workerNodeArgs: readonly string[];
+  private readonly workerMaxOldSpaceMb: number | undefined;
+  private readonly memoryLimitBytes: number | undefined;
+  private readonly createScope: () => ProcessScope;
+  private readonly dialogTimeoutMs: number;
+  private readonly workerEnv: Record<string, string | undefined> | undefined;
   private readonly workers = new Set<WorkerSlot>();
   /** Includes starting and faulted children until their pipes actually close. */
   private readonly children = new Set<WorkerSlot>();
   private readonly pendingByKey = new Map<string, PendingInvocation>();
+  private readonly pendingDialogs = new Map<string, PendingDialog>();
+  private dialogSweeper: NodeJS.Timeout | null = null;
   private readonly readyWaiters: Array<{ resolve: () => void }> = [];
   private starting = 0;
   private startPromise: Promise<void> | null = null;
@@ -137,6 +197,31 @@ export class ScriptWorkerPool {
     ) {
       throw new RangeError("invalid worker spawn deadline");
     }
+    this.workerNodeArgs = options.workerNodeArgs ?? [];
+    this.workerMaxOldSpaceMb = options.workerMaxOldSpaceMb;
+    if (
+      this.workerMaxOldSpaceMb !== undefined &&
+      (!Number.isSafeInteger(this.workerMaxOldSpaceMb) || this.workerMaxOldSpaceMb < 16)
+    ) {
+      throw new RangeError("workerMaxOldSpaceMb must be an integer >= 16");
+    }
+    this.memoryLimitBytes = options.memoryLimitBytes;
+    if (
+      this.memoryLimitBytes !== undefined &&
+      (!Number.isSafeInteger(this.memoryLimitBytes) || this.memoryLimitBytes < 1)
+    ) {
+      throw new RangeError("memoryLimitBytes must be a positive integer");
+    }
+    this.createScope = options.createScope ?? (() => createProcessScope({ name: "script-worker" }));
+    this.dialogTimeoutMs = options.dialogTimeoutMs ?? DEFAULT_DIALOG_TIMEOUT_MS;
+    if (
+      !Number.isSafeInteger(this.dialogTimeoutMs) ||
+      this.dialogTimeoutMs < 1 ||
+      this.dialogTimeoutMs > 2147483647
+    ) {
+      throw new RangeError("invalid dialog timeout");
+    }
+    this.workerEnv = options.workerEnv;
   }
 
   start(): Promise<void> {
@@ -210,6 +295,7 @@ export class ScriptWorkerPool {
       pid: slot.pid,
       inflight: slot.inflightCount,
       served: slot.served,
+      maxRssBytes: slot.maxRssBytes,
     }));
   }
 
@@ -219,6 +305,10 @@ export class ScriptWorkerPool {
       return this.shutdownPromise;
     }
     this.shuttingDown = true;
+    if (this.dialogSweeper !== null) {
+      clearInterval(this.dialogSweeper);
+      this.dialogSweeper = null;
+    }
     this.notifyReady();
     this.shutdownPromise = (async () => {
       const exits: Promise<void>[] = [];
@@ -291,12 +381,26 @@ export class ScriptWorkerPool {
   private spawnWorker(): Promise<WorkerSlot> {
     this.starting += 1;
     const { promise, resolve, reject } = Promise.withResolvers<WorkerSlot>();
-    const child = spawn(process.execPath, [this.workerEntry], {
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const scope = this.createScope();
+    const child = spawn(
+      process.execPath,
+      [
+        ...(this.workerMaxOldSpaceMb === undefined
+          ? []
+          : [`--max-old-space-size=${String(this.workerMaxOldSpaceMb)}`]),
+        ...this.workerNodeArgs,
+        this.workerEntry,
+      ],
+      scope.decorateSpawnOptions({
+        stdio: ["pipe", "pipe", "pipe"],
+        ...(this.workerEnv === undefined ? {} : { env: { ...process.env, ...this.workerEnv } }),
+      }),
+    );
+    scope.register(child);
     const slot: WorkerSlot = {
       child,
       pid: child.pid,
+      scope,
       ready: false,
       exited: false,
       discarded: false,
@@ -305,6 +409,7 @@ export class ScriptWorkerPool {
       served: 0,
       stderrLine: "",
       stderrTail: "",
+      maxRssBytes: 0,
     };
     this.children.add(slot);
     const handshakeTimer = setTimeout(() => {
@@ -410,9 +515,42 @@ export class ScriptWorkerPool {
         this.handleDialogRequest(slot, env);
         return;
       case "health":
+        this.handleHealthReport(slot, env);
         return;
       default:
         this.faultWorker(slot, `unexpected inbound kind: ${env.kind}`);
+    }
+  }
+
+  /**
+   * 握手后的周期性健康自报（P2-07；BD-W7 修订：不再纯忽略，作为内存样本消费）。
+   * 样本是协作式的——同步死循环的 worker 无法自报，该情形由 invoke 超时销毁
+   * 覆盖（BD-W3）；RSS 超限即销毁 worker（BD-W11），在途 invocation 经 exit
+   * 路径按 WORKER_EXIT 结算并补员。
+   */
+  private handleHealthReport(slot: WorkerSlot, env: Envelope): void {
+    const memory = env.payload.memory;
+    if (typeof memory !== "object" || memory === null) {
+      return;
+    }
+    const { rss, heapUsed, heapTotal } = memory as Record<string, unknown>;
+    if (typeof rss !== "number" || typeof heapUsed !== "number" || typeof heapTotal !== "number") {
+      return;
+    }
+    slot.lastMemory = { rss, heapUsed, heapTotal };
+    slot.maxRssBytes = Math.max(slot.maxRssBytes, rss);
+    if (
+      this.memoryLimitBytes !== undefined &&
+      rss > this.memoryLimitBytes &&
+      !slot.killing &&
+      !slot.exited
+    ) {
+      this.emitDiag(
+        "worker-fault",
+        slot.pid,
+        `worker RSS ${String(rss)}B exceeds memory limit ${String(this.memoryLimitBytes)}B, destroying (BD-W11)`,
+      );
+      this.destroyWorker(slot);
     }
   }
 
@@ -473,10 +611,16 @@ export class ScriptWorkerPool {
 
   private handleDialogRequest(slot: WorkerSlot, env: Envelope): void {
     const token = env.payload.token;
-    let answered = false;
+    const key = typeof token === "string" && token.length > 0 ? token : env.id;
+    const entry: PendingDialog = { key, slot, env, createdAt: Date.now(), answered: false };
+    this.pendingDialogs.set(key, entry);
+    this.ensureDialogSweeper();
     const respond = (choice: DialogChoice): void => {
-      if (answered || slot.killing || slot.exited) return;
-      answered = true;
+      if (entry.answered || slot.killing || slot.exited) return;
+      // 已失效（TTL 过期/worker 死亡/显式 dismiss）→ 过期应答不执行（SC06）。
+      if (!this.pendingDialogs.has(key)) return;
+      entry.answered = true;
+      this.pendingDialogs.delete(key);
       const stdin = slot.child.stdin;
       if (stdin === null) {
         return;
@@ -500,6 +644,74 @@ export class ScriptWorkerPool {
     }
   }
 
+  /** 弹框 TTL 清扫：懒启动、注册表清空即停；unref 不拖住进程退出。 */
+  private ensureDialogSweeper(): void {
+    if (this.dialogSweeper !== null) {
+      return;
+    }
+    const interval = Math.min(Math.max(Math.floor(this.dialogTimeoutMs / 2), 25), 60_000);
+    this.dialogSweeper = setInterval(() => this.sweepDialogs(), interval);
+    this.dialogSweeper.unref();
+  }
+
+  private sweepDialogs(): void {
+    if (this.pendingDialogs.size === 0) {
+      if (this.dialogSweeper !== null) {
+        clearInterval(this.dialogSweeper);
+        this.dialogSweeper = null;
+      }
+      return;
+    }
+    const now = Date.now();
+    for (const entry of [...this.pendingDialogs.values()]) {
+      if (now - entry.createdAt >= this.dialogTimeoutMs) {
+        this.invalidateDialog(
+          entry,
+          `dialog unanswered for ${String(this.dialogTimeoutMs)}ms, auto-dismissed (BD-W10)`,
+        );
+      }
+    }
+  }
+
+  /**
+   * 最终化一个弹框：从注册表删除；worker 还活着就补一条 choice=null 的应答
+   * （worker 侧按 BD-06 语义最终化、不触发回调），并通知 UI 关闭。幂等。
+   */
+  private invalidateDialog(entry: PendingDialog, reason: string): void {
+    if (!this.pendingDialogs.delete(entry.key)) {
+      return;
+    }
+    entry.answered = true;
+    const slot = entry.slot;
+    if (!slot.killing && !slot.exited) {
+      const stdin = slot.child.stdin;
+      if (stdin !== null) {
+        writeFrame(stdin, {
+          protocol_version: PROTOCOL_VERSION,
+          kind: "dialog_respond",
+          id: randomUUID(),
+          role: "guardian",
+          in_reply_to: entry.key,
+          payload: { token: entry.env.payload.token, choice: null },
+        }).catch(() => undefined);
+      }
+    }
+    this.onDialogInvalidate?.(entry.env, reason);
+  }
+
+  /**
+   * 显式失效全部在途弹框（UI reload / 会话重建等代际切换点）：按 ESC 语义
+   * 应答 null（无回调）并逐个通知。返回失效条数。
+   */
+  dismissPendingDialogs(reason: string): number {
+    let count = 0;
+    for (const entry of [...this.pendingDialogs.values()]) {
+      this.invalidateDialog(entry, reason);
+      count++;
+    }
+    return count;
+  }
+
   private handleStderr(slot: WorkerSlot, chunk: Buffer): void {
     const text = chunk.toString("utf8");
     slot.stderrTail = (slot.stderrTail + text).slice(-STDERR_TAIL_BYTES);
@@ -516,6 +728,7 @@ export class ScriptWorkerPool {
     slot.exited = true;
     this.children.delete(slot);
     const wasMember = this.workers.delete(slot);
+    void slot.scope.dispose();
     for (const pending of new Set(this.pendingByKey.values())) {
       if (pending.slot === slot) {
         this.settlePending(
@@ -525,6 +738,16 @@ export class ScriptWorkerPool {
             `worker pid ${String(slot.pid)} exited (code ${String(code)}, signal ${String(signal)})`,
             code,
           ),
+        );
+      }
+    }
+    // P2-06：worker 死亡 → 其在途弹框全部失效（不应答——进程已死），
+    // UI 收到 invalidate 关闭弹框；迟到的点击应答被 respond 守卫丢弃（SC06）。
+    for (const entry of [...this.pendingDialogs.values()]) {
+      if (entry.slot === slot) {
+        this.invalidateDialog(
+          entry,
+          `worker pid ${String(slot.pid)} exited; pending dialog invalidated`,
         );
       }
     }
@@ -555,19 +778,21 @@ export class ScriptWorkerPool {
     this.destroyWorker(slot);
   }
 
-  /** SIGTERM -> 1s grace -> SIGKILL. Replenishment happens in the exit handler. */
+  /** 整树终止（P2-02）；补员在 exit 处理里完成（BD-W3）。 */
   private destroyWorker(slot: WorkerSlot): void {
     if (slot.killing || slot.exited) {
       return;
     }
     slot.killing = true;
-    slot.child.kill("SIGTERM");
-    const escalate = setTimeout(() => {
-      if (!slot.exited) {
-        slot.child.kill("SIGKILL");
+    void slot.scope.terminate(KILL_GRACE_MS).then((report) => {
+      if (report.unreapedPids.length > 0) {
+        this.emitDiag(
+          "worker-fault",
+          slot.pid,
+          `worker tree cleanup unconfirmed for pids: ${report.unreapedPids.join(",")}`,
+        );
       }
-    }, KILL_GRACE_MS);
-    escalate.unref();
+    });
   }
 
   /** Protocol fault: discard the worker WITHOUT replenishment (BD-W1). */
@@ -592,7 +817,7 @@ export class ScriptWorkerPool {
     slot.child.once("close", markExited);
     // Install the kill deadline BEFORE writing: a stopped reader may never drain.
     const killTimer = setTimeout(() => {
-      if (!slot.exited) slot.child.kill("SIGKILL");
+      if (!slot.exited) void slot.scope.terminate(0);
     }, SHUTDOWN_EXIT_WAIT_MS);
     const stdin = slot.child.stdin;
     if (stdin !== null) {

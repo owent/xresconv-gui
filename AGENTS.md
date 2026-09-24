@@ -59,6 +59,7 @@
 - GUI 与文件编码统一 UTF-8；Windows 默认 GBK，文件名建议全英文（见 README“注意事项”）。
 - 渲染进程里部分 npm 库不会自动挂到全局，需手动 `window.jQuery = require(...)`（见 README“关于加载和调试”）。
 - macOS 打包必须 `asar = false`（asar 包在 macOS 下无法读取，`gulpfile.js` 已处理，不要改回）。
+- src-tauri 中被 `#[cfg(test)]` 测试引用的模块不得触碰 tauri/wry 运行时类型（如 `AppHandle`/`Emitter`）：测试 exe 无 SxS manifest，经 Drop glue 保留 wry 对话框代码会导入 comctl32 v6 专有符号，进程加载即 0xc0000139。事件出口用注入闭包（P4-02 `EventSink`，诊断工具 `build/tools/check-imports.mjs`）。
 
 ## 任务分流
 

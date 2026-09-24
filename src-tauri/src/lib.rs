@@ -6,7 +6,10 @@
 //! native dialogs, CLI parsing and the minimal bridge commands.
 
 use serde::Serialize;
+use tauri::Manager;
 use tauri_plugin_cli::CliExt;
+
+mod guardian;
 
 /// Bridge handshake result. Field layout is owned by
 /// `packages/contracts/schema/handshake.json` (single source of truth).
@@ -37,97 +40,59 @@ fn get_cli_matches(app: tauri::AppHandle) -> serde_json::Value {
     }
 }
 
-/// P1 skeleton: spawn the Node guardian health entry and return its
-/// handshake line. Proves shell -> Node spawn/stdio works before P2 builds
-/// the real supervised IPC channel.
-///
-/// Resolution order: `XRESCONV_NODE` env, then `node` on PATH (dev only;
-/// packaged builds will use the bundled sidecar path resolved by the
-/// supervisor, never PATH). Entry defaults to the workspace
-/// `packages/guardian/bin/health-check.mjs`, overridable via
-/// `XRESCONV_GUARDIAN_ENTRY`.
+/// P4-02：经长驻 guardian 通道取健康（含 backend 监督状态）。
+/// 通道按需建立；guardian 死亡/毒帧由 reader 判死并经事件通知 UI。
 #[tauri::command]
-async fn get_backend_health() -> Result<serde_json::Value, String> {
-    run_health_probe(probe_backend_health).await
-}
-
-async fn run_health_probe(
-    probe: impl FnOnce() -> Result<serde_json::Value, String> + Send + 'static,
+async fn get_backend_health(
+    state: tauri::State<'_, std::sync::Arc<guardian::GuardianState>>,
 ) -> Result<serde_json::Value, String> {
-    // An async command must also move blocking process waits off its executor.
-    tauri::async_runtime::spawn_blocking(probe)
-        .await
-        .map_err(|e| format!("health check task failed: {e}"))?
+    let state = state.inner().clone();
+    let result =
+        tauri::async_runtime::spawn_blocking(move || state.with_client(|client| client.health()))
+            .await
+            .map_err(|e| format!("health task failed: {e}"))?;
+    result.map_err(|e| e.to_string())
 }
 
-fn probe_backend_health() -> Result<serde_json::Value, String> {
-    use std::process::{Command, Stdio};
-    use std::time::{Duration, Instant};
+/// P4-02：业务 RPC 透传（shell → guardian → backend）。`method`/`params`
+/// 契约见 packages/contracts/schema/backend-rpc.json 与
+/// packages/backend/src/service/rpc-app.ts；timeout_ms 缺省 60s。
+#[tauri::command]
+async fn backend_rpc(
+    method: String,
+    params: serde_json::Value,
+    timeout_ms: Option<u64>,
+    state: tauri::State<'_, std::sync::Arc<guardian::GuardianState>>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        state.with_client(|client| {
+            client.backend_rpc(
+                &method,
+                params,
+                timeout_ms.map(std::time::Duration::from_millis),
+            )
+        })
+    })
+    .await
+    .map_err(|e| format!("rpc task failed: {e}"))?;
+    result.map_err(|e| e.to_string())
+}
 
-    let node = std::env::var("XRESCONV_NODE").unwrap_or_else(|_| "node".into());
-    let entry = std::env::var("XRESCONV_GUARDIAN_ENTRY").unwrap_or_else(|_| {
-        // Dev fallback: locate the workspace root by walking up from the exe
-        // (cwd is unreliable when the app is spawned by tauri-driver).
-        let rel = std::path::Path::new("packages")
-            .join("guardian")
-            .join("bin")
-            .join("health-check.mjs");
-        let mut dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()));
-        loop {
-            match dir {
-                Some(d) if d.join(&rel).is_file() => break d.join(&rel),
-                Some(d) => dir = d.parent().map(|p| p.to_path_buf()),
-                None => break rel.clone(),
-            }
-        }
-        .to_string_lossy()
-        .into_owned()
-    });
-
-    let started = Instant::now();
-    let mut child = Command::new(&node)
-        .arg(&entry)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("spawn {node} failed: {e}"))?;
-
-    // Hard deadline: the shell must never hang on a stuck Node process.
-    // Must exceed the guardian's own backend deadline (5s) plus process
-    // startup overhead, so a guardian that already reported failure is
-    // collected instead of killed mid-diagnostic.
-    let deadline = Duration::from_secs(15);
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) if started.elapsed() > deadline => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(format!(
-                    "guardian health check timed out after {deadline:?}"
-                ));
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(e) => return Err(format!("wait failed: {e}")),
-        }
-    }
-
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("collect output failed: {e}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "guardian exited with {:?}: {}",
-            output.status.code(),
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-    let line = String::from_utf8_lossy(&output.stdout);
-    let first = line.lines().next().unwrap_or_default();
-    serde_json::from_str(first).map_err(|e| format!("invalid handshake JSON: {e}; got: {first}"))
+/// P4-02：显式重建 guardian 通道（backend/guardian 故障后由 UI 触发；
+/// 旧通道整树自清，不自动重放在途请求——SC10）。
+#[tauri::command]
+async fn restart_guardian(
+    state: tauri::State<'_, std::sync::Arc<guardian::GuardianState>>,
+) -> Result<serde_json::Value, String> {
+    let state = state.inner().clone();
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        state.restart()?;
+        state.with_client(|client| client.health())
+    })
+    .await
+    .map_err(|e| format!("restart task failed: {e}"))?;
+    result.map_err(|e| e.to_string())
 }
 
 pub fn run() {
@@ -135,36 +100,35 @@ pub fn run() {
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            // P4-02：长驻 guardian 通道托管状态。事件出口经注入的 EventSink
+            // 转发前端（xresconv-event / xresconv-guardian-dead）；guardian
+            // 模块不依赖 tauri 类型，保持 unit test 无 GUI 导入可加载。
+            let handle = app.handle().clone();
+            let sink: guardian::EventSink = std::sync::Arc::new(move |event, payload| {
+                use tauri::Emitter;
+                let _ = handle.emit(event, payload);
+            });
+            app.manage(std::sync::Arc::new(guardian::GuardianState::new(Some(
+                sink,
+            ))));
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            // 窗口关闭 → 显式关闭 guardian 通道（子树自清，P2-09）。
+            if let tauri::WindowEvent::CloseRequested { .. } = event
+                && let Some(state) = window.try_state::<std::sync::Arc<guardian::GuardianState>>()
+            {
+                let _ = state.shutdown();
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_app_info,
             get_cli_matches,
-            get_backend_health
+            get_backend_health,
+            backend_rpc,
+            restart_guardian
         ])
         .run(tauri::generate_context!())
         .expect("error while running xresconv-gui");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::run_health_probe;
-    use std::future::Future;
-    use std::task::{Context, Poll, Waker};
-    use std::time::Duration;
-
-    #[test]
-    fn health_probe_yields_while_waiting_for_child() {
-        let (release, wait) = std::sync::mpsc::channel();
-        let mut check = Box::pin(run_health_probe(move || {
-            wait.recv_timeout(Duration::from_secs(1))
-                .map_err(|e| e.to_string())?;
-            Ok(serde_json::json!({ "ok": true }))
-        }));
-        let mut cx = Context::from_waker(Waker::noop());
-        assert!(matches!(check.as_mut().poll(&mut cx), Poll::Pending));
-        release.send(()).unwrap();
-        assert_eq!(
-            tauri::async_runtime::block_on(check).unwrap(),
-            serde_json::json!({ "ok": true })
-        );
-    }
 }

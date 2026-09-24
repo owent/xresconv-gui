@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@xresconv/contracts": "workspace:*",
-    "@xresconv/ipc": "workspace:*"
+    "@xresconv/ipc": "workspace:*",
+    "koffi": "3.3.1"
   },
   "devDependencies": {
     "@types/node": "26.6.2",

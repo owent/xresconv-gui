@@ -4,16 +4,24 @@
  * 基线（同一 argv 逐条直接 spawn java，不经 stdin），逐文件 SHA-256 对比。
  *
  * 任务选自 sample/gen_sample_output.ps1 的 $TASK_LINES（$proto_dir→输出目录、
- * $XLSX_FILE→资源转换示例.xlsx），覆盖 lua/json/bin/xml/msgpack/js 六种输出类型、
- * -s/-m 直给与 -m k=v 两种形态、-n 正则重命名与 --pretty/--validator-rules 等 flag。
+ * $XLSX_FILE→资源转换示例.xlsx），覆盖 lua/json/bin/xml/msgpack/js/ue-json/ue-csv 八种
+ * 输出类型、-s/-m 直给与 -m k=v 两种形态、-n 正则重命名、--pretty/--validator-rules
+ * 等 flag 与 UeCfg-CodeOutput C++ 代码树生成。
+ *
+ * 归一化规则（C15 口径，窄范围、不掩盖业务差异）：UnreaImportSettings.json 是
+ * xresloader 生成的 UE 导入辅助清单，其 Filenames 嵌入输出根目录的绝对路径
+ * （已实测：同 JAR 同参数仅 -o 不同即产生此唯一差异）。两路径输出根必然不同，
+ * 因此仅对该文件把自身输出根的绝对路径替换为 `{OUT}` 后再比对；其余所有文件
+ * （含 ArrInArrCfg.json 等业务产物）按字节 SHA-256 严格比对。
  *
  * 退出码：0=全部 MATCH；1=存在差异或任务失败；2=jar/sample 缺失（不伪造通过）；3=总超时 600s。
+ * 差异证据：status!=MATCH 时把差异文件复制到 build/g3-e2e/diff-evidence/{A,B}/ 再清理临时目录。
  *
  * 用法：node tests/conversion/run-e2e.mjs
  */
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,15 +77,48 @@ const TASKS = [
     source: "gen_sample_output.ps1:42",
     line: `-t js -p protobuf -o '{OUT}' -f proto_v2/kind.pb --pretty 2 -s '${XLSX}' -m scheme_kind -n '/(?i)\\.bin$/\\.amd\\.js/' --javascript-export amd --data-source-mapping-mode sha256 --data-source-mapping-file proto_v2/data_source_mapping.txt -a 1.0.0.0`,
   },
+  // ue-json/ue-csv 输出到 {OUT} 子目录并额外生成 C++ 代码树（Public/Private/ConfigRec
+  // 与 UnreaImportSettings.json），hashTree 递归自动覆盖。
+  {
+    name: "ue-json-datasource-codeoutput",
+    source: "gen_sample_output.ps1:59",
+    line: `-t ue-json -o '{OUT}/json' -f proto_v2/kind.pb --validator-rules custom_validator.yaml -m 'DataSource=${XLSX}|arr_in_arr|3,1' -m 'MacroSource=${XLSX}|macro|2,1' -m ProtoName=arr_in_arr_cfg -m OutputFile=ArrInArrCfg.json -m KeyRow=2 -m UeCfg-CodeOutput=|Public/ConfigRec|Private/ConfigRec --data-source-mapping-mode sha256 --data-source-mapping-file proto_v2/data_source_mapping.txt -a 1.0.0.0`,
+  },
+  {
+    name: "ue-csv-datasource-codeoutput",
+    source: "gen_sample_output.ps1:61",
+    line: `-t ue-csv -o '{OUT}/csv' -f proto_v2/kind.pb --validator-rules custom_validator.yaml -m 'DataSource=${XLSX}|arr_in_arr|3,1' -m 'MacroSource=${XLSX}|macro|2,1' -m ProtoName=arr_in_arr_cfg -m OutputFile=ArrInArrCfgRec.csv -m KeyRow=2 -m UeCfg-CodeOutput=|Public/ConfigRec|Private/ConfigRec -m UeCfg-EnableDefaultLoader=false --data-source-mapping-mode sha256 --data-source-mapping-file proto_v2/data_source_mapping.txt -a 1.0.0.0`,
+  },
 ];
 
 const execFileAsync = promisify(execFile);
 
-function sha256File(file) {
-  return createHash("sha256").update(readFileSync(file)).digest("hex");
+function sha256File(file, normalize) {
+  let content = readFileSync(file);
+  if (normalize) {
+    content = normalize(content);
+  }
+  return createHash("sha256").update(content).digest("hex");
 }
 
-function hashTree(dir, base = dir) {
+// 仅为 UnreaImportSettings.json 归一化输出根绝对路径（JSON 文本中反斜杠成对出现，
+// 同时覆盖正斜杠形态）；其余文件不触碰。
+function makeManifestNormalizer(outRoot) {
+  const abs = path.resolve(outRoot);
+  const variants = [abs.replaceAll("\\", "\\\\"), abs.replaceAll("\\", "/")];
+  return (relPath, content) => {
+    if (!/(^|[\\/])UnreaImportSettings\.json$/.test(relPath)) {
+      return content;
+    }
+    let text = content.toString("utf8");
+    for (const variant of variants) {
+      text = text.replaceAll(variant, "{OUT}");
+    }
+    return Buffer.from(text, "utf8");
+  };
+}
+
+function hashTree(dir, base, normalize) {
   const out = {};
   if (!existsSync(dir)) {
     return out;
@@ -85,9 +126,10 @@ function hashTree(dir, base = dir) {
   for (const entry of readdirSync(dir).sort()) {
     const full = path.join(dir, entry);
     if (statSync(full).isDirectory()) {
-      Object.assign(out, hashTree(full, base));
+      Object.assign(out, hashTree(full, base, normalize));
     } else {
-      out[path.relative(base, full)] = sha256File(full);
+      const rel = path.relative(base, full);
+      out[rel] = sha256File(full, normalize && ((buf) => normalize(rel, buf)));
     }
   }
   return out;
@@ -123,6 +165,7 @@ async function main() {
     summary: {},
   };
 
+  const diffFiles = [];
   try {
     // 路径 A（新栈）：ps1 行 → tokenizeStdinLine（Main.java tokenizer 同形移植）→
     // encodeTaskLine → runJavaBatch 单进程 stdin 批次。
@@ -152,8 +195,8 @@ async function main() {
       resultsB.push({ task, argv, exitCode: res.exitCode });
     }
 
-    const treeA = hashTree(outA);
-    const treeB = hashTree(outB);
+    const treeA = hashTree(outA, outA, makeManifestNormalizer(outA));
+    const treeB = hashTree(outB, outB, makeManifestNormalizer(outB));
     const allFiles = [...new Set([...Object.keys(treeA), ...Object.keys(treeB)])].sort();
     const diffs = [];
     for (const file of allFiles) {
@@ -165,6 +208,7 @@ async function main() {
         diffs.push({ file, issue: "hash-mismatch", hashA: treeA[file], hashB: treeB[file] });
       }
     }
+    diffFiles.push(...diffs.map((d) => d.file));
 
     for (let i = 0; i < TASKS.length; i++) {
       report.tasks.push({
@@ -214,6 +258,20 @@ async function main() {
     console.log("[G3-E2E] all MATCH");
     process.exit(0);
   } finally {
+    if (diffFiles.length > 0) {
+      const evidenceDir = path.join(REPORT_DIR, "diff-evidence");
+      for (const rel of diffFiles) {
+        for (const [tag, root] of [["A", outA], ["B", outB]]) {
+          const src = path.join(root, rel);
+          if (existsSync(src)) {
+            const dst = path.join(evidenceDir, tag, rel);
+            mkdirSync(path.dirname(dst), { recursive: true });
+            copyFileSync(src, dst);
+          }
+        }
+      }
+      console.error(`[G3-E2E] diff evidence saved under ${evidenceDir}`);
+    }
     rmSync(outA, { recursive: true, force: true });
     rmSync(outB, { recursive: true, force: true });
   }

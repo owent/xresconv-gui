@@ -16,13 +16,17 @@
  *   其中"原样片段"（global/item option 的 value）经 {@link tokenizeStdinLine}
  *   （Main.java:344-374 同形移植）切分，语义与旧版一致。
  * - 任务派发旧版 push 后 LIFO pop（main.js:2092）；新版保持计划数组顺序 FIFO（BD-P1）。
+ *
+ * P4-04a：ConversionOverrides 扩展 workDir/xresloaderPath/protoFile/dataSrcDir/matrix
+ * （旧版 conv_start 读取的全部输入框），undefined=配置默认、空串/空数组=用户清空生效；
+ * 另导出 resolveEffectiveWorkDir/resolveEffectiveSettings 供会话层回填表单有效值。
  */
 
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { resolveWorkDir } from "../config/loader.ts";
-import type { ParsedConfig, TreeItem } from "../config/model.ts";
-import { matrixRuleMatchesItem } from "../domain/selection.ts";
+import type { OutputMatrixRule, ParsedConfig, TreeItem } from "../config/model.ts";
+import { isMatrixMode, matrixRuleMatchesItem } from "../domain/selection.ts";
 import { tokenizeStdinLine } from "./stdin-encoder.ts";
 
 /** ConfigError 风格的计划构建错误（code + details）。 */
@@ -46,6 +50,8 @@ export interface ConversionTask {
   itemKey?: string;
   /** 本任务生效的输出目录（-o 值；缺省时未发 -o）。 */
   outputDir?: string;
+  /** 本任务生效的 rename 规则（-n 值；缺省时未发 -n）。冲突预览分组用（P4-04a）。 */
+  rename?: string;
   /** 旧式单行展示串（仅日志用，对齐 main.js:1955-2045 的拼接形态）。 */
   display: string;
 }
@@ -69,7 +75,8 @@ export interface ConversionSelection {
 
 /**
  * UI 覆盖值（对应旧版 conv_start 读取的输入框，main.js:1909-1947）。
- * undefined = 未覆盖（用配置默认值）；空串 = 用户清空（生效为空）。
+ * undefined = 未覆盖（用配置默认值）；空串/空数组 = 用户清空（生效为空）。
+ * P4-04a 扩展：workDir/xresloaderPath/protoFile/dataSrcDir/matrix。
  */
 export interface ConversionOverrides {
   outputDir?: string;
@@ -77,6 +84,39 @@ export interface ConversionOverrides {
   type?: string;
   proto?: string;
   dataVersion?: string;
+  /**
+   * work_dir 覆盖（main.js:1900-1906）：相对路径按入口文件目录解析；
+   * 空串 = 用户清空，视为未设置并回退入口文件目录（BD-P5 等价）。
+   */
+  workDir?: string;
+  /** xresloader 路径覆盖；空串 = 用户清空 → 存在性检查失败（XRESLOADER_NOT_FOUND，同 BD-P4 未配置语义）。 */
+  xresloaderPath?: string;
+  /** proto_file 覆盖列表（每值一条 -f）；空数组 = 不发 -f（与 P3-05 冻结行为一致）。 */
+  protoFile?: string[];
+  /** data_src_dir 覆盖列表（每值一条 -d）；空数组 = 不发 -d。 */
+  dataSrcDir?: string[];
+  /** 输出矩阵覆盖；空数组 = 清空矩阵（回到单类型模式）。 */
+  matrix?: OutputMatrixRule[];
+}
+
+/**
+ * 表单有效值快照（P4-04a，配置默认 ⊕ overrides 合并后的全量字段）。
+ * 字符串字段无配置且无覆盖时回退 ""（对齐旧版表单 `.val()` 空串）；
+ * type/rename 的缺省回退链与 resolveEffectiveRules 完全一致。
+ */
+export interface EffectiveSettings {
+  /** 有效工作目录（已按入口目录相对化）。 */
+  workDir: string;
+  /** xresloader 路径原值（可能相对 workDir）。 */
+  xresloaderPath: string;
+  proto: string;
+  dataVersion: string;
+  outputDir: string;
+  rename: string;
+  type: string;
+  protoFile: string[];
+  dataSrcDir: string[];
+  matrix: OutputMatrixRule[];
 }
 
 /** 矩阵规则回退全局值后的有效形态（main.js:1926-1934 的 `output.type || global` 等）。 */
@@ -93,21 +133,65 @@ const XRESLOADER_DOWNLOAD_HINT =
   "you can download it from https://github.com/xresloader/xresloader/releases";
 
 /**
- * 矩阵模式判定（main.js:1333-1338）：规则多于一条，或唯一规则带 tags/classes
- * 限定时走矩阵；否则单类型模式（旧版对应下拉框未选中"自定义输出类型"）。
+ * 有效工作目录：overrides.workDir 的相对值按入口文件目录解析（main.js:1900-1906），
+ * 空串 = 用户清空 → 回退入口文件目录（BD-P5 等价）；undefined → 配置 work_dir
+ * （resolveWorkDir）再回退入口目录。
+ */
+export function resolveEffectiveWorkDir(
+  config: ParsedConfig,
+  overrides: ConversionOverrides,
+): string {
+  const override = overrides.workDir;
+  if (override !== undefined) {
+    if (override === "") {
+      return config.dir;
+    }
+    return path.isAbsolute(override)
+      ? path.normalize(override)
+      : path.resolve(config.dir, override);
+  }
+  return resolveWorkDir(config) ?? config.dir;
+}
+
+/**
+ * 表单有效值快照（P4-04a）：配置默认 ⊕ overrides 的全量字段。
+ * type/rename 缺省回退链与 resolveEffectiveRules 同规则（单类型模式取矩阵首条，
+ * main.js:1397-1422；矩阵模式全局类型缺省 "bin"）。
+ */
+export function resolveEffectiveSettings(
+  config: ParsedConfig,
+  overrides: ConversionOverrides,
+): EffectiveSettings {
+  const matrix = overrides.matrix ?? config.outputMatrix;
+  const first = matrix[0];
+  const single = !isMatrixMode(matrix);
+  return {
+    workDir: resolveEffectiveWorkDir(config, overrides),
+    xresloaderPath: overrides.xresloaderPath ?? config.xresloaderPath ?? "",
+    proto: overrides.proto ?? config.proto ?? "",
+    dataVersion: overrides.dataVersion ?? config.dataVersion ?? "",
+    outputDir: overrides.outputDir ?? config.outputDir ?? "",
+    rename: overrides.rename ?? (single ? (first?.rename ?? config.rename) : config.rename) ?? "",
+    type: overrides.type ?? (single ? first?.type : undefined) ?? "bin",
+    protoFile: overrides.protoFile ?? config.protoFile,
+    dataSrcDir: overrides.dataSrcDir ?? config.dataSrcDir,
+    matrix,
+  };
+}
+
+/**
+ * 矩阵规则回退全局值后的有效形态（main.js:1926-1934 的 `output.type || global` 等）。
+ * 矩阵来源：overrides.matrix 覆盖优先，否则配置矩阵（P4-04a）。
  */
 function resolveEffectiveRules(
   config: ParsedConfig,
   overrides: ConversionOverrides,
   globalOutputDir: string | undefined,
 ): EffectiveRule[] {
-  const matrix = config.outputMatrix;
+  const matrix = overrides.matrix ?? config.outputMatrix;
   const first = matrix[0];
-  const matrixMode =
-    matrix.length > 1 ||
-    (matrix.length === 1 && ((first?.tags.length ?? 0) > 0 || (first?.classes.length ?? 0) > 0));
 
-  if (!matrixMode) {
+  if (!isMatrixMode(matrix)) {
     // 单类型模式（main.js:1935-1942 + 1397-1418）：类型默认取矩阵首条，再缺省 "bin"
     // （index.html:146 下拉框 selected 默认值）；rename 默认取矩阵首条（main.js:1420-1422）。
     const type = overrides.type ?? first?.type ?? "bin";
@@ -147,9 +231,11 @@ export function buildConversionPlan(
   overrides: ConversionOverrides = {},
 ): ConversionPlan {
   // 未配置 work_dir 时回退入口文件目录（BD-P5：旧版空串流入 spawn cwd，行为依赖 GUI 进程 cwd）。
-  const workDir = resolveWorkDir(config) ?? config.dir;
+  // overrides.workDir 覆盖走同一相对解析（main.js:1900-1906）。
+  const workDir = resolveEffectiveWorkDir(config, overrides);
 
-  const xresloaderPath = config.xresloaderPath;
+  // overrides.xresloaderPath 覆盖走同一存在性检查（空串 = 用户清空 → 失败，同未配置）。
+  const xresloaderPath = overrides.xresloaderPath ?? config.xresloaderPath;
   const xresloaderExists = xresloaderPath
     ? path.isAbsolute(xresloaderPath)
       ? existsSync(xresloaderPath)
@@ -186,11 +272,11 @@ export function buildConversionPlan(
       prefixDisplay.push(option.value);
     }
   }
-  for (const file of config.protoFile) {
+  for (const file of overrides.protoFile ?? config.protoFile) {
     prefixArgv.push("-f", file);
     prefixDisplay.push(`-f "${file}"`);
   }
-  for (const dir of config.dataSrcDir) {
+  for (const dir of overrides.dataSrcDir ?? config.dataSrcDir) {
     prefixArgv.push("-d", dir);
     prefixDisplay.push(`-d "${dir}"`);
   }
@@ -242,6 +328,7 @@ export function buildConversionPlan(
         argv,
         itemKey: item.name,
         outputDir: rule.outputDir,
+        rename: rule.rename,
         display: display.join(" "),
       });
     }

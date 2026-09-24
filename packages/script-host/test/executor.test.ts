@@ -21,7 +21,7 @@ describe("executor completion", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("returns a bounded diagnostic for a circular script mutation instead of losing completion", async () => {
+  it("circular script mutation degrades to a per-op diagnostic, completion is kept (BD-S17)", async () => {
     const result = await executeInvocation(
       {
         invocation_id: "cycle",
@@ -34,6 +34,10 @@ describe("executor completion", () => {
       hooks,
     );
     expect(() => JSON.stringify(result)).not.toThrow();
-    expect(result.outcome).toBe("error");
+    // BD-S17：脚本本身没有失败；不可序列化的 op 降级为诊断，不再整体判 error。
+    expect(result.outcome).toBe("resolved");
+    const diagnostics = (result.ops ?? []).filter((op) => op.op === "diagnostic");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({ code: "OP_SERIALIZE_FAILED" });
   });
 });

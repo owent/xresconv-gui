@@ -102,6 +102,15 @@
 - `ft_node` 初始为占位 plain object，`show_conv_tree` 的 `createNode` 回调里替换为**真实 Fancytree 节点**（`rebind_ft_node_and_item`，`src/main.js:1854-1864`、`1882-1884`）。
 - DOM/Electron/Fancytree 依赖登记（D3）：`selected_nodes` 暴露完整 Fancytree API（含 `setSelected/isSelected/visit/render/data`）；`alert_*` 依赖 Bootstrap modal DOM；`require` 可触达 Electron 模块。真实脚本样本尚未收集，兼容范围不能仅凭 README 判定。
 
+**P2-05 NodeMirror 合同（新版实现，worker 侧 `script-host/src/node-mirror.ts` + 共享 `compat-service/src/tree-model.ts`，后端 `backend/src/service/tree-state.ts`）：**
+
+- 线上形态：`context.tree = {version, nodes}`（TreeSnapshot）。节点 `{key, title, tooltip, folder, unselectable, selected, partsel, expanded, autoSelect, item?, children}`；item 节点 key=item.id（number），category 节点 key=`cat:<id|name>`，根节点 key=`root_<n>`。item 载荷为旧版 item_data 形状（snake_case `scheme_data`、含 `id`、**无 `ft_node`**——别名由镜像重建）。
+- 别名恒等：`item.ft_node === node`、`node.data.item === item`、`node.key === item.id`；`selected_items`/`selected_nodes` 按选中状态从镜像推导（stopOnParents=false 的 DFS 序）。
+- 支持面：setSelected/toggleSelected/isSelected/setExpanded/isExpanded/isPartsel/getParent/getChildren/getRootNode/isRootNode/isFolder/visit/树级 visit 与 getSelectedNodes、`data.option.auto_select` 读写、item 字段直写（退出期 diff → `set_fields`）。`render()` 为 no-op（BD-S15）。
+- 排除面（D3）：结构/懒加载/动画等方法调用抛错并记一次 `D3_EXCLUDED` 诊断 op（去重）；`li/span` 等 DOM 属性读 undefined + 诊断；`node.selected` 等核心字段直写被忽略 + `D3_DIRECT_NODE_WRITE`；on_append_log 为只读镜像（BD-S16：修改 no-op + `D3_READ_ONLY`，树快照在 run 开始固化）。
+- ops 回流：`set_node_states{changes}`（selectMode:3 级联已计算好的盖章集）/`set_node_expanded`/`set_fields{target:"item_data",item_id,fields}`（排除 ft_node/id）/`set_node_option`/`diagnostic`；每条 op 带 `v`=快照版本，版本失配后端整批拒绝（`tree-state.ts:applyScriptOps`）。所有 outcome（含 rejected/error）的 ops 都应用（BD-S3 部分修改语义）。
+- 逐 op JSON 消毒（BD-S17）：单条不可序列化的 op 降级为 `OP_SERIALIZE_FAILED` 诊断，不再拖垮整个 result。
+
 ## 7. 数值与杂项契约
 
 - `convert_to_boolean`（`src/main.js:18-52`）：字符串 `no/false/0/disable/disabled`/空 → false（大小写不敏感）；数组 → 非空；数字 → 非 0；HTMLElement → checked/value。

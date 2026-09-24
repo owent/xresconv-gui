@@ -14,7 +14,9 @@
  *   （链式 then 拒绝传播，main.js:2396-2407）。
  * - 事件上下文（main.js:2253-2298）：work_dir/configure_file=顶层配置/xresloader_path/
  *   global_options={"-p","-a"?}/selected_items/selected_nodes/run_seq；require 由
- *   worker 注入（BD-S1）。selected_nodes 传 []（BD-O7，NodeMirror 归 P2-05）。
+ *   worker 注入（BD-S1）。P2-05 起：scriptContext 存在时每次 invoke 附带最新 tree
+ *   快照，selected_items/selected_nodes 由 worker 内 NodeMirror 重建（别名恒等、
+ *   ops 回流）；缺省回退 JSON 快照（BD-S9 降级形态，selected_nodes 传 []，BD-O7）。
  * - 计划构建在 before 链之后、java 之前（P3-05 冻结的 buildConversionPlan 是
  *   构建+存在性检查一体；旧版命令拼接在 before 前、存在性检查在 spawn 时
  *   （main.js:2068-2085）——因 selected_items 是快照（BD-S9），hook 改 item
@@ -35,7 +37,6 @@
 import { randomUUID } from "node:crypto";
 import type { ScriptResult } from "@xresconv/contracts";
 import type { JavaBatchOptions, JavaBatchResult, ScriptWorkerPool } from "@xresconv/guardian";
-import { resolveWorkDir } from "../config/loader.ts";
 import type { Hook, ParsedConfig } from "../config/model.ts";
 import {
   buildConversionPlan,
@@ -43,6 +44,7 @@ import {
   type ConversionPlan,
   type ConversionSelection,
   type ConversionTask,
+  resolveEffectiveWorkDir,
 } from "../convert/plan-builder.ts";
 import { encodeTaskLine } from "../convert/stdin-encoder.ts";
 import type { RunState } from "../domain/run-state.ts";
@@ -61,6 +63,23 @@ export interface RunSummary {
   /** 本次计划的任务总数。 */
   readonly taskCount: number;
   readonly durationMs: number;
+}
+
+/**
+ * 会话树状态桥（P2-05 NodeMirror 后端半区）：由 ConversionSession 提供，
+ * 把 SessionTreeState 接入事件/append_log 的脚本上下文与 ops 回流。
+ *
+ * - buildEventContext：每次 invoke 重建（含最新 tree 快照与版本），worker 侧
+ *   据此重建 NodeMirror；selected_items/selected_nodes 由 worker 从 tree 推导。
+ * - buildAppendLogContext：run 开始快照一次（BD-S16 只读镜像：on_append_log
+ *   看到的是 run 起始选择状态，修改尝试只产生诊断 op）。
+ * - applyOps：worker 回传的 ops 应用到 SessionTreeState（所有 outcome 都应用，
+ *   BD-S3 部分修改语义对齐旧版活引用）。
+ */
+export interface RunScriptContext {
+  buildEventContext(): Record<string, unknown>;
+  buildAppendLogContext(): Record<string, unknown>;
+  applyOps(ops: readonly unknown[]): void;
 }
 
 export interface RunOptions {
@@ -83,6 +102,8 @@ export interface RunOptions {
    * 日志按 invocation_id 判定并 bypass hook 链（递归保护，BD-O11）。
    */
   readonly appendLogInvocations: Set<string>;
+  /** P2-05：会话树状态桥；缺省时保持 BD-S9 JSON 快照行为（无 tree、无 ops 回流）。 */
+  readonly scriptContext?: RunScriptContext;
 }
 
 /** 链中止信号（对齐旧版 promise reject 传播：后续环节跳过，末尾统一记 "CONV"）。 */
@@ -126,7 +147,8 @@ async function runEventHooks(
         timeout_ms: hook.timeoutMs,
         run_seq: options.runSeq,
         // data:{} 由 worker 每次执行新建（main.js:2350）；require 由 worker 注入（BD-S1）。
-        context: { ...baseContext },
+        // P2-05：每次 invoke 重建 tree 快照（版本随 ops 应用递增）。
+        context: { ...baseContext, ...options.scriptContext?.buildEventContext() },
       });
     } catch (err) {
       // worker 级失败（WORKER_TIMEOUT/WORKER_EXIT/...）：旧版等价场景是渲染进程
@@ -135,6 +157,11 @@ async function runEventHooks(
       const message = formatUnknownError(err);
       void options.pipeline.error(message, "CONV EVENT");
       return { failedCount, abortReason: message };
+    }
+    // BD-S3：所有 outcome（含 rejected/error）都应用 ops——对齐旧版活引用下
+    // 脚本在 settle 前已产生的部分修改。
+    if (result.ops !== undefined) {
+      options.scriptContext?.applyOps(result.ops);
     }
     if (result.outcome === "resolved") {
       continue;
@@ -185,6 +212,8 @@ function makeAppendLogRunner(
           },
         });
         // set_log_fields 合并回 logObject → 后一 hook 输入（ops 按序应用）。
+        // 只读镜像（BD-S16）不产生树 ops；diagnostic（D3_READ_ONLY 等）直接进
+        // 日志且 bypass hook 链（防对诊断再触发脚本，同 WorkerDiag 处理）。
         const target = logObject as unknown as Record<string, unknown>;
         for (const op of result.ops ?? []) {
           if (op.op === "set_log_fields" && typeof op.fields === "object" && op.fields !== null) {
@@ -195,6 +224,10 @@ function makeAppendLogRunner(
                 target[key] = value;
               }
             }
+          } else if (op.op === "diagnostic") {
+            const code = typeof op.code === "string" ? op.code : "UNKNOWN";
+            const message = typeof op.message === "string" ? op.message : String(op.message);
+            void options.pipeline.warning(`${code}: ${message}`, "SCRIPT", { bypassHooks: true });
           }
         }
         if (result.outcome === "error") {
@@ -315,16 +348,23 @@ export async function runConversion(options: RunOptions): Promise<RunSummary> {
     globalOptions["-a"] = dataVersion; // main.js:1945-1947
   }
   const baseContext: Record<string, unknown> = {
-    work_dir: resolveWorkDir(config) ?? config.dir,
+    // work_dir/xresloader_path 用有效值（overrides 优先）：旧版上下文取自表单
+    // （main.js:2254-2256），与 -p/-a 的 overrides 回退（main.js:1911/1945）同模式。
+    work_dir: resolveEffectiveWorkDir(config, options.overrides ?? {}),
     configure_file: config.path, // 顶层配置（main.js:2255）
-    xresloader_path: config.xresloaderPath,
+    xresloader_path: options.overrides?.xresloaderPath ?? config.xresloaderPath,
     global_options: globalOptions, // main.js:2257
     selected_items: structuredClone(selection.items), // 快照（BD-S9）
     selected_nodes: [], // BD-O7：无 Fancytree；NodeMirror 归 P2-05
   };
 
-  // append_log_context 窗口开始（main.js:2299）。
-  pipeline.hookRunner = makeAppendLogRunner(config.gui.onAppendLog, baseContext, options);
+  // append_log_context 窗口开始（main.js:2299）。P2-05：tree 快照在 run 开始
+  // 固化一次（BD-S16 只读镜像），不随后续事件 ops 更新。
+  pipeline.hookRunner = makeAppendLogRunner(
+    config.gui.onAppendLog,
+    { ...baseContext, ...options.scriptContext?.buildAppendLogContext() },
+    options,
+  );
 
   try {
     options.transition("before_hooks");

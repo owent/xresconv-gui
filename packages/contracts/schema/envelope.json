@@ -19,7 +19,9 @@
         "event",
         "health",
         "shutdown",
-        "fault"
+        "fault",
+        "rpc",
+        "rpc_result"
       ]
     },
     "id": { "type": "string", "minLength": 1 },

@@ -37,6 +37,22 @@ export function matrixRuleMatchesItem(rule: OutputMatrixRule, item: TreeItem): b
 }
 
 /**
+ * 矩阵模式判定（main.js:1333-1338）：规则多于一条，或唯一规则带 tags/classes
+ * 限定时走矩阵；否则单类型模式（旧版对应下拉框未选中"自定义输出类型"）。
+ * plan-builder（规则回退）、tree-state（加载期资格）与会话（overrides 矩阵
+ * 变更后的资格重估，P4-04a）共用同一规则，禁止分叉。
+ */
+export function isMatrixMode(matrix: readonly OutputMatrixRule[]): boolean {
+  const first = matrix[0];
+  return (
+    matrix.length > 1 ||
+    (matrix.length === 1 &&
+      first !== undefined &&
+      (first.tags.length > 0 || first.classes.length > 0))
+  );
+}
+
+/**
  * DFS 文档顺序展开树，只取 item 叶子；category/folder 节点不产生任务
  * （main.js:2004-2008 只收集 `conv_data.items[node.key]` 存在的节点）。
  */

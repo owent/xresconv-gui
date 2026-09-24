@@ -1,3 +1,4 @@
+export type { BackendRpc } from "./generated/backend-rpc.ts";
 export type { Envelope } from "./generated/envelope.ts";
 export type { ErrorInfo } from "./generated/error-info.ts";
 export type { Handshake } from "./generated/handshake.ts";

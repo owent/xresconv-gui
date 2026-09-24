@@ -1,0 +1,238 @@
+{
+  "$schema": "./schema/targets.schema.json",
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "os": "windows",
+      "osVersionRange": ">=10.0.17763",
+      "arch": "x64",
+      "variant": "bootstrap",
+      "targetTriple": "x86_64-pc-windows-msvc",
+      "webviewStrategy": "webview2-embed-bootstrapper",
+      "minimumWebview": "120.0.0",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "windows",
+      "osVersionRange": ">=10.0.17763",
+      "arch": "x64",
+      "variant": "offline",
+      "targetTriple": "x86_64-pc-windows-msvc",
+      "webviewStrategy": "webview2-offline-installer",
+      "minimumWebview": "120.0.0",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "windows",
+      "osVersionRange": ">=10.0.17763",
+      "arch": "arm64",
+      "variant": "bootstrap",
+      "targetTriple": "aarch64-pc-windows-msvc",
+      "webviewStrategy": "webview2-embed-bootstrapper",
+      "minimumWebview": "120.0.0",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "windows",
+      "osVersionRange": ">=10.0.17763",
+      "arch": "arm64",
+      "variant": "offline",
+      "targetTriple": "aarch64-pc-windows-msvc",
+      "webviewStrategy": "webview2-offline-installer",
+      "minimumWebview": "120.0.0",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "macos",
+      "osVersionRange": ">=13.5",
+      "arch": "x64",
+      "variant": "bootstrap",
+      "targetTriple": "x86_64-apple-darwin",
+      "webviewStrategy": "system-only",
+      "minimumWebview": null,
+      "nodeVersion": "24"
+    },
+    {
+      "os": "macos",
+      "osVersionRange": ">=13.5",
+      "arch": "x64",
+      "variant": "offline",
+      "targetTriple": "x86_64-apple-darwin",
+      "webviewStrategy": "system-only",
+      "minimumWebview": null,
+      "nodeVersion": "24"
+    },
+    {
+      "os": "macos",
+      "osVersionRange": ">=13.5",
+      "arch": "arm64",
+      "variant": "bootstrap",
+      "targetTriple": "aarch64-apple-darwin",
+      "webviewStrategy": "system-only",
+      "minimumWebview": null,
+      "nodeVersion": "24"
+    },
+    {
+      "os": "macos",
+      "osVersionRange": ">=13.5",
+      "arch": "arm64",
+      "variant": "offline",
+      "targetTriple": "aarch64-apple-darwin",
+      "webviewStrategy": "system-only",
+      "minimumWebview": null,
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "22.04",
+      "distro": "ubuntu-22.04",
+      "arch": "x86_64",
+      "variant": "bootstrap",
+      "targetTriple": "x86_64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "22.04",
+      "distro": "ubuntu-22.04",
+      "arch": "aarch64",
+      "variant": "bootstrap",
+      "targetTriple": "aarch64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "24.04",
+      "distro": "ubuntu-24.04",
+      "arch": "x86_64",
+      "variant": "bootstrap",
+      "targetTriple": "x86_64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "24.04",
+      "distro": "ubuntu-24.04",
+      "arch": "aarch64",
+      "variant": "bootstrap",
+      "targetTriple": "aarch64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "12",
+      "distro": "debian-12",
+      "arch": "x86_64",
+      "variant": "bootstrap",
+      "targetTriple": "x86_64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "12",
+      "distro": "debian-12",
+      "arch": "aarch64",
+      "variant": "bootstrap",
+      "targetTriple": "aarch64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "13",
+      "distro": "debian-13",
+      "arch": "x86_64",
+      "variant": "bootstrap",
+      "targetTriple": "x86_64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "13",
+      "distro": "debian-13",
+      "arch": "aarch64",
+      "variant": "bootstrap",
+      "targetTriple": "aarch64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "43",
+      "distro": "fedora-43",
+      "arch": "x86_64",
+      "variant": "bootstrap",
+      "targetTriple": "x86_64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "43",
+      "distro": "fedora-43",
+      "arch": "aarch64",
+      "variant": "bootstrap",
+      "targetTriple": "aarch64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "44",
+      "distro": "fedora-44",
+      "arch": "x86_64",
+      "variant": "bootstrap",
+      "targetTriple": "x86_64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": "44",
+      "distro": "fedora-44",
+      "arch": "aarch64",
+      "variant": "bootstrap",
+      "targetTriple": "aarch64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-system",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": ">=22.04",
+      "arch": "x86_64",
+      "variant": "offline",
+      "targetTriple": "x86_64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-bundled",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "linux",
+      "osVersionRange": ">=22.04",
+      "arch": "aarch64",
+      "variant": "offline",
+      "targetTriple": "aarch64-unknown-linux-gnu",
+      "webviewStrategy": "webkitgtk-bundled",
+      "minimumWebview": "2.38",
+      "nodeVersion": "24"
+    }
+  ]
+}

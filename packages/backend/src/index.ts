@@ -66,11 +66,30 @@ export {
   LogPipeline,
 } from "./service/log-pipeline.ts";
 export {
+  MatcherService,
+  type MatcherServiceOptions,
+  MatcherTimeoutError,
+  MatcherWorkerExitError,
+} from "./service/matcher-service.ts";
+export {
+  type BackendAppEvent,
+  BackendRpcApp,
+  type BackendRpcAppOptions,
+  type BackendRpcMethod,
+  type BackendSnapshot,
+  RpcError,
+  type RpcErrorCode,
+} from "./service/rpc-app.ts";
+export {
   type JavaRunner,
   type RunOptions,
   type RunSummary,
   runConversion,
 } from "./service/run.ts";
+export {
+  type IsolatedSelectorOptions,
+  resolveSelectorItemsIsolated,
+} from "./service/selection-rule-service.ts";
 export {
   ConversionSession,
   type ConversionSessionOptions,

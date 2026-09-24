@@ -81,4 +81,58 @@ describe.skipIf(!HAS_JAR)("runConversion: 真实 JAR 冒烟", () => {
     expect(messages).toContain("[Process 1 exit.]");
     expect(messages).toContain("All jobs done.");
   });
+
+  // P3-07/EX02：多分片真实 JVM 并发（补 P3-06 记录的"多分片真实 JVM 并发未实测"缺口）。
+  it("并发 4 真实 JVM：8 任务 → 4 分片，产物 8 件齐全，退出汇总一致", {
+    timeout: SMOKE_TIMEOUT_MS,
+  }, async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "xresconv-smoke-par-"));
+    tmpRoots.push(dir);
+    const outDir = path.join(dir, "out");
+    mkdirSync(outDir, { recursive: true });
+    const items = Array.from(
+      { length: 8 },
+      (_, i) => `    <item name="c${i}"><option>--pretty 2 -c c${i}.lua</option></item>`,
+    ).join("\n");
+    const configPath = path.join(dir, "smoke-par.xml");
+    writeFileSync(
+      configPath,
+      `<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>${SAMPLE}</work_dir>
+    <xresloader_path>${JAR}</xresloader_path>
+    <proto>protobuf</proto>
+    <proto_file>proto_v2/kind.pb</proto_file>
+    <output_type>lua</output_type>
+  </global>
+  <list>
+${items}
+  </list>
+</root>
+`,
+    );
+
+    const session = new ConversionSession({ pool, parallelism: 4 });
+    const config = await session.loadConfig(configPath);
+    const summary = await session.runConversion(
+      { items: flattenTreeItems(config.tree) },
+      { outputDir: outDir },
+    );
+
+    expect(summary.state).toBe("succeeded");
+    expect(summary.failedCount).toBe(0);
+    expect(summary.taskCount).toBe(8);
+    for (let i = 0; i < 8; i++) {
+      const outFile = path.join(outDir, `c${i}.lua`);
+      expect(existsSync(outFile)).toBe(true);
+      expect(statSync(outFile).size).toBeGreaterThan(0);
+    }
+    const messages = session.pipeline.snapshot().map((entry) => entry.message);
+    // 4 个真实 JVM 分片各自退出汇总（进程启动/退出日志按分片编号）。
+    for (const n of [1, 2, 3, 4]) {
+      expect(messages).toContain(`[Process ${n} exit.]`);
+    }
+    expect(messages).toContain("All jobs done.");
+  });
 });

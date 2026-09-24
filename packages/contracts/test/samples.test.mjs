@@ -24,12 +24,18 @@ describe.each([
   "envelope",
   "script-invoke",
   "script-result",
+  "backend-rpc",
 ])("%s schema vs samples", (name) => {
   const validate = ajv.compile(loadSchema(name));
 
   it("accepts the valid sample", () => {
     const sample = loadSample(`${name}.valid.json`);
-    expect(validate(sample), JSON.stringify(validate.errors)).toBe(true);
+    // 一个文件可携带多例（顶层数组），逐例校验（P4-04a：backend-rpc 增补方法样例）。
+    const payloads = Array.isArray(sample) ? sample : [sample];
+    expect(payloads.length).toBeGreaterThan(0);
+    for (const payload of payloads) {
+      expect(validate(payload), JSON.stringify(validate.errors)).toBe(true);
+    }
   });
 
   it("rejects the invalid sample", () => {

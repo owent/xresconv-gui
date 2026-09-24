@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@xresconv/compat-service": "workspace:*",
     "@xresconv/contracts": "workspace:*",
     "@xresconv/ipc": "workspace:*"
   },

@@ -2,7 +2,7 @@
 
 [主计划](../../Plan.md) · [文档索引](../README.md)
 
-状态：**P1 Windows 骨架通过复验；P2/P3 已有 worker、IPC、配置、匹配原语、计划/Java、编排和日志原型。本轮修复与测试见 [2026-09-24 代码审查](records/REVIEW-P0-P3-2026-09-24.md)。G2/G3 尚未完整验收：长期监督接线、进程树、NodeMirror、隔离 matcher/XML helper 等仍有缺口。Linux/macOS、P4 UI、P5 安装仍待执行。** D1–D6 决策保持，见 [P0-06](records/P0-06.md) 与主计划 §2.3。更新日期：2026-09-24。
+状态：**P1 Windows 骨架通过复验；P2 完成（监督、matcher 隔离、发行布局、真实脚本差分、G2 报告与协议 v1 冻结）；P3 内核完成（含真实 JAR 八格式差分）。本轮修复与测试见 [2026-09-24 代码审查](records/REVIEW-P0-P3-2026-09-24.md) 及 P2-08 至 P2-12 记录。Linux/macOS、P4 UI、P5 安装仍待执行。** D1–D6 决策保持，见 [P0-06](records/P0-06.md) 与主计划 §2.3。更新日期：2026-09-24。
 
 ## 阅读顺序与唯一维护位置
 

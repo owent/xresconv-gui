@@ -1,14 +1,308 @@
-:root {
-  color-scheme: light dark;
-  font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+@import "./styles/tokens.css";
+
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
   margin: 0;
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background: var(--color-bg);
 }
 
-.shell {
+/* 骨架布局：顶部环境状态 / 左侧转换树 / 右侧配置区 / 底部运行与日志 */
+.app-shell {
   display: grid;
-  gap: 1rem;
-  padding: 1rem;
+  grid-template-areas:
+    "env env"
+    "tree main"
+    "bottom bottom";
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  box-sizing: border-box;
+  height: 100dvh;
+  padding: var(--space-3);
+}
+
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-panel-bg);
+  padding: var(--space-3);
+}
+
+.panel-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-lg);
+}
+
+.empty-state {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.environment-status {
+  grid-area: env;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+}
+
+.environment-status p {
+  margin: 0;
+}
+
+.app-version {
+  font-weight: 600;
+}
+
+.config-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.config-path {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.backend-health {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+}
+
+.health-error {
+  color: var(--color-danger);
+}
+
+.cli-args {
+  flex-basis: 100%;
+  font-size: var(--font-size-sm);
+}
+
+.cli-args summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.conversion-tree {
+  grid-area: tree;
+  overflow: auto;
+}
+
+.conversion-tree-view {
+  min-height: 8rem;
+  outline: none;
+}
+
+.react-aria-TreeItem {
+  outline: none;
+  border-radius: var(--radius-1);
+  padding: 1px var(--space-1);
+}
+
+.react-aria-TreeItem[data-focused] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.react-aria-TreeItem[data-hovered] {
+  background: var(--color-bg);
+}
+
+.tree-node-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tree-chevron {
+  border: none;
+  background: none;
+  padding: 0 var(--space-1);
+  font: inherit;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.tree-chevron-spacer {
+  display: inline-block;
+  width: 1.25rem;
+}
+
+.tree-node-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-node-hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.tree-error {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-2);
+}
+
+.tree-search-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.tree-placeholder {
+  min-height: 8rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.main-area {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: auto;
+}
+
+.bottom-area {
+  grid-area: bottom;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  max-height: 32vh;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+.select-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.react-aria-TextField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.react-aria-TextField .react-aria-Input,
+.select-field select,
+.tree-search .react-aria-Input {
+  font: inherit;
+  color: inherit;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+}
+
+.react-aria-Button {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.react-aria-Button[data-hovered] {
+  border-color: var(--color-accent);
+}
+
+.react-aria-Button[data-pressed] {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.react-aria-Button[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+[data-disabled] {
+  opacity: 0.55;
+}
+
+.react-aria-Button[data-disabled] {
+  cursor: not-allowed;
+}
+
+.hook-list,
+.format-list,
+.run-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: none;
+}
+
+.format-list legend,
+.run-buttons legend {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.react-aria-Checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.run-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.run-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.run-summary {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.log-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 4rem;
+  overflow: hidden;
+}
+
+.log-list {
+  flex: 1;
+  overflow: auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
 }

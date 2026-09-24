@@ -1,0 +1,31 @@
+[
+  {
+    "type": "request",
+    "method": "loadConfig",
+    "params": { "path": "D:/work/conv/sample.xml" }
+  },
+  {
+    "type": "request",
+    "method": "updateSettings",
+    "params": {
+      "fields": {
+        "workDir": "build/out",
+        "protoFile": ["proto_v2/kind.pb", "proto_v3/kind.pb"],
+        "dataSrcDir": [],
+        "matrix": [
+          {
+            "type": "lua",
+            "rename": "/(?i)\\.bin$/.lua/",
+            "outputDir": "out/lua",
+            "tags": ["server"],
+            "classes": []
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "request",
+    "method": "preview"
+  }
+]

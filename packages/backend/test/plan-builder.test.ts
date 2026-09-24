@@ -9,7 +9,7 @@ function at<T>(arr: readonly T[], i: number): T {
   return v;
 }
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -18,15 +18,21 @@ import {
   buildConversionPlan,
   type ConversionOverrides,
   PlanBuildError,
+  resolveEffectiveSettings,
 } from "../src/convert/plan-builder.ts";
 
 let workDir: string;
 let jarPath: string;
+let subDir: string;
 
 beforeAll(() => {
   workDir = mkdtempSync(path.join(tmpdir(), "xresconv-plan-builder-"));
   jarPath = path.join(workDir, "xresloader.jar");
   writeFileSync(jarPath, "fake jar for existence check");
+  // P4-04a：workDir 覆盖测试用的子目录（内含另一份 fake jar）。
+  subDir = path.join(workDir, "sub");
+  mkdirSync(subDir);
+  writeFileSync(path.join(subDir, "sub.jar"), "fake jar in sub dir");
 });
 
 afterAll(() => {
@@ -309,5 +315,186 @@ describe("buildConversionPlan: xresloader 存在性检查（main.js:2068-2085）
   it("无选中 item → 空任务列表（仍校验 jar）", () => {
     const plan = buildConversionPlan(makeConfig(), { items: [] });
     expect(plan.tasks).toEqual([]);
+  });
+});
+
+describe("buildConversionPlan: overrides 扩展字段（P4-04a）", () => {
+  it("workDir 覆盖：相对路径按入口文件目录解析（main.js:1900-1906），jar 存在性随新目录", () => {
+    const plan = buildConversionPlan(
+      makeConfig({ xresloaderPath: "sub.jar" }),
+      { items: [makeItem({ file: "a", scheme: "s" })] },
+      { workDir: "sub" },
+    );
+    expect(plan.workDir).toBe(path.resolve(workDir, "sub"));
+    expect(plan.xresloaderPath).toBe("sub.jar");
+  });
+
+  it("workDir 覆盖空串 = 用户清空 → 回退入口目录（不用配置的 work_dir）", () => {
+    // 配置 work_dir 为 sub：默认有效目录是 sub；清空覆盖后回退 config.dir。
+    // xresloaderPath 用绝对路径，使存在性检查与 workDir 取值解耦。
+    const config = makeConfig({
+      workDir: "sub",
+      workDirSourceDir: workDir,
+      xresloaderPath: jarPath,
+    });
+    expect(buildConversionPlan(config, { items: [] }).workDir).toBe(subDir);
+    const plan = buildConversionPlan(config, { items: [] }, { workDir: "" });
+    expect(plan.workDir).toBe(workDir);
+  });
+
+  it("xresloaderPath 覆盖：绝对路径替代坏配置值；空串/缺失相对路径 → XRESLOADER_NOT_FOUND", () => {
+    const broken = makeConfig({ xresloaderPath: "no-such.jar" });
+    const plan = buildConversionPlan(broken, { items: [] }, { xresloaderPath: jarPath });
+    expect(plan.xresloaderPath).toBe(jarPath);
+    for (const bad of ["", "missing.jar"]) {
+      const err = (() => {
+        try {
+          buildConversionPlan(makeConfig(), { items: [] }, { xresloaderPath: bad });
+          return null;
+        } catch (e) {
+          return e as PlanBuildError;
+        }
+      })();
+      expect(err).toBeInstanceOf(PlanBuildError);
+      expect(err?.code).toBe("XRESLOADER_NOT_FOUND");
+    }
+  });
+
+  it("protoFile/dataSrcDir 覆盖：替换配置值；空数组 = 不发 -f/-d", () => {
+    const config = makeConfig({
+      protoFile: ["cfg.pb"],
+      dataSrcDir: ["cfg-data"],
+    });
+    const item = makeItem({ file: "a", scheme: "s" });
+    const overridden = buildConversionPlan(
+      config,
+      { items: [item] },
+      { protoFile: ["o1.pb", "o2.pb"], dataSrcDir: ["o-data"] },
+    );
+    expect(at(overridden.tasks, 0).argv).toEqual([
+      "-f",
+      "o1.pb",
+      "-f",
+      "o2.pb",
+      "-d",
+      "o-data",
+      "-t",
+      "bin",
+      "-s",
+      "a",
+      "-m",
+      "s",
+    ]);
+    const cleared = buildConversionPlan(
+      config,
+      { items: [item] },
+      { protoFile: [], dataSrcDir: [] },
+    );
+    expect(at(cleared.tasks, 0).argv).toEqual(["-t", "bin", "-s", "a", "-m", "s"]);
+    // 缺省回退配置值（未覆盖字段不受影响）。
+    const fallback = buildConversionPlan(config, { items: [item] }, { proto: "x" });
+    expect(at(fallback.tasks, 0).argv).toContain("cfg.pb");
+    expect(at(fallback.tasks, 0).argv).toContain("cfg-data");
+  });
+
+  it("matrix 覆盖：规则值进 -t/-n/-o 并参与资格过滤；规则缺省字段回退 overrides 全局值", () => {
+    const config = makeConfig({ outputMatrix: [] }); // 配置无矩阵（默认单类型 bin）
+    const matrix = [
+      makeRule({ type: "lua", rename: "/l$/", outputDir: "out-lua", tags: ["server"] }),
+      makeRule({}), // 无限定规则：type/rename/outputDir 回退全局
+    ];
+    const serverItem = makeItem({ name: "sv", tags: ["server"], file: "a", scheme: "s" });
+    const plainItem = makeItem({ name: "pl", file: "b", scheme: "s" });
+    const plan = buildConversionPlan(
+      config,
+      { items: [serverItem, plainItem] },
+      { matrix, type: "json", outputDir: "ui-out" },
+    );
+    // sv 命中两条规则；pl 只命中无限定规则。
+    expect(plan.tasks.map((t) => [t.itemKey, t.argv[t.argv.indexOf("-t") + 1]])).toEqual([
+      ["sv", "lua"],
+      ["sv", "json"],
+      ["pl", "json"],
+    ]);
+    expect(at(plan.tasks, 0).argv).toEqual([
+      "-t",
+      "lua",
+      "-n",
+      "/l$/",
+      "-o",
+      "out-lua",
+      "-s",
+      "a",
+      "-m",
+      "s",
+    ]);
+    expect(at(plan.tasks, 1).argv).toContain("ui-out");
+    // 冲突分组元数据：任务携带生效的 outputDir/rename。
+    expect(at(plan.tasks, 0).outputDir).toBe("out-lua");
+    expect(at(plan.tasks, 0).rename).toBe("/l$/");
+  });
+
+  it("matrix 覆盖空数组 = 清空矩阵 → 单类型模式（配置矩阵不生效）", () => {
+    const config = makeConfig({
+      outputMatrix: [makeRule({ type: "lua", rename: "/l$/" })],
+    });
+    const plan = buildConversionPlan(
+      config,
+      { items: [makeItem({ file: "a", scheme: "s" })] },
+      { matrix: [] },
+    );
+    expect(at(plan.tasks, 0).argv).toEqual(["-t", "bin", "-s", "a", "-m", "s"]);
+  });
+});
+
+describe("resolveEffectiveSettings（P4-04a 表单有效值快照）", () => {
+  it("缺省全回退配置；单类型模式 type/rename 取矩阵首条", () => {
+    const config = makeConfig({
+      proto: "protobuf",
+      dataVersion: "1.0.0.0",
+      outputDir: "cfg-out",
+      rename: "cfg-rename",
+      protoFile: ["cfg.pb"],
+      dataSrcDir: ["cfg-data"],
+      outputMatrix: [makeRule({ type: "lua", rename: "/rule$/" })],
+    });
+    const effective = resolveEffectiveSettings(config, {});
+    expect(effective).toEqual({
+      workDir,
+      xresloaderPath: "xresloader.jar",
+      proto: "protobuf",
+      dataVersion: "1.0.0.0",
+      outputDir: "cfg-out",
+      rename: "/rule$/", // 单类型模式：rename 取矩阵首条（main.js:1420-1422）
+      type: "lua", // 单类型模式：type 取矩阵首条（main.js:1397-1402）
+      protoFile: ["cfg.pb"],
+      dataSrcDir: ["cfg-data"],
+      matrix: config.outputMatrix,
+    });
+  });
+
+  it("无矩阵无配置时字符串回退空串、type 缺省 bin；workDir 未配置回退入口目录", () => {
+    const config = makeConfig({ workDir: undefined, workDirSourceDir: undefined });
+    const effective = resolveEffectiveSettings(config, {});
+    expect(effective.workDir).toBe(workDir);
+    expect(effective.type).toBe("bin");
+    expect(effective.proto).toBe("");
+    expect(effective.rename).toBe("");
+    expect(effective.matrix).toEqual([]);
+  });
+
+  it("矩阵模式：type 缺省 bin（全局回退）、rename 取配置 rename；覆盖逐字段生效", () => {
+    const matrix = [makeRule({ type: "lua", tags: ["s"] }), makeRule({ type: "json" })];
+    const config = makeConfig({ rename: "cfg-rename", outputMatrix: matrix });
+    const effective = resolveEffectiveSettings(config, {
+      proto: "capnproto",
+      outputDir: "",
+      workDir: "sub",
+    });
+    expect(effective.type).toBe("bin");
+    expect(effective.rename).toBe("cfg-rename");
+    expect(effective.proto).toBe("capnproto");
+    expect(effective.outputDir).toBe(""); // 空串 = 用户清空生效
+    expect(effective.workDir).toBe(path.resolve(workDir, "sub"));
   });
 });

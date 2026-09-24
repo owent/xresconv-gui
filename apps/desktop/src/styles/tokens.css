@@ -1,0 +1,56 @@
+/**
+ * 设计令牌（docs/plan/04-ui.md §样式）：颜色、间距、字号、层级均为 CSS 自定义属性；
+ * 明暗主题经 prefers-color-scheme 切换。仅使用最低 WebView 已验证能力，
+ * 不引入外部字体/CDN 资源。
+ */
+:root {
+  color-scheme: light dark;
+
+  --font-family-base: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+  --font-family-mono: ui-monospace, Consolas, "Courier New", monospace;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.9375rem;
+  --font-size-lg: 1.0625rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  --radius-1: 0.25rem;
+  --radius-2: 0.5rem;
+
+  --z-dialog: 1000;
+  --z-tooltip: 1100;
+
+  /* light（默认） */
+  --color-bg: #f5f6f8;
+  --color-panel-bg: #ffffff;
+  --color-border: #c9ced6;
+  --color-text: #1c2430;
+  --color-text-muted: #5a6472;
+  --color-accent: #0b5fff;
+  --color-accent-contrast: #ffffff;
+  --color-danger: #b3261e;
+  --color-warning: #8a5a00;
+  --color-success: #1a7f37;
+  --color-focus-ring: #0b5fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #14181f;
+    --color-panel-bg: #1d232d;
+    --color-border: #3a4350;
+    --color-text: #e6eaf0;
+    --color-text-muted: #9aa5b3;
+    --color-accent: #6ea8ff;
+    --color-accent-contrast: #0b1220;
+    --color-danger: #ff7b72;
+    --color-warning: #e3b341;
+    --color-success: #57d977;
+    --color-focus-ring: #6ea8ff;
+  }
+}

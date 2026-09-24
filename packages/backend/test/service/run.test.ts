@@ -192,6 +192,41 @@ describe("runConversion", () => {
     expect(messages.some((m) => m.startsWith("All jobs done"))).toBe(false);
   });
 
+  it("会话持有的 overrides：缺省用持有值，显式入参优先（P4-04a）", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const calls: JavaBatchOptions[] = [];
+    const session = new ConversionSession({ pool, runner: okRunner(calls) });
+    const config = await session.loadConfig(fixture("run-hooks.xml")); // 配置 proto=protobuf
+    session.updateSettings({ proto: "capnproto" });
+
+    // 缺省（不传 overrides）→ 用会话持有值。
+    const first = await session.runConversion(selectAll(config));
+    expect(first.state).toBe("succeeded");
+    expect(calls[0]?.tasks[0]).toContain("-p capnproto");
+    expect(calls[0]?.tasks[0]).not.toContain("protobuf");
+
+    // 显式入参（含 {} 语义外的具体值）优先于会话持有值；持有值不变。
+    const second = await session.runConversion(selectAll(config), { proto: "protobuf" });
+    expect(second.state).toBe("succeeded");
+    expect(calls[1]?.tasks[0]).toContain("-p protobuf");
+    expect(session.getOverrides().proto).toBe("capnproto");
+  });
+
+  it("事件上下文 work_dir/xresloader_path 用有效值（overrides 优先，main.js:2254-2256）", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const session = new ConversionSession({ pool, runner: okRunner([]) });
+    const config = await session.loadConfig(fixture("run-context.xml"));
+    // workDir 空串 = 清空回退入口目录；xresloaderPath 覆盖为绝对路径（存在性检查通过）。
+    const jarAbs = fixture("run-context.xml");
+    session.updateSettings({ workDir: "", xresloaderPath: jarAbs });
+    const summary = await session.runConversion(selectAll(config));
+    expect(summary.state).toBe("succeeded");
+    const messages = session.pipeline.snapshot().map((entry) => entry.message);
+    expect(messages).toContain(`CTX ${config.dir}|${jarAbs}`);
+  });
+
   it("状态机违规：未加载配置/运行中再启动均抛错（复用 assertTransition 语义）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {

@@ -15,11 +15,31 @@ import { executeInvocation } from "./executor.ts";
 const ROLE = "script-worker" as const;
 /** Grace on top of invoke.timeout_ms for the worker-level wall-clock fallback (BD-S5). */
 const OUTER_TIMEOUT_GRACE_MS = 100;
-/** Forced exit delay after shutdown is requested, even if invocations never settle. */
+/** Forced exit after shutdown is requested, even if invocations never settle. */
 const SHUTDOWN_FORCE_EXIT_MS = 2000;
+/**
+ * 内存/健康自报周期（P2-07 watchdog）：worker 主动周期性上报 memoryUsage，
+ * guardian 据此评估 RSS 限额。同步死循环时无法上报——该情形由 invoke 超时
+ * 销毁覆盖（BD-W3），与内存慢增长（事件循环空闲、可持续上报）互补。
+ * 测试可用 XRESCONV_WORKER_HEALTH_INTERVAL_MS 加速。
+ */
+const DEFAULT_HEALTH_REPORT_INTERVAL_MS = 5000;
 
 const inflight = new Set<Promise<void>>();
-const dialogCallbacks = new Map<string, DialogCallbacks>();
+
+/**
+ * 弹框回调注册表（P2-06）：token → 回调 + 注册上下文。
+ * 生命周期：registerDialogCallbacks 登记 → handleDialogRespond 应答时取出并删除
+ * （exactly-once）。条目**不**随 invocation 结束而失效（旧版 modal 晚于脚本
+ * 结束仍可点，SC06"合法回调不提前销毁"）；未应答条目的留存上限由 guardian
+ * 的 dialogTimeoutMs 统一兜底（BD-W10），worker 进程退出时随进程消亡。
+ */
+interface DialogRegistryEntry {
+  callbacks: DialogCallbacks;
+  invocationId: string;
+  createdAt: number;
+}
+const dialogCallbacks = new Map<string, DialogRegistryEntry>();
 let shutdownRequested = false;
 
 function logStderr(message: string): void {
@@ -61,9 +81,15 @@ function sendFault(message: string, inReplyTo?: string): Promise<void> {
 }
 
 function sendHealth(inReplyTo?: string): Promise<void> {
+  const memory = process.memoryUsage();
   return send(
     "health",
-    { ok: true, pid: process.pid, node: process.version },
+    {
+      ok: true,
+      pid: process.pid,
+      node: process.version,
+      memory: { rss: memory.rss, heapUsed: memory.heapUsed, heapTotal: memory.heapTotal },
+    },
     inReplyTo === undefined ? {} : { in_reply_to: inReplyTo },
   );
 }
@@ -109,8 +135,8 @@ function makeHooks(entryKind: ScriptInvoke["entry_kind"]): ExecutorHooks {
         (err: unknown) => logStderr(`failed to send dialog_request: ${formatUnknown(err)}`),
       );
     },
-    registerDialogCallbacks(token, callbacks) {
-      dialogCallbacks.set(token, callbacks);
+    registerDialogCallbacks(token, callbacks, invocationId) {
+      dialogCallbacks.set(token, { callbacks, invocationId, createdAt: Date.now() });
     },
   };
 }
@@ -147,10 +173,12 @@ function handleInvoke(env: Envelope): void {
 }
 
 /**
- * alert_warning answer (P0-08 §5): "yes" -> yes() -> on_close(); "no" -> no()
- * -> on_close(); choice null/missing (ESC/backdrop) -> no callbacks at all.
- * Callbacks run with this=undefined and no arguments (BD-S6); an exception in
- * yes/no skips on_close, matching the legacy single-handler sequencing.
+ * alert_warning answer (P0-08 §5)：yes -> yes() -> on_close()；no -> no() ->
+ * on_close()。回调先取后删（exactly-once，重复点击/重复应答的第二次直接
+ * 拒绝）；this=undefined、无实参（BD-S6）；yes/no 抛异常跳过 on_close（旧版
+ * 单处理器顺序语义）。choice 为 null/缺失/"dismissed"（ESC/遮罩/关闭/TTL 兜底）
+ * → 无回调，仅最终化并记 fd2 诊断（BD-06：关闭必须收尾，不允许永久挂起）。
+ * 过期 token（worker 重建/已应答/TTL 清除）不执行任何回调（SC06）。
  */
 function handleDialogRespond(env: Envelope): void {
   const fromPayload = env.payload.token;
@@ -160,12 +188,13 @@ function handleDialogRespond(env: Envelope): void {
     logStderr("dialog_respond without token, ignored");
     return;
   }
-  const callbacks = dialogCallbacks.get(token);
-  if (callbacks === undefined) {
-    logStderr(`dialog_respond for unknown token ${token}, ignored`);
+  const entry = dialogCallbacks.get(token);
+  if (entry === undefined) {
+    logStderr(`dialog_respond for unknown/stale token ${token}, ignored`);
     return;
   }
   dialogCallbacks.delete(token);
+  const { callbacks } = entry;
   const call = (fn: unknown): void => {
     if (typeof fn === "function") {
       Reflect.apply(fn, undefined, []);
@@ -178,6 +207,11 @@ function handleDialogRespond(env: Envelope): void {
     } else if (env.payload.choice === "no") {
       call(callbacks.no);
       call(callbacks.on_close);
+    } else {
+      logStderr(
+        `dialog ${token} (invocation ${entry.invocationId}) dismissed without choice; ` +
+          `finalized without callbacks after ${String(Date.now() - entry.createdAt)}ms (BD-06)`,
+      );
     }
   } catch (err) {
     logStderr(`dialog callback threw: ${formatUnknown(err)}`);
@@ -252,3 +286,19 @@ process.stdin.once("end", handleShutdown);
 process.stdin.once("error", handleShutdown);
 
 await sendHealth();
+
+// P2-07：周期性内存/健康自报（unref，不拖住退出；shutdown 后停止）。
+const healthReportIntervalMs = (() => {
+  const raw = Number(process.env.XRESCONV_WORKER_HEALTH_INTERVAL_MS);
+  return Number.isSafeInteger(raw) && raw >= 25 && raw <= 60_000
+    ? raw
+    : DEFAULT_HEALTH_REPORT_INTERVAL_MS;
+})();
+const healthReporter = setInterval(() => {
+  if (shutdownRequested) {
+    clearInterval(healthReporter);
+    return;
+  }
+  sendHealth().catch(() => undefined);
+}, healthReportIntervalMs);
+healthReporter.unref();

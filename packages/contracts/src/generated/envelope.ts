@@ -16,7 +16,9 @@ export interface Envelope {
     | "event"
     | "health"
     | "shutdown"
-    | "fault";
+    | "fault"
+    | "rpc"
+    | "rpc_result";
   id: string;
   role: "shell" | "guardian" | "backend" | "script-worker" | "compat-service";
   in_reply_to?: string;

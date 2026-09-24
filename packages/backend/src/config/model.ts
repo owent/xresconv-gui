@@ -112,6 +112,13 @@ export interface DefaultSchemeEntry {
 
 /** list/item 叶子（P0-08 §8，main.js:1610-1702）。 */
 export interface TreeItem {
+  /**
+   * 运行时身份（main.js:1612 `generate_id()`，每次加载从 1 自增、reload 归零，
+   * main.js:926-953）：由 service/load-config.ts 在解析后统一赋值；脚本可见
+   * （item_data.id、ft_node.key 同源，P0-08 §8）。纯解析路径（parseXmlConfig）
+   * 不赋值，调用方不得依赖其存在。
+   */
+  id?: number;
   /** file 属性原文；DataSource 特例可回填（main.js:1671-1685）。 */
   file?: string;
   /** scheme 属性原文；DataSource **不**设置该字段（main.js:1671-1685）。 */

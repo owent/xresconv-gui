@@ -1,5 +1,13 @@
 # xresconv-gui 全面重构执行计划与测试计划
 
+**请确保深度思考调研后再执行，禁止猜测。按需更新AI agent提示词、skills和各类文档。及时更新完成进度。**
+
+Hint:
+
+- 注意测试过程中可能涉及GUI阻塞或异常，无论何种测试，都要限定超时时间，不要卡死。
+- xresloader的jar包可以复用 ../xresloader/target/xresloader-XXX.jar 。验证测试可以参考 ../xresloader/sample 里 gen_sample_output.ps1 或 gen_sample_output.sh 的内容编写
+- <https://github.com/xresloader/xresconv-conf/blob/main/sample.xml> 和 <https://github.com/xresloader/xresconv-conf/blob/main/sample_include.xml> 有更完整的配置文件规范和建构。可以参考规划设计单元测试。
+
 ## 0. 执行入口与分册
 
 本文件保留目标、选型、版本快照及 P0–P7 阶段出口；具体任务、接口、测试步骤和证据格式见 [执行计划索引](docs/plan/README.md)。P0/P1 已有阶段记录，工作树已有 P2/P3 核心原型；最新复核见 [2026-09-24 代码审查](docs/plan/records/REVIEW-P0-P3-2026-09-24.md)，模块测试通过不等于整个阶段验收。
@@ -20,7 +28,7 @@
 
 - 编制日期：2026-09-23。
 - 源码基线：`3e8ec5773368ce02455a74bcd42d7ff03487be08`，应用版本 `2.6.0`。
-- 当前状态（2026-09-24）：**P1 Windows 骨架通过复验；P2/P3 的 worker、IPC、XML、匹配原语、计划/Java 和编排/日志已有实现并完成本轮修复。G2/G3 尚未完整验收：长期 guardian/backend 接线、进程树监督、NodeMirror、隔离 matcher/XML helper 等仍待完成；Linux/macOS 证据待 CI/实机。** 详见最新审查记录，不重置 P0 历史记录。
+- 当前状态（2026-09-24）：**P1 Windows 骨架通过复验；P2 完成（SC01–SC11 win32 全过、协议 v1 冻结含漂移守卫）；P3 内核完成（含真实 JAR 八格式差分 P3-10）；P4 进行中：P4-01 UI 骨架、P4-02 业务 RPC 脊柱与 Rust 壳通道、P4-03 转换树与三态选择、P4-04a 设置/预览 RPC 已完成；P5-01 发行目标清单与矩阵生成器已完成（PK01，22 目标 = D1/D2 精确集合）。门禁：454 例 Node/前端单测 + 5 例 Rust 壳全绿。按用户指令自 P4-04b 起暂停后续切片（P4-04b/P4-05~09、P5-02+ 待恢复；恢复入口见各 records 与 docs/plan/）。POSIX 进程组分支与 Linux/macOS 证据待 CI/实机；P5 实体安装包、CI 矩阵仍待执行。** 详见最新记录，不重置 P0 历史记录。
 - 本轮范围：按 Plan 审查已实现的 P0–P3 代码，修复已复现缺陷并补回归测试；复验 Windows 桌面骨架和六格式真实 JAR 差分。不提交、不发布，不提前实施 P4–P7。
 - 上述提交是已提交代码基线；工作树还包含用户的源码、文档迁移及工程规则改动。实施前记录实际工作树快照，保留这些改动，不用旧提交覆盖当前文件。
 
@@ -444,22 +452,22 @@ Linux 没有统一的 WebView2 式安装器。支持范围是明确发行版/版
 
 ### P2：脚本隔离与兼容原型（高风险优先）
 
-- [ ] 分发并定位 Node sidecar，完成私有 IPC、外部硬超时和进程树清理。（worker 帧 IPC 与硬超时完成：[P2-01](docs/plan/records/P2-01.md)、[P2-03](docs/plan/records/P2-03.md)；**sidecar 分发属 P5，进程树 Job Object/进程组属 P2-02 余量，未做**）
-- [x] 实现五类入口、按钮 data、resolve/reject、弹框回调与日志 hook 原型。（worker 五入口 17 例真实进程测试：[P2-03](docs/plan/records/P2-03.md)；编排与 on_append_log 链：[P3-06](docs/plan/records/P3-06.md)）
-- [ ] 实现 D3 公开节点数据/操作镜像，诊断排除接口；验证重复调用、重入、版本冲突和循环引用。（**未做**：当前 selected_nodes 为只读快照降级，P2-05 范围，BD-S9/BD-O7）
-- [ ] 验证动态 require、模块路径、adm-zip/compressing/log4js、原生模块样本。（require 锚定与核心模块已测：[P2-03](docs/plan/records/P2-03.md)；log4js 落盘已测：[P3-06](docs/plan/records/P3-06.md)；**adm-zip/compressing/原生模块样本未测**）
-- [ ] 注入同步/异步死循环、process.exit、原生崩溃、内存耗尽、日志风暴和派生子进程故障；分别阻塞/终止 Node backend 与 guardian，验证独立监督和壳层恢复。（worker 死循环/超时销毁/崩溃补员/毒帧已测：[P2-01](docs/plan/records/P2-01.md)；**process.exit/内存耗尽/日志风暴/壳层恢复未测**）
+- [ ] 分发并定位 Node sidecar，完成私有 IPC、外部硬超时和进程树清理。（worker 帧 IPC 与硬超时完成：[P2-01](docs/plan/records/P2-01.md)、[P2-03](docs/plan/records/P2-03.md)；**进程树监督完成**：[P2-02](docs/plan/records/P2-02.md) Windows Job Object（koffi，含 guardian 崩溃内核级回收）+ taskkill 回退 + POSIX 进程组（后者待 CI）；**sidecar 分发属 P5，未做**）
+- [x] 实现五类入口、按钮 data、resolve/reject、弹框回调与日志 hook 原型。（worker 五入口 17 例真实进程测试：[P2-03](docs/plan/records/P2-03.md)；编排与 on_append_log 链：[P3-06](docs/plan/records/P3-06.md)；弹框回调注册表与失效逻辑（SC06 全场景）：[P2-06](docs/plan/records/P2-06.md)）
+- [x] 实现 D3 公开节点数据/操作镜像，诊断排除接口；验证重复调用、重入、版本冲突和循环引用。（NodeMirror 完成：[P2-05](docs/plan/records/P2-05.md)——worker 镜像 + 共享 SelectionTree + 后端 SessionTreeState ops 回流、版本失配整批拒绝、D3 排除诊断、BD-S17 逐 op 消毒覆盖循环引用；BD-S9/BD-O7 解决）
+- [x] 验证动态 require、模块路径、adm-zip/compressing/log4js、原生模块样本。（require 锚定与核心模块已测：[P2-03](docs/plan/records/P2-03.md)；log4js 落盘已测：[P3-06](docs/plan/records/P3-06.md)；adm-zip/compressing round-trip 与 Node-API 原生模块（koffi）worker 内实测：[P2-02](docs/plan/records/P2-02.md)；**发行目录离线加载已验证（staged 单份 Node + esbuild 打包 + 回退锚点 + 中文/空格/只读）：[P2-10](docs/plan/records/P2-10.md)**；绑定 V8 ABI 的非 Node-API 模块样本记录在案不阻塞）
+- [ ] 注入同步/异步死循环、process.exit、原生崩溃、内存耗尽、日志风暴和派生子进程故障；分别阻塞/终止 Node backend 与 guardian，验证独立监督和壳层恢复。（worker 死循环/超时销毁/崩溃补员/毒帧已测：[P2-01](docs/plan/records/P2-01.md)；process.exit/process.abort/日志风暴 5000 条/卡死 worker 孙进程树回收/宿主 SIGKILL 后内核级整树回收已测：[P2-02](docs/plan/records/P2-02.md)；**内存耗尽已测（V8 堆顶 OOM + Buffer 外部内存 RSS 看门狗 BD-W11）：[P2-07](docs/plan/records/P2-07.md)；**backend 被杀/卡死判死+整树回收、壳失联/超大帧自清、宿主 SIGKILL 整树回收已测：[P2-09](docs/plan/records/P2-09.md)**；Tauri 壳侧恢复 UI 属 P4）
 - [ ] 按平台记录普通故障隔离与受限权限模式的实际边界。（仅 win32/x64，三平台待 CI）
 
-出口：公开合同内真实脚本样本及故障测试通过；未解决的合同内不兼容阻止切换，D3 排除项须有诊断和迁移说明，不能用 UI 开发完成掩盖。
+出口：公开合同内真实脚本样本及故障测试通过（xresconv-conf sample.xml 5 个真实脚本逐字差分 + README 已知问题场景，无未解释差异：[P2-11](docs/plan/records/P2-11.md)）；未解决的合同内不兼容阻止切换，D3 排除项须有诊断和迁移说明，不能用 UI 开发完成掩盖。
 
 ### P3：配置与转换内核
 
 - [x] 在 Node backend 用 TypeScript 实现严格 XML/include/路径与模型；对照配置样例并按 BD-07 修复旧 HTML 解析缺陷。（[P3-01](docs/plan/records/P3-01.md)：含官方 sample.xml/sample_include.xml fixture 与 BD-C 清单）
 - [x] 实现匹配辅助、输出矩阵、转换计划与状态机。（[P3-04](docs/plan/records/P3-04.md)、[P3-05](docs/plan/records/P3-05.md)；run-state 复用 P1-00）
-- [ ] backend 实现 Java 批次调度、stdin 编码和日志处理，guardian 执行进程生命周期；验证背压、取消/重置/退出收尾。（[P3-05](docs/plan/records/P3-05.md)、[P3-06](docs/plan/records/P3-06.md)；本轮补齐管道错误、清理后取消终态和 dispose 回归；独立 guardian 接线、进程树及完整 reset/close 仍未实现）
-- [ ] 保留 log4js 配置和日志 hook 语义，隔离其故障。（本轮完成独立 log4js 进程、有界 hook/落盘队列、延迟日志递归保护和 flush 回归，见最新审查；磁盘满/轮转、完整监督和 UI 分页仍待验收）
-- [ ] 用模拟子进程验证协议边界，再用固定真实 JAR 验证所有现有输出格式。（真实 JAR 2.23.7：六格式 stdin 与直接 argv 输出 SHA-256 一致，见 [P3-10](docs/plan/records/P3-10.md) 和最新审查；**ue-json/ue-csv 未覆盖，非完整旧 GUI 兼容验收**）
+- [x] backend 实现 Java 批次调度、stdin 编码和日志处理，guardian 执行进程生命周期；验证背压、取消/重置/退出收尾。（[P3-05](docs/plan/records/P3-05.md)、[P3-06](docs/plan/records/P3-06.md)；背压/退出汇总/并发 1/4/16/静默与提前关闭/整树回收实测：[P3-07](docs/plan/records/P3-07.md)；取消/重置/关闭统一收尾与 guardian 长驻接线（BackendSupervisor/心跳/判死/显式恢复）：[P2-09](docs/plan/records/P2-09.md)）
+- [ ] 保留 log4js 配置和日志 hook 语义，隔离其故障。（本轮完成独立 log4js 进程、有界 hook/落盘队列、延迟日志递归保护和 flush 回归，见最新审查；**matcher 隔离域已验收：复杂/灾难性 regex 在可终止 worker 中求值、超时 fail-closed（BD-M4）、不阻塞日志服务：[P2-08](docs/plan/records/P2-08.md)**；磁盘满/轮转、完整监督和 UI 分页仍待验收）
+- [x] 用模拟子进程验证协议边界，再用固定真实 JAR 验证所有现有输出格式。（真实 JAR 2.23.7：**八格式**（lua/json/msgpack/xml/bin/js/ue-json/ue-csv）stdin 与直接 argv 输出 SHA-256 一致，含 UE C++ 代码树；UnreaImportSettings.json 按窄范围归一化规则处理，见 [P3-10](docs/plan/records/P3-10.md) 和最新审查；完整旧 GUI 端到端兼容验收（C15）属 P6）
 
 出口：不依赖 UI 也能完整执行配置 → 事件 → 转换 → 结果流程，旧功能对照无未解释差异。
 

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { createProcessScope, type ProcessScope } from "@xresconv/guardian";
 import { encodeFrame, FrameDecoder, writeFrame } from "@xresconv/ipc";
 import type { Log4jsSink, LogEntry } from "./log-pipeline.ts";
 
@@ -10,7 +11,12 @@ const MAX_PENDING = 128;
 
 /** Each sink owns an isolated process, so configurations and shutdowns cannot affect another session. */
 export function createLog4jsSink(
-  options: { configurePath?: string; onDiagnostic?: (message: string) => void } = {},
+  options: {
+    configurePath?: string;
+    onDiagnostic?: (message: string) => void;
+    /** 进程树作用域（P2-02）；缺省时本 sink 自建，测试可注入桩。 */
+    scope?: ProcessScope;
+  } = {},
 ): Log4jsSink {
   let diagnostic: string | null = null;
   const report = (message: string): void => {
@@ -34,7 +40,14 @@ export function createLog4jsSink(
       report(`failed to configure log4js: ${String(err)}; falling back to default src/log4js.json`);
     }
   }
-  const child = spawn(process.execPath, [WORKER], { stdio: ["pipe", "pipe", "pipe"] });
+  // 进程树作用域（P2-02）：自定义 appender 可派生子进程，终止必须覆盖整树。
+  const scope = options.scope ?? createProcessScope({ name: "log4js-sink" });
+  const child = spawn(
+    process.execPath,
+    [WORKER],
+    scope.decorateSpawnOptions({ stdio: ["pipe", "pipe", "pipe"] }),
+  );
+  scope.register(child);
   const closed = Promise.withResolvers<void>();
   let exited = false;
   let failure: Error | null = null;
@@ -58,7 +71,7 @@ export function createLog4jsSink(
       pending.reject(error);
       pending = null;
     }
-    if (!exited) child.kill("SIGKILL");
+    if (!exited) void scope.terminate(0);
   };
   child.stderr.on("data", (chunk: Buffer) => {
     stderr = (stderr + chunk.toString("utf8")).slice(-4096);
@@ -66,6 +79,7 @@ export function createLog4jsSink(
   child.once("error", fail);
   child.once("close", (code) => {
     exited = true;
+    void scope.dispose();
     if (pending || !stopping || code !== 0)
       fail(new Error(`log4js worker exited (${code}): ${stderr}`));
     closed.resolve();

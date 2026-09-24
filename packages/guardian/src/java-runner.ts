@@ -10,13 +10,16 @@
  *   （带背压），完成判定只以进程退出为准。JVM 消费速度由 stdin 管道缓冲自然调节。
  * - 退出码语义：xresloader 约定 = 失败任务数累加（Main.java:399-411，
  *   `exitCode += processArgumentGroup(...)`），failedTaskCount 直接取 exitCode。
- * - 截止/中止采用 SIGTERM → 宽限 → SIGKILL 升级（runWithDeadline 的 SIGKILL 直杀
- *   对 JVM 过于粗暴；宽限期内 log4j 关闭钩子可 flush 日志）。
+ * - 截止/中止终止整棵进程树（P2-02 process-tree.ts）：Windows 默认 Job Object
+ *   （TerminateJobObject，含孙进程；guardian 崩溃由 KILL_ON_JOB_CLOSE 兜底），
+ *   POSIX 组级 SIGTERM → 宽限 → SIGKILL。Windows 上旧版 child.kill("SIGTERM")
+ *   本就是 TerminateProcess 硬杀，不存在被移除的优雅期。
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
 import { StringDecoder } from "node:string_decoder";
+import { createProcessScope, type ProcessScope } from "./process-tree.ts";
 import { HardDeadlineError, SpawnError } from "./run-with-deadline.ts";
 
 export interface JavaBatchOptions {
@@ -30,10 +33,17 @@ export interface JavaBatchOptions {
   tasks: string[];
   /** 流式日志回调（UTF-8 拆包/半行缓冲拼接后按行抛出）。 */
   onLog?: (stream: "stdout" | "stderr", text: string) => void;
-  /** 硬截止时间（毫秒）；到期走 SIGTERM → 宽限 → SIGKILL 并拒绝 HardDeadlineError。 */
+  /** 硬截止时间（毫秒）；到期终止整个进程树并拒绝 HardDeadlineError。 */
   deadlineMs?: number;
   /** 外部中止信号；触发与截止相同的终止路径，拒绝 AbortError。 */
   signal?: AbortSignal;
+  /** 进程树作用域（P2-02）；缺省时本批次自建。终止路径覆盖 JVM 的子进程。 */
+  scope?: ProcessScope;
+  /**
+   * 测试注入缝（EX02 fake-converter）：存在时替换 `java ... -jar jarPath --stdin`
+   * 的完整 spawn 规格。生产路径不得使用——调度合同固定 java argv 数组、不经 shell。
+   */
+  spawnSpec?: { command: string; args: string[]; env?: Record<string, string> };
 }
 
 export interface JavaBatchResult {
@@ -97,7 +107,9 @@ export class AbortError extends Error {
 export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult> {
   const { javaArgs = [], jarPath, workDir, tasks, onLog, deadlineMs, signal } = options;
   const started = Date.now();
-  const program = "java";
+  const program = options.spawnSpec?.command ?? "java";
+  const args = options.spawnSpec?.args ?? javaArgs.concat(["-jar", jarPath, "--stdin"]);
+  const scope = options.scope ?? createProcessScope({ name: "java-batch" });
 
   return new Promise<JavaBatchResult>((resolve, reject) => {
     if (signal?.aborted) {
@@ -107,14 +119,22 @@ export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult
 
     let child: ChildProcess;
     try {
-      child = spawn(program, javaArgs.concat(["-jar", jarPath, "--stdin"]), {
-        cwd: workDir,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+      child = spawn(
+        program,
+        args,
+        scope.decorateSpawnOptions({
+          cwd: workDir,
+          stdio: ["pipe", "pipe", "pipe"],
+          ...(options.spawnSpec?.env !== undefined
+            ? { env: { ...process.env, ...options.spawnSpec.env } }
+            : {}),
+        }),
+      );
     } catch (err) {
       reject(new SpawnError(program, err));
       return;
     }
+    scope.register(child);
 
     let settled = false;
     let terminatedByDeadline = false;
@@ -140,35 +160,33 @@ export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult
       settled = true;
       writing.abort();
       clearTimeout(deadlineTimer);
-      clearTimeout(graceTimer);
       clearTimeout(reapTimer);
       clearTimeout(pipeTimer);
       signal?.removeEventListener("abort", onAbort);
+      // 句柄释放（Windows job/process handle）；若有残留成员，dispose 内的
+      // KILL_ON_JOB_CLOSE 关闭句柄即内核级最终清扫。
+      void scope.dispose();
       fn();
     };
 
-    // SIGTERM → 宽限 → SIGKILL；仍不见 close 则兜底报告，绝不留下失控子进程。
-    let graceTimer: NodeJS.Timeout | undefined;
+    // 进程树终止（P2-02）：Windows job-object/回退 taskkill /T /F 立即整树终止，
+    // POSIX 组级 SIGTERM → 宽限 → SIGKILL；仍不见 close 则兜底报告，绝不留下失控子进程。
     let reapTimer: NodeJS.Timeout | undefined;
     let pipeTimer: NodeJS.Timeout | undefined;
     const escalateKill = (): void => {
       if (terminating || settled) return;
       terminating = true;
       writing.abort();
-      child.kill("SIGTERM");
-      graceTimer = setTimeout(() => {
-        child.kill("SIGKILL");
-        reapTimer = setTimeout(() => {
-          settle(() => {
-            child.stdin?.destroy();
-            child.stdout?.destroy();
-            child.stderr?.destroy();
-            reject(new Error("java cleanup unconfirmed: no close after SIGKILL"));
-          });
-        }, REAP_FALLBACK_MS);
-        reapTimer.unref?.();
-      }, KILL_GRACE_MS);
-      graceTimer.unref?.();
+      void scope.terminate(KILL_GRACE_MS);
+      reapTimer = setTimeout(() => {
+        settle(() => {
+          child.stdin?.destroy();
+          child.stdout?.destroy();
+          child.stderr?.destroy();
+          reject(new Error("java cleanup unconfirmed: no close after tree termination"));
+        });
+      }, KILL_GRACE_MS + REAP_FALLBACK_MS);
+      reapTimer.unref?.();
     };
 
     const deadlineTimer =
