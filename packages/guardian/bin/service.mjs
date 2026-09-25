@@ -11,12 +11,33 @@
 // （未就绪/死亡/超时）时回 {ok:false, error:{code:BACKEND_*}}。backend 的
 // kind "event" 业务事件原样转发壳（source:"backend"）。
 import { Console } from "node:console";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 globalThis.console = new Console({ stdout: process.stderr, stderr: process.stderr });
 
 const { PROTOCOL_VERSION, validate } = await import("@xresconv/contracts");
 const { encodeFrame, FrameDecoder, writeFrame } = await import("@xresconv/ipc");
 const { BackendRequestError, BackendSupervisor } = await import("../src/backend-supervisor.ts");
+
+// P5-02 发行布局自定位：bundle 落位 <root>/app/guardian/service.mjs 时 app
+// 根 = 上两级目录；backend 入口、worker 入口与脚本模块锚点目录按布局约定
+// 推导，经 backendEnv 接力给 backend（backend 再经 pool workerEnv 注入
+// worker；锚点语义见 script-host executor 回退层，P2-10）。开发布局
+// （packages/guardian/bin/service.mjs）不命中探测，保持既有默认解析。
+// XRESCONV_BACKEND_ENTRY 显式指定时优先（诊断/测试缝）。
+const appRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const layoutBackendEntry = join(appRoot, "backend", "service.mjs");
+const layoutWorkerEntry = join(appRoot, "script-host", "worker.mjs");
+const backendEntry =
+  process.env.XRESCONV_BACKEND_ENTRY ||
+  (existsSync(layoutBackendEntry) ? layoutBackendEntry : undefined);
+const backendEnv = {};
+if (existsSync(layoutWorkerEntry) && existsSync(join(appRoot, "node_modules"))) {
+  backendEnv.XRESCONV_SCRIPT_MODULE_DIRS = appRoot;
+  backendEnv.XRESCONV_WORKER_ENTRY = layoutWorkerEntry;
+}
 
 function envelope(kind, payload, extra = {}) {
   return {
@@ -69,6 +90,8 @@ function send(kind, payload, extra = {}) {
 }
 
 const supervisor = new BackendSupervisor({
+  backendEntry,
+  backendEnv,
   onEvent: (event) => {
     process.stderr.write(`[guardian] ${event.type}: ${event.message}\n`);
     // backend 死亡等监督事件必须让壳可见（SC11：UI 故障可见）。

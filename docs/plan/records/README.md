@@ -41,10 +41,14 @@
 | [P4-02](P4-02.md) | 业务 RPC 脊柱(壳↔guardian↔backend：backend-rpc 契约、BackendRpcApp、有界透传、事件转发) + Rust 壳通道（EventSink 解耦、0xc0000139 根因、fault 尽力关联） |
 | [P4-03](P4-03.md) | 转换树与三态选择（后端 UI 选择 ops 扩展 + 前端树：adapter/store/RAC Tree 三态/键盘/搜索/StrictMode 订阅释放） |
 | [P4-04a](P4-04a.md) | 转换参数覆盖存储与 RPC、预览 RPC（updateSettings/preview；有效值快照；输出冲突分组；契约按冻结规则 2 扩展） |
+| [P4-04b](P4-04b.md) | P4-04 前端切片：设置表单/输出矩阵编辑器/预览视图（UI04）+ 会话级 parallelism 后端扩展（契约文本登记） |
+| [P4-05a](P4-05a.md) | P4-05 后端切片：自定义选择器/按钮（加载校验/隔离匹配/动作链/按钮 data 代际失效）+ 事件 hook 开关（契约枚举 +3 方法；BD-O19/O20 缺陷修复） |
+| [P4-05b](P4-05b.md) | P4-05 前端切片：HookControls/CustomActionBar/DialogHost（UI05/SC06；样式白名单映射、弹框队列 yes/no/on_close、CLI 选择器一次性接线） |
 
 | 记录 | 内容 |
 | --- | --- |
-| [P5-01](P5-01.md) | 发行目标清单与 targets/manifest schema、命名和矩阵生成器（22 目标 = D1/D2 精确集合；PK01：重复/缺失/未知/禁架构/不一致均失败；清单卫生 lint 防开发机路径与秘密泄漏） |
+| [P5-01](P5-01.md) | 发行目标清单与 targets/manifest schema、命名和矩阵生成器（22 目标 = D1/D2 精确集合；PK01：重复/缺失/未知/禁架构/不一致均失败；清单卫生 lint 防开发机路径与密钥泄漏） |
+| [P5-02](P5-02.md) | 单份 Node 获取校验与 production 组装（assembleRuntimeLayout：esbuild 三角色、闭包裁剪、schema 落位、manifest 生成；发行布局自定位接线；xml-naming ESM-only 闭包教训；PK07 本机部分全链冒烟） |
 
 | 记录 | 内容 |
 | --- | --- |

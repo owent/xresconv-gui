@@ -17,9 +17,12 @@ export type BackendRpc =
         | "run"
         | "cancel"
         | "reset"
-        | "respondDialog";
+        | "respondDialog"
+        | "setHookEnabled"
+        | "setCustomSelectors"
+        | "invokeCustomButton";
       /**
-       * Per-method arguments (loadConfig {path}, applyOps {ops}, respondDialog {token, choice}, updateSettings {fields}); omitted means {}.
+       * Per-method arguments (loadConfig {path}, applyOps {ops}, respondDialog {token, choice}, updateSettings {fields} incl. parallelism (number, 1..16, session-level, not part of overrides), setHookEnabled {group: "before"|"after"|"append_log", index: non-negative integer, enabled: boolean}, setCustomSelectors {files: string[]}, invokeCustomButton {name}); omitted means {}.
        */
       params?: {
         [k: string]: unknown | undefined;

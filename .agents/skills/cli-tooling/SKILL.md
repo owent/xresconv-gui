@@ -1,9 +1,10 @@
 ---
 name: cli-tooling
-description: "Use this skill when selecting, probing, or installing command-line tools for terminal work in this repository (rg, fd, bat, sd, jq, yq and other modern CLI replacements), when a needed tool is missing and must be installed, or when replacing legacy grep/find/sed/du/df/curl commands with modern equivalents. Not for project build/test commands covered by AGENTS.md."
+description: "Use When: selecting, probing, or installing command-line tools for terminal work in this repository (rg, fd, bat, sd, jq, yq and other modern CLI replacements), when a needed tool is missing and must be installed, or when replacing legacy grep/find/sed/du/df/curl commands with modern equivalents. Not for project build/test commands covered by AGENTS.md."
 license: MIT
 metadata:
   owner: project-ai-maintainers
+  last-reviewed: 2026-09-25
 ---
 
 # 现代 CLI 工具选用与安装

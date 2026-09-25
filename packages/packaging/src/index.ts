@@ -1,3 +1,5 @@
+export type { AssembleLayoutOptions, NodeAcquisition } from "./assemble.ts";
+export { assembleRuntimeLayout, collectProductionSeeds } from "./assemble.ts";
 export {
   baselineKeys,
   DESKTOP_ARCHES,

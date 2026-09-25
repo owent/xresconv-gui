@@ -47,6 +47,15 @@ export {
   type SelectorSchemeRule,
   type SelectorSheetRule,
 } from "./domain/selection.ts";
+export {
+  type CustomButtonAction,
+  type CustomSelectorDef,
+  type CustomSelectorEntry,
+  type CustomSelectorView,
+  loadCustomSelectorFiles,
+  parseButtonAction,
+  selectorViews,
+} from "./service/custom-selector.ts";
 export { formatUnknownError } from "./service/format.ts";
 export {
   DEFAULT_SET_NAME_TIMEOUT_MS,

@@ -10,8 +10,9 @@
  * - applyOps {ops}：脚本 ops 应用到会话树（版本闸在 SessionTreeState，P2-05）；
  * - updateSettings {fields}：合并式写入转换参数覆盖（P4-04a；白名单逐字段类型校验，
  *   未知键/错类型 → INVALID_PARAMS；未加载/运行中 → INVALID_STATE），返回
- *   {overrides, effective}（配置默认 ⊕ 覆盖的全量有效值）；matrix 变化触发会话树
- *   矩阵资格重估；
+ *   {overrides, effective, parallelism}（配置默认 ⊕ 覆盖的全量有效值）；matrix 变化
+ *   触发会话树矩阵资格重估；parallelism（P4-04b）为会话级并发数（number，有限校验，
+ *   取整夹取 [1,16]），不进 overrides；
  * - preview {}：当前选择 + 当前覆盖构建转换计划预览（P4-04a；未加载 → INVALID_STATE；
  *   计划构建错误按其 code 透传，如 XRESLOADER_NOT_FOUND），返回任务列表与
  *   (outputDir, rename) 分组的输出冲突（UI04）；
@@ -20,6 +21,15 @@
  * - cancel {} / reset {}：取消当前运行 / 业务级重置（EX03 语义在会话层）；
  * - respondDialog {token, choice}：应答脚本弹框（P2-06 注册表在 pool；迟到/
  *   未知 token 按 SC06 丢弃，返回 {answered:false} 而非报错）。
+ * - setHookEnabled {group, index, enabled}：事件 hook 开关（P4-05a，F09；
+ *   group ∈ before/after/append_log；未加载 → INVALID_STATE；越界/匿名/
+ *   immutable → INVALID_PARAMS；无运行状态门禁——旧版复选框全程可改）。
+ * - setCustomSelectors {files}：设置/重读自定义选择器文件（P4-05a；错误条目
+ *   随视图返回并记 CUSTOM SELECTOR 日志；已加载树时重放 default_selected），
+ *   返回 {selectors}；无运行状态门禁（CLI 顺序允许先于 loadConfig）。
+ * - invokeCustomButton {name}：自定义按钮点击（P4-05a；未知 → INVALID_PARAMS；
+ *   动作链失败记日志并中止），返回 {ok, error?}。
+ * 快照 customSelectors 字段：未设置时为 null，设置后为选择器视图数组。
  *
  * 错误约定：可预期失败抛 {@link RpcError}（code 见 backend-rpc schema 描述），
  * 由 bin 映射为 {ok:false, error:{code,message}}；handleRpc 不把异常漏进通道。
@@ -40,8 +50,10 @@ import {
   PlanBuildError,
 } from "../convert/plan-builder.ts";
 import { isTerminal, type RunState } from "../domain/run-state.ts";
+import type { CustomSelectorView } from "./custom-selector.ts";
 import { formatUnknownError } from "./format.ts";
 import type { LogEntry } from "./log-pipeline.ts";
+import type { MatcherService } from "./matcher-service.ts";
 import type { JavaRunner, RunSummary } from "./run.ts";
 import { ConversionSession } from "./session.ts";
 import type { AppliedOpsReport } from "./tree-state.ts";
@@ -70,10 +82,12 @@ export class RpcError extends Error {
   }
 }
 
-/** 表单设置视图（P4-04a）：当前覆盖 + 配置默认 ⊕ 覆盖的有效值（未加载配置时 effective 为 null）。 */
+/** 表单设置视图（P4-04a）：当前覆盖 + 配置默认 ⊕ 覆盖的有效值（未加载配置时 effective 为 null）。
+ * P4-04b：parallelism 为会话级并发数（不进 overrides，归 ConversionSession 持有）。 */
 export interface SettingsView {
   overrides: ConversionOverrides;
   effective: EffectiveSettings | null;
+  parallelism: number;
 }
 
 /** preview 的单任务视图（UI04：display 为旧式单行展示串）。 */
@@ -110,6 +124,8 @@ export interface BackendSnapshot {
   tree: ReturnType<ConversionSession["getTreeSnapshot"]>;
   selectedItems: ReturnType<ConversionSession["getSelectedItems"]>;
   settings: SettingsView;
+  /** P4-05a：自定义选择器/按钮视图（未 setCustomSelectors 时为 null）。 */
+  customSelectors: CustomSelectorView[] | null;
 }
 
 /** 发往壳的事件（bin 加 source:"backend" 后作为 kind "event" payload 转发）。 */
@@ -130,6 +146,8 @@ export interface BackendRpcAppOptions {
   parallelism?: number;
   /** set_name 单条超时（毫秒）。 */
   setNameTimeoutMs?: number;
+  /** 选择器匹配的隔离 matcher 工厂（P4-05a）；缺省真实 MatcherService（懒创建）。 */
+  matcherFactory?: () => MatcherService;
 }
 
 /** 弹框 token 推导与 pool 的注册表键一致（P2-06：payload.token，缺省回退 env.id）。 */
@@ -200,14 +218,30 @@ function asMatrixRule(value: unknown, index: number): OutputMatrixRule {
   return rule;
 }
 
+/** validateSettingsFields 的分流结果（P4-04b）：parallelism 属会话级设置，不进 ConversionOverrides。 */
+interface ParsedSettingsFields {
+  overrides: ConversionOverrides;
+  parallelism?: number;
+}
+
 /** updateSettings 的 fields 校验：白名单 + 逐字段类型，未知键/错类型 → INVALID_PARAMS。 */
-function validateSettingsFields(value: unknown): ConversionOverrides {
+function validateSettingsFields(value: unknown): ParsedSettingsFields {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new RpcError("INVALID_PARAMS", "updateSettings requires params.fields (object)");
   }
   const fields: ConversionOverrides = {};
+  let parallelism: number | undefined;
   for (const [key, v] of Object.entries(value)) {
-    if ((STRING_SETTING_FIELDS as readonly string[]).includes(key)) {
+    if (key === "parallelism") {
+      // 会话级并发数（P4-04b）：number 且有限；取整/夹取 [1,16] 归 ConversionSession。
+      if (typeof v !== "number" || !Number.isFinite(v)) {
+        throw new RpcError(
+          "INVALID_PARAMS",
+          "updateSettings fields.parallelism must be a finite number",
+        );
+      }
+      parallelism = v;
+    } else if ((STRING_SETTING_FIELDS as readonly string[]).includes(key)) {
       if (typeof v !== "string") {
         throw new RpcError("INVALID_PARAMS", `updateSettings fields.${key} must be a string`);
       }
@@ -223,7 +257,7 @@ function validateSettingsFields(value: unknown): ConversionOverrides {
       throw new RpcError("INVALID_PARAMS", `updateSettings fields: unknown key "${key}"`);
     }
   }
-  return fields;
+  return parallelism === undefined ? { overrides: fields } : { overrides: fields, parallelism };
 }
 
 export class BackendRpcApp {
@@ -245,6 +279,7 @@ export class BackendRpcApp {
       ...(options.setNameTimeoutMs === undefined
         ? {}
         : { setNameTimeoutMs: options.setNameTimeoutMs }),
+      ...(options.matcherFactory === undefined ? {} : { matcherFactory: options.matcherFactory }),
       onDialogRequest: (env, respond) => this.handleDialogRequest(env, respond),
       onDialogInvalidate: (env, reason) => this.handleDialogInvalidate(env, reason),
     });
@@ -288,7 +323,9 @@ export class BackendRpcApp {
       settings: {
         overrides: this.session.getOverrides(),
         effective: this.session.getEffectiveSettings(),
+        parallelism: this.session.getParallelism(),
       },
+      customSelectors: this.session.getCustomSelectorViews(),
     });
   }
 
@@ -326,6 +363,12 @@ export class BackendRpcApp {
         return await this.session.reset();
       case "respondDialog":
         return this.rpcRespondDialog(p);
+      case "setHookEnabled":
+        return this.rpcSetHookEnabled(p);
+      case "setCustomSelectors":
+        return await this.rpcSetCustomSelectors(p);
+      case "invokeCustomButton":
+        return await this.rpcInvokeCustomButton(p);
       default:
         throw new RpcError("UNKNOWN_METHOD", `unknown rpc method: ${method}`);
     }
@@ -404,15 +447,25 @@ export class BackendRpcApp {
     return this.session.applyScriptOps(ops);
   }
 
-  /** updateSettings（P4-04a）：合并写入表单覆盖，返回 {overrides, effective} 有效值快照。 */
+  /**
+   * updateSettings（P4-04a/P4-04b）：合并写入表单覆盖，返回 {overrides, effective, parallelism}。
+   * parallelism 为会话级设置（不写进 overrides），与其余字段同发时两者都生效。
+   */
   private rpcUpdateSettings(params: Record<string, unknown>): SettingsView {
     if (this.session.getConfig() === null) {
       throw new RpcError("INVALID_STATE", "updateSettings requires a loaded config");
     }
     this.assertIdleLike("update settings");
-    const fields = validateSettingsFields(params.fields);
-    const effective = this.session.updateSettings(fields);
-    return { overrides: this.session.getOverrides(), effective };
+    const { overrides, parallelism } = validateSettingsFields(params.fields);
+    if (parallelism !== undefined) {
+      this.session.setParallelism(parallelism);
+    }
+    const effective = this.session.updateSettings(overrides);
+    return {
+      overrides: this.session.getOverrides(),
+      effective,
+      parallelism: this.session.getParallelism(),
+    };
   }
 
   /**
@@ -521,6 +574,75 @@ export class BackendRpcApp {
     this.pendingDialogs.delete(token);
     respond(choice);
     return { answered: true };
+  }
+
+  /**
+   * setHookEnabled（P4-05a，F09）：事件 hook 开关。无运行状态门禁（旧版复选框
+   * 全程可改），仅需已加载配置；hook 定位失败（越界/匿名/immutable）是会话层
+   * Error，此处统一映射为 INVALID_PARAMS（调用方可修正的参数错误）。
+   */
+  private rpcSetHookEnabled(params: Record<string, unknown>): { enabled: boolean } {
+    if (this.session.getConfig() === null) {
+      throw new RpcError("INVALID_STATE", "setHookEnabled requires a loaded config");
+    }
+    const group = params.group;
+    if (group !== "before" && group !== "after" && group !== "append_log") {
+      throw new RpcError(
+        "INVALID_PARAMS",
+        `setHookEnabled group must be "before" | "after" | "append_log"`,
+      );
+    }
+    const index = params.index;
+    if (typeof index !== "number" || !Number.isInteger(index) || index < 0) {
+      throw new RpcError("INVALID_PARAMS", "setHookEnabled index must be a non-negative integer");
+    }
+    const enabled = params.enabled;
+    if (typeof enabled !== "boolean") {
+      throw new RpcError("INVALID_PARAMS", "setHookEnabled enabled must be a boolean");
+    }
+    try {
+      this.session.setHookEnabled(group, index, enabled);
+    } catch (err) {
+      throw new RpcError("INVALID_PARAMS", formatUnknownError(err));
+    }
+    return { enabled };
+  }
+
+  /**
+   * setCustomSelectors（P4-05a）：设置/重读自定义选择器文件，返回视图数组。
+   * 无运行状态门禁：CLI 顺序允许先于 loadConfig；已加载树时会话层重放
+   * default_selected。错误条目随视图返回（不拒绝整批）。
+   */
+  private async rpcSetCustomSelectors(
+    params: Record<string, unknown>,
+  ): Promise<{ selectors: CustomSelectorView[] }> {
+    const files = params.files;
+    if (!Array.isArray(files) || files.some((file) => typeof file !== "string")) {
+      throw new RpcError("INVALID_PARAMS", "setCustomSelectors requires params.files (string[])");
+    }
+    return { selectors: await this.session.setCustomSelectors(files) };
+  }
+
+  /**
+   * invokeCustomButton（P4-05a）：自定义按钮点击。未知按钮名先经快照视图校验
+   * （INVALID_PARAMS）；动作链失败不算 RPC 错误，返回 {ok:false, error}；
+   * 会话/matcher 结构性失败原样上抛（bin 兜底 INTERNAL，不误报为参数错误）。
+   */
+  private async rpcInvokeCustomButton(
+    params: Record<string, unknown>,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const name = params.name;
+    if (typeof name !== "string" || name.length === 0) {
+      throw new RpcError(
+        "INVALID_PARAMS",
+        "invokeCustomButton requires params.name (non-empty string)",
+      );
+    }
+    const known = (this.session.getCustomSelectorViews() ?? []).some((view) => view.name === name);
+    if (!known) {
+      throw new RpcError("INVALID_PARAMS", `unknown custom button: ${name}`);
+    }
+    return await this.session.invokeCustomButton(name);
   }
 
   private handleDialogRequest(env: Envelope, respond: (choice: DialogChoice) => void): void {

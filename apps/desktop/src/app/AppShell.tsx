@@ -9,6 +9,7 @@ import { LogPanel } from "./LogPanel";
 import { OutputMatrixEditor } from "./OutputMatrixEditor";
 import { RunControls } from "./RunControls";
 import { useBackendEvents } from "./use-backend-events";
+import { useCliCustomSelectors } from "./use-cli-custom-selectors";
 
 /**
  * 页面骨架：顶部环境状态，左侧转换树，右侧配置/详情/输出矩阵/事件/自定义按钮，
@@ -17,6 +18,7 @@ import { useBackendEvents } from "./use-backend-events";
  */
 export function AppShell() {
   useBackendEvents();
+  useCliCustomSelectors();
   return (
     <div className="app-shell">
       <EnvironmentStatus />

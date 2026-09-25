@@ -1,5 +1,11 @@
 # 写作规则与模板
 
+## 术语与翻译约定
+
+- 安全语境的 **Secret 按具体对象选译“密钥”“凭据”“口令”或“敏感信息”**：key/token 类值 → 密钥（API secret → API 密钥、secret management → 密钥管理、泄露 secrets → 泄露密钥）；password → 口令；认证材料 → 凭据（client credentials → 客户端凭据）；泛指密码、令牌、证书等敏感值集合 → 敏感信息。禁止直译为“秘密”，也尽量不用“机密”这类不常用词。
+- 测试语境的 **fixture 译为“测试数据”**，禁止译作“夹具”：test fixture → 测试数据、fixture 文件 → 测试数据文件（“夹具”仅用于机械加工语境）。
+- 英文术语首次出现标注原文，其后全程使用同一译名；同一文档内不混用多个译法。
+
 ## AGENTS.md 编写规则
 
 `AGENTS.md` 是给 AI Agent 的 README，只包含高信号内容：
@@ -11,7 +17,7 @@
 - 不易从代码推断的架构约束、兼容性要求和安全边界。
 - 必须运行的验证步骤，以及如何缩小测试范围。
 - 文档、部署、路线图、执行计划和 AI 配置更新规则。
-- 秘密管理、本地调试和临时目录规则。
+- 密钥管理、本地调试和临时目录规则。
 - 引用其他文件的按需加载规则（说明何时加载，不要求预加载全部资料）。
 
 写作要求：
@@ -45,7 +51,7 @@ Agent Skills 遵循 agentskills.io 开放标准，默认创建在 `.agents/skill
 Skill 必须遵守：
 
 - frontmatter 跨工具字段：`name`（必填，1–64 字符，仅小写字母/数字/连字符，不含首尾或连续连字符，且必须与父目录同名）、`description`（必填，1–1024 字符）、可选 `license`、`compatibility`、`metadata`、`allowed-tools`（实验性，各工具支持不一）。
-- `description` 用祈使句式说明做什么和何时使用（“Use when …”），聚焦用户意图而非实现细节；过宽会误触发，必要时写清近似但不适用的边界。
+- `description` 统一以 `Use When:` 前缀开头（本仓库标准化格式，官方仅要求祈使句式，依据见来源索引），说明何时使用与不适用的边界；聚焦用户意图而非实现细节；过宽会误触发，必要时写清近似但不适用的场景。
 - 正文保持简洁（建议 <500 行 / <5000 tokens）；详细资料放 `references/`、`assets/`、`scripts/`（一层深度、相对路径引用）并说明何时读取。
 - 上下文预算检查：默认加载只保留 `name`、`description` 和最短工作流；示例、长解释、脚本细节必须按需加载。
 - 脚本必须非交互式，支持 `--help`，输出结构化结果，错误信息可操作，具备幂等性或 dry-run。
@@ -57,7 +63,7 @@ Skill 模板：
 ```markdown
 ---
 name: example-skill
-description: "Use this skill when the user asks to perform a specific repeatable workflow that needs these instructions, scripts, or references. Not for generic coding requests covered by AGENTS.md."
+description: "Use When: the user asks to perform a specific repeatable workflow that needs these instructions, scripts, or references. Not for generic coding requests covered by AGENTS.md."
 license: Proprietary
 metadata:
   owner: project-ai-maintainers

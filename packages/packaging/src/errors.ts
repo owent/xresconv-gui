@@ -9,7 +9,9 @@ export type PackagingErrorCode =
   | "FORBIDDEN_ARCH"
   | "INCOHERENT_TARGET"
   | "INVALID_VERSION"
-  | "MANIFEST_LINT";
+  | "MANIFEST_LINT"
+  | "NODE_ACQUISITION_FAILED"
+  | "ASSEMBLY_FAILED";
 
 /** All packaging-matrix failures carry a stable machine-readable code (PK01). */
 export class PackagingError extends Error {

@@ -516,4 +516,95 @@ describe("BackendRpcApp（P4-02）", () => {
     expect(line).toContain("-t lua");
     expect(line).toContain("-o stored-out");
   });
+
+  it("updateSettings：parallelism 生效并进快照；与 overrides 字段同发两者都生效", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const { app } = makeApp();
+    const loaded = (await app.handleRpc("loadConfig", {
+      path: fixture("run-mirror.xml"),
+    })) as BackendSnapshot;
+    // 默认并发（DEFAULT_PARALLELISM=2）进快照。
+    expect(loaded.settings.parallelism).toBe(2);
+
+    const updated = (await app.handleRpc("updateSettings", {
+      fields: { parallelism: 8, outputDir: "par-out" },
+    })) as SettingsView;
+    expect(updated.parallelism).toBe(8);
+    // 同发的 overrides 字段照常生效；parallelism 不进 overrides。
+    expect(updated.effective?.outputDir).toBe("par-out");
+    expect("parallelism" in updated.overrides).toBe(false);
+
+    const snap = await snapshot(app);
+    expect(snap.settings.parallelism).toBe(8);
+    expect("parallelism" in snap.settings.overrides).toBe(false);
+
+    // 取整 + 夹取 [1,16]（session.setParallelism 语义）。
+    const clampedHigh = (await app.handleRpc("updateSettings", {
+      fields: { parallelism: 100 },
+    })) as SettingsView;
+    expect(clampedHigh.parallelism).toBe(16);
+    const rounded = (await app.handleRpc("updateSettings", {
+      fields: { parallelism: 3.7 },
+    })) as SettingsView;
+    expect(rounded.parallelism).toBe(3);
+    const clampedLow = (await app.handleRpc("updateSettings", {
+      fields: { parallelism: 0 },
+    })) as SettingsView;
+    expect(clampedLow.parallelism).toBe(1);
+  });
+
+  it("updateSettings：parallelism 错类型/非有限 → INVALID_PARAMS", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const { app } = makeApp();
+    await app.handleRpc("loadConfig", { path: fixture("run-mirror.xml") });
+    await expectRpcError(
+      app.handleRpc("updateSettings", { fields: { parallelism: "8" } }),
+      "INVALID_PARAMS",
+    );
+    await expectRpcError(
+      app.handleRpc("updateSettings", { fields: { parallelism: Number.NaN } }),
+      "INVALID_PARAMS",
+    );
+    await expectRpcError(
+      app.handleRpc("updateSettings", { fields: { parallelism: Number.POSITIVE_INFINITY } }),
+      "INVALID_PARAMS",
+    );
+    // 拒绝后不改变既有值
+    expect(((await snapshot(app)) as BackendSnapshot).settings.parallelism).toBe(2);
+  });
+
+  it("updateSettings：运行中 parallelism 同样拒绝（INVALID_STATE）", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const calls: JavaBatchOptions[] = [];
+    const { app, events } = makeApp({ runner: hangingRunner(calls) });
+    const loaded = (await app.handleRpc("loadConfig", {
+      path: fixture("run-hooks.xml"),
+    })) as BackendSnapshot;
+    const node = firstItemNode(loaded);
+    await app.handleRpc("applyOps", {
+      ops: [
+        {
+          v: loaded.tree?.version,
+          op: "set_node_states",
+          changes: [{ key: node?.key, selected: true, partsel: true }],
+        },
+      ],
+    });
+    await app.handleRpc("run");
+    await waitUntil(() => calls.length > 0, "java runner dispatched");
+    await expectRpcError(
+      app.handleRpc("updateSettings", { fields: { parallelism: 4 } }),
+      "INVALID_STATE",
+    );
+    await app.handleRpc("cancel");
+    await waitUntil(
+      () => events.some((e) => e.type === "state_change" && e.state === "cancelled"),
+      "cancelled state",
+    );
+    // 拒绝后保持默认并发
+    expect(((await snapshot(app)) as BackendSnapshot).settings.parallelism).toBe(2);
+  });
 });

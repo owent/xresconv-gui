@@ -13,7 +13,7 @@
 
 新增 Skill 前先按 `ai-agent-maintenance` 的流程核验 agentskills.io 规范并完成触发评估。要点：
 
-- frontmatter 必填 `name`（与目录同名，1–64 字符小写字母/数字/连字符）与 `description`（1–1024 字符，说明做什么与何时使用）。
+- frontmatter 必填 `name`（与目录同名，1–64 字符小写字母/数字/连字符）与 `description`（1–1024 字符，统一以 `Use When:` 前缀说明何时使用与不适用的边界）。
 - 正文保持简洁（<500 行），长资料放 `references/`、`scripts/`、`assets/` 并注明何时读取。
 - 有副作用的 Skill 默认要求手动触发。
 - 新增或修改 Skill 后记录到 `docs/ai/source-index.md`。

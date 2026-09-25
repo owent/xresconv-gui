@@ -42,12 +42,153 @@ export interface TreeSnap {
   nodes: TreeNodeSnap[];
 }
 
+/** 输出矩阵规则（镜像 backend config/model.ts OutputMatrixRule；tags/classes 必有数组）。 */
+export interface OutputMatrixRuleLike {
+  type?: string;
+  rename?: string;
+  outputDir?: string;
+  tags: string[];
+  classes: string[];
+}
+
+/**
+ * 表单有效值（镜像 backend plan-builder.ts EffectiveSettings，P4-04a）：
+ * 配置默认 ⊕ overrides 的全量字段；字符串字段无配置无覆盖时为 ""。
+ */
+export interface EffectiveSettingsLike {
+  workDir: string;
+  xresloaderPath: string;
+  proto: string;
+  dataVersion: string;
+  outputDir: string;
+  rename: string;
+  type: string;
+  protoFile: string[];
+  dataSrcDir: string[];
+  matrix: OutputMatrixRuleLike[];
+}
+
+/**
+ * 转换参数覆盖（镜像 backend plan-builder.ts ConversionOverrides，P4-04a）：
+ * undefined = 配置默认；空串/空数组 = 用户清空生效。
+ */
+export interface ConversionOverridesLike {
+  workDir?: string;
+  xresloaderPath?: string;
+  proto?: string;
+  dataVersion?: string;
+  outputDir?: string;
+  rename?: string;
+  type?: string;
+  protoFile?: string[];
+  dataSrcDir?: string[];
+  matrix?: OutputMatrixRuleLike[];
+}
+
+/** updateSettings 的 fields（P4-04b）：overrides 字段 + 会话级 parallelism（number, 1..16）。 */
+export type SettingsFields = ConversionOverridesLike & { parallelism?: number };
+
+/** 表单设置视图（镜像 backend rpc-app.ts SettingsView；P4-04b 起含 parallelism）。 */
+export interface SettingsViewLike {
+  overrides: ConversionOverridesLike;
+  effective: EffectiveSettingsLike | null;
+  parallelism: number;
+}
+
+/** preview 任务/冲突/结果（镜像 backend rpc-app.ts PreviewResult，P4-04a）。 */
+export interface PreviewTaskLike {
+  itemKey?: string;
+  outputDir?: string;
+  display: string;
+}
+
+export interface PreviewConflictLike {
+  outputDir: string;
+  rename: string;
+  items: string[];
+}
+
+export interface PreviewResult {
+  plan: {
+    workDir: string;
+    xresloaderPath: string;
+    taskCount: number;
+    tasks: PreviewTaskLike[];
+  };
+  selectionCount: number;
+  conflicts: PreviewConflictLike[];
+}
+
+/** 自定义选择器/按钮视图（镜像 backend custom-selector.ts CustomSelectorView，P4-05a）。 */
+export type CustomSelectorViewLike =
+  | { name: string; hasAction: boolean; defaultSelected: boolean; style: string | null }
+  | { name: null; error: string };
+
+/** 事件 hook 的 UI 开关（镜像 backend config/model.ts EventToggle，P4-05b 消费）。 */
+export interface HookToggleLike {
+  name: string;
+  checked: boolean;
+  mutable: boolean;
+}
+
+/** 事件 hook（镜像 backend config/model.ts Hook；UI 只用 enabled/toggle）。 */
+export interface HookLike {
+  enabled: boolean;
+  toggle?: HookToggleLike;
+}
+
+/** gui 块的三组事件 hook（setHookEnabled 的 group 词表同名）。 */
+export type HookGroup = "before" | "after" | "append_log";
+
+export interface GuiHooksLike {
+  onBeforeConvert: HookLike[];
+  onAfterConvert: HookLike[];
+  onAppendLog: HookLike[];
+}
+
+/**
+ * 从快照 config（Record 形态）窄化出三组 hook。结构不符时返回 null
+ * （config 由 backend 序列化而来，漂移由 backend 测试拦截；此处防御性解析）。
+ */
+export function guiHooksOf(config: Record<string, unknown> | null): GuiHooksLike | null {
+  const gui = config?.gui;
+  if (typeof gui !== "object" || gui === null) {
+    return null;
+  }
+  const record = gui as Record<string, unknown>;
+  const asHooks = (value: unknown): HookLike[] =>
+    Array.isArray(value) ? (value as HookLike[]) : [];
+  return {
+    onBeforeConvert: asHooks(record.onBeforeConvert),
+    onAfterConvert: asHooks(record.onAfterConvert),
+    onAppendLog: asHooks(record.onAppendLog),
+  };
+}
+
+/** gui hooks 三组与 setHookEnabled group 的对照（渲染顺序固定）。 */
+export const HOOK_GROUPS: readonly { group: HookGroup; key: keyof GuiHooksLike; label: string }[] =
+  [
+    { group: "before", key: "onBeforeConvert", label: "转表前事件（on_before_convert）" },
+    { group: "after", key: "onAfterConvert", label: "转表后事件（on_after_convert）" },
+    { group: "append_log", key: "onAppendLog", label: "日志事件（on_append_log）" },
+  ];
+
+/** 脚本弹框载荷（镜像 script-host executor DialogRequestPayload，P2-06/P4-05b）。 */
+export interface DialogPayloadLike {
+  title?: string;
+  content?: string;
+  buttons?: string[];
+}
+
 export interface BackendSnapshot {
   state: string;
   runSeq: number;
   config: Record<string, unknown> | null;
   tree: TreeSnap | null;
   selectedItems: unknown[];
+  settings: SettingsViewLike;
+  /** P4-05a：自定义选择器/按钮视图（未 setCustomSelectors 时为 null）。 */
+  customSelectors: CustomSelectorViewLike[] | null;
 }
 
 export type BackendRpcMethod = Extract<BackendRpc, { type: "request" }>["method"];

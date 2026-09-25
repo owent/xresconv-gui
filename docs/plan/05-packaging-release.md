@@ -8,7 +8,7 @@
 
 每个支持目标生成 `bootstrap` 和 `offline`。命名模式为 `xresconv-gui-<version>-<os>-<distro?>-<arch>-<variant>.<ext>`，另带 SHA-256、签名/公证信息、SBOM、许可和测试报告索引。产物矩阵先写清单再构建，汇总 job 检查集合完全相等，不用通配符“找到多少发多少”。
 
-P5-01 已有 `packaging/targets.json` 与 `packaging/schema/runtime-manifest.schema.json`。清单与矩阵生成入口都校验目标集合及 OS/arch/triple 一致性；安装路径必须是无 `.`/`..` 段的正斜杠相对路径；疑似秘密不能回显到诊断。回归见 [增量审查](records/REVIEW-P2-P5-2026-09-24.md)。产物侧 `runtime-manifest.json` 字段至少包括：
+P5-01 已有 `packaging/targets.json` 与 `packaging/schema/runtime-manifest.schema.json`。清单与矩阵生成入口都校验目标集合及 OS/arch/triple 一致性；安装路径必须是无 `.`/`..` 段的正斜杠相对路径；疑似密钥不能回显到诊断。回归见 [增量审查](records/REVIEW-P2-P5-2026-09-24.md)。P5-02 已有 `packages/packaging/src/assemble.ts`：单份 Node 版本/哈希/ABI 校验、三角色 esbuild bundle、生产 npm 闭包裁剪、contracts schema 落位、moduleTreeHash 与 manifest 生成（含 lint），guardian/backend bin 按发行布局自定位接力锚点；PK07 本机全链冒烟与遗留见 [P5-02 记录](records/P5-02.md)。产物侧 `runtime-manifest.json` 字段至少包括：
 
 ```text
 schemaVersion / appVersion / sourceCommit / targetTriple
@@ -19,7 +19,7 @@ files(path,size,sha256,origin,license) / signingEvidence
 buildToolchain / repositorySnapshot / verificationReport
 ```
 
-manifest 在安装完成后能与实际文件校验；其自身的可信性来自签名发行/已验证安装器，而不是仅含哈希便宣称可信。禁止在 manifest 中写开发机绝对路径或秘密。
+manifest 在安装完成后能与实际文件校验；其自身的可信性来自签名发行/已验证安装器，而不是仅含哈希便宣称可信。禁止在 manifest 中写开发机绝对路径或密钥。
 
 大小报告分别记录 Tauri 薄壳/前端、Node 二进制、backend/guardian/worker JS、运行 npm 模块、必要原生适配、资源、引导器、离线运行时、安装器开销和整体压缩/展开大小。Node 二进制只带一份，多个进程共享它，不为每个角色再打包一份 Node；许可不裁剪。生产包排除测试插件、fixtures、编译缓存和开发依赖，动态 require 需要的包文件不能按静态引用随意删。
 

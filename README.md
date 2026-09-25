@@ -1,7 +1,25 @@
 # xresconv-gui
 
-[ci-github-action]: https://github.com/xresloader/xresconv-gui/workflows/build/badge.svg
-![ci-github-action]
+[![CI](https://github.com/xresloader/xresconv-gui/actions/workflows/build.yml/badge.svg)](https://github.com/xresloader/xresconv-gui/actions/workflows/build.yml)
+[![Release](https://img.shields.io/github/v/release/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/releases)
+[![Downloads](https://img.shields.io/github/downloads/xresloader/xresconv-gui/total?logo=github)](https://github.com/xresloader/xresconv-gui/releases)
+[![License](https://img.shields.io/github/license/xresloader/xresconv-gui)](https://github.com/xresloader/xresconv-gui/blob/main/LICENSE)
+
+[![Spec](https://img.shields.io/badge/Spec-xresconv--conf-informational?logo=github)](https://github.com/xresloader/xresconv-conf)
+[![Backend](https://img.shields.io/badge/Backend-xresloader-important?logo=github)](https://github.com/xresloader/xresloader)
+[![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Yarn](https://img.shields.io/badge/Yarn-4-2C8EBB?logo=yarn)](https://yarnpkg.com/)
+[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)]
+[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)]
+[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)]
+
+[![Stars](https://img.shields.io/github/stars/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/stargazers)
+[![Forks](https://img.shields.io/github/forks/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/forks)
+[![Issues](https://img.shields.io/github/issues/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?logo=github)](https://github.com/xresloader/xresconv-gui/pulls)
+[![Contributors](https://img.shields.io/github/contributors/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/graphs/contributors)
+[![Last Commit](https://img.shields.io/github/last-commit/xresloader/xresconv-gui?logo=git&color=orange)](https://github.com/xresloader/xresconv-gui/commits/main)
 
 这是一个符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的GUI转表工具，并且使用 [xresloader](https://github.com/xresloader/xresloader) 作为数据导出工具后端。
 

@@ -31,3 +31,4 @@
 ## 评估记录
 
 - 首次创建：未在 harness 中实测触发率；待后续维护时按 `ai-agent-maintenance/references/trigger-evaluation.md` 的流程补测。
+- 2026-09-25：`description` 统一为 `Use When:` 标准前缀（用户决策，语义与触发边界未变）；触发率仍未实测。

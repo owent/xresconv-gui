@@ -92,8 +92,10 @@ export interface ScriptWorkerPoolOptions {
   dialogTimeoutMs?: number;
   /**
    * 追加给 worker 进程的环境变量（P2-04 环境策略/P2-10 发行锚点），覆盖在
-   * 继承的 process.env 之上；值 undefined 表示删除该键。发行接线：
-   * backend 按 runtime manifest 注入 XRESCONV_SCRIPT_MODULE_DIRS（P2-10）。
+   * 继承的 process.env 之上；值 undefined 表示删除该键。发行接线（P5-02 落地）：
+   * guardian 按发行布局自定位 app 根，经 backendEnv 接力，backend 将
+   * XRESCONV_SCRIPT_MODULE_DIRS 显式注入本选项（锚点是布局约定，不经
+   * manifest 传输，见 docs/plan/records/P5-02.md 偏差说明）。
    */
   workerEnv?: Record<string, string | undefined>;
 }

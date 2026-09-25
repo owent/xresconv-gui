@@ -4,7 +4,7 @@
 
 对应 P2，同时定义 P1/P3/P4 共用接口。D6 的 Node/TypeScript 业务和监督层已有 Windows 实测，协议 v1 冻结规则见 [P2-12](records/P2-12.md)；跨平台范围仍以实际记录为准。
 
-增量审查明确的完成边界：重复启动/关闭须等待同一结果；终止后的 scope 禁止再登记进程；RPC deadline 包含管道写入等待。Rust 壳写队列最多 16 帧、待决请求最多 128；guardian 出站积压最多 8 MiB，单帧仍为 1 MiB。过大 RPC 回复返回关联的 `RESPONSE_TOO_LARGE`，超时/通道失效不自动重放。实现与回归见 [增量审查](records/REVIEW-P2-P5-2026-09-24.md)。
+监督与通道边界（已实现）：重复启动/关闭须等待同一结果；终止后的 scope 禁止再登记进程；RPC deadline 包含管道写入等待。Rust 壳写队列最多 16 帧、待决请求最多 128；guardian 出站积压最多 8 MiB，单帧仍为 1 MiB。过大 RPC 回复返回关联的 `RESPONSE_TOO_LARGE`，超时/通道失效不自动重放。实现与回归见 [增量审查记录](records/REVIEW-P2-P5-2026-09-24.md)。
 
 ## 进程职责与最小原生边界
 
@@ -145,7 +145,7 @@ backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java �
 
 | 平台 | 原型要求 | 证明边界 |
 | --- | --- | --- |
-| Windows | 优先现成且经验证的系统/原生生命周期适配；P2-02 已落地：koffi（MIT，Node-API 预编译 FFI）调用 Job Object + KILL_ON_JOB_CLOSE，OpenProcess 常驻句柄防 PID 重用，taskkill /T /F 仅降级回退 | Node core 无通用 Job Object API；不能只以 taskkill 或 child.kill 返回成功证明完整性。2026-09-24 win32 实测：terminate 杀树、宿主 SIGKILL 后内核回收整树均通过，未自研原生补丁 |
+| Windows | 优先现成且经验证的系统/原生生命周期适配；P2-02 已落地：koffi（MIT，Node-API 预编译 FFI）调用 Job Object + KILL_ON_JOB_CLOSE，OpenProcess 常驻句柄防 PID 重用，taskkill /T /F 仅降级回退 | Node core 无通用 Job Object API；不能只以 taskkill 或 child.kill 返回成功证明完整性。win32 实测通过（terminate 杀树、宿主 SIGKILL 后内核回收整树，见 [P2-02](records/P2-02.md)），未自研原生补丁 |
 | Linux | Node guardian + 所属进程组，必要时现成系统资源机制；适配父端失联 | 不承诺普通进程组拦截 setsid/double-fork；资源能力、cgroup 可用性按实际环境报告 |
 | macOS | Node guardian + 进程组/现成生命周期适配，父端失联清理 | 不照搬 Linux cgroup；不为单个平台恢复整套 Rust 监督框架 |
 

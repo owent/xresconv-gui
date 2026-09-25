@@ -2,7 +2,7 @@
 
 [执行索引](README.md) · [上一册](02-contracts-script-host.md) · [下一册](04-ui.md)
 
-对应 P3。业务内核采用 TypeScript，运行在独立 Node.js backend 中，不依赖 WebView；另一个 Node.js guardian 负责进程生命周期与超时。所有接口均为拟定，输出差异由固定旧版和 JAR 样例裁定；P0 已批准的缺陷修复按差异台账验收。
+对应 P3。业务内核采用 TypeScript，运行在独立 Node.js backend 中，不依赖 WebView；另一个 Node.js guardian 负责进程生命周期与超时。核心接口已实现并有 Windows 实测（见 P3 各任务记录），跨平台验收待 CI；输出差异由固定旧版和 JAR 样例裁定；P0 已批准的缺陷修复按差异台账验收。
 
 ## 配置加载事务
 

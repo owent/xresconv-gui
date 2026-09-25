@@ -10,7 +10,7 @@ node_modules/
 !.yarn/versions
 .pnp.*
 
-# ===== 秘密与本地环境（真实值不进仓库，见 AGENTS.md）=====
+# ===== 密钥与本地环境（真实值不进仓库，见 AGENTS.md）=====
 .env
 .env.*
 !.env.example
@@ -54,3 +54,36 @@ Desktop.ini
 /tools/TMP
 /tools/nwjs_download_cache
 /tools/nwjs-build.sh
+
+
+# codegraph index directories (mcp integration, per-platform)
+.codegraph*
+.tgrep
+.omp
+.codex
+.kilo
+.kilocode
+.zcode
+
+# AI agent project-level MCP configs (written by project/integration/mcp/setup.js
+# with machine-specific absolute paths; not meant to be committed)
+.mcp.json
+/mcp.json
+opencode.json
+opencode.jsonc
+/kilo.json
+/kilo.jsonc
+/mimocode.json
+/mimocode.jsonc
+.cursor
+.zed
+.roo
+.gemini
+.kimi-code
+.qwen
+.mimocode
+.workbuddy
+.cline
+/.trae
+.pi
+/.agents/mcp.json

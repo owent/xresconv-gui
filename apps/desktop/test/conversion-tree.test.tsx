@@ -96,6 +96,23 @@ function makeSnapshot(): BackendSnapshot {
       ],
     },
     selectedItems: [{ id: 1, name: "alpha" }],
+    settings: {
+      overrides: {},
+      effective: {
+        workDir: "",
+        xresloaderPath: "",
+        proto: "",
+        dataVersion: "",
+        outputDir: "",
+        rename: "",
+        type: "bin",
+        protoFile: [],
+        dataSrcDir: [],
+        matrix: [],
+      },
+      parallelism: 2,
+    },
+    customSelectors: null,
   };
 }
 

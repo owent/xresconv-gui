@@ -87,7 +87,14 @@ function send(kind, payload, extra = {}) {
   }
 }
 
-const app = new BackendRpcApp({ pool: new ScriptWorkerPool() });
+// P5-02 发行接线：脚本模块锚点目录由 guardian 经 backendEnv 接力（发行
+// 布局自定位）；显式经 pool workerEnv 注入 worker——语义明确，不依赖逐层
+// 环境继承（XRESCONV_WORKER_ENTRY 由 pool 自身从环境读取，见 script-worker）。
+const workerEnv = {};
+if (process.env.XRESCONV_SCRIPT_MODULE_DIRS) {
+  workerEnv.XRESCONV_SCRIPT_MODULE_DIRS = process.env.XRESCONV_SCRIPT_MODULE_DIRS;
+}
+const app = new BackendRpcApp({ pool: new ScriptWorkerPool({ workerEnv }) });
 // 事件面：log/state_change/dialog_*/run_end/diagnostic → kind "event"（P4-02）。
 app.onEvent((event) => {
   send("event", { source: "backend", ...event });

@@ -3,10 +3,15 @@ import {
   type AppliedOpsReport,
   type BackendSnapshot,
   backendRpc,
+  type DialogPayloadLike,
   type GuardianDeadPayload,
   getBackendSnapshot,
+  type HookGroup,
   invalidateBackendSnapshot,
   type NodeStateChange,
+  type PreviewResult,
+  type SettingsFields,
+  type SettingsViewLike,
   type TreeNodeKey,
   type TreeNodeSnap,
   type XresconvEvent,
@@ -26,6 +31,33 @@ import {
 
 export type ConnectionState = "idle" | "ok" | "degraded";
 
+/**
+ * 待应答脚本弹框（P4-05b，SC06）：dialog_request 进队，应答/失效出队。
+ * answering=true 表示应答在途（UI 禁用按钮，已应答不可再点，P2-06 遗留项）。
+ */
+export interface PendingDialog {
+  token: string;
+  title: string;
+  content: string;
+  buttons: string[];
+  answering: boolean;
+}
+
+/** setHookEnabled 的 group → 快照 config.gui 数组键。 */
+const HOOK_GROUP_KEYS: Record<HookGroup, string> = {
+  before: "onBeforeConvert",
+  after: "onAfterConvert",
+  append_log: "onAppendLog",
+};
+
+/** 预览面板状态（P4-04b）：idle=未预览/已失效；loading=在途；ok/error=最近一次结果。 */
+export interface PreviewState {
+  status: "idle" | "loading" | "ok" | "error";
+  result: PreviewResult | null;
+  /** 可读错误（壳侧 "CODE: message" 原样保留，UI 按 code 前缀给提示）。 */
+  error: string | null;
+}
+
 interface SessionData {
   /** 最近一次 loadConfig/reload/getSnapshot 的快照；未加载为 null。 */
   snapshot: BackendSnapshot | null;
@@ -44,12 +76,35 @@ interface SessionData {
   expandedKeys: ReadonlySet<TreeNodeKey>;
   /** UI：聚焦节点 key；聚焦变化绝不影响选择。 */
   focusedKey: TreeNodeKey | null;
+  /** UI：预览状态（P4-04b）；loadConfig/reload 成功时重置为 idle（旧预览随配置失效）。 */
+  preview: PreviewState;
+  /** 待应答脚本弹框队列（P4-05b；dialog_request 进队、应答/失效出队）。 */
+  pendingDialogs: PendingDialog[];
 }
 
 interface SessionActions {
   loadConfig: (path: string) => Promise<boolean>;
   reload: () => Promise<boolean>;
   refreshSnapshot: () => Promise<boolean>;
+  /**
+   * 合并式写入表单覆盖/会话级并发数（P4-04b）。成功用返回的 SettingsView 整体
+   * 替换 snapshot.settings（受控回写）；失败写 lastError。并行多次提交以请求
+   * 序号防乱序覆盖（后端合并语义，最后一次响应即全量）。
+   */
+  updateSettings: (fields: SettingsFields) => Promise<boolean>;
+  /** 预览（P4-04b，UI04）：在途 loading；错误（含 XRESLOADER_NOT_FOUND）进 error。 */
+  runPreview: () => Promise<boolean>;
+  /** 事件 hook 开关（P4-05b，F09）：成功就地改写快照 config.gui；失败写 lastError。 */
+  setHookEnabled: (group: HookGroup, index: number, enabled: boolean) => Promise<boolean>;
+  /** 设置/重读自定义选择器文件（P4-05b）：成功后重同步快照（default_selected 已改树）。 */
+  setCustomSelectors: (files: string[]) => Promise<boolean>;
+  /** 自定义按钮点击（P4-05b）：按钮可改树/设置，成功后重同步快照；{ok:false} 写 lastError。 */
+  invokeCustomButton: (name: string) => Promise<boolean>;
+  /**
+   * 应答脚本弹框（P4-05b，SC06）：yes/no/on_close(choice=null) 语义；
+   * 应答在途标记 answering（禁用按钮），结算后本地出队（迟到应答后端丢弃）。
+   */
+  respondDialog: (token: string, choice: "yes" | "no" | null) => Promise<void>;
   /** Space/双击语义（selected 缺省 = toggle）；unselectable 节点本地 no-op。 */
   toggleNode: (key: TreeNodeKey) => Promise<void>;
   setNodeSelected: (key: TreeNodeKey, selected: boolean) => Promise<void>;
@@ -120,6 +175,8 @@ function applyStateChanges(
   return { nodes: changed ? next : (nodes as TreeNodeSnap[]), changed };
 }
 
+const initialPreview = (): PreviewState => ({ status: "idle", result: null, error: null });
+
 const initialData: SessionData = {
   snapshot: null,
   connection: "idle",
@@ -130,10 +187,14 @@ const initialData: SessionData = {
   searchTerm: "",
   expandedKeys: new Set<TreeNodeKey>(),
   focusedKey: null,
+  preview: initialPreview(),
+  pendingDialogs: [],
 };
 
 let sessionEpoch = 0;
 let snapshotRequest = 0;
+let settingsRequest = 0;
+let previewRequest = 0;
 let loadingConfig = false;
 
 export const useSessionStore = create<SessionStore>()((set, get) => {
@@ -221,6 +282,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         ...(resetUi
           ? {
               searchTerm: "",
+              // 配置变了旧预览失效（P4-04b）：loadConfig/reload 成功重置 preview。
+              preview: initialPreview(),
               expandedKeys: (() => {
                 const keys = new Set<TreeNodeKey>();
                 collectExpandedKeys(snapshot.tree?.nodes ?? [], keys);
@@ -295,6 +358,130 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       }
     },
 
+    updateSettings: async (fields) => {
+      if (loadingConfig) return false;
+      const epoch = sessionEpoch;
+      const request = ++settingsRequest;
+      try {
+        const settings = await backendRpc<SettingsViewLike>("updateSettings", { fields });
+        if (epoch !== sessionEpoch || request !== settingsRequest) return false;
+        set((state) => {
+          if (state.snapshot === null) return {};
+          return { snapshot: { ...state.snapshot, settings }, lastError: null };
+        });
+        return true;
+      } catch (error) {
+        if (epoch === sessionEpoch && request === settingsRequest)
+          set({ lastError: describeError(error) });
+        return false;
+      }
+    },
+
+    runPreview: async () => {
+      if (loadingConfig) return false;
+      const epoch = sessionEpoch;
+      const request = ++previewRequest;
+      set({ preview: { status: "loading", result: null, error: null } });
+      try {
+        const result = await backendRpc<PreviewResult>("preview");
+        if (epoch !== sessionEpoch || request !== previewRequest) return false;
+        set({ preview: { status: "ok", result, error: null } });
+        return true;
+      } catch (error) {
+        if (epoch === sessionEpoch && request === previewRequest) {
+          set({ preview: { status: "error", result: null, error: describeError(error) } });
+        }
+        return false;
+      }
+    },
+
+    setHookEnabled: async (group, index, enabled) => {
+      const epoch = sessionEpoch;
+      try {
+        await backendRpc("setHookEnabled", { group, index, enabled });
+      } catch (error) {
+        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
+        return false;
+      }
+      if (epoch !== sessionEpoch) return false;
+      // 就地改写快照 config.gui（后端已生效，无需整树重同步）。
+      set((state) => {
+        const config = state.snapshot?.config;
+        if (state.snapshot === null || config == null) return {};
+        const gui = config.gui;
+        if (typeof gui !== "object" || gui === null) return {};
+        const key = HOOK_GROUP_KEYS[group];
+        const hooks = (gui as Record<string, unknown>)[key];
+        if (!Array.isArray(hooks) || hooks[index] === undefined) return {};
+        const nextHooks = (hooks as Record<string, unknown>[]).map((hook, i) =>
+          i === index ? { ...hook, enabled } : hook,
+        );
+        return {
+          snapshot: {
+            ...state.snapshot,
+            config: { ...config, gui: { ...(gui as Record<string, unknown>), [key]: nextHooks } },
+          },
+          lastError: null,
+        };
+      });
+      return true;
+    },
+
+    setCustomSelectors: async (files) => {
+      if (loadingConfig) return false;
+      const epoch = sessionEpoch;
+      try {
+        await backendRpc("setCustomSelectors", { files });
+      } catch (error) {
+        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
+        return false;
+      }
+      if (epoch !== sessionEpoch) return false;
+      // default_selected 可能已改树；视图也随快照回来。
+      await get().refreshSnapshot();
+      return true;
+    },
+
+    invokeCustomButton: async (name) => {
+      if (loadingConfig) return false;
+      const epoch = sessionEpoch;
+      let result: { ok: boolean; error?: string };
+      try {
+        result = await backendRpc<{ ok: boolean; error?: string }>("invokeCustomButton", { name });
+      } catch (error) {
+        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
+        return false;
+      }
+      if (epoch !== sessionEpoch) return false;
+      // 按钮动作（匹配切换/脚本 ops/select_all…）在 backend 改树：重同步快照。
+      await get().refreshSnapshot();
+      if (!result.ok) {
+        // 动作链失败 backend 已记 CUSTOM SELECTOR 日志；此处让错误在 UI 同样可见。
+        set({ lastError: result.error ?? "自定义按钮动作失败" });
+        return false;
+      }
+      return true;
+    },
+
+    respondDialog: async (token, choice) => {
+      // 已应答按钮立即禁用（P2-06 遗留：UI 侧防重复应答）。
+      set((state) => ({
+        pendingDialogs: state.pendingDialogs.map((dialog) =>
+          dialog.token === token ? { ...dialog, answering: true } : dialog,
+        ),
+      }));
+      try {
+        await backendRpc("respondDialog", { token, choice });
+      } catch (error) {
+        set({ lastError: describeError(error) });
+      } finally {
+        // 已应答/已失效（answered:false）都出队；迟到应答由后端按 SC06 丢弃。
+        set((state) => ({
+          pendingDialogs: state.pendingDialogs.filter((dialog) => dialog.token !== token),
+        }));
+      }
+    },
+
     toggleNode: (key) => {
       const node = findNode(get().snapshot?.tree?.nodes ?? [], key);
       if (node === null || node.unselectable) {
@@ -345,12 +532,44 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       set((state) => {
         const next: Partial<SessionData> = { eventCount: state.eventCount + 1 };
         if (event.kind === "event") {
-          const payload = event.payload as { type?: string; state?: string; previous?: string };
+          const payload = event.payload as {
+            type?: string;
+            state?: string;
+            previous?: string;
+            token?: string;
+            dialog?: DialogPayloadLike;
+          };
           if (payload?.type === "state_change") {
             next.lastStateChange = { state: payload.state, previous: payload.previous };
             if (state.snapshot !== null && typeof payload.state === "string") {
               next.snapshot = { ...state.snapshot, state: payload.state };
             }
+          }
+          if (payload?.type === "dialog_request" && typeof payload.token === "string") {
+            // 脚本弹框进队（P4-05b，SC06）；同 token 重发不重复入队。
+            if (!state.pendingDialogs.some((dialog) => dialog.token === payload.token)) {
+              const dialog = payload.dialog ?? {};
+              next.pendingDialogs = [
+                ...state.pendingDialogs,
+                {
+                  token: payload.token,
+                  title: typeof dialog.title === "string" ? dialog.title : "",
+                  content: typeof dialog.content === "string" ? dialog.content : "",
+                  buttons: Array.isArray(dialog.buttons)
+                    ? dialog.buttons.filter(
+                        (button): button is string => typeof button === "string",
+                      )
+                    : ["ok"],
+                  answering: false,
+                },
+              ];
+            }
+          }
+          if (payload?.type === "dialog_invalidate" && typeof payload.token === "string") {
+            // worker 死亡/TTL/显式 dismiss：关闭弹框且不应答（过期回调不执行）。
+            next.pendingDialogs = state.pendingDialogs.filter(
+              (dialog) => dialog.token !== payload.token,
+            );
           }
         }
         return next;
@@ -374,5 +593,10 @@ export function resetSessionStore(): void {
   sessionEpoch++;
   loadingConfig = false;
   invalidateBackendSnapshot();
-  useSessionStore.setState({ ...initialData, expandedKeys: new Set<TreeNodeKey>() });
+  useSessionStore.setState({
+    ...initialData,
+    expandedKeys: new Set<TreeNodeKey>(),
+    preview: initialPreview(),
+    pendingDialogs: [],
+  });
 }

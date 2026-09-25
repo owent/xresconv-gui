@@ -1,0 +1,67 @@
+import { useState } from "react";
+import { Input, Label, TextArea, TextField } from "react-aria-components";
+
+/**
+ * 受控文本字段（P4-04b）：聚焦时进入草稿，blur（单行含 Enter）提交变更；
+ * 未聚焦时直接显示后端 effective 值——reload/加载新配置/后端拒绝后自动回写，
+ * 不残留旧表单值（docs/plan/04-ui.md §状态分层：显示值以后端返回为准）。
+ */
+export function DraftField({
+  label,
+  value,
+  disabled,
+  onCommit,
+  multiline = false,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onCommit: (value: string) => void;
+  multiline?: boolean;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  const [editing, setEditing] = useState(false);
+  const shown = editing ? draft : value;
+  const commit = () => {
+    setEditing(false);
+    if (draft !== value) {
+      onCommit(draft);
+    }
+  };
+  return (
+    <TextField isDisabled={disabled} className="settings-field">
+      <Label>{label}</Label>
+      {multiline ? (
+        <TextArea
+          value={shown}
+          placeholder={placeholder}
+          rows={3}
+          onFocus={() => {
+            setDraft(value);
+            setEditing(true);
+          }}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+        />
+      ) : (
+        <Input
+          value={shown}
+          placeholder={placeholder}
+          onFocus={() => {
+            setDraft(value);
+            setEditing(true);
+          }}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            }
+          }}
+        />
+      )}
+    </TextField>
+  );
+}

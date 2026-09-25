@@ -43,7 +43,7 @@
 
 ## 目录结构
 
-- `apps/desktop/`、`packages/{backend,guardian,contracts,script-host,compat-service}/`、`src-tauri/`、`tests/`：新架构骨架（D6，P1 已验收本机范围，见 `docs/plan/records/`）
+- `apps/desktop/`、`packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`、`src-tauri/`、`tests/`：新架构骨架（D6，P1 已验收本机范围，见 `docs/plan/records/`）
 
 - `src/`：应用源码（`setup.js` 主进程、`main.js` 渲染进程、`index.html`、`main.css`、`log4js.json` 日志配置）
 - `scripts/patch-fancytree.js`：安装后修补 jquery.fancytree 的脚本（`prepare` 钩子调用）
@@ -96,7 +96,7 @@
 
 - 常规 lint/typecheck/单测上限 10–20 分钟；构建/打包 20–30 分钟；e2e 按项目说明延长。
 - 超时后保留输出，分析是依赖下载、死锁、挂起、资源不足还是命令错误；最多重试 2–3 次，每次必须调整命令、环境、等待时间或并发度，不盲目重复。
-- 脚本和 Skill 中的命令必须支持非交互；需要密码/token 时让用户在终端直接输入，AI 不得获取秘密。
+- 脚本和 Skill 中的命令必须支持非交互；需要密码/token 时让用户在终端直接输入，AI 不得获取密钥。
 
 ## 测试、lint 与质量门禁
 
@@ -105,11 +105,11 @@
 - 新增/修改的 Markdown 必须通过 markdownlint 零告警：`npx.cmd --yes markdownlint-cli@latest <files>`（配置 `.markdownlint.json`）。既有 `README.md`/`CHANGELOG.md` 的历史告警不在本次范围。
 - 架构图优先 Mermaid/Chart.js/Draw.io，尽量验证语法和布局。
 
-## 临时文件与秘密
+## 临时文件与密钥
 
-- 本地调试产物、临时脚本、一次性输出放 `build/<task-name>/`，结束后清理；需保留的产物必须有说明和索引。
+- **临时文件只允许放 `build/` 目录，禁止随意乱放**：本地调试产物、临时脚本、一次性输出一律写入 `build/<task-name>/` 子目录，不得散落在仓库根目录、`docs/`、`src/`、`tests/`、用户主目录或系统临时目录；任务结束清理，需保留的产物必须有说明和索引。
 - 本地开发临时资源放 `development/`；本地密钥放 `development/secret/` 并确保不被提交。
-- 密钥、token 不进仓库、不进日志、不发 AI 接口；秘密值只能通过 `jq`/`yq` 在脚本中提取透传。
+- 密钥、token 不进仓库、不进日志、不发 AI 接口；密钥值只能通过 `jq`/`yq` 在脚本中提取透传。
 - 需要环境变量而仓库没有 `.env` 时，创建带占位符的 `.env.example` 并说明需用户填真实值。
 - 打包产物 `out/` 与 `node_modules/` 已在 `.gitignore`，不要提交。
 
@@ -141,7 +141,7 @@
 - [ ] 已运行必要的 lint、test、build 验证；Markdown 过 markdownlint。
 - [ ] 终端命令遵守 pwsh 7+ 与现代工具纪律。
 - [ ] 已检查是否需要更新 `AGENTS.md`、`CLAUDE.md`、Skills、docs、来源索引。
-- [ ] 已清理 `build/<task-name>/` 临时文件；未泄露任何秘密。
+- [ ] 临时文件只写入过 `build/<task-name>/` 且已清理，无散落在其他目录；未泄露任何密钥。
 - [ ] 已记录后续风险和未完成事项。
 
 ## 按需加载

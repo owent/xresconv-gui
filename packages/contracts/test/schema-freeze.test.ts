@@ -5,7 +5,11 @@
 // - 扩展记录：P4-02 按冻结规则 2 新增 backend-rpc（业务 RPC payload），并给
 //   envelope kind 枚举追加 rpc/rpc_result（docs/plan/records/P4-02.md）；
 //   P4-04a 给 backend-rpc method 枚举追加 updateSettings/preview、错误码词表
-//   补 XRESLOADER_NOT_FOUND（docs/plan/records/P4-04a.md）。
+//   补 XRESLOADER_NOT_FOUND（docs/plan/records/P4-04a.md）；
+//   P4-04b 给 backend-rpc params 描述补 updateSettings fields 的 parallelism
+//   （number, 1..16，会话级，不进 overrides；纯文本变更，docs/plan/records/P4-04b.md）；
+//   P4-05a 给 backend-rpc method 枚举追加 setHookEnabled/setCustomSelectors/
+//   invokeCustomButton、params 描述补三方法参数形状（docs/plan/records/P4-05a.md）。
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

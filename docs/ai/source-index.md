@@ -19,8 +19,8 @@
 | 旧行为合同 | `docs/plan/records/P0-08.md` | 2026-09-24 全量提取：main.js/setup.js 五类脚本入口上下文、转换执行、include 竞态、选择器回退、README 七处分歧；P2/P3 实现的语义基线 | current |
 | xresloader stdin 协议 | `../xresloader/src/org/xresloader/core/Main.java:344-411`（本地检出） | tokenizer `('[^']*')\|("[^"]*")\|(\S+)`；空 token 丢弃；无转义；退出码=失败任务数累加。编码器实现见 packages/backend/src/convert/stdin-encoder.ts | current |
 | Node 24 类型剥离 | 实测（P2-01/P2-03） | 可直接 spawn 运行 .ts；仅限 erasable 语法（biome noParameterProperties/noEnum 强制）；相对导入必须显式 `.ts` 后缀；workspace 包名导入 .ts 经 symlink 可行 | current |
-
-| 规范复核 | webfetch 核验 agentskills.io/specification 与 agents.md | Skill frontmatter 字段、渐进式披露、嵌套 AGENTS.md 就近优先等结论与现有配置一致 | current |
+| 规范复核 | webfetch 核验 agentskills.io specification、skill-creation/best-practices、skill-creation/optimizing-descriptions 与 agents.md（2026-09-25） | Skill frontmatter 字段、渐进式披露、嵌套 AGENTS.md 就近优先与现有配置一致；官方对 `description` 仅要求祈使句式（示例 “Use this skill when…”），本仓库按用户决策统一为 `Use When:` 前缀，兼容官方要求 | current |
+| AI 写作与临时文件约定 | 用户决策 2026-09-25；译名调研 [GitHub 中文文档](https://docs.github.com/zh/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)、[Microsoft Learn](https://learn.microsoft.com/zh-cn/azure/key-vault/general/basic-concepts)（2026-09-25，两家官方均用“机密”，本仓库判定为不常用词而弃用）；规则载体 `AGENTS.md` 与 `.agents/skills/ai-agent-maintenance/references/writing-rules.md` | Skill `description` 统一 `Use When:` 前缀；Secret 按具体对象译“密钥/凭据/口令/敏感信息”，不译“秘密”、尽量不用“机密”；fixture 译“测试数据”不译“夹具”；临时文件只放 `build/<task-name>/`，禁止散落其他目录 | current |
 
 ## 重构决策记录（D1–D6，2026-09-23 用户决策）
 
@@ -42,7 +42,7 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | fork 与原生句柄 | [Node child_process](https://nodejs.org/api/child_process.html)、[AssignProcessToJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject)、`process-tree.ts` / `backend-supervisor.ts` | Node 参数放 execArgv；原生登记结果需检查；启动/关闭复用完成结果，句柄只能释放一次 | 每次运行器修改 | P2/P3 生命周期变更 | 新增回归及 Windows 真进程通过 |
 | Rust 管道与窗口关闭 | [sync_channel](https://doc.rust-lang.org/std/sync/mpsc/fn.sync_channel.html)、[Tauri Window](https://docs.rs/tauri/latest/tauri/window/struct.Window.html)、[Calling Rust](https://v2.tauri.app/develop/calling-rust/) | 有界 writer 把阻塞写移出 RPC 等待路径；deadline 后通道失效；CloseRequested 等待移至后台，清理后 destroy | 每次通道修改 | P4/P5 壳生命周期 | Rust 8 例与真实 WebView2 通过 |
 | React 异步快照 | [useEffect](https://react.dev/reference/react/useEffect)、`session-store.ts` 与适配层 | 过期异步结果不能覆盖新会话；配置加载互斥，代际/请求水位与快照去重缓存同时失效 | 每次状态流修改 | P4 RPC/UI 变更 | 6 个新增异步/搜索回归通过 |
-| 发行目标与诊断 | [Rust target support](https://doc.rust-lang.org/rustc/platform-support.html)、`packaging/targets.json` / schema | OS/arch 与 triple 必须对应；生成矩阵入口同样验证完整集合；路径遵守 schema 的相对路径说明；疑似秘密只输出脱敏诊断 | 每次目标修改 | P5 目标或清单修改 | 9 个新增边界回归通过 |
+| 发行目标与诊断 | [Rust target support](https://doc.rust-lang.org/rustc/platform-support.html)、`packaging/targets.json` / schema | OS/arch 与 triple 必须对应；生成矩阵入口同样验证完整集合；路径遵守 schema 的相对路径说明；疑似密钥只输出脱敏诊断 | 每次目标修改 | P5 目标或清单修改 | 9 个新增边界回归通过 |
 | 外部 WebDriver | [官方 service 仓库](https://github.com/webdriverio/desktop-mobile/tree/main/packages/tauri-service)、锁定 `@wdio/tauri-service` 的 `afterCommand` / `ensureActiveWindowFocus` | 显式 switchToWindow 会关闭自动插件焦点探测；本项目 external provider 用原生 WebDriver 选择窗口。普通 protocol 文档页本轮抓取失败，以官方源码及锁定实现核验 | 每次 WDIO 升级 | E2E harness 修改 | 3/3 通过；DEP0190 与退出后 mock 清理告警保留记录 |
 
 ## 外部规范（易变，需定期复核）
@@ -73,7 +73,7 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 
 ## 已知缺口与后续建议
 
-- P2/P3 核心已有本机测试证据，P3-06 会话编排与 P2-05 NodeMirror（worker 镜像 + SessionTreeState ops 回流，BD-S9/BD-O7 解决）已落地；本轮修复 XML 边界、IPC/worker 生命周期、Java 管道失败、取消收尾和日志隔离，见最新审查。剩余：独立 guardian/backend 长期接线、POSIX 进程组分支待 CI（win32 进程树已实测，见 P2-02）、共享对象/模块缓存合同、隔离 matcher/XML helper、完整 reset/close、P4–P7；不能把模块通过写成 G2/G3 已完成。
+- P2/P3 核心已有本机测试证据：P3-06 会话编排、P2-05 NodeMirror（BD-S9/BD-O7 解决）、P2-09 独立 guardian/backend 长期接线、P2-08 隔离 matcher、取消收尾和日志隔离均已落地（见对应记录）。剩余：POSIX 进程组分支待 CI（win32 进程树已实测，见 P2-02）、XML helper 独立进程、日志磁盘满/轮转与 UI 分页、共享对象/模块缓存合同复核、P4-06+、P5-03+、P6/P7；不能把模块通过写成 G2/G3 已完成。
 - Yarn 4 `--immutable` 已在本机通过；动态 require 全部样本与 CI 仍待完成，保留已有工作树改动。
 - 本机环境限制：`yarn` 未全局安装、`npm`/`pnpm` 的 PowerShell shim 被执行策略拦截（用 `npm.cmd` 调用）；CI 中不受影响。
 - Markdown 校验：新增/修改的 Markdown 必须通过 markdownlint（配置 `.markdownlint.json`，关闭 MD013 行长与 MD041 以适应 CJK 文本与 `@import` 语法）。既有 `README.md`、`CHANGELOG.md` 存在历史告警（MD029/MD034/MD009/MD012/MD032/MD007），未在本次初始化中改动；如需清理单独提交。
@@ -100,6 +100,8 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | 流与进程完成边界 | [Node Streams](https://nodejs.org/api/stream.html)、[child_process](https://nodejs.org/api/child_process.html) | write 回调/error/drain 分别处理，close 用于管道收尾；kill 成功不等于清理确认。本轮修复 IPC 异步写错、Java EPIPE/kill false/继承管道等待 | 每次运行器改动 | P2/P3 | 2026-09-24 官方文档与回归通过 |
 | Java stdin 分词 | [Java 25 Pattern](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/regex/Pattern.html)、相邻 xresloader `Main.java` | 默认 Pattern 的 ASCII 空白集合不同于 JS Unicode 空白；Scanner 行分隔字符也不能进入单任务行。编码器增加 Unicode 空白/换行用例 | 每次 JAR 升级 | P3-06 | 2026-09-24 源码/文档复核，八格式真实 JAR 通过 |
 | log4js 扩展隔离 | [自定义 appender](https://log4js-node.github.io/log4js-node/writing-appenders.html)、`packages/backend/src/service/log-sink*.ts` | configure/append/shutdown 可执行扩展代码，改为独立进程；有界队列与超时明确报告未持久化/清理未确认 | 每次日志实现改动 | P2-08/P3-09 | 2026-09-24 死循环、独立配置与真实文件 flush 通过 |
+| 前端框架/样式选型 | [React 统计](https://api.npmjs.org/downloads/point/last-week/react)、[Vue 统计](https://api.npmjs.org/downloads/point/last-week/vue)、[Svelte 统计](https://api.npmjs.org/downloads/point/last-week/svelte)、[Tailwind 兼容要求](https://tailwindcss.com/docs/compatibility) | 2026-09-23 快照 React 周下载约为 Vue 11 倍、Svelte 31 倍（含 CI/间接使用，仅作生态体量依据）；选 React 为组件/测试/可访问性生态；Tailwind 4 现代浏览器要求约束系统 WebView，不采用 | 每次框架升级 | P4/P7 | current |
+| 依赖版本快照 | 2026-09-23 自 npm registry/crates.io/官方发行页读取；锁定值以 `package.json`/`yarn.lock`/`Cargo.lock` 为准 | 快照为执行起点非永久锁定；Node 26.x Current 候选 + 24.x LTS 基线；Tauri 2.x（3.x alpha 不采用）；typescript-eslint peer 冲突不引入（Biome+tsc）；React Compiler 单独验证后启用 | 每次升级 | P1/P5 复查 | current |
 | Tauri 命令响应性 | [Calling Rust](https://v2.tauri.app/develop/calling-rust/) | 同步 command 默认在主线程；健康检查改为 async + spawn_blocking，避免轮询子进程阻塞 UI | 每次壳命令改动 | P1/P2 | 2026-09-24 回归、原生门禁和真实 WebView2 通过 |
 
 同步范围：增量审查更新实现、回归测试、Plan、监督/UI/发行合同与记录索引。Agent 规则/Skills 和旧 Electron 部署配置未变；暂停切片、跨平台与实体安装验收范围保持。

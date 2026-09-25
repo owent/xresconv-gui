@@ -23,6 +23,23 @@ const snapshot = (path = "old.xml"): BackendSnapshot => ({
   config: { path },
   selectedItems: [],
   tree: { version: 1, nodes: [node(1, "old")] },
+  settings: {
+    overrides: {},
+    effective: {
+      workDir: "",
+      xresloaderPath: "",
+      proto: "",
+      dataVersion: "",
+      outputDir: "",
+      rename: "",
+      type: "bin",
+      protoFile: [],
+      dataSrcDir: [],
+      matrix: [],
+    },
+    parallelism: 2,
+  },
+  customSelectors: null,
 });
 beforeEach(() => {
   resetSessionStore();

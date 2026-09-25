@@ -1,9 +1,10 @@
 ---
 name: ai-agent-maintenance
-description: "Use this skill when creating, updating, or auditing AI agent configuration in this repository: AGENTS.md, CLAUDE.md, Agent Skills, tool-specific compatibility layers (.claude/, .github/, .kilo/, .opencode/, etc.), custom agents, or the AI source index. Not for ordinary feature code or bug fixes covered by AGENTS.md."
+description: "Use When: creating, updating, or auditing AI agent configuration in this repository — AGENTS.md, CLAUDE.md, Agent Skills, tool-specific compatibility layers (.claude/, .github/, .kilo/, .opencode/, etc.), custom agents, or the AI source index. Not for ordinary feature code or bug fixes covered by AGENTS.md."
 license: MIT
 metadata:
   owner: project-ai-maintainers
+  last-reviewed: 2026-09-25
 ---
 
 # AI Agent 配置维护

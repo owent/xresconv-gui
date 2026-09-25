@@ -16,8 +16,9 @@
  * WORKER 模块诊断（bypass hook 链，避免对脚本引擎诊断再触发脚本）。
  */
 
+import { randomUUID } from "node:crypto";
 import type { TreeSnapshot } from "@xresconv/compat-service";
-import type { Envelope } from "@xresconv/contracts";
+import type { Envelope, ScriptResult } from "@xresconv/contracts";
 import type { ScriptWorkerPool, WorkerDiag } from "@xresconv/guardian";
 import { runJavaBatch } from "@xresconv/guardian";
 import type { ParsedConfig, TreeItem } from "../config/model.ts";
@@ -28,11 +29,21 @@ import type {
 } from "../convert/plan-builder.ts";
 import { resolveEffectiveSettings } from "../convert/plan-builder.ts";
 import { assertTransition, isTerminal, type RunState } from "../domain/run-state.ts";
-import { isMatrixMode } from "../domain/selection.ts";
+import { flattenTreeItems, isMatrixMode } from "../domain/selection.ts";
+import {
+  type CustomSelectorDef,
+  type CustomSelectorEntry,
+  type CustomSelectorView,
+  loadCustomSelectorFiles,
+  parseButtonAction,
+  selectorViews,
+} from "./custom-selector.ts";
 import { formatUnknownError } from "./format.ts";
 import { loadConfig as loadConfigWithSetName } from "./load-config.ts";
 import { createLog4jsSink, type Log4jsSink, type LogLevel, LogPipeline } from "./log-pipeline.ts";
+import { MatcherService } from "./matcher-service.ts";
 import { runConversion as executeRun, type JavaRunner, type RunSummary } from "./run.ts";
+import { resolveSelectorItemsIsolated } from "./selection-rule-service.ts";
 import { type AppliedOpsReport, SessionTreeState } from "./tree-state.ts";
 
 /** 并发默认 2（旧版启动硬压 2 的语义，main.js:2574-2587），上限 16（main.js:6-9）。 */
@@ -43,6 +54,13 @@ export const MAX_PARALLELISM = 16;
 const LOG4JS_SHUTDOWN_TIMEOUT_MS = 5000;
 /** dispose 等待活动运行实际回收的上限（超时不冒充清理成功，记诊断）。 */
 const DISPOSE_RUN_TIMEOUT_MS = 60_000;
+
+/** 并发数归一化（BD-O2）：取整并压到 [1, MAX_PARALLELISM]；非有限值抛 RangeError。 */
+function normalizeParallelism(value: number): number {
+  const requested = Math.floor(value);
+  if (!Number.isFinite(requested)) throw new RangeError("parallelism must be finite");
+  return Math.min(MAX_PARALLELISM, Math.max(1, requested));
+}
 
 export interface ConversionSessionOptions {
   /** 会话共享的 script worker 池（调用方负责 start/shutdown）。 */
@@ -61,6 +79,8 @@ export interface ConversionSessionOptions {
   onDialogRequest?: ScriptWorkerPool["onDialogRequest"];
   /** 弹框失效回调（P2-06：worker 死亡/TTL 过期/显式 dismiss 时 UI 关闭弹框）。 */
   onDialogInvalidate?: ScriptWorkerPool["onDialogInvalidate"];
+  /** matcher 工厂（P4-05a 选择器匹配，隔离域）；缺省真实 MatcherService（懒创建）。 */
+  matcherFactory?: () => MatcherService;
 }
 
 const WORKER_LOG_LEVELS: readonly LogLevel[] = ["info", "notice", "warning", "error"];
@@ -72,7 +92,8 @@ export class ConversionSession {
 
   private readonly pool: ScriptWorkerPool;
   private readonly runner: JavaRunner;
-  private readonly parallelism: number;
+  /** 转表并发数（P4-04b 起可变：updateSettings parallelism 写入；run 每次取当前值）。 */
+  private parallelism: number;
   private readonly setNameTimeoutMs: number | undefined;
   private readonly log4jsSink: Log4jsSink | null = null;
   private readonly appendLogInvocations = new Set<string>();
@@ -84,6 +105,17 @@ export class ConversionSession {
   private treeState: SessionTreeState | null = null;
   /** P4-04a：表单编辑的转换参数覆盖（updateSettings 写入，loadConfig 成功清空）。 */
   private overrides: ConversionOverrides = {};
+  /** P4-05a：自定义选择器/按钮（CLI --custom-selector/--custom-button 文件）。
+   * generation 随 setCustomSelectors 递增，进入 button_id——reload 动作重读文件后
+   * 旧按钮 data（worker 内按 button_id 存活）自动失效，对齐旧版清缓存重建按钮。 */
+  private customSelectors: {
+    files: string[];
+    entries: CustomSelectorEntry[];
+    generation: number;
+  } | null = null;
+  /** P4-05a：选择器匹配的隔离 matcher（懒创建；dispose 时 shutdown）。 */
+  private matcher: MatcherService | null = null;
+  private readonly matcherFactory: () => MatcherService;
   private javaAbort: AbortController | null = null;
   private cancelRequested = false;
   private activeRun: Promise<RunSummary> | null = null;
@@ -93,11 +125,17 @@ export class ConversionSession {
   constructor(options: ConversionSessionOptions) {
     this.pool = options.pool;
     this.runner = options.runner ?? runJavaBatch;
-    const requested = Math.floor(options.parallelism ?? DEFAULT_PARALLELISM);
-    if (!Number.isFinite(requested)) throw new RangeError("parallelism must be finite");
-    this.parallelism = Math.min(MAX_PARALLELISM, Math.max(1, requested));
+    this.parallelism = normalizeParallelism(options.parallelism ?? DEFAULT_PARALLELISM);
     this.setNameTimeoutMs = options.setNameTimeoutMs;
     this.pipeline = options.pipeline ?? new LogPipeline();
+    this.matcherFactory =
+      options.matcherFactory ??
+      (() =>
+        new MatcherService({
+          onDiag: (message) => {
+            void this.pipeline.warning(message, "MATCHER", { bypassHooks: true });
+          },
+        }));
     if (options.onDialogRequest !== undefined) {
       this.pool.onDialogRequest = options.onDialogRequest;
     }
@@ -135,6 +173,16 @@ export class ConversionSession {
     return this.generation;
   }
 
+  /** 当前转表并发数（快照 settings.parallelism 数据源）。 */
+  getParallelism(): number {
+    return this.parallelism;
+  }
+
+  /** 设置转表并发数（P4-04b updateSettings parallelism）；取整并压到 [1,16]，非有限抛 RangeError。 */
+  setParallelism(value: number): void {
+    this.parallelism = normalizeParallelism(value);
+  }
+
   /**
    * 加载配置（P3-03）：idle/ready/终态 → loading → ready；解析硬错误 → failed 并抛出。
    * set_name 整合由 load-config.ts 完成（错误/超时记诊断、加载继续）。
@@ -158,6 +206,11 @@ export class ConversionSession {
       // 表单随配置重填：上次配置的 overrides 不带入新配置（P4-04a）。
       this.overrides = {};
       this.transition("ready");
+      // P4-05a：已设置自定义选择器时，每次成功加载后重放 default_selected
+      // （main.js:1888-1892 show_conv_tree 末尾 force=true 执行一次）。
+      if (this.customSelectors !== null) {
+        await this.applyDefaultSelected();
+      }
       return config;
     } catch (err) {
       void this.pipeline.error(formatUnknownError(err), "CONFIG");
@@ -360,6 +413,10 @@ export class ConversionSession {
     }
     this.pipeline.hookRunner = null;
     await this.pipeline.drain();
+    if (this.matcher !== null) {
+      await this.matcher.shutdown();
+      this.matcher = null;
+    }
     if (this.log4jsSink !== null) {
       await this.log4jsSink.shutdown(LOG4JS_SHUTDOWN_TIMEOUT_MS);
     }
@@ -388,6 +445,250 @@ export class ConversionSession {
       this.transition("ready");
     }
     return { cancelledRun: run !== null };
+  }
+
+  /** 当前自定义选择器视图（P4-05a；未设置为 null）。 */
+  getCustomSelectorViews(): CustomSelectorView[] | null {
+    return this.customSelectors === null ? null : selectorViews(this.customSelectors.entries);
+  }
+
+  /** 懒创建隔离 matcher（选择器匹配专用；诊断走 pipeline，bypass hook 链）。 */
+  private getMatcher(): MatcherService {
+    if (this.matcher === null) {
+      this.matcher = this.matcherFactory();
+    }
+    return this.matcher;
+  }
+
+  /** 就绪的 matcher（start 幂等；首次创建时完成握手再返回）。 */
+  private async getReadyMatcher(): Promise<MatcherService> {
+    const matcher = this.getMatcher();
+    await matcher.start();
+    return matcher;
+  }
+
+  /**
+   * 设置/重读自定义选择器文件（P4-05a；对应 CLI --custom-selector/--custom-button
+   * 与按钮 reload 动作）。generation 递增使旧 button_id 失效（旧版 reload 动作
+   * 清缓存重建按钮、按钮 data 重置的等价语义）。已加载树时重放 default_selected。
+   */
+  async setCustomSelectors(files: readonly string[]): Promise<CustomSelectorView[]> {
+    if (this.disposed) {
+      throw new Error("session is disposed");
+    }
+    const entries = loadCustomSelectorFiles(files);
+    const generation = (this.customSelectors?.generation ?? 0) + 1;
+    this.customSelectors = { files: [...files], entries, generation };
+    for (const entry of entries) {
+      if (!entry.ok) {
+        void this.pipeline.error(entry.error, "CUSTOM SELECTOR");
+      }
+    }
+    await this.applyDefaultSelected();
+    return selectorViews(entries);
+  }
+
+  /** default_selected 重放（force=true，main.js:826-828/1888-1892）；逐选择器隔离失败。 */
+  private async applyDefaultSelected(): Promise<void> {
+    const selectors = this.customSelectors;
+    if (selectors === null || this.treeState === null || this.config === null) {
+      return;
+    }
+    for (const entry of selectors.entries) {
+      if (!entry.ok || entry.def.default_selected !== true) {
+        continue;
+      }
+      try {
+        const matched = await this.matchSelector(entry.def);
+        this.applySelectorSelection(matched, true);
+      } catch (err) {
+        void this.pipeline.warning(
+          `自定义选择器 ${entry.def.name} 默认选择失败: ${formatUnknownError(err)}`,
+          "CUSTOM SELECTOR",
+        );
+      }
+    }
+  }
+
+  /** 选择器匹配（隔离 matcher 求值，BD-M4 fail-closed 语义在 SelectionRuleService）。 */
+  private async matchSelector(def: CustomSelectorDef): Promise<TreeItem[]> {
+    const config = this.config;
+    if (config === null) {
+      return [];
+    }
+    return resolveSelectorItemsIsolated(
+      await this.getReadyMatcher(),
+      def,
+      flattenTreeItems(config.tree),
+      {
+        log: (message) => {
+          void this.pipeline.warning(message, "CUSTOM SELECTOR");
+        },
+      },
+    );
+  }
+
+  /**
+   * 批量勾选/取消匹配条目（main.js:428 逐 item setSelected 的等价 ops）。
+   * unselectable 条目由树状态 no-op（fancytree 语义）；级联在 SelectionTree 内完成。
+   * 会话内生 ops 盖上当前版本过版本闸（生成到应用间无交错，版本即当前值）。
+   */
+  private applySelectorSelection(matched: readonly TreeItem[], selected: boolean): void {
+    const version = this.treeState?.selectionVersion;
+    const ops = matched
+      .filter((item) => item.id !== undefined)
+      .map((item) => ({ v: version, op: "select_node", key: item.id as number, selected }));
+    if (ops.length > 0) {
+      this.applyScriptOps(ops);
+    }
+  }
+
+  /** 匹配切换（无 action 按钮点击，main.js:333-470）：有未选中 → 全选，否则全取消。 */
+  private async runSelectorToggle(def: CustomSelectorDef): Promise<void> {
+    if (this.treeState === null || this.config === null) {
+      return; // 未加载配置：旧版 conv_data.items 为空，等效无操作
+    }
+    const matched = await this.matchSelector(def);
+    const selectedSet = new Set(this.treeState.getSelectedItems());
+    const flag = matched.some((item) => !selectedSet.has(item));
+    this.applySelectorSelection(matched, flag);
+  }
+
+  /**
+   * 执行单个按钮动作（main.js:663-714）。返回错误文本（null = 成功/no-op）。
+   * reload：重读选择器文件（清缓存重建，main.js:670-676；旧版附带 log4js 重配置
+   * 属渲染侧偶然耦合，不复活——log4js 配置由会话级 sink 持有）。
+   */
+  private async runButtonAction(def: CustomSelectorDef, raw: unknown): Promise<string | null> {
+    const action = parseButtonAction(raw);
+    switch (action.kind) {
+      case "noop":
+        return null;
+      case "reload": {
+        const files = this.customSelectors?.files ?? [];
+        await this.setCustomSelectors(files);
+        return null;
+      }
+      case "select_all":
+      case "unselect_all":
+        // 旧版动作名 unselect_all → 树 ops 词汇 select_none；盖当前版本过版本闸。
+        this.applyScriptOps([
+          {
+            v: this.treeState?.selectionVersion,
+            op: action.kind === "select_all" ? "select_all" : "select_none",
+          },
+        ]);
+        return null;
+      case "script":
+        return this.runButtonScript(def, action.name);
+    }
+  }
+
+  /** 按钮脚本执行（main.js:502-660；worker entry_kind "button"，P2-03）。 */
+  private async runButtonScript(
+    def: CustomSelectorDef,
+    scriptName: string,
+  ): Promise<string | null> {
+    const config = this.config;
+    const script = config?.gui.scripts[scriptName];
+    if (config === null || script === undefined) {
+      return `script ${scriptName} not found.`;
+    }
+    const selectors = this.customSelectors;
+    const effective = this.getEffectiveSettings();
+    let result: ScriptResult;
+    try {
+      result = await this.pool.invoke({
+        invocation_id: randomUUID(),
+        entry_kind: "button",
+        filename: script.filename,
+        source: script.source,
+        timeout_ms: script.timeoutMs,
+        // button_id 含选择器代际：reload 动作重读文件后 data 重新开始（旧版对象重建语义）。
+        button_id: `${def.name}@${String(selectors?.generation ?? 0)}`,
+        // 旧版按钮上下文无 run_seq（P0-08 §2.3）；global_options 为 option 数组形态
+        // （分歧 3：按钮是数组，before/after 事件才是 {"-p","-a"} 映射）。
+        context: {
+          work_dir: script.workDir,
+          configure_file: config.path,
+          xresloader_path: effective?.xresloaderPath ?? "",
+          global_options: config.globalOptions.map((option) => ({ ...option })),
+          ...(this.treeState === null ? {} : { tree: this.treeState.buildSnapshot() }),
+        },
+      });
+    } catch (err) {
+      // worker 级失败（WORKER_TIMEOUT/WORKER_EXIT/...）：链中止，模块名同旧版末 catch。
+      return formatUnknownError(err);
+    }
+    // BD-S3：所有 outcome 都应用 ops（settle 前已产生的部分修改可见）。
+    if (result.ops !== undefined) {
+      this.applyScriptOps(result.ops);
+    }
+    if (result.outcome === "resolved") {
+      return null;
+    }
+    if (result.outcome === "rejected") {
+      return result.reason ?? "script rejected";
+    }
+    return result.error?.message ?? "button script error";
+  }
+
+  /**
+   * 自定义按钮点击（P4-05a，main.js:795-830）：有 action 按序执行动作链，
+   * 失败记 error（module "CUSTOM SELECTOR"）并中止后续；无 action 走匹配切换。
+   * 返回 {ok, error?}；未知按钮由 RPC 层拦 INVALID_PARAMS。
+   */
+  async invokeCustomButton(name: string): Promise<{ ok: boolean; error?: string }> {
+    if (this.disposed) {
+      throw new Error("session is disposed");
+    }
+    const entry = this.customSelectors?.entries.find((e) => e.ok && e.def.name === name);
+    if (entry === undefined || !entry.ok) {
+      throw new Error(`unknown custom button: ${name}`);
+    }
+    const def = entry.def;
+    const actions = def.action ?? [];
+    if (actions.length === 0) {
+      await this.runSelectorToggle(def);
+      return { ok: true };
+    }
+    for (const raw of actions) {
+      const failure = await this.runButtonAction(def, raw);
+      if (failure !== null) {
+        void this.pipeline.error(failure, "CUSTOM SELECTOR");
+        return { ok: false, error: failure };
+      }
+    }
+    return { ok: true };
+  }
+
+  /**
+   * 事件 hook 开关（P4-05a，F09；main.js:1122-1188 复选框）。仅有 name 且
+   * mutable 的 hook 可切换；无状态门禁——旧版复选框全程可改，hook.enabled
+   * 在执行链构建时读取（运行中切换对当前 run 的 after 链可见，与旧版一致）。
+   */
+  setHookEnabled(group: "before" | "after" | "append_log", index: number, enabled: boolean): void {
+    const config = this.config;
+    if (config === null) {
+      throw new Error("setHookEnabled requires a loaded config");
+    }
+    const hooks =
+      group === "before"
+        ? config.gui.onBeforeConvert
+        : group === "after"
+          ? config.gui.onAfterConvert
+          : config.gui.onAppendLog;
+    const hook = hooks[index];
+    if (hook === undefined) {
+      throw new Error(`hook index out of range: ${group}[${String(index)}]`);
+    }
+    if (hook.toggle === undefined) {
+      throw new Error(`hook ${group}[${String(index)}] has no UI toggle (no name attribute)`);
+    }
+    if (!hook.toggle.mutable) {
+      throw new Error(`hook ${group}[${String(index)}] is immutable`);
+    }
+    hook.enabled = enabled;
   }
 
   /** 严格迁移：非法跳转（含终态再迁出之外的违规）由 assertTransition 抛出。 */

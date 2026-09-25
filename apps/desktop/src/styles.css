@@ -306,3 +306,216 @@ body {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
 }
+
+/* P4-04b：转换参数表单 / 输出矩阵 / 预览 / 本地确认对话框 */
+
+.react-aria-TextField .react-aria-TextArea {
+  font: inherit;
+  color: inherit;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+  resize: vertical;
+  min-height: 3.5rem;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+}
+
+.matrix-rules {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.matrix-rule {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-2);
+}
+
+.matrix-rule-remove {
+  margin-top: var(--space-2);
+}
+
+.matrix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.preview-panel {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow: auto;
+}
+
+.preview-summary {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.preview-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}
+
+.preview-conflicts {
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+  padding: var(--space-2);
+  color: var(--color-danger);
+}
+
+.preview-conflicts-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-base);
+}
+
+.preview-conflicts ul {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.preview-tasks {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.preview-tasks code {
+  font-family: var(--font-family-mono);
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-modal {
+  background: var(--color-panel-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  padding: var(--space-4);
+  max-width: 26rem;
+}
+
+.confirm-dialog:focus {
+  outline: none;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* ---- P4-05b 转换事件开关与自定义按钮 ---- */
+
+.hook-group {
+  margin-bottom: var(--space-2);
+}
+
+.hook-group-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.custom-btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* 旧版 bootstrap 按钮样式语义（main.js:718-736 词表）映射到本地 tokens：
+   outline-* 描边、实色填充；info→accent、light→border、dark→text。 */
+.custom-btn--outline-primary,
+.custom-btn--outline-info {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.custom-btn--outline-secondary,
+.custom-btn--outline-light {
+  border-color: var(--color-text-muted);
+  color: var(--color-text-muted);
+}
+
+.custom-btn--outline-success {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.custom-btn--outline-danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.custom-btn--outline-warning {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.custom-btn--outline-dark {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.custom-btn--primary,
+.custom-btn--info {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.custom-btn--secondary,
+.custom-btn--light {
+  background: var(--color-bg);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.custom-btn--success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-accent-contrast);
+}
+
+.custom-btn--danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-accent-contrast);
+}
+
+.custom-btn--warning {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-accent-contrast);
+}
+
+.custom-btn--dark {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg);
+}
+
+.script-dialog-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}

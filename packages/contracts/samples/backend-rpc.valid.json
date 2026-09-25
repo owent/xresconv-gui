@@ -27,5 +27,20 @@
   {
     "type": "request",
     "method": "preview"
+  },
+  {
+    "type": "request",
+    "method": "setHookEnabled",
+    "params": { "group": "before", "index": 0, "enabled": false }
+  },
+  {
+    "type": "request",
+    "method": "setCustomSelectors",
+    "params": { "files": ["D:/work/conv/custom-selector.json"] }
+  },
+  {
+    "type": "request",
+    "method": "invokeCustomButton",
+    "params": { "name": "重载选择器" }
   }
 ]
