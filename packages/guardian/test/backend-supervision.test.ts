@@ -122,14 +122,21 @@ describe("BackendSupervisor（P2-09）", () => {
 
   it("backend 卡死（不应答心跳）→ 截止判死 + 整树终止", { timeout: TEST_TIMEOUT_MS }, async () => {
     const events: BackendSupervisorEvent[] = [];
+    // 截止放宽到 2s：CI 共享 runner 上 400ms 会被调度延迟干扰（判死语义
+    // 不变——外部截止仍生效并整树回收；严格短截止由 rpc 超时用例覆盖）。
     const supervisor = makeSupervisor(events, {
       backendEnv: { XRESCONV_BACKEND_FAKE_HANG: "1" },
+      heartbeatDeadlineMs: 2000,
     });
     // FAKE_HANG 只影响 ping 应答，握手仍发生（握手是首条主动 health）。
     await supervisor.start();
     const pid = supervisor.stats().pid;
     await waitUntil(() => supervisor.stats().state === "dead", "hang detected");
-    expect(events.some((e) => e.type === "died" && e.message.includes("heartbeat"))).toBe(true);
+    const died = events.filter((e) => e.type === "died").map((e) => e.message);
+    expect(
+      died.some((message) => message.includes("heartbeat")),
+      `died reasons: ${died.join(" | ")}`,
+    ).toBe(true);
     expect(pid === undefined || !pidAlive(pid)).toBe(true);
     await supervisor.shutdown();
   });

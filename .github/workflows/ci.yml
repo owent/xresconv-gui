@@ -56,7 +56,8 @@ jobs:
         env:
           PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright/
 
-  # CI-02b：Tauri 壳原生检查（fmt/clippy/test，--locked）
+  # CI-02b：Tauri 壳原生检查（fmt/clippy/test，--locked）。yarn 脚本包装
+  # 需要 node_modules——先装 Node 依赖（仅安装，不跑 JS 测试）。
   quality-shell:
     name: quality (shell)
     runs-on: ubuntu-latest
@@ -65,6 +66,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable Corepack Yarn (pinned by packageManager)
+        run: corepack enable
+      - name: Install JS deps (script wrappers only)
+        run: corepack yarn install --immutable
       - name: Rust toolchain (locked by src-tauri rust-toolchain)
         run: |
           rustup show active-toolchain || rustup toolchain install

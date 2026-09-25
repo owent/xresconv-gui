@@ -348,7 +348,7 @@ describe("ConversionTree (P4-03)", () => {
 
     await user.click(screen.getByText("beta"));
 
-    const details = screen.getByRole("region", { name: "条目详情" });
+    const details = screen.getByRole("group", { name: "条目详情" });
     await waitFor(() => expect(within(details).getByDisplayValue("beta")).toBeTruthy());
     expect(within(details).getByDisplayValue("beta 描述")).toBeTruthy();
     expect(within(details).getByDisplayValue("beta.xlsx")).toBeTruthy();

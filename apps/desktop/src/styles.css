@@ -173,7 +173,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  overflow: auto;
+  /* 布局反馈 2026-09-25：参数区不得挤压树/按钮/日志——主区自身滚动。 */
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .bottom-area {
@@ -181,7 +183,8 @@ body {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-3);
-  max-height: 32vh;
+  /* 日志优先：底部占固定可观高度（clamp 下限），不被主区挤压。 */
+  height: clamp(11rem, 26vh, 34vh);
 }
 
 .toolbar {
@@ -192,10 +195,38 @@ body {
   margin-bottom: var(--space-2);
 }
 
+/* 次要面板折叠（details/summary；布局反馈 2026-09-25） */
+details.collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+details.collapsible > summary::before {
+  content: "▸";
+  color: var(--color-text-muted);
+  font-size: 0.8em;
+  transition: transform 0.1s ease-in;
+}
+
+details.collapsible[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.collapsible > *:not(summary) {
+  margin-top: var(--space-2);
+}
+
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-2);
 }
 
 .select-field {
@@ -417,7 +448,8 @@ body {
   border-radius: var(--radius-1);
   padding: var(--space-1) var(--space-2);
   resize: vertical;
-  min-height: 3.5rem;
+  /* 布局反馈 2026-09-25：多值字段两行起步（可纵向拉伸），压低表单整体高度。 */
+  min-height: 2.4rem;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
 }

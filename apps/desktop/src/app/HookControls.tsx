@@ -23,8 +23,8 @@ export function HookControls() {
   const hasAny = namedGroups.some(({ hooks }) => hooks.length > 0);
 
   return (
-    <section className="panel hook-controls" aria-label="转换事件">
-      <h2 className="panel-title">转换事件</h2>
+    <details className="panel hook-controls collapsible" aria-label="转换事件">
+      <summary className="panel-title collapsible-summary">转换事件</summary>
       {hasAny ? (
         namedGroups.map(({ group, label, hooks }) =>
           hooks.length > 0 ? (
@@ -50,6 +50,6 @@ export function HookControls() {
           {gui === null ? "加载配置后在此显示可开关的转换事件。" : "当前配置没有可开关的命名事件。"}
         </p>
       )}
-    </section>
+    </details>
   );
 }

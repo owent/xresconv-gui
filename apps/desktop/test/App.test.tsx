@@ -105,9 +105,9 @@ describe("App shell (P4-01)", () => {
     // 右侧主区（ConversionSettings / ItemDetails / OutputMatrixEditor / HookControls / CustomActionBar）
     expect(screen.getByRole("main")).toBeTruthy();
     expect(screen.getByRole("form", { name: "转换参数" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "条目详情" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "输出矩阵" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "转换事件" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "条目详情" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "输出矩阵" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "转换事件" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "自定义按钮" })).toBeTruthy();
 
     // 底部运行控制与日志（RunControls / RunSummary / LogPanel / DialogHost）

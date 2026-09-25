@@ -50,8 +50,8 @@ export function ItemDetails() {
   ] as const;
 
   return (
-    <section className="panel item-details" aria-label="条目详情">
-      <h2 className="panel-title">条目详情</h2>
+    <details className="panel item-details collapsible" aria-label="条目详情">
+      <summary className="panel-title collapsible-summary">条目详情</summary>
       {node === null ? (
         <p className="empty-state">在左侧树中聚焦条目后显示详情。</p>
       ) : (
@@ -68,6 +68,6 @@ export function ItemDetails() {
           </TextField>
         ))}
       </div>
-    </section>
+    </details>
   );
 }

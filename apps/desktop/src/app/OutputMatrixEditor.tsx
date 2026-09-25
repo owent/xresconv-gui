@@ -102,8 +102,8 @@ export function OutputMatrixEditor() {
   };
 
   return (
-    <section className="panel output-matrix" aria-label="输出矩阵">
-      <h2 className="panel-title">输出矩阵</h2>
+    <details className="panel output-matrix collapsible" aria-label="输出矩阵">
+      <summary className="panel-title collapsible-summary">输出矩阵</summary>
       {!matrixMode && effective !== null && (
         <div className="form-grid">
           <FormatSelect
@@ -223,6 +223,6 @@ export function OutputMatrixEditor() {
         )}
       </div>
       {effective === null && <p className="empty-state">加载配置后可编辑输出矩阵。</p>}
-    </section>
+    </details>
   );
 }
