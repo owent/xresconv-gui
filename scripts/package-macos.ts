@@ -117,7 +117,7 @@ for (const name of variants) {
   // 公证凭据经 tauri CLI 官方 env（APPLE_API_KEY/APPLE_API_ISSUER/APPLE_API_KEY_PATH
   // 或 APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID）。凭据只在用户环境/CI secrets。
   const signingIdentity = process.env.XRESCONV_MACOS_SIGNING_IDENTITY;
-  let overlay = path.join("src-tauri", "tauri.macos.conf.json");
+  let overlay = path.join("src-tauri", "tauri.macos.release.conf.json");
   if (signingIdentity !== undefined) {
     const base = JSON.parse(
       readFileSync(path.join(root, overlay), "utf8"),
