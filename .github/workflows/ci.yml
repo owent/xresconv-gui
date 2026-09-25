@@ -96,9 +96,12 @@ jobs:
           corepack yarn check:shell
           corepack yarn test:shell
 
-  # CI-03：桌面 E2E（真实 WebView；平台矩阵——Linux/macOS 首次入 CI，实测后移除
-  # “待验证”标记。tauri-driver 用 cargo 安装锁定版本；Windows 需匹配 WebView2
-  # 运行时版本的 msedgedriver）
+  # CI-03：桌面 E2E（真实 WebView；平台矩阵）。Linux（xvfb+WebKitGTK）与
+  # 本机 Windows 交互会话已实证；windows-latest 的 runner 会话无交互桌面，
+  # WebView2 无法与 msedgedriver 完成 DevToolsActivePort 握手（app 本体
+  # guardian/backend 正常，2026-09-25 诊断步实证）——设 continue-on-error
+  # 如实展示结果但不阻塞，权威 Windows 证据为本机交互会话（P4-09 记录），
+  # 恢复条件：专用 Windows GUI runner / RDP 会话。
   desktop-e2e:
     name: desktop e2e (${{ matrix.os }})
     needs: [quality-node, quality-shell]
@@ -107,10 +110,14 @@ jobs:
       matrix:
         include:
           - os: windows-latest
+            gui-allowed: false
           - os: ubuntu-latest
+            gui-allowed: true
           - os: macos-latest
+            gui-allowed: true
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
+    continue-on-error: ${{ matrix.gui-allowed == false }}
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -165,10 +172,15 @@ jobs:
           Stop-Job $job; Remove-Job $job -Force
         shell: pwsh
       - name: Diagnose tauri-driver (macOS)
-        # tauri-driver 启动即退排查：捕获其 stderr。非致命。
+        # tauri-driver 启动即退排查：捕获其 stderr（macOS 无 timeout 命令，
+        # 用后台进程 + sleep + kill）。非致命。
         if: runner.os == 'macOS' && failure()
         run: |
-          (timeout 3 tauri-driver 2>&1 || true) | head -20
+          tauri-driver > /tmp/td.log 2>&1 &
+          TPID=$!
+          sleep 3
+          kill $TPID 2>/dev/null || true
+          head -20 /tmp/td.log
       # actions/upload-artifact v7.0.1（失败证据：日志/截图/退出码）
       - name: Upload E2E failure evidence
         if: failure()
