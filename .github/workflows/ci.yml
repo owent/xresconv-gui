@@ -52,7 +52,9 @@ jobs:
           corepack yarn test:unit
           corepack yarn test:contracts
       - name: Browser E2E (chromium/firefox/webkit)
-        run: corepack yarn test:browser
+        run: |
+          corepack yarn workspace @xresconv/desktop exec playwright install --with-deps chromium firefox webkit
+          corepack yarn test:browser
         env:
           PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright/
 

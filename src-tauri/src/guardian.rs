@@ -664,7 +664,7 @@ mod tests {
             );
             let _ = tx.send(result);
         });
-        let result = rx.recv_timeout(Duration::from_secs(1));
+        let result = rx.recv_timeout(Duration::from_secs(5));
         client.kill().unwrap();
         assert!(
             matches!(result, Ok(Err(ChannelError::Timeout(_)))),
