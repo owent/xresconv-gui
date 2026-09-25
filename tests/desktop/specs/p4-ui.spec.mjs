@@ -35,13 +35,14 @@ describe("P4 UI panels in the real webview", () => {
     assert.match(await info.getText(), /完整日志见磁盘/);
   });
 
-  it("typing the log text filter and clearing it keeps the empty log state", async () => {
+  it("typing the log text filter keeps the empty log state", async () => {
     const filter = await $('[aria-label="日志文本筛选"]');
     await filter.setValue("不存在的关键字");
     const list = await $('[aria-label="日志列表"]');
     assert.match(await list.getText(), /暂无日志/);
-    await filter.setValue("");
-    assert.match(await list.getText(), /暂无日志/);
+    // 注：不在此清空输入——WebKitWebDriver 对 element/value 的空 text
+    // 报 "Missing text parameter"（CI Linux 实测）；清空路径由浏览器层
+    // E2E（chromium/firefox/webkit 的 fill+clear）覆盖。
   });
 
   it("copying with no logs surfaces a readable error, not a crash", async () => {

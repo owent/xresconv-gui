@@ -131,6 +131,11 @@ jobs:
         run: corepack yarn install --immutable
       - name: Install tauri-driver
         run: cargo install tauri-driver --locked
+      - name: Enable safaridriver (macOS)
+        # tauri-driver 在 macOS 用系统 safaridriver；未启用时启动即退
+        # （官方要求一次性 `safaridriver --enable`，CI 实测定位）。
+        if: runner.os == 'macOS'
+        run: sudo safaridriver --enable
       - name: Locate msedgedriver (Windows)
         if: runner.os == 'Windows'
         run: |

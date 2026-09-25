@@ -28,6 +28,12 @@ export const config = {
     {
       maxInstances: 1,
       "tauri:options": { application: exe },
+      // Windows CI（无交互桌面的会话）上 msedgedriver 偶发
+      // "DevToolsActivePort file doesn't exist"——按社区通行做法关 GPU 沙箱
+      // 参数（不影响本机交互会话的既有通过）。
+      ...(process.platform === "win32"
+        ? { "ms:edgeOptions": { args: ["--no-sandbox", "--disable-gpu"] } }
+        : {}),
     },
   ],
 };
