@@ -2,7 +2,7 @@
 
 ## 术语与翻译约定
 
-- 安全语境的 **Secret 按具体对象选译“密钥”“凭据”“口令”或“敏感信息”**：key/token 类值 → 密钥（API secret → API 密钥、secret management → 密钥管理、泄露 secrets → 泄露密钥）；password → 口令；认证材料 → 凭据（client credentials → 客户端凭据）；泛指密码、令牌、证书等敏感值集合 → 敏感信息。禁止直译为“秘密”，也尽量不用“机密”这类不常用词。
+- 安全语境的 **Secret 按具体对象选译“密钥”“凭据”“口令”或“敏感信息”**：key/token 类值 → 密钥（API secret → API 密钥、secret management → 密钥管理、泄露 secrets → 泄露密钥）；password → 口令；认证材料 → 凭据（client credentials → 客户端凭据）；泛指口令、令牌、证书等敏感值集合 → 敏感信息。禁止直译为“秘密”，也尽量不用“机密”这类不常用词。
 - 测试语境的 **fixture 译为“测试数据”**，禁止译作“夹具”：test fixture → 测试数据、fixture 文件 → 测试数据文件（“夹具”仅用于机械加工语境）。
 - 英文术语首次出现标注原文，其后全程使用同一译名；同一文档内不混用多个译法。
 
