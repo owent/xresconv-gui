@@ -1,11 +1,13 @@
 name: build
 
+# 旧 Electron 架构构建（P7 删除）：仅 main 推送触发。
+# 2026-09-25 移除 pull_request 触发——dev 分支为新架构（Tauri + Node
+# workspaces），旧工作流在 dev 上必然失败并阻塞 PR 检查；新架构 CI 见
+# ci.yml（quality-node/quality-shell/desktop-e2e）。
 on: # @see https://help.github.com/en/articles/events-that-trigger-workflows#webhook-events
   push:
     branches: # Array of patterns that match refs/heads
       - main # Push events on master branch
-  pull_request:
-    branches: [main]
 
 jobs:
   build:
