@@ -112,13 +112,31 @@ for (const name of variants) {
     });
   }
 
-  console.log(`[pkg] tauri build (dmg, ${name})`);
-  run(process.execPath, [
-    tauriCli,
-    "build",
-    "--config",
-    path.join("src-tauri", "tauri.macos.conf.json"),
-  ]);
+  // 签名接入（P5-07）：XRESCONV_MACOS_SIGNING_IDENTITY（钥匙串中的证书名，
+  // 如 "Developer ID Application: …"）注入 bundle.macOS.signingIdentity；
+  // 公证凭据经 tauri CLI 官方 env（APPLE_API_KEY/APPLE_API_ISSUER/APPLE_API_KEY_PATH
+  // 或 APPLE_ID/APPLE_PASSWORD/APPLE_TEAM_ID）。凭据只在用户环境/CI secrets。
+  const signingIdentity = process.env.XRESCONV_MACOS_SIGNING_IDENTITY;
+  let overlay = path.join("src-tauri", "tauri.macos.conf.json");
+  if (signingIdentity !== undefined) {
+    const base = JSON.parse(
+      readFileSync(path.join(root, overlay), "utf8"),
+    ) as Record<string, unknown>;
+    const bundle = (base.bundle ?? {}) as Record<string, unknown>;
+    const mac = (bundle.macOS ?? {}) as Record<string, unknown>;
+    const merged = {
+      ...base,
+      bundle: { ...bundle, macOS: { ...mac, signingIdentity } },
+    };
+    const overlayDir = path.join(root, "build", "tmp");
+    mkdirSync(overlayDir, { recursive: true });
+    overlay = path.join(overlayDir, "tauri.macos.signed.conf.json");
+    writeFileSync(path.join(root, overlay), JSON.stringify(merged, null, 2), "utf8");
+    console.log(`[pkg] codesigning enabled: ${signingIdentity}`);
+  }
+
+  console.log(`[pkg] tauri build (dmg, ${name}) via ${overlay}`);
+  run(process.execPath, [tauriCli, "build", "--config", overlay]);
 
   const dmgDir = path.join(root, "target", "release", "bundle", "dmg");
   const produced = existsSync(dmgDir)

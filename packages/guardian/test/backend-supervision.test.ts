@@ -137,7 +137,11 @@ describe("BackendSupervisor（P2-09）", () => {
       died.some((message) => message.includes("heartbeat")),
       `died reasons: ${died.join(" | ")}`,
     ).toBe(true);
-    expect(pid === undefined || !pidAlive(pid)).toBe(true);
+    // state=dead 在 declareDead 即置位，整树终止是异步收尾——有界等待实际
+    // 回收（共享 runner 上 SIGTERM→宽限→SIGKILL 更慢；不以“已发 kill”当回收）。
+    if (pid !== undefined) {
+      await waitUntil(() => !pidAlive(pid), "hang backend tree reaped", 10_000);
+    }
     await supervisor.shutdown();
   });
 
