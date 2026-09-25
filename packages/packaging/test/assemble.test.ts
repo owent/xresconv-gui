@@ -75,7 +75,15 @@ async function expectAsyncFailure(
 
 beforeAll(() => {
   tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "xresconv-p502-"));
-  target = pickTarget((t) => t.os === "windows" && t.arch === "x64" && t.variant === "bootstrap");
+  // 目标随本机平台（node_modules 的 koffi optionalDependencies 按平台解析，
+  // 跨平台组装需目标平台的 node_modules——CI 各 OS 上组装本平台目标）。
+  // targets.json 的 os/arch 词表：windows/macos 用 x64，linux 用 x86_64。
+  const osOfPlatform =
+    process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : "linux";
+  const archOfPlatform = osOfPlatform === "linux" ? "x86_64" : "x64";
+  target = pickTarget(
+    (t) => t.os === osOfPlatform && t.arch === archOfPlatform && t.variant === "bootstrap",
+  );
   nodeSha256 = sha256File(process.execPath);
 });
 
@@ -119,7 +127,7 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
     timeout: TEST_TIMEOUT_MS,
   }, () => {
     for (const rel of [
-      "runtime/node.exe",
+      `runtime/${process.platform === "win32" ? "node.exe" : "node"}`,
       "app/backend/service.mjs",
       "app/guardian/service.mjs",
       "app/script-host/worker.mjs",
@@ -131,7 +139,9 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
     }
     // 单份 Node：全布局只有一份 Node 二进制，不重复嵌入（PK07）。
     const nodeBinaries = manifest.files.filter((f) => f.origin.startsWith("node-dist:"));
-    expect(nodeBinaries.map((f) => f.path)).toEqual(["runtime/node.exe"]);
+    expect(nodeBinaries.map((f) => f.path)).toEqual([
+      `runtime/${process.platform === "win32" ? "node.exe" : "node"}`,
+    ]);
     // 三角色 bundle 是纯 JS 产物（非 TS 源复制；机制依据 P2-10）；
     // contracts 落位 = schema/*.json + 合成的 package.json。
     for (const f of manifest.files.filter((f) => f.origin.startsWith("build:@xresconv/"))) {
@@ -172,12 +182,17 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
     expect(() => validateRuntimeManifest(fromDisk)).not.toThrow();
     expect(manifest.nodeVersion).toBe(process.versions.node);
     expect(manifest.nodeHash.sha256).toBe(nodeSha256);
-    expect(manifest.nodeHash.sha256).toBe(sha256File(path.join(installDir, "runtime", "node.exe")));
+    expect(manifest.nodeHash.sha256).toBe(
+      sha256File(
+        path.join(installDir, "runtime", process.platform === "win32" ? "node.exe" : "node"),
+      ),
+    );
     expect(manifest.nativeAddonAbi.nodeAbi).toBe(process.versions.modules);
     expect(manifest.moduleTreeHash).toMatch(/^[0-9a-f]{64}$/);
     // win32：koffi 原生二进制落位并登记（Node-API，ABI 匹配单份 Node）。
     const nativeNames = manifest.nativeAddonAbi.modules?.map((m) => m.name) ?? [];
-    expect(nativeNames).toContain("@koromix/koffi-win32-x64");
+    // koffi optionalDependencies 按本机平台解析（win32-x64/linux-x64…）。
+    expect(nativeNames).toContain(`@koromix/koffi-${process.platform}-${process.arch}`);
     expect(manifest.runtimePayloads).toContain("native-addons");
     // files[] 全字段非空、路径为 portable 相对路径（lint 已强校验，显式复核）。
     for (const f of manifest.files) {

@@ -54,8 +54,13 @@ interface ChainFixture {
 
 let fixture: ChainFixture | null = null;
 
-/** 整树只读/可写切换（Windows 上 chmod 映射 FILE_ATTRIBUTE_READONLY）。 */
+/**
+ * 整树只读/可写切换（Windows 上 chmod 映射 FILE_ATTRIBUTE_READONLY）。
+ * POSIX 上 0444 会剥离可执行位——node 二进制保持 0555（只读仍可执行，
+ * “只读介质上可运行”正是 PK07 要验证的语义；Windows 只读属性同理不挡执行）。
+ */
 function setTreeReadonly(root: string, readonly: boolean): void {
+  const nodeName = process.platform === "win32" ? "node.exe" : "node";
   const stack = [root];
   while (stack.length > 0) {
     const dir = stack.pop() as string;
@@ -64,6 +69,8 @@ function setTreeReadonly(root: string, readonly: boolean): void {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         stack.push(full);
+      } else if (entry.name === nodeName && path.dirname(full).endsWith("runtime")) {
+        fs.chmodSync(full, readonly ? 0o555 : 0o755);
       } else {
         fs.chmodSync(full, readonly ? 0o444 : 0o644);
       }
@@ -75,8 +82,13 @@ beforeAll(async () => {
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "xresconv-p502-chain-"));
   // PK07：安装路径含中文与空格。
   const installDir = path.join(tmpBase, "安装 目录");
+  // 目标随本机平台（koffi optionalDependencies 按平台解析；node.exe/node 命名
+  // 与 chmod 跟随目标 OS——跨平台组装需目标平台 node_modules，CI 各 OS 本平台跑）。
+  const osOfPlatform =
+    process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : "linux";
+  const archOfPlatform = osOfPlatform === "linux" ? "x86_64" : "x64";
   const target: ReleaseTarget = pickTarget(
-    (t) => t.os === "windows" && t.arch === "x64" && t.variant === "bootstrap",
+    (t) => t.os === osOfPlatform && t.arch === archOfPlatform && t.variant === "bootstrap",
   );
   await assembleRuntimeLayout({
     target,
@@ -137,7 +149,7 @@ resolve();]]></script>
     installDir,
     userProjectDir,
     tempDir,
-    nodeExe: path.join(installDir, "runtime", "node.exe"),
+    nodeExe: path.join(installDir, "runtime", process.platform === "win32" ? "node.exe" : "node"),
     guardianEntry: path.join(installDir, "app", "guardian", "service.mjs"),
   };
   // PK07 只读介质：spawn 前整树置只读，afterAll 恢复后清理。
