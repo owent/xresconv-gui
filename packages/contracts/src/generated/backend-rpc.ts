@@ -17,12 +17,13 @@ export type BackendRpc =
         | "run"
         | "cancel"
         | "reset"
+        | "getLogs"
         | "respondDialog"
         | "setHookEnabled"
         | "setCustomSelectors"
         | "invokeCustomButton";
       /**
-       * Per-method arguments (loadConfig {path}, applyOps {ops}, respondDialog {token, choice}, updateSettings {fields} incl. parallelism (number, 1..16, session-level, not part of overrides), setHookEnabled {group: "before"|"after"|"append_log", index: non-negative integer, enabled: boolean}, setCustomSelectors {files: string[]}, invokeCustomButton {name}); omitted means {}.
+       * Per-method arguments (loadConfig {path}, applyOps {ops}, respondDialog {token, choice}, updateSettings {fields} incl. parallelism (number, 1..16, session-level, not part of overrides), setHookEnabled {group: "before"|"after"|"append_log", index: non-negative integer, enabled: boolean}, setCustomSelectors {files: string[]}, invokeCustomButton {name}, getLogs {limit: integer 1..1000 (omitted = 1000), beforeSeq: positive integer (omitted = newest window; given = entries with seq < beforeSeq, load-older paging)}); omitted means {}.
        */
       params?: {
         [k: string]: unknown | undefined;

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 
 /** Persistent guardian health carries supervisor state (not the one-shot NodeHealth). */
 export interface GuardianHealth {
@@ -63,4 +63,22 @@ export async function pickXmlConfig(): Promise<string | null> {
     filters: [{ name: "xresconv XML", extensions: ["xml"] }],
   });
   return typeof selected === "string" ? selected : null;
+}
+
+/** 打开原生保存对话框（P4-07 日志导出）；用户取消时返回 null。 */
+export async function pickSavePath(defaultName: string): Promise<string | null> {
+  const selected = await save({
+    title: "导出日志",
+    defaultPath: defaultName,
+    filters: [{ name: "Text", extensions: ["log", "txt"] }],
+  });
+  return typeof selected === "string" ? selected : null;
+}
+
+/**
+ * 写 UTF-8 文本文件（P4-07）：壳层 export_text_file 命令（lib.rs），路径来自
+ * pickSavePath 的用户选择；这是 UI 侧可写磁盘的唯一入口。
+ */
+export function exportTextFile(path: string, content: string): Promise<void> {
+  return invoke("export_text_file", { path, content });
 }

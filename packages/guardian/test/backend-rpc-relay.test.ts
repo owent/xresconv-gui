@@ -128,6 +128,16 @@ function eventPayload(env: Envelope): { source?: string; type?: string; state?: 
   return env.payload as { source?: string; type?: string; state?: string };
 }
 
+/** 树节点总数（分类 + 条目，递归）。 */
+function countTreeNodes(nodes: readonly unknown[]): number {
+  let total = 0;
+  for (const node of nodes) {
+    total += 1;
+    total += countTreeNodes((node as { children?: unknown[] }).children ?? []);
+  }
+  return total;
+}
+
 async function waitExit(child: ChildProcess, label: string, timeoutMs = WAIT_MS): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) {
     return;
@@ -147,7 +157,9 @@ describe("壳→guardian→backend 业务 RPC（P4-02）", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "xresconv-large-snapshot-"));
     const fixture = path.join(dir, "large.xml");
     writeFileSync(fixture, `<root><list><item name="${"x".repeat(600_000)}" /></list></root>`);
-    const shell = spawnGuardian();
+    // P4-08 帧上限升至 64MiB（100k 快照需 ~37.5MB）；注入 1MiB 测试上限
+    // 复现 RESPONSE_TOO_LARGE 关联失败路径（生产缺省不变）。
+    const shell = spawnGuardian({ XRESCONV_MAX_FRAME_BYTES: String(1024 * 1024) });
     try {
       await shell.waitFor(
         (env) => env.kind === "event" && eventPayload(env).type === "ready",
@@ -158,6 +170,41 @@ describe("壳→guardian→backend 业务 RPC（P4-02）", () => {
       );
       expect(response.ok).toBe(false);
       expect(response.error?.code).toBe("RESPONSE_TOO_LARGE");
+    } finally {
+      await shell.send("shutdown", {});
+      await waitExit(shell.child, "shutdown");
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  it("大快照过通道（P4-08）：>1MiB 树快照在默认 64MiB 帧预算下完整返回", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "xresconv-big-snapshot-"));
+    const items: string[] = [];
+    for (let i = 0; i < 5000; i++) {
+      items.push(
+        `    <item file="src.xlsx" scheme="src.xlsx|s${i}|2,1" name="表${i}" cat="c" tag="t1" class="client"></item>`,
+      );
+    }
+    const fixture = path.join(dir, "big.xml");
+    writeFileSync(
+      fixture,
+      `<?xml version="1.0" encoding="UTF-8"?>\n<root>\n  <category>\n    <tree id="c" name="分类"></tree>\n  </category>\n  <list>\n${items.join("\n")}\n  </list>\n</root>\n`,
+      "utf8",
+    );
+    const shell = spawnGuardian();
+    try {
+      await shell.waitFor(
+        (env) => env.kind === "event" && eventPayload(env).type === "ready",
+        "ready",
+      );
+      const response = resultPayload(
+        await shell.rpc({ type: "request", method: "loadConfig", params: { path: fixture } }),
+      );
+      expect(response.ok, JSON.stringify(response.error)).toBe(true);
+      const nodes = (response.result as { tree: { nodes: unknown[] } }).tree.nodes;
+      // 分类 c + 5000 条目。
+      expect(countTreeNodes(nodes)).toBe(5001);
     } finally {
       await shell.send("shutdown", {});
       await waitExit(shell.child, "shutdown");

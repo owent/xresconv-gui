@@ -293,6 +293,29 @@ body {
   color: var(--color-text-muted);
 }
 
+/* P4-06：运行终态结果（UI06：区分实际阶段与已发生副作用） */
+.run-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.run-result--ok {
+  color: var(--color-success);
+}
+
+.run-result--error {
+  color: var(--color-danger);
+}
+
+.run-result--info {
+  color: var(--color-warning);
+}
+
 .log-panel {
   display: flex;
   flex-direction: column;
@@ -305,6 +328,83 @@ body {
   overflow: auto;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
+}
+
+/* P4-07：日志工具栏 / 有界窗口信息 / 虚拟行 / 语义级别色 */
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.log-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.log-filter-label select,
+.log-toolbar input[type="search"] {
+  color: inherit;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.log-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.log-copy-hint {
+  color: var(--color-success);
+  font-size: var(--font-size-sm);
+}
+
+.log-window-info {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.log-load-older {
+  margin-bottom: var(--space-1);
+}
+
+.log-row-wrapper {
+  height: 22px;
+  overflow: hidden;
+}
+
+.log-row {
+  display: flex;
+  gap: var(--space-1);
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 22px;
+}
+
+.log-module {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.log-level--notice {
+  color: var(--color-accent);
+}
+
+.log-level--warning {
+  color: var(--color-warning);
+}
+
+.log-level--error {
+  color: var(--color-danger);
 }
 
 /* P4-04b：转换参数表单 / 输出矩阵 / 预览 / 本地确认对话框 */

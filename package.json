@@ -55,12 +55,16 @@
     "check:toolchain": "node scripts/check-toolchain.mjs",
     "dev:desktop": "tauri dev",
     "build:desktop": "tauri build",
+    "package:windows": "node --experimental-strip-types scripts/package-windows.ts",
+    "package:linux": "node --experimental-strip-types scripts/package-linux.ts",
+    "package:macos": "node --experimental-strip-types scripts/package-macos.ts",
     "lint": "biome check apps packages && markdownlint \"docs/plan/**/*.md\" \"Plan.md\"",
     "typecheck": "yarn workspaces foreach -A --include '@xresconv/*' run typecheck",
     "test:unit": "yarn workspaces foreach -A --include '@xresconv/*' run test",
     "test:contracts": "yarn workspace @xresconv/contracts test",
     "test:shell": "cargo test --workspace --locked",
     "check:shell": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+    "test:browser": "yarn workspace @xresconv/desktop build && yarn workspace @xresconv/desktop exec playwright test",
     "test:desktop": "node tests/desktop/run.mjs"
   },
   "repository": {

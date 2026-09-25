@@ -44,11 +44,21 @@
 | [P4-04b](P4-04b.md) | P4-04 前端切片：设置表单/输出矩阵编辑器/预览视图（UI04）+ 会话级 parallelism 后端扩展（契约文本登记） |
 | [P4-05a](P4-05a.md) | P4-05 后端切片：自定义选择器/按钮（加载校验/隔离匹配/动作链/按钮 data 代际失效）+ 事件 hook 开关（契约枚举 +3 方法；BD-O19/O20 缺陷修复） |
 | [P4-05b](P4-05b.md) | P4-05 前端切片：HookControls/CustomActionBar/DialogHost（UI05/SC06；样式白名单映射、弹框队列 yes/no/on_close、CLI 选择器一次性接线） |
+| [P4-06](P4-06.md) | RunControls 开始/取消/重置接线与门禁、run_end/终态事件消费、UI06 结果文案（区分阶段与已发生副作用；guardian 死亡复位在途标记） |
+| [P4-07](P4-07.md) | 日志面板：getLogs 游标契约扩展（seq/beforeSeq）、有界窗口+筛选/复制/导出、TanStack Virtual、ANSI 安全富文本（BD-04）、壳 export_text_file 唯一写盘入口 |
+| [P4-08](P4-08.md) | 树虚拟化（RAC Virtualizer+ListLayout）、帧预算 1MiB→64MiB（100k 快照过通道）、Playwright 三引擎浏览器测试（主题/axe/无 CDN）、100k backend 压测 |
+| [P4-09](P4-09.md) | 依赖/产物扫描（无旧 UI 运行依赖）、真实 WebView2 桌面 E2E 扩展（9/9）、G4 报告（Windows 实测范围通过） |
 
 | 记录 | 内容 |
 | --- | --- |
 | [P5-01](P5-01.md) | 发行目标清单与 targets/manifest schema、命名和矩阵生成器（22 目标 = D1/D2 精确集合；PK01：重复/缺失/未知/禁架构/不一致均失败；清单卫生 lint 防开发机路径与密钥泄漏） |
 | [P5-02](P5-02.md) | 单份 Node 获取校验与 production 组装（assembleRuntimeLayout：esbuild 三角色、闭包裁剪、schema 落位、manifest 生成；发行布局自定位接线；xml-naming ESM-only 闭包教训；PK07 本机部分全链冒烟） |
+| [P5-03](P5-03.md) | Windows 双配置/NSIS：WebView2 原生预检（先检查后 GUI）、发布布局自定位、双变体实构（bootstrap 29MiB/offline 232MiB，负载集合一致；旧版 -70%） |
+| [P5-04](P5-04.md) | macOS 两变体配置/脚本/D5 最低系统 13.5 定稿 + .app Resources 自定位（实构阻塞于 macOS 主机） |
+| [P5-05](P5-05.md) | Linux 预检引导器（POSIX sh+ldconfig 三态实测）与在线 DEB（WSL Debian 13：构建/安装/WSLg 启动冒烟） |
+| [P5-06](P5-06.md) | Linux 离线自含 AppImage 原型（141MiB 内嵌 WebKitGTK 闭包；koffi musl 变体剔除修复） |
+| [P5-07](P5-07.md) | SPDX 2.3 SBOM 生成（59 包样张）与哈希/许可清单；签名阻塞于受控环境 |
+| [P5-09](P5-09.md) | 大小分解（bootstrap -70% 达标）、产物扫描、CI 工作流 CI-01..07 落地（SHA 固定）；P5-08/P5-10 状态如实登记 |
 
 | 记录 | 内容 |
 | --- | --- |

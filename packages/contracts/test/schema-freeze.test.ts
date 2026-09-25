@@ -7,9 +7,11 @@
 //   P4-04a 给 backend-rpc method 枚举追加 updateSettings/preview、错误码词表
 //   补 XRESLOADER_NOT_FOUND（docs/plan/records/P4-04a.md）；
 //   P4-04b 给 backend-rpc params 描述补 updateSettings fields 的 parallelism
-//   （number, 1..16，会话级，不进 overrides；纯文本变更，docs/plan/records/P4-04b.md）；
+//   （number，1..16，会话级，不进 overrides；纯文本变更，docs/plan/records/P4-04b.md）；
 //   P4-05a 给 backend-rpc method 枚举追加 setHookEnabled/setCustomSelectors/
-//   invokeCustomButton、params 描述补三方法参数形状（docs/plan/records/P4-05a.md）。
+//   invokeCustomButton、params 描述补三方法参数形状（docs/plan/records/P4-05a.md）；
+//   P4-07 给 backend-rpc method 枚举追加 getLogs、params 描述补 {limit:
+//   integer 1..1000}（日志游标窗口，docs/plan/records/P4-07.md）。
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

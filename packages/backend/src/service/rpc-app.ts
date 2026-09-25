@@ -181,6 +181,9 @@ const STRING_ARRAY_SETTING_FIELDS = ["protoFile", "dataSrcDir"] as const;
 /** 矩阵规则允许的键（OutputMatrixRule 形状）。 */
 const MATRIX_RULE_KEYS = ["type", "rename", "outputDir", "tags", "classes"] as const;
 
+/** getLogs 单次返回上限（P4-07；UI 分页按此粒度拉取）。 */
+const GET_LOGS_MAX_LIMIT = 1000;
+
 function asStringArray(value: unknown, label: string): string[] {
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
     throw new RpcError("INVALID_PARAMS", `updateSettings fields.${label} must be string[]`);
@@ -361,6 +364,8 @@ export class BackendRpcApp {
       case "reset":
         await this.start();
         return await this.session.reset();
+      case "getLogs":
+        return this.rpcGetLogs(p);
       case "respondDialog":
         return this.rpcRespondDialog(p);
       case "setHookEnabled":
@@ -525,6 +530,53 @@ export class BackendRpcApp {
       conflicts: [...groups.values()]
         .filter((group) => group.count > 1)
         .map(({ outputDir, rename, items: names }) => ({ outputDir, rename, items: names })),
+    };
+  }
+
+  /**
+   * getLogs（P4-07，UI07 日志游标）：返回内存队列日志窗口（含 seq），与事件流
+   * log 条目按 seq 幂等对齐；droppedCount/capacity 供 UI 展示丢弃量。
+   * beforeSeq 缺省 = 最新窗口；给定时返回 seq < beforeSeq 的更早窗口（滚动加载
+   * 历史）。无状态门禁——日志面独立于配置会话（未加载配置也可查）。
+   */
+  private rpcGetLogs(params: Record<string, unknown>): {
+    entries: LogEntry[];
+    droppedCount: number;
+    capacity: number;
+  } {
+    let limit = GET_LOGS_MAX_LIMIT;
+    if (params.limit !== undefined) {
+      const value = params.limit;
+      if (
+        typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        value < 1 ||
+        value > GET_LOGS_MAX_LIMIT
+      ) {
+        throw new RpcError(
+          "INVALID_PARAMS",
+          `getLogs limit must be an integer in [1, ${GET_LOGS_MAX_LIMIT}]`,
+        );
+      }
+      limit = value;
+    }
+    let beforeSeq: number | undefined;
+    if (params.beforeSeq !== undefined) {
+      const value = params.beforeSeq;
+      if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+        throw new RpcError("INVALID_PARAMS", "getLogs beforeSeq must be a positive integer");
+      }
+      beforeSeq = value;
+    }
+    const pipeline = this.session.pipeline;
+    return {
+      entries: structuredClone(
+        beforeSeq === undefined
+          ? pipeline.getRecent(limit)
+          : pipeline.getRecentBefore(beforeSeq, limit),
+      ),
+      droppedCount: pipeline.droppedCount,
+      capacity: pipeline.capacity,
     };
   }
 

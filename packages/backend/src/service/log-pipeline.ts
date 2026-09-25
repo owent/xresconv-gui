@@ -51,6 +51,12 @@ export interface LogEntry {
   readonly level: LogLevel;
   /** 渲染形态 `[module]: message`（module 为空时仅 message），与写 log4js 的文本一致。 */
   readonly text: string;
+  /**
+   * 队列内单调游标（P4-07）：仅经 {@link LogPipeline.commit} 落队的条目携带；
+   * 直发监听器/sink 的溢出诊断不占 seq（不进队列、与 getLogs 无交集）。
+   * UI 据此对 getLogs 初始填充与事件流做幂等去重。
+   */
+  readonly seq?: number;
 }
 
 /**
@@ -110,6 +116,8 @@ export class LogPipeline {
   private readonly sinks = new Set<(entry: LogEntry) => void>();
   private tail: Promise<unknown> = Promise.resolve();
   private pendingHooks = 0;
+  /** 队列内单调游标（P4-07）；直发诊断不消耗。 */
+  private nextSeq = 0;
   hookSkippedCount = 0;
 
   constructor(options: { capacity?: number } = {}) {
@@ -132,6 +140,26 @@ export class LogPipeline {
   /** 当前内存队列快照（有界，最老在前）。 */
   snapshot(): LogEntry[] {
     return [...this.entries];
+  }
+
+  /** 最新 limit 条（最老在前）；limit 缺省全量、越界夹取（P4-07 getLogs 底座）。 */
+  getRecent(limit?: number): LogEntry[] {
+    const bound = Math.max(0, Math.floor(limit ?? this.entries.length));
+    if (bound === 0) return [];
+    if (bound >= this.entries.length) return [...this.entries];
+    return this.entries.slice(this.entries.length - bound);
+  }
+
+  /** seq < beforeSeq 的最新 limit 条（最老在前；UI 滚动加载历史，P4-07）。 */
+  getRecentBefore(beforeSeq: number, limit?: number): LogEntry[] {
+    const bound = Math.max(0, Math.floor(limit ?? this.entries.length));
+    if (bound === 0) return [];
+    let end = this.entries.length;
+    while (end > 0 && (this.entries[end - 1]?.seq ?? 0) >= beforeSeq) {
+      end--;
+    }
+    const start = Math.max(0, end - bound);
+    return this.entries.slice(start, end);
   }
 
   /** 等待所有在途 hook 链处理完成（测试与收尾用，有界性由调用方超时保证）。 */
@@ -235,7 +263,8 @@ export class LogPipeline {
   }
 
   private commit(entry: LogEntry, bypassSinks = false): void {
-    this.entries.push(entry);
+    const queued = { ...entry, seq: ++this.nextSeq };
+    this.entries.push(queued);
     if (this.entries.length > this.capacity) {
       this.entries.shift();
       this.droppedCount++;
@@ -250,7 +279,7 @@ export class LogPipeline {
         bypassSinks,
       );
     }
-    this.emit(entry, bypassSinks);
+    this.emit(queued, bypassSinks);
   }
 
   private emit(entry: LogEntry, bypassSinks = false): void {

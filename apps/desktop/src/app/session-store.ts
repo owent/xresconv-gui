@@ -4,18 +4,25 @@ import {
   type BackendSnapshot,
   backendRpc,
   type DialogPayloadLike,
+  type GetLogsResult,
   type GuardianDeadPayload,
   getBackendSnapshot,
   type HookGroup,
   invalidateBackendSnapshot,
+  type LogEntryLike,
+  type LogLevelLike,
   type NodeStateChange,
   type PreviewResult,
+  RUN_TERMINAL_STATES,
+  type RunSummaryLike,
   type SettingsFields,
   type SettingsViewLike,
   type TreeNodeKey,
   type TreeNodeSnap,
   type XresconvEvent,
 } from "../adapters/backend";
+import { exportTextFile, pickSavePath } from "../adapters/tauri";
+import { writeClipboardText } from "./clipboard";
 
 /**
  * 会话 store（docs/plan/04-ui.md §状态分层）：后端快照缓存 + 事件水位 + UI 状态。
@@ -23,7 +30,8 @@ import {
  * - 选择权威在 backend；UI 只发 ops（带版本闸），按 AppliedOpsReport.stateChanges
  *   增量套用并推进版本；版本失配自动 getSnapshot 重同步并以 lastError 可见提示
  *   （不悄悄吞）。
- * - 事件只存计数与最近 state_change；日志详情缓冲属 P4-07。
+ * - 事件存计数、最近 state_change、脚本弹框队列与有界日志窗口（P4-07）；
+ *   日志按 seq 幂等对齐（getLogs 初始页 + 事件流），guardian 死亡复位游标。
  * - 选择 ops 串行执行（selectionChain）：连续快速操作总是读到最新版本，
  *   避免自造的 stale 拒绝。
  * - 不在任何 useEffect 里以状态就绪为触发自动执行转换。
@@ -58,6 +66,93 @@ export interface PreviewState {
   error: string | null;
 }
 
+/**
+ * 最近一次运行的终态记录（P4-06，UI06）：run_end 摘要 + 终态迁移来源阶段。
+ * endPhase 取 state_change.previous（事件按序先于 run_end 到达）；事件缺失时为
+ * null，文案退化为通用描述，不猜测阶段。
+ */
+export interface RunRecord {
+  runSeq: number;
+  state: RunSummaryLike["state"];
+  failedCount: number;
+  taskCount: number;
+  durationMs: number;
+  endPhase: string | null;
+}
+
+/** UI 日志窗口条目（P4-07）：backend 条目 + 本地稳定键（无 seq 时本地计数器补）。 */
+export type UiLogEntry = LogEntryLike & { localId: number };
+
+export type LogLevelFilter = "all" | LogLevelLike;
+
+/** 日志筛选（UI 状态；不影响落盘日志与脚本 hook）。 */
+export interface LogFilterState {
+  level: LogLevelFilter;
+  text: string;
+}
+
+/** 日志窗口状态（P4-07，UI07）：有界缓冲 + 游标 + 丢弃计数。 */
+export interface LogWindowState {
+  entries: UiLogEntry[];
+  /** 已完成初始 getLogs 拉取（防重试风暴；guardian 死亡复位）。 */
+  initialized: boolean;
+  /** backend 内存队列溢出丢弃数（getLogs 返回）。 */
+  backendDroppedCount: number;
+  /** UI 窗口淘汰的最老条目数。 */
+  localDroppedCount: number;
+  /** 已见最大 backend seq（事件幂等去重；guardian 死亡复位）。 */
+  maxSeq: number;
+  loadingOlder: boolean;
+  /** 最近一次加载更早返回空（backend 窗口尽头）。 */
+  noMoreOlder: boolean;
+  readonly windowCapacity: number;
+}
+
+/** UI 日志窗口容量（backend 内存队列为 10000；此为其内的可管理窗口）。 */
+const LOG_WINDOW_CAPACITY = 2000;
+/** getLogs 单页条数。 */
+const LOG_PAGE_SIZE = 1000;
+
+/** 日志条目防御性窄化（backend 序列化漂移由 backend 测试拦截；畸形跳过不崩溃）。 */
+function normalizeLogEntry(value: unknown): LogEntryLike | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.message !== "string") return null;
+  const moduleName = typeof raw.moduleName === "string" ? raw.moduleName : "";
+  const level = raw.level;
+  return {
+    message: raw.message,
+    rawMessage: typeof raw.rawMessage === "string" ? raw.rawMessage : raw.message,
+    moduleName,
+    style: typeof raw.style === "string" ? raw.style : "",
+    level:
+      level === "info" || level === "notice" || level === "warning" || level === "error"
+        ? level
+        : "info",
+    text:
+      typeof raw.text === "string"
+        ? raw.text
+        : moduleName === ""
+          ? raw.message
+          : `[${moduleName}]: ${raw.message}`,
+    ...(typeof raw.seq === "number" ? { seq: raw.seq } : {}),
+  };
+}
+
+/** 按筛选条件过滤日志窗口（纯显示层；复制/导出同样使用筛选后集合）。 */
+export function filterLogEntries(
+  entries: readonly UiLogEntry[],
+  filter: LogFilterState,
+): UiLogEntry[] {
+  const needle = filter.text.trim().toLowerCase();
+  if (filter.level === "all" && needle === "") return [...entries];
+  return entries.filter((entry) => {
+    if (filter.level !== "all" && entry.level !== filter.level) return false;
+    if (needle !== "" && !entry.text.toLowerCase().includes(needle)) return false;
+    return true;
+  });
+}
+
 interface SessionData {
   /** 最近一次 loadConfig/reload/getSnapshot 的快照；未加载为 null。 */
   snapshot: BackendSnapshot | null;
@@ -80,6 +175,20 @@ interface SessionData {
   preview: PreviewState;
   /** 待应答脚本弹框队列（P4-05b；dialog_request 进队、应答/失效出队）。 */
   pendingDialogs: PendingDialog[];
+  /** P4-06：run RPC 在途（双击防护）。 */
+  runStarting: boolean;
+  /** P4-06：已请求取消、等待后端清理（终态事件清除；EX03 重复取消幂等）。 */
+  cancelRequested: boolean;
+  /** P4-06：reset RPC 在途。 */
+  resetting: boolean;
+  /** 最近一次运行终态记录（P4-06，UI06）；新 run 成功启动时清除。 */
+  lastRun: RunRecord | null;
+  /** 终态 state_change 的 previous；由同一次运行的 run_end 消费。 */
+  pendingEndPhase: string | null;
+  /** 日志窗口（P4-07，UI07）。 */
+  logs: LogWindowState;
+  /** 日志筛选（P4-07 UI 状态；不影响落盘日志与脚本 hook）。 */
+  logFilter: LogFilterState;
 }
 
 interface SessionActions {
@@ -94,6 +203,25 @@ interface SessionActions {
   updateSettings: (fields: SettingsFields) => Promise<boolean>;
   /** 预览（P4-04b，UI04）：在途 loading；错误（含 XRESLOADER_NOT_FOUND）进 error。 */
   runPreview: () => Promise<boolean>;
+  /**
+   * 开始转换（P4-06）：run RPC 立即返回 {runSeq}，进度/结果经事件流；成功后
+   * 重同步快照（状态权威来自 backend，防事件迟到窗口）并清除上次运行记录。
+   */
+  startRun: () => Promise<boolean>;
+  /** 取消当前运行（P4-06，EX03）：置 cancelRequested 直到终态事件（重复取消幂等）。 */
+  cancelRun: () => Promise<boolean>;
+  /** 业务重置（P4-06，EX03）：有活动运行先取消等清理；完成后重同步快照。 */
+  resetSession: () => Promise<boolean>;
+  /** 初始拉取日志窗口（P4-07）：getLogs 最新页；幂等（initialized 闸）。 */
+  initLogs: () => Promise<void>;
+  /** 加载更早日志（P4-07）：beforeSeq 向后分页并前插；无更早置 noMoreOlder。 */
+  loadOlderLogs: () => Promise<void>;
+  /** 复制筛选后日志到剪贴板（P4-07）：纯文本（entry.text 行）。 */
+  copyLogs: () => Promise<boolean>;
+  /** 导出筛选后日志（P4-07）：原生保存对话框 + 壳层 export_text_file。 */
+  exportLogs: () => Promise<boolean>;
+  /** 设置日志筛选（P4-07 UI 状态）。 */
+  setLogFilter: (patch: Partial<LogFilterState>) => void;
   /** 事件 hook 开关（P4-05b，F09）：成功就地改写快照 config.gui；失败写 lastError。 */
   setHookEnabled: (group: HookGroup, index: number, enabled: boolean) => Promise<boolean>;
   /** 设置/重读自定义选择器文件（P4-05b）：成功后重同步快照（default_selected 已改树）。 */
@@ -177,6 +305,30 @@ function applyStateChanges(
 
 const initialPreview = (): PreviewState => ({ status: "idle", result: null, error: null });
 
+/** run_end 摘要防御性窄化（backend 序列化漂移由 backend 测试拦截；畸形不崩溃）。 */
+function parseRunSummary(value: unknown): RunSummaryLike | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const raw = value as Record<string, unknown>;
+  if (
+    typeof raw.runSeq !== "number" ||
+    (raw.state !== "succeeded" && raw.state !== "failed" && raw.state !== "cancelled") ||
+    typeof raw.failedCount !== "number" ||
+    typeof raw.taskCount !== "number" ||
+    typeof raw.durationMs !== "number"
+  ) {
+    return null;
+  }
+  return {
+    runSeq: raw.runSeq,
+    state: raw.state,
+    failedCount: raw.failedCount,
+    taskCount: raw.taskCount,
+    durationMs: raw.durationMs,
+  };
+}
+
 const initialData: SessionData = {
   snapshot: null,
   connection: "idle",
@@ -189,6 +341,22 @@ const initialData: SessionData = {
   focusedKey: null,
   preview: initialPreview(),
   pendingDialogs: [],
+  runStarting: false,
+  cancelRequested: false,
+  resetting: false,
+  lastRun: null,
+  pendingEndPhase: null,
+  logs: {
+    entries: [],
+    initialized: false,
+    backendDroppedCount: 0,
+    localDroppedCount: 0,
+    maxSeq: -1,
+    loadingOlder: false,
+    noMoreOlder: false,
+    windowCapacity: LOG_WINDOW_CAPACITY,
+  },
+  logFilter: { level: "all", text: "" },
 };
 
 let sessionEpoch = 0;
@@ -196,6 +364,8 @@ let snapshotRequest = 0;
 let settingsRequest = 0;
 let previewRequest = 0;
 let loadingConfig = false;
+/** 日志条目本地稳定键计数器（backend seq 缺失的直发诊断用）。 */
+let logLocalSeq = 0;
 
 export const useSessionStore = create<SessionStore>()((set, get) => {
   /** 选择 ops 串行链：任一环节失败不断链（错误已写入 lastError）。 */
@@ -395,6 +565,176 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       }
     },
 
+    startRun: async () => {
+      if (loadingConfig || get().runStarting) return false;
+      const epoch = sessionEpoch;
+      set({ runStarting: true });
+      try {
+        await backendRpc<{ runSeq: number }>("run");
+        if (epoch !== sessionEpoch) return false;
+        // 新运行开始：上次终态记录与取消标记失效（run_end 只针对当前运行）。
+        set({ lastRun: null, pendingEndPhase: null, cancelRequested: false });
+        // 状态权威同步（runConversion 首个 await 前已迁移 before_hooks）。
+        await get().refreshSnapshot();
+        return true;
+      } catch (error) {
+        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
+        return false;
+      } finally {
+        if (epoch === sessionEpoch) set({ runStarting: false });
+      }
+    },
+
+    cancelRun: async () => {
+      const epoch = sessionEpoch;
+      try {
+        await backendRpc<{ state: string }>("cancel");
+        if (epoch !== sessionEpoch) return false;
+        // 等待清理标记：终态 state_change / run_end / 新 run 启动时清除。
+        set({ cancelRequested: true });
+        return true;
+      } catch (error) {
+        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
+        return false;
+      }
+    },
+
+    resetSession: async () => {
+      if (loadingConfig || get().resetting) return false;
+      const epoch = sessionEpoch;
+      set({ resetting: true });
+      try {
+        await backendRpc<{ cancelledRun: boolean }>("reset");
+        if (epoch !== sessionEpoch) return false;
+        set({ cancelRequested: false });
+        await get().refreshSnapshot();
+        return true;
+      } catch (error) {
+        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
+        return false;
+      } finally {
+        if (epoch === sessionEpoch) set({ resetting: false });
+      }
+    },
+
+    initLogs: async () => {
+      if (get().logs.initialized) return;
+      const epoch = sessionEpoch;
+      try {
+        const result = await backendRpc<GetLogsResult>("getLogs", { limit: LOG_PAGE_SIZE });
+        if (epoch !== sessionEpoch) return;
+        const fetched = (Array.isArray(result?.entries) ? result.entries : [])
+          .map(normalizeLogEntry)
+          .filter((entry): entry is LogEntryLike => entry !== null);
+        set((state) => ({
+          logs: {
+            ...state.logs,
+            entries: fetched.map((entry) => ({ ...entry, localId: ++logLocalSeq })),
+            initialized: true,
+            backendDroppedCount: typeof result?.droppedCount === "number" ? result.droppedCount : 0,
+            maxSeq: fetched.reduce(
+              (max, entry) => (entry.seq !== undefined && entry.seq > max ? entry.seq : max),
+              state.logs.maxSeq,
+            ),
+          },
+        }));
+      } catch (error) {
+        // 初始拉取失败：置 initialized 防渲染期重试风暴；事件流仍可继续补充，
+        // guardian 死亡复位后会重新拉取。错误可见。
+        if (epoch === sessionEpoch) {
+          set((state) => ({
+            logs: { ...state.logs, initialized: true },
+            lastError: describeError(error),
+          }));
+        }
+      }
+    },
+
+    loadOlderLogs: async () => {
+      const logs = get().logs;
+      if (!logs.initialized || logs.loadingOlder || logs.noMoreOlder) return;
+      const firstSeq = logs.entries.find((entry) => entry.seq !== undefined)?.seq;
+      if (firstSeq === undefined) return;
+      const epoch = sessionEpoch;
+      set((state) => ({ logs: { ...state.logs, loadingOlder: true } }));
+      try {
+        const result = await backendRpc<GetLogsResult>("getLogs", {
+          limit: LOG_PAGE_SIZE,
+          beforeSeq: firstSeq,
+        });
+        if (epoch !== sessionEpoch) return;
+        const fetched = (Array.isArray(result?.entries) ? result.entries : [])
+          .map(normalizeLogEntry)
+          .filter((entry): entry is LogEntryLike => entry !== null);
+        const have = new Set(
+          get()
+            .logs.entries.filter((entry) => entry.seq !== undefined)
+            .map((entry) => entry.seq),
+        );
+        const older = fetched
+          .filter((entry) => entry.seq === undefined || !have.has(entry.seq))
+          .map((entry) => ({ ...entry, localId: ++logLocalSeq }));
+        set((state) => ({
+          logs: {
+            ...state.logs,
+            // 加载历史不主动驱逐（用户显式请求）；后续事件追加才淘汰最老。
+            entries: [...older, ...state.logs.entries],
+            loadingOlder: false,
+            noMoreOlder: fetched.length === 0,
+            backendDroppedCount:
+              typeof result?.droppedCount === "number"
+                ? result.droppedCount
+                : state.logs.backendDroppedCount,
+          },
+        }));
+      } catch (error) {
+        if (epoch === sessionEpoch) {
+          set((state) => ({ logs: { ...state.logs, loadingOlder: false } }));
+          set({ lastError: describeError(error) });
+        }
+      }
+    },
+
+    copyLogs: async () => {
+      const state = get();
+      const filtered = filterLogEntries(state.logs.entries, state.logFilter);
+      if (filtered.length === 0) {
+        set({ lastError: "无日志可复制" });
+        return false;
+      }
+      try {
+        await writeClipboardText(`${filtered.map((entry) => entry.text).join("\n")}\n`);
+        return true;
+      } catch (error) {
+        set({ lastError: describeError(error) });
+        return false;
+      }
+    },
+
+    exportLogs: async () => {
+      const state = get();
+      const filtered = filterLogEntries(state.logs.entries, state.logFilter);
+      if (filtered.length === 0) {
+        set({ lastError: "无日志可导出" });
+        return false;
+      }
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "");
+      const path = await pickSavePath(`xresconv-gui-logs-${stamp}.log`);
+      if (path === null) return false; // 用户取消，非错误
+      const epoch = sessionEpoch;
+      try {
+        await exportTextFile(path, `${filtered.map((entry) => entry.text).join("\n")}\n`);
+        return true;
+      } catch (error) {
+        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
+        return false;
+      }
+    },
+
+    setLogFilter: (patch) => {
+      set((state) => ({ logFilter: { ...state.logFilter, ...patch } }));
+    },
+
     setHookEnabled: async (group, index, enabled) => {
       const epoch = sessionEpoch;
       try {
@@ -538,11 +878,49 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
             previous?: string;
             token?: string;
             dialog?: DialogPayloadLike;
+            summary?: unknown;
           };
           if (payload?.type === "state_change") {
             next.lastStateChange = { state: payload.state, previous: payload.previous };
             if (state.snapshot !== null && typeof payload.state === "string") {
               next.snapshot = { ...state.snapshot, state: payload.state };
+            }
+            if (typeof payload.state === "string" && RUN_TERMINAL_STATES.has(payload.state)) {
+              // 记录终态来源阶段（同一次运行的 run_end 消费）；清理标记无论
+              // run_end 是否到达都不能卡住（EX03：终态只发布一次）。
+              next.pendingEndPhase = typeof payload.previous === "string" ? payload.previous : null;
+              next.cancelRequested = false;
+            }
+          }
+          const summary = parseRunSummary(payload?.summary);
+          if (payload?.type === "run_end" && summary !== null) {
+            next.lastRun = { ...summary, endPhase: state.pendingEndPhase };
+            next.pendingEndPhase = null;
+            next.cancelRequested = false;
+          }
+          if (payload?.type === "log") {
+            const entry = normalizeLogEntry((payload as { entry?: unknown }).entry ?? payload);
+            if (entry !== null) {
+              // seq 幂等去重：getLogs 初始页与事件流重叠、迟到重复事件跳过。
+              if (entry.seq === undefined || entry.seq > state.logs.maxSeq) {
+                const appended: UiLogEntry = { ...entry, localId: ++logLocalSeq };
+                const entries = [...state.logs.entries, appended];
+                let localDroppedCount = state.logs.localDroppedCount;
+                const overflow = entries.length - state.logs.windowCapacity;
+                if (overflow > 0) {
+                  entries.splice(0, overflow);
+                  localDroppedCount += overflow;
+                }
+                next.logs = {
+                  ...state.logs,
+                  entries,
+                  localDroppedCount,
+                  maxSeq:
+                    entry.seq !== undefined && entry.seq > state.logs.maxSeq
+                      ? entry.seq
+                      : state.logs.maxSeq,
+                };
+              }
             }
           }
           if (payload?.type === "dialog_request" && typeof payload.token === "string") {
@@ -580,10 +958,23 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       sessionEpoch++;
       loadingConfig = false;
       invalidateBackendSnapshot();
-      set({
+      // 在途动作的 finally 因 epoch 失配跳过清理，这里统一复位（否则按钮永久禁用）。
+      set((state) => ({
         connection: "degraded",
         lastError: `后端进程已退出${payload.reason ? `：${payload.reason}` : ""}`,
-      });
+        runStarting: false,
+        cancelRequested: false,
+        resetting: false,
+        // 新一代 backend 的 seq 从 1 重新开始：复位游标与初始化标记，
+        // 避免旧 maxSeq 误杀新一代事件；既有条目保留可见（历史）。
+        logs: {
+          ...state.logs,
+          initialized: false,
+          maxSeq: -1,
+          loadingOlder: false,
+          noMoreOlder: false,
+        },
+      }));
     },
   };
 });
@@ -598,5 +989,12 @@ export function resetSessionStore(): void {
     expandedKeys: new Set<TreeNodeKey>(),
     preview: initialPreview(),
     pendingDialogs: [],
+    runStarting: false,
+    cancelRequested: false,
+    resetting: false,
+    lastRun: null,
+    pendingEndPhase: null,
+    logs: { ...initialData.logs },
+    logFilter: { ...initialData.logFilter },
   });
 }

@@ -194,9 +194,9 @@ describe("BackendSupervisor（P2-09）", () => {
       stderr += chunk;
     });
     const guardianPid = guardian.pid;
-    // 声明 2MB 的帧头（超出 1MB 上限；分配前拒绝）。
+    // 声明 65MB 的帧头（超出 P4-08 上调后的 64MB 上限；分配前拒绝）。
     const head = Buffer.alloc(4);
-    head.writeUInt32BE(2 * 1024 * 1024, 0);
+    head.writeUInt32BE(65 * 1024 * 1024, 0);
     guardian.stdin?.write(head);
     await waitUntil(() => !pidAlive(guardianPid as number), "guardian fail-closed exit");
     expect(stderr).toContain("TOO_LARGE");

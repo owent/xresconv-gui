@@ -39,7 +39,7 @@
   - 安装依赖：`yarn install`（`prepare` 钩子会执行 `node scripts/patch-fancytree.js && gulp copy-libs`）
   - 启动：`yarn run start`；调试模式：`yarn run debug-start`；VSCode Attach：`yarn run debug`（端口 5858）
   - 打包：`yarn run package-test`（当前平台）、`package-win32` / `package-linux` / `package-darwin` / `package-all`，产物在 `out/`
-- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。旧 Electron 命令保留至 P7 交接；旧架构验证手段为 `yarn run package-test` 打包成功 + 手动冒烟。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
+- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → tauri 双配置 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）。旧 Electron 命令保留至 P7 交接；旧架构验证手段为 `yarn run package-test` 打包成功 + 手动冒烟。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
 
 ## 目录结构
 

@@ -418,3 +418,122 @@ describe("backend 事件订阅（StrictMode 约束）", () => {
     expect(state.lastStateChange?.state).toBe("running");
   });
 });
+
+describe("ConversionTree 虚拟化（P4-08，UI03）", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    unlistenSpy.mockClear();
+    resetSessionStore();
+    (await invokeMock()).mockReset();
+  });
+
+  /** folders × itemsPer 个条目（默认 100×100 = 10100 节点），全部展开。 */
+  function makeBigSnapshot(folders = 100, itemsPer = 100): BackendSnapshot {
+    const categories: TreeNodeSnap[] = Array.from({ length: folders }, (_, catIndex) => ({
+      key: `cat:${catIndex}`,
+      title: `分类${catIndex}`,
+      tooltip: `分类${catIndex}`,
+      folder: true,
+      unselectable: false,
+      selected: false,
+      partsel: false,
+      expanded: true,
+      autoSelect: false,
+      children: Array.from({ length: itemsPer }, (_, i) =>
+        itemNode(catIndex * 100000 + i, `条目${catIndex}-${i}`),
+      ),
+    }));
+    return {
+      state: "ready",
+      runSeq: 0,
+      config: { path: "D:/conf/big.xml" },
+      tree: { version: 1, nodes: categories },
+      selectedItems: [],
+      settings: makeSnapshot().settings,
+      customSelectors: null,
+    };
+  }
+
+  /**
+   * react-stately Virtualizer 在 NODE_ENV=test 下默认渲染全部（无窗口）；
+   * mock clientWidth/clientHeight 后才走真实 overscan 裁剪路径。
+   * 结束后恢复原型。
+   */
+  function mockViewport(width: number, height: number): void {
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => width,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => height,
+    });
+  }
+
+  function restoreViewport(): void {
+    delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
+    delete (HTMLElement.prototype as { clientHeight?: number }).clientHeight;
+  }
+
+  it("10k+ 节点全展开：窗口化渲染，DOM 行有界（不向 DOM 填充全部节点）", async () => {
+    mockViewport(600, 400);
+    try {
+      const invoke = await invokeMock();
+      routeRpc(invoke, { loadConfig: () => makeBigSnapshot() });
+      await expect(useSessionStore.getState().loadConfig("D:/conf/big.xml")).resolves.toBe(true);
+      render(<ConversionTree />);
+
+      await waitFor(() => {
+        const rows = document.querySelectorAll('[role="row"]');
+        expect(rows.length).toBeGreaterThan(0);
+      });
+      const rows = document.querySelectorAll('[role="row"]');
+      expect(rows.length).toBeLessThan(200);
+      expect(rows.length).toBeLessThan(10100);
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it("100k 节点（压力用例）：窗口化渲染仍成立（防挂起上限 60s）", { timeout: 60_000 }, async () => {
+    mockViewport(600, 400);
+    try {
+      const invoke = await invokeMock();
+      routeRpc(invoke, { loadConfig: () => makeBigSnapshot(1000, 100) });
+      await expect(useSessionStore.getState().loadConfig("D:/conf/big.xml")).resolves.toBe(true);
+      render(<ConversionTree />);
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('[role="row"]').length).toBeGreaterThan(0);
+      });
+      const rows = document.querySelectorAll('[role="row"]');
+      expect(rows.length).toBeLessThan(300);
+      expect(rows.length).toBeLessThan(100100);
+    } finally {
+      restoreViewport();
+    }
+  });
+
+  it("窗口外节点不在 DOM；store 中选择仍为后端权威（虚拟化不丢状态）", async () => {
+    mockViewport(600, 400);
+    try {
+      const invoke = await invokeMock();
+      const snapshot = makeBigSnapshot(20);
+      // 第一个分类的第一个条目选中（三态来自后端快照，与渲染无关）。
+      const firstItem = snapshot.tree?.nodes[0]?.children[0];
+      if (firstItem) firstItem.selected = true;
+      routeRpc(invoke, { loadConfig: () => snapshot });
+      await expect(useSessionStore.getState().loadConfig("D:/conf/big.xml")).resolves.toBe(true);
+      render(<ConversionTree />);
+
+      await waitFor(() => {
+        expect(document.querySelectorAll('[role="row"]').length).toBeGreaterThan(0);
+      });
+      // 选择权威在后端快照/UI store：虚拟化窗口未渲染该节点也不影响数据。
+      const state = useSessionStore.getState();
+      expect(state.snapshot?.tree?.nodes[0]?.children[0]?.selected).toBe(true);
+    } finally {
+      restoreViewport();
+    }
+  });
+});

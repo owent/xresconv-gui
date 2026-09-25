@@ -1,0 +1,139 @@
+name: ci
+
+# 新架构 CI（P5 CI-01..CI-03）：工具链固定 → 质量（Node/契约 + 壳）→ 桌面 E2E。
+# 规则（docs/plan/05-packaging-release.md §CI）：
+# - Action 一律固定完整 commit SHA 并注释版本；传递 uses 同样审计；
+# - 先 setup Node → Corepack/Yarn → yarn install --immutable；不用 setup-node 的
+#   npm cache（与 Yarn 不匹配，P0 已登记的缺陷不复活）；
+# - Rust 用 runner rustup 锁定 toolchain 文件；cargo 一律 --locked；
+# - 失败即非零退出，不用末条命令掩盖；PR 不发布、不接触签名密钥。
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  # CI-02a：Node 业务/契约质量（无 Rust 依赖——D6 解耦验证）
+  quality-node:
+    name: quality (node)
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable Corepack Yarn (pinned by packageManager)
+        run: corepack enable
+      - name: Install (immutable)
+        run: corepack yarn install --immutable
+      - name: Lint & format
+        run: |
+          corepack yarn lint
+          npx --yes markdownlint-cli@latest "docs/plan/**/*.md" "Plan.md" "AGENTS.md" "CLAUDE.md"
+      - name: Typecheck
+        run: corepack yarn typecheck
+      - name: Unit & contracts
+        run: |
+          corepack yarn test:unit
+          corepack yarn test:contracts
+      - name: Browser E2E (chromium/firefox/webkit)
+        run: corepack yarn test:browser
+        env:
+          PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright/
+
+  # CI-02b：Tauri 壳原生检查（fmt/clippy/test，--locked）
+  quality-shell:
+    name: quality (shell)
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      - name: Rust toolchain (locked by src-tauri rust-toolchain)
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup component add rustfmt clippy
+      # Swatinem/rust-cache v2.9.2（E2E 与生产构建缓存分离：key 含用途）
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          workspaces: src-tauri
+          key: shell-quality
+      - name: fmt + clippy + test (locked, deny warnings)
+        run: |
+          cargo fmt --all --check
+          corepack yarn check:shell
+          corepack yarn test:shell
+
+  # CI-03：桌面 E2E（真实 WebView；平台矩阵——Linux/macOS 首次入 CI，实测后移除
+  # “待验证”标记。tauri-driver 用 cargo 安装锁定版本；Windows 需匹配 WebView2
+  # 运行时版本的 msedgedriver）
+  desktop-e2e:
+    name: desktop e2e (${{ matrix.os }})
+    needs: [quality-node, quality-shell]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: ubuntu-latest
+          - os: macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable Corepack Yarn
+        run: corepack enable
+      - name: Install Linux WebKitGTK build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Install deps
+        run: corepack yarn install --immutable
+      - name: Install tauri-driver
+        run: cargo install tauri-driver --locked
+      - name: Locate msedgedriver (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $runtime = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}').pv
+          $ver = "$runtime".Split('.')[0..2] -join '.'
+          $url = "https://msedgedriver.azureedge.net/$runtime/edgedriver_win64.zip"
+          try { Invoke-WebRequest -Uri $url -OutFile edgedriver.zip } catch { $url = "https://registry.npmmirror.com/-/binary/edgedriver/$runtime/edgedriver_win64.zip"; Invoke-WebRequest -Uri $url -OutFile edgedriver.zip }
+          Expand-Archive edgedriver.zip -DestinationPath build/tools
+          "MSEDGEDRIVER_PATH=$pwd\build\tools\msedgedriver.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+        shell: pwsh
+      - name: Desktop E2E
+        run: corepack yarn test:desktop
+      # actions/upload-artifact v7.0.1（失败证据：日志/截图/退出码）
+      - name: Upload E2E failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: e2e-evidence-${{ matrix.os }}
+          path: |
+            apps/desktop/test-results
+            build/e2e-*.log
+          if-no-files-found: ignore

@@ -21,8 +21,9 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-/// 与 packages/ipc/src/index.ts 的 DEFAULT_MAX_FRAME_BYTES 一致。
-const MAX_FRAME_BYTES: usize = 1024 * 1024;
+/// 与 packages/ipc/src/index.ts 的 DEFAULT_MAX_FRAME_BYTES 一致（P4-08 上调
+/// 64MiB：100k 节点快照 ~37.5MB JSON；仍为分配前硬上限，毒帧 fail-closed）。
+const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
 /// 握手/健康检查上界：必须覆盖 guardian 启动 + backend fork + 监督握手。
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
 /// 单次 RPC 默认上界（loadConfig 等大负载由调用方显式放宽）。
@@ -203,30 +204,76 @@ pub struct GuardianClient {
     shutdown_lock: Mutex<()>,
 }
 
+/// P5-03/P5-04 发布布局自定位：安装根下 `runtime/node(.exe)` +
+/// `app/guardian/service.mjs` 俱在视为发行布局。Windows/Linux 安装根 = exe
+/// 同级（NSIS/DEB resources 落位）；macOS .app 的资源在 `Contents/Resources`
+/// 而 exe 在 `Contents/MacOS`，因此额外探测 exe 目录的 `../Resources`。
+fn release_layout_paths(
+    install_root: &std::path::Path,
+) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
+    let node = install_root
+        .join("runtime")
+        .join(if cfg!(windows) { "node.exe" } else { "node" });
+    let entry = install_root
+        .join("app")
+        .join("guardian")
+        .join("service.mjs");
+    (node.is_file() && entry.is_file()).then_some((node, entry))
+}
+
+/// exe 所在目录可用的安装根候选：exe 同级（Windows/Linux）与
+/// `../Resources`（macOS .app bundle）。
+fn release_layout_candidates(exe_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut roots = vec![exe_dir.to_path_buf()];
+    if let Some(parent) = exe_dir.parent() {
+        roots.push(parent.join("Resources"));
+    }
+    roots
+}
+
 impl GuardianClient {
     /// spawn 长驻 guardian 并完成握手（首帧必须 role=guardian 的 health）。
     /// `sink` 存在时事件帧直接转发（壳侧注入 tauri emit）；测试可传 None。
     pub fn start(sink: Option<EventSink>) -> ChannelResult<Self> {
-        let node = std::env::var("XRESCONV_NODE").unwrap_or_else(|_| "node".into());
-        let entry = std::env::var("XRESCONV_GUARDIAN_ENTRY").unwrap_or_else(|_| {
-            // 开发态回退：从 exe 位置向上找 workspace 根（cwd 不可靠）。
-            let rel = std::path::Path::new("packages")
-                .join("guardian")
-                .join("bin")
-                .join("service.mjs");
-            let mut dir = std::env::current_exe()
-                .ok()
-                .and_then(|p| p.parent().map(|p| p.to_path_buf()));
-            loop {
-                match dir {
-                    Some(d) if d.join(&rel).is_file() => break d.join(&rel),
-                    Some(d) => dir = d.parent().map(|p| p.to_path_buf()),
-                    None => break rel.clone(),
-                }
-            }
-            .to_string_lossy()
-            .into_owned()
+        // 解析顺序：显式 env → 发布布局（Windows/Linux exe 同级；macOS
+        // ../Resources）→ 开发态回退 → PATH node。
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()));
+        let release = exe_dir.as_deref().and_then(|dir| {
+            release_layout_candidates(dir)
+                .into_iter()
+                .find_map(|root| release_layout_paths(&root))
         });
+        let node = match std::env::var("XRESCONV_NODE") {
+            Ok(value) => value,
+            Err(_) => release
+                .as_ref()
+                .map(|(node, _)| node.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "node".into()),
+        };
+        let entry = match std::env::var("XRESCONV_GUARDIAN_ENTRY") {
+            Ok(value) => value,
+            Err(_) => release
+                .map(|(_, entry)| entry.to_string_lossy().into_owned())
+                .unwrap_or_else(|| {
+                    // 开发态回退：从 exe 位置向上找 workspace 根（cwd 不可靠）。
+                    let rel = std::path::Path::new("packages")
+                        .join("guardian")
+                        .join("bin")
+                        .join("service.mjs");
+                    let mut dir = exe_dir;
+                    loop {
+                        match dir {
+                            Some(d) if d.join(&rel).is_file() => break d.join(&rel),
+                            Some(d) => dir = d.parent().map(|p| p.to_path_buf()),
+                            None => break rel.clone(),
+                        }
+                    }
+                    .to_string_lossy()
+                    .into_owned()
+                }),
+        };
         let mut child = Command::new(&node)
             .arg(&entry)
             .stdin(Stdio::piped())
@@ -539,6 +586,53 @@ mod tests {
         let rejected = state.ensure().is_err();
         state.shutdown().unwrap();
         assert!(rejected);
+    }
+
+    /// P5-03：发布布局自定位——runtime/node(.exe) + app/guardian/service.mjs
+    /// 俱在才命中；缺任一则回退（不误判半份布局）。只依赖 std。
+    #[test]
+    fn release_layout_detects_complete_tree_only() {
+        let dir = std::env::temp_dir().join("xresconv-release-layout-test");
+        let runtime = dir.join("runtime");
+        let app = dir.join("app").join("guardian");
+        std::fs::create_dir_all(&runtime).unwrap();
+        std::fs::create_dir_all(&app).unwrap();
+        let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+        std::fs::write(runtime.join(node_name), b"stub").unwrap();
+        std::fs::write(app.join("service.mjs"), b"stub").unwrap();
+        let resolved = super::release_layout_paths(&dir).expect("complete layout detected");
+        assert!(resolved.0.ends_with(node_name));
+        assert!(resolved.1.ends_with("service.mjs"));
+
+        std::fs::remove_file(app.join("service.mjs")).unwrap();
+        assert!(
+            super::release_layout_paths(&dir).is_none(),
+            "半份布局不得命中"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// macOS .app 形态：资源在 `../Resources`（exe 位于 Contents/MacOS）。
+    #[test]
+    fn release_layout_candidates_cover_macos_resources() {
+        let base = std::env::temp_dir().join("xresconv-release-mac-test");
+        let macos_dir = base.join("Contents").join("MacOS");
+        let resources = base.join("Contents").join("Resources");
+        std::fs::create_dir_all(&macos_dir).unwrap();
+        let runtime = resources.join("runtime");
+        let app = resources.join("app").join("guardian");
+        std::fs::create_dir_all(&runtime).unwrap();
+        std::fs::create_dir_all(&app).unwrap();
+        let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+        std::fs::write(runtime.join(node_name), b"stub").unwrap();
+        std::fs::write(app.join("service.mjs"), b"stub").unwrap();
+        let resolved = super::release_layout_candidates(&macos_dir)
+            .into_iter()
+            .find_map(|root| super::release_layout_paths(&root))
+            .expect("macOS Resources layout detected");
+        assert!(resolved.1.ends_with("service.mjs"));
+        assert!(resolved.0.starts_with(&resources));
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

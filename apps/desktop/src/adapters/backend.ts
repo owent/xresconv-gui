@@ -101,7 +101,6 @@ export interface PreviewTaskLike {
   outputDir?: string;
   display: string;
 }
-
 export interface PreviewConflictLike {
   outputDir: string;
   rename: string;
@@ -117,6 +116,71 @@ export interface PreviewResult {
   };
   selectionCount: number;
   conflicts: PreviewConflictLike[];
+}
+
+/**
+ * 运行状态词表（镜像 backend domain/run-state.ts RunState）。
+ * 活动运行三态（before_hooks/converting/after_hooks）允许 cancel/重复 cancel；
+ * 终态三态（succeeded/failed/cancelled）允许再次 run/reset。
+ */
+export type RunStateLike =
+  | "idle"
+  | "loading"
+  | "ready"
+  | "before_hooks"
+  | "converting"
+  | "after_hooks"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+/** 活动运行状态（backend session.cancel 仅在这些状态下生效）。 */
+export const RUN_ACTIVE_STATES: ReadonlySet<string> = new Set([
+  "before_hooks",
+  "converting",
+  "after_hooks",
+]);
+
+/** 终态（run 允许自终态再次启动；reset 自终态重新武装）。 */
+export const RUN_TERMINAL_STATES: ReadonlySet<string> = new Set([
+  "succeeded",
+  "failed",
+  "cancelled",
+]);
+
+/** run_end 事件摘要（镜像 backend service/run.ts RunSummary，P4-06 消费）。 */
+export interface RunSummaryLike {
+  runSeq: number;
+  state: "succeeded" | "failed" | "cancelled";
+  /** 失败计数（事件 reject/超时/异常各 +1；java 累加退出码；不承诺条目精确归因）。 */
+  failedCount: number;
+  /** 本次计划的任务总数（计划构建失败时为 0）。 */
+  taskCount: number;
+  durationMs: number;
+}
+
+/** 日志级别（镜像 backend log-pipeline.ts LogLevel）。 */
+export type LogLevelLike = "info" | "notice" | "warning" | "error";
+
+/** 日志条目（镜像 backend log-pipeline.ts LogEntry，P4-07 消费）。 */
+export interface LogEntryLike {
+  message: string;
+  rawMessage: string;
+  moduleName: string;
+  /** 旧版样式类名（alert-*；hook 可改写），UI 映射为语义色。 */
+  style: string;
+  level: LogLevelLike;
+  /** 渲染形态 `[module]: message`；复制/导出用同一文本。 */
+  text: string;
+  /** 队列内单调游标（getLogs 与事件流幂等对齐）；直发诊断无 seq。 */
+  seq?: number;
+}
+
+/** getLogs 结果（镜像 backend rpc-app.ts rpcGetLogs，P4-07）。 */
+export interface GetLogsResult {
+  entries: LogEntryLike[];
+  droppedCount: number;
+  capacity: number;
 }
 
 /** 自定义选择器/按钮视图（镜像 backend custom-selector.ts CustomSelectorView，P4-05a）。 */

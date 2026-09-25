@@ -10,6 +10,9 @@ use tauri::Manager;
 use tauri_plugin_cli::CliExt;
 
 mod guardian;
+mod webview_preflight;
+
+pub use webview_preflight::ensure_webview2_or_exit;
 
 /// Bridge handshake result. Field layout is owned by
 /// `packages/contracts/schema/handshake.json` (single source of truth).
@@ -95,7 +98,26 @@ async fn restart_guardian(
     result.map_err(|e| e.to_string())
 }
 
+/// P4-07：导出 UTF-8 文本文件（日志导出）。路径来自 plugin-dialog 的 save
+/// 对话框（用户显式选择）；这是 UI 侧可写磁盘的唯一入口。日志内容本身
+/// 不经过任何执行路径（BD-04/R12），命令参数只来自本应用 UI 的调用。
+fn write_text_file_impl(path: &str, content: &str) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("export path must not be empty".to_string());
+    }
+    std::fs::write(path, content.as_bytes()).map_err(|e| format!("write {path} failed: {e}"))
+}
+
+#[tauri::command]
+async fn export_text_file(path: String, content: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || write_text_file_impl(&path, &content))
+        .await
+        .map_err(|e| format!("export task failed: {e}"))?
+}
+
 pub fn run() {
+    // P5-03：任何 WebView 创建前的原生运行时预检（PK02：先检查后 GUI）。
+    ensure_webview2_or_exit();
     tauri::Builder::default()
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_dialog::init())
@@ -135,8 +157,30 @@ pub fn run() {
             get_cli_matches,
             get_backend_health,
             backend_rpc,
-            restart_guardian
+            restart_guardian,
+            export_text_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running xresconv-gui");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::write_text_file_impl;
+
+    /// P4-07：导出写 UTF-8（含中文/空格路径）；空/空白路径拒绝。
+    /// 只依赖 std，不触碰 tauri/wry 运行时类型（0xc0000139 约束）。
+    #[test]
+    fn write_text_file_writes_utf8_and_rejects_empty_path() {
+        let dir = std::env::temp_dir().join("xresconv-export-test");
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let path = dir.join("日志 export.txt");
+        let path_str = path.to_str().expect("utf-8 path");
+        write_text_file_impl(path_str, "[CONV]: 中文 line\n").expect("write ok");
+        let content = std::fs::read_to_string(&path).expect("read back");
+        assert_eq!(content, "[CONV]: 中文 line\n");
+        assert!(write_text_file_impl("", "x").is_err());
+        assert!(write_text_file_impl("   ", "x").is_err());
+        let _ = std::fs::remove_file(&path);
+    }
 }

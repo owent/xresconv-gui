@@ -214,6 +214,30 @@ function copyDir(src: string, dest: string): void {
   fs.cpSync(src, dest, { recursive: true, verbatimSymlinks: false });
 }
 
+/**
+ * glibc（gnu triple）目标的闭包排除规则：剔除 musl 专用原生模块变体
+ * （如 koffi 平台包的 musl_x64 目录）。D2 矩阵无 musl 目标；musl ELF
+ * 进入发行树会让 linuxdeploy（P5-06 自含包）按 glibc 解析失败
+ * （"Could not find dependency: libc.musl-x86_64.so.1"，WSL 实测）。
+ */
+export function glibcExclusion(target: ReleaseTarget): RegExp | null {
+  return target.os === "linux" && /-gnu(-|$)/.test(target.targetTriple)
+    ? /(^|[/\\])[^/\\]*musl[^/\\]*([/\\]|$)/
+    : null;
+}
+
+function copyDirFiltered(src: string, dest: string, exclude: RegExp | null): void {
+  if (exclude === null) {
+    copyDir(src, dest);
+    return;
+  }
+  fs.cpSync(src, dest, {
+    recursive: true,
+    verbatimSymlinks: false,
+    filter: (candidate: string) => !exclude.test(candidate),
+  });
+}
+
 /** 归一化 package.json license 声明（string / {type} / 旧式 licenses 数组）。 */
 function licenseOf(manifest: { license?: unknown; licenses?: unknown }): string {
   const from = (value: unknown): string | null => {
@@ -272,6 +296,7 @@ function copyNpmClosure(
   seeds: readonly string[],
   repoRoot: string,
   nodeModulesDest: string,
+  exclusion: RegExp | null,
 ): Map<string, CopiedPackage> {
   interface QueueEntry {
     name: string;
@@ -315,7 +340,7 @@ function copyNpmClosure(
       version: manifest.version,
       license: licenseOf(manifest),
     });
-    copyDir(dir, path.join(nodeModulesDest, name));
+    copyDirFiltered(dir, path.join(nodeModulesDest, name), exclusion);
     for (const dep of Object.keys(manifest.dependencies ?? {})) {
       if (!copied.has(dep)) {
         queue.push({ name: dep, fromDir: dir, optional: false });
@@ -454,7 +479,7 @@ export async function assembleRuntimeLayout(
   const nodeModulesDest = path.join(outDir, "app", "node_modules");
   fs.mkdirSync(nodeModulesDest, { recursive: true });
   placeContractsSchema(repoRoot, nodeModulesDest);
-  const copied = copyNpmClosure(seeds, repoRoot, nodeModulesDest);
+  const copied = copyNpmClosure(seeds, repoRoot, nodeModulesDest, glibcExclusion(target));
   for (const seed of options.userScriptPackages ?? DEFAULT_USER_SCRIPT_PACKAGES) {
     if (!copied.has(seed) && !isBuiltin(seed)) {
       throw new PackagingError(

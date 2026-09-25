@@ -9,7 +9,13 @@
  * the owner terminate the peer (Plan 02 §传输和握手).
  */
 
-export const DEFAULT_MAX_FRAME_BYTES = 1024 * 1024;
+/**
+ * 帧上限（P4-08 上调）：100k 节点配置快照的 JSON 实测约 37.5MB（backend
+ * config-perf.test.ts），1MiB 上限会令 10k/100k 树（UI03 常规/压力用例）在
+ * 传输层直接失败。64MiB 仍是分配前硬上限（毒帧 fail-closed 语义不变），
+ * 与 src-tauri/src/guardian.rs 的 MAX_FRAME_BYTES 镜像同步。
+ */
+export const DEFAULT_MAX_FRAME_BYTES = 64 * 1024 * 1024;
 
 export class FrameCodecError extends Error {
   readonly code: "TOO_LARGE" | "BAD_JSON";

@@ -1,80 +1,165 @@
 name: release
 
-on: # @see https://help.github.com/en/articles/events-that-trigger-workflows#webhook-events
+# 新架构发行（P5 CI-04/CI-06）：仅 v3 标签触发；矩阵构建两变体（不签名——
+# 签名/公证在受控发行环境后补，P5-07）；汇总 job 是唯一写 release 的入口，
+# 校验产物名集合与预期矩阵完全相等后创建 draft（不 overwrite，不自动发布）。
+# 旧 v2.x 标签不再触发（D1：旧架构 2.6.0 为终点版本）。
+
+on:
   push:
     tags:
-      - "*"
+      - "v3*"
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
 
 jobs:
-  build:
-    name: Build
+  # CI-04：按平台构建变体。产物命名/矩阵由 packaging/targets.json 派生。
+  build-windows:
+    name: build windows x64 (${{ matrix.variant }})
+    runs-on: windows-latest
+    timeout-minutes: 60
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+        variant: [bootstrap, offline]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           lfs: true
-      - name: Hydrate LFS assets
-        run: git lfs pull
-        shell: pwsh
-      - uses: actions/setup-node@v6
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: lts/*
-          cache: "npm"
-      - name: Build
-        run: |
-          & git log -n 10 --pretty=oneline
-          New-Item -ItemType Directory -Force ~/.npm-global
-          npm config set prefix "~/.npm-global"
-          if ( "${{ matrix.os }}" -eq "windows-latest" ) { 
-            $ENV:PATH="~/.npm-global/bin;$ENV:PATH"
-          } else {
-            $ENV:PATH="~/.npm-global/bin:$ENV:PATH"
-          }
-          if (Test-Path "out") { Remove-Item -Recurse -Force "out" }
-          & npm install -g yarn
-          & yarn install --registry https://registry.npmjs.org
-          if ( "${{ matrix.os }}" -eq "windows-latest" ) { 
-            & yarn run package-win32 --registry https://registry.npmjs.org
-            cd out
-            $package_list = Get-ChildItem
-            foreach($package in $package_list) { 
-              $package_name = $package.Name
-              echo \"$package_name\"
-              & 7z a -y -r "$package_name.7z" "$package_name"
-            }
-          } elseif ( "${{ matrix.os }}" -eq "macos-latest" ) { 
-            & yarn run package-darwin --registry https://registry.npmjs.org
-            cd out
-            $package_list = Get-ChildItem
-            foreach($package in $package_list) { 
-              $package_name = $package.Name
-              echo \"$package_name\"
-              & tar -Jcvf "$package_name.tar.xz" "$package_name"
-            }
-          } else {
-            & yarn run package-linux --registry https://registry.npmjs.org
-            cd out
-            $package_list = Get-ChildItem
-            foreach($package in $package_list) { 
-              $package_name = $package.Name
-              echo \"$package_name\"
-              & tar -Jcvf "$package_name.tar.xz" "$package_name"
-            }
-          }
-          cd ..
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable
+      - run: corepack yarn install --immutable
+      - run: corepack yarn package:windows --variant=${{ matrix.variant }}
+      # actions/upload-artifact v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: artifacts-windows-x64-${{ matrix.variant }}
+          path: |
+            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.exe
+            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.exe.sha256
 
-        shell: pwsh
-      - name: Release
-        uses: xresloader/upload-to-github-release@v1
+  build-linux:
+    name: build linux ${{ matrix.distro }} x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # runner 代号即构建基线；debian/fedora 基线镜像随 CI-05 落实后切换
+          # container 构建（05 册：用最老合适基线构建）。
+          - distro: ubuntu-24.04
+            runner: ubuntu-24.04
+          - distro: ubuntu-22.04
+            runner: ubuntu-22.04
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: corepack enable
+      - run: corepack yarn install --immutable
+      - run: corepack yarn package:linux --variant=all --distro=${{ matrix.distro }}
+      # actions/upload-artifact v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: artifacts-linux-${{ matrix.distro }}-x86_64
+          path: |
+            build/dist/xresconv-gui-*-linux-${{ matrix.distro }}-x86_64-*.deb*
+            build/dist/xresconv-gui-*-linux-x86_64-offline.AppImage*
+
+  build-macos:
+    name: build macos ${{ matrix.arch }} (${{ matrix.variant }})
+    runs-on: macos-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [bootstrap, offline]
+        arch: [x64, arm64]
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable
+      - run: corepack yarn install --immutable
+      # D5：x64/arm64 分别原生构建（runner 架构须匹配；arm64 用 macos arm64 runner）
+      - run: corepack yarn package:macos --variant=${{ matrix.variant }} --arch=${{ matrix.arch }}
+        if: (matrix.arch == 'arm64') == (runner.arch == 'ARM64')
+      # actions/upload-artifact v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: artifacts-macos-${{ matrix.arch }}-${{ matrix.variant }}
+          path: |
+            build/dist/xresconv-gui-*-macos-${{ matrix.arch }}-${{ matrix.variant }}.dmg*
+
+  # CI-06：汇总（唯一写 release 的 job）。核对产物集合与 buildMatrix 完全相等，
+  # 再创建 draft；不覆盖既有发行。签名与安装验收（G5）完成后才可正式发布。
+  aggregate-release:
+    name: aggregate draft release
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: corepack enable
+      - run: corepack yarn install --immutable
+      # actions/download-artifact v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          path: build/release-artifacts
+      - name: Verify artifact set equals expected matrix
+        run: |
+          EXPECTED=$(node --experimental-strip-types --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            import { buildMatrix } from "./packages/packaging/src/index.ts";
+            const targets = JSON.parse(readFileSync("packaging/targets.json", "utf8"));
+            const version = process.env.RELEASE_VERSION.replace(/^v/, "");
+            for (const artifact of buildMatrix(targets, version)) console.log(artifact.name);
+          ' | sort)
+          ACTUAL=$(find build/release-artifacts -type f ! -name "*.sha256" -printf "%f\n" | sort)
+          echo "$EXPECTED" > /tmp/expected.txt
+          echo "$ACTUAL" > /tmp/actual.txt
+          diff -u /tmp/expected.txt /tmp/actual.txt || {
+            echo "::error::artifact set differs from packaging/targets.json matrix"; exit 1;
+          }
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
+      - name: Create draft release (no overwrite)
+        # xresloader/upload-to-github-release v1.6.2
+        uses: xresloader/upload-to-github-release@7c5757a90c0bcf0c0e1741da8f2abd7b85e675d0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          file: "out/*.7z;out/*.tar.xz"
+          file: "build/release-artifacts/**/*"
           tags: true
           draft: true
-          overwrite: true
-          # verbose: true
+          overwrite: false

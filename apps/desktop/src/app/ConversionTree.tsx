@@ -1,23 +1,35 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { Key } from "react-aria-components";
-import { Button, Checkbox, Tree, TreeItem, TreeItemContent } from "react-aria-components";
+import {
+  Button,
+  Checkbox,
+  Collection,
+  ListLayout,
+  Tree,
+  TreeItem,
+  TreeItemContent,
+  Virtualizer,
+} from "react-aria-components";
 import type { TreeNodeKey, TreeNodeSnap } from "../adapters/backend";
 import { useSessionStore } from "./session-store";
 import { TreeToolbar } from "./TreeToolbar";
 
 /**
- * 左侧转换树区域（F02 条目树、F03 三态勾选/级联/全选）。
+ * 左侧转换树区域（F02 条目树、F03 三态勾选/级联/全选；P4-08 起虚拟化）。
  * React Aria Tree 渲染 store 中的后端树快照；勾选状态以后端为准
  * （isSelected/isIndeterminate 受控，onChange 只发 select_node op），
  * 不引入 Fancytree；React Aria 自带 selection 不等于 selectMode:3，
  * 故 selectionMode="none"，勾选语义全部走 backend ops（04-ui §树）。
+ *
+ * 虚拟化（P4-08，UI03）：官方模式 —— Virtualizer + ListLayout 包裹 Tree，
+ * 节点经 items/childItems 动态集合提供（collapsed 子树不渲染）。10k/100k
+ * 节点只渲染可见窗口；选择/三态权威在后端快照，与渲染窗口无关。
  *
  * 键盘：上下/左右/Home/End 由 React Aria 提供；Space 切换焦点节点勾选、
  * 双击切换为旧版行为；unselectable 节点可聚焦但不可勾选。
  * 注意：RAC filterDOMProps 只透传指针/鼠标事件（onFocus/onKeyDown 会被剥掉），
  * 焦点跟踪与 Space 处理挂在本组件自有 wrapper 上，经行元素 data-key 还原节点
  * 身份（RAC useSelectableItem 无条件渲染 data-key）。
- * 虚拟化属 P4-08，本切片直接渲染全部节点。
  */
 
 interface FilteredTree {
@@ -61,6 +73,59 @@ function collectFolderKeys(nodes: readonly TreeNodeSnap[], out: Set<TreeNodeKey>
       collectFolderKeys(node.children, out);
     }
   }
+}
+
+/** 虚拟行高估计（ListLayout rowHeight；单行文本行）。 */
+const TREE_ROW_HEIGHT = 26;
+
+/** 单个树行（动态集合 render item）：子级经嵌套 Collection 延迟提供。 */
+function TreeNodeRow({ node }: { node: TreeNodeSnap }) {
+  const store = useSessionStore.getState;
+  return (
+    <TreeItem
+      id={node.key}
+      textValue={node.title}
+      hasChildItems={node.children.length > 0}
+      className="tree-node"
+      onDoubleClick={(event) => {
+        // 双击切换（旧版行为）；落在复选框/展开按钮上的双击由各自控件处理。
+        if ((event.target as HTMLElement).closest("input, button") === null) {
+          void store().toggleNode(node.key);
+        }
+      }}
+    >
+      <TreeItemContent>
+        {({ isExpanded }) => (
+          <span className="tree-node-row">
+            {node.children.length > 0 ? (
+              <Button slot="chevron" className="tree-chevron">
+                {isExpanded ? "▾" : "▸"}
+              </Button>
+            ) : (
+              <span className="tree-chevron-spacer" aria-hidden="true" />
+            )}
+            <Checkbox
+              className="tree-checkbox"
+              aria-label={
+                node.unselectable ? `选择 ${node.title}（不可勾选）` : `选择 ${node.title}`
+              }
+              isSelected={node.selected}
+              isIndeterminate={node.partsel}
+              isDisabled={node.unselectable}
+              onChange={() => void store().toggleNode(node.key)}
+            />
+            <span className="tree-node-title" title={node.tooltip}>
+              {node.title}
+            </span>
+            {node.unselectable ? <span className="tree-node-hint">不可勾选</span> : null}
+          </span>
+        )}
+      </TreeItemContent>
+      {node.children.length > 0 && (
+        <Collection items={node.children}>{(child) => <TreeNodeRow node={child} />}</Collection>
+      )}
+    </TreeItem>
+  );
 }
 
 export function ConversionTree() {
@@ -134,54 +199,6 @@ export function ConversionTree() {
     };
   });
 
-  const renderNode = (node: TreeNodeSnap) => {
-    const store = useSessionStore.getState;
-    return (
-      <TreeItem
-        key={String(node.key)}
-        id={node.key}
-        textValue={node.title}
-        hasChildItems={node.children.length > 0}
-        className="tree-node"
-        onDoubleClick={(event) => {
-          // 双击切换（旧版行为）；落在复选框/展开按钮上的双击由各自控件处理。
-          if ((event.target as HTMLElement).closest("input, button") === null) {
-            void store().toggleNode(node.key);
-          }
-        }}
-      >
-        <TreeItemContent>
-          {({ isExpanded }) => (
-            <span className="tree-node-row">
-              {node.children.length > 0 ? (
-                <Button slot="chevron" className="tree-chevron">
-                  {isExpanded ? "▾" : "▸"}
-                </Button>
-              ) : (
-                <span className="tree-chevron-spacer" aria-hidden="true" />
-              )}
-              <Checkbox
-                className="tree-checkbox"
-                aria-label={
-                  node.unselectable ? `选择 ${node.title}（不可勾选）` : `选择 ${node.title}`
-                }
-                isSelected={node.selected}
-                isIndeterminate={node.partsel}
-                isDisabled={node.unselectable}
-                onChange={() => void store().toggleNode(node.key)}
-              />
-              <span className="tree-node-title" title={node.tooltip}>
-                {node.title}
-              </span>
-              {node.unselectable ? <span className="tree-node-hint">不可勾选</span> : null}
-            </span>
-          )}
-        </TreeItemContent>
-        {node.children.map(renderNode)}
-      </TreeItem>
-    );
-  };
-
   let effectiveExpanded: Iterable<Key> = expandedKeys;
   if (searching && filtered !== null) {
     const folders = new Set<TreeNodeKey>();
@@ -205,19 +222,26 @@ export function ConversionTree() {
         </>
       ) : (
         <div ref={scopeRef} className="tree-keyboard-scope">
-          <Tree
-            aria-label="转换条目"
-            className="conversion-tree-view"
-            selectionMode="none"
-            expandedKeys={effectiveExpanded}
-            onExpandedChange={(keys) => {
-              if (!searching) {
-                useSessionStore.getState().setExpandedKeys(keys);
-              }
-            }}
+          <Virtualizer
+            layout={ListLayout}
+            layoutOptions={{ rowHeight: TREE_ROW_HEIGHT }}
+            shouldObserveItemSize
           >
-            {filtered.nodes.map(renderNode)}
-          </Tree>
+            <Tree
+              aria-label="转换条目"
+              className="conversion-tree-view"
+              selectionMode="none"
+              items={filtered.nodes}
+              expandedKeys={effectiveExpanded}
+              onExpandedChange={(keys) => {
+                if (!searching) {
+                  useSessionStore.getState().setExpandedKeys(keys);
+                }
+              }}
+            >
+              {(node) => <TreeNodeRow key={String(node.key)} node={node} />}
+            </Tree>
+          </Virtualizer>
         </div>
       )}
     </aside>

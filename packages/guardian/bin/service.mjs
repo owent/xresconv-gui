@@ -50,13 +50,21 @@ function envelope(kind, payload, extra = {}) {
   };
 }
 
+// 帧上限（P4-08）：缺省与 @xresconv/ipc DEFAULT_MAX_FRAME_BYTES 一致（64MiB）；
+// 测试可注入更小上限复现 RESPONSE_TOO_LARGE 路径（生产不变）。
+const envMaxFrame = Number(process.env.XRESCONV_MAX_FRAME_BYTES);
+const MAX_FRAME_BYTES_LIMIT =
+  Number.isFinite(envMaxFrame) && envMaxFrame > 0 ? envMaxFrame : undefined;
+
 let queuedOutputBytes = 0;
-const MAX_QUEUED_OUTPUT_BYTES = 8 * 1024 * 1024;
+// 在途字节预算（P4-08 上调）：需容纳单个 100k 快照帧（~37.5MB）+ 并发事件；
+// 仍为有界预算，超限自关（不无限积压）。
+const MAX_QUEUED_OUTPUT_BYTES = 128 * 1024 * 1024;
 function send(kind, payload, extra = {}) {
   let value = envelope(kind, payload, extra);
   let bytes;
   try {
-    bytes = encodeFrame(value).byteLength;
+    bytes = encodeFrame(value, MAX_FRAME_BYTES_LIMIT).byteLength;
   } catch {
     value =
       kind === "rpc_result"
@@ -79,7 +87,7 @@ function send(kind, payload, extra = {}) {
     return selfShutdown("shell output backlog exceeded its byte budget");
   }
   queuedOutputBytes += bytes;
-  return writeFrame(process.stdout, value)
+  return writeFrame(process.stdout, value, MAX_FRAME_BYTES_LIMIT)
     .catch((err) => {
       process.stderr.write(`[guardian] send failed: ${err}\n`);
       return selfShutdown("shell output channel failed");
@@ -220,6 +228,7 @@ const decoder = new FrameDecoder(
     process.stderr.write(`[guardian] frame decode error (${error.code}): ${error.message}\n`);
     void selfShutdown(`shell channel poisoned: ${error.code}`);
   },
+  MAX_FRAME_BYTES_LIMIT,
 );
 process.stdin.on("data", (chunk) => decoder.push(chunk));
 process.stdin.once("end", () => void selfShutdown("shell channel EOF"));

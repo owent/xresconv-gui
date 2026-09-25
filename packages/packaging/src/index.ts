@@ -1,5 +1,5 @@
 export type { AssembleLayoutOptions, NodeAcquisition } from "./assemble.ts";
-export { assembleRuntimeLayout, collectProductionSeeds } from "./assemble.ts";
+export { assembleRuntimeLayout, collectProductionSeeds, glibcExclusion } from "./assemble.ts";
 export {
   baselineKeys,
   DESKTOP_ARCHES,
@@ -23,6 +23,8 @@ export {
   validateTargets,
 } from "./load.ts";
 export { artifactName, buildMatrix, formatFor } from "./matrix.ts";
+export type { SizeBreakdown, SpdxDocument, SpdxPackage } from "./sbom.ts";
+export { buildSpdx, packageInventory, sizeBreakdown } from "./sbom.ts";
 export type {
   ArtifactFormat,
   BuildToolchain,

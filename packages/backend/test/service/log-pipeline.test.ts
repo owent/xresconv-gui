@@ -65,6 +65,53 @@ describe("LogPipeline", () => {
     expect(diagnostics.length).toBe(2);
     expect(diagnostics[0]?.level).toBe("warning");
   });
+
+  it("队列条目带单调 seq；订阅事件与 getRecent 一致（P4-07 UI 游标去重依据）", async () => {
+    const pipeline = new LogPipeline({ capacity: 4 });
+    const seen: LogEntry[] = [];
+    pipeline.subscribe((entry) => seen.push(entry));
+    for (let i = 0; i < 6; i++) {
+      await pipeline.info(`m${i}`, "T");
+    }
+    const queued = pipeline.snapshot();
+    expect(queued.map((entry) => entry.seq)).toEqual([3, 4, 5, 6]);
+    // 订阅侧业务条目（非 LOG 诊断）的 seq 与队列一致。
+    const business = seen.filter((entry) => entry.moduleName === "T");
+    expect(business.map((entry) => entry.seq)).toEqual([1, 2, 3, 4, 5, 6]);
+    // 直发溢出诊断不占 seq（不进队列，无从游标）。
+    const diagnostics = seen.filter((entry) => entry.moduleName === "LOG");
+    expect(diagnostics.every((entry) => entry.seq === undefined)).toBe(true);
+  });
+
+  it("getRecent(limit)：返回最新 limit 条；limit 缺省全量、越界夹取（P4-07）", async () => {
+    const pipeline = new LogPipeline({ capacity: 5 });
+    for (let i = 0; i < 5; i++) {
+      await pipeline.info(`m${i}`, "T");
+    }
+    expect(pipeline.getRecent(2).map((entry) => entry.message)).toEqual(["m3", "m4"]);
+    expect(pipeline.getRecent()).toHaveLength(5);
+    expect(pipeline.getRecent(100).map((entry) => entry.message)).toEqual([
+      "m0",
+      "m1",
+      "m2",
+      "m3",
+      "m4",
+    ]);
+    expect(pipeline.getRecent(0)).toEqual([]);
+  });
+
+  it("getRecentBefore(beforeSeq, limit)：返回 seq < beforeSeq 的最新 limit 条（滚动加载历史）", async () => {
+    const pipeline = new LogPipeline({ capacity: 10 });
+    for (let i = 0; i < 10; i++) {
+      await pipeline.info(`m${i}`, "T");
+    }
+    // seq 1..10；before=8 → 候选 seq 1..7，取最新 3 条 = seq 5..7。
+    expect(pipeline.getRecentBefore(8, 3).map((entry) => entry.seq)).toEqual([5, 6, 7]);
+    // limit 超过候选数 → 全部候选。
+    expect(pipeline.getRecentBefore(4, 100).map((entry) => entry.seq)).toEqual([1, 2, 3]);
+    // before <= 最早 seq → 空。
+    expect(pipeline.getRecentBefore(1, 3)).toEqual([]);
+  });
 });
 
 describe("log4js sink", () => {

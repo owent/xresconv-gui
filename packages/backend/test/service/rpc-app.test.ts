@@ -192,6 +192,68 @@ describe("BackendRpcApp（P4-02）", () => {
     );
   });
 
+  it("getLogs：返回最新日志窗口（含 seq/droppedCount/capacity）；limit 校验（P4-07）", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const { app, events } = makeApp({ runner: okRunner([]) });
+    // 日志面独立于配置会话：未加载配置时返回空窗口而非错误。
+    const empty = (await app.handleRpc("getLogs")) as {
+      entries: { seq?: number; text: string }[];
+      droppedCount: number;
+      capacity: number;
+    };
+    expect(empty.entries).toEqual([]);
+    expect(empty.droppedCount).toBe(0);
+    expect(empty.capacity).toBeGreaterThan(0);
+
+    await app.handleRpc("loadConfig", { path: fixture("set-name.xml") });
+    await app.handleRpc("run");
+    await waitUntil(() => events.some((e) => e.type === "run_end"), "run_end event");
+
+    const logs = (await app.handleRpc("getLogs")) as {
+      entries: { seq?: number; text: string; message: string }[];
+      droppedCount: number;
+      capacity: number;
+    };
+    expect(logs.entries.length).toBeGreaterThan(0);
+    // set-name.xml 未配置 JAR：计划构建失败分支（BD-O8），收尾文案为失败变体。
+    expect(logs.entries.some((entry) => entry.text.includes("All jobs done"))).toBe(true);
+    // seq 单调（UI 游标去重依据）。
+    const seqs = logs.entries.map((entry) => entry.seq);
+    expect(seqs).toEqual([...seqs].sort((a, b) => (a ?? 0) - (b ?? 0)));
+
+    // 事件面 log 条目与 getLogs 返回逐条一致（同 seq 同文本）。
+    const logEvents = events.filter((e) => e.type === "log");
+    for (const event of logEvents) {
+      if (event.type !== "log") continue;
+      if (event.entry.seq === undefined) continue; // 直发诊断不进队列
+      const match = logs.entries.find((entry) => entry.seq === event.entry.seq);
+      expect(match).toBeDefined();
+      expect(match?.text).toBe(event.entry.text);
+    }
+
+    const limited = (await app.handleRpc("getLogs", { limit: 1 })) as {
+      entries: unknown[];
+    };
+    expect(limited.entries).toHaveLength(1);
+    await expectRpcError(app.handleRpc("getLogs", { limit: 0 }), "INVALID_PARAMS");
+    await expectRpcError(app.handleRpc("getLogs", { limit: "x" }), "INVALID_PARAMS");
+    await expectRpcError(app.handleRpc("getLogs", { limit: 1.5 }), "INVALID_PARAMS");
+
+    // beforeSeq 向后分页（滚动加载历史）：首页全部 seq 中取更早一半。
+    const firstPageSeqs = seqs;
+    const midSeq = firstPageSeqs[Math.floor(firstPageSeqs.length / 2)] ?? 1;
+    const older = (await app.handleRpc("getLogs", { limit: 1000, beforeSeq: midSeq })) as {
+      entries: { seq?: number }[];
+    };
+    expect(older.entries.length).toBeGreaterThan(0);
+    for (const entry of older.entries) {
+      expect(entry.seq ?? 0).toBeLessThan(midSeq);
+    }
+    await expectRpcError(app.handleRpc("getLogs", { beforeSeq: 0 }), "INVALID_PARAMS");
+    await expectRpcError(app.handleRpc("getLogs", { beforeSeq: 2.5 }), "INVALID_PARAMS");
+  });
+
   it("cancel/reset：运行中取消到 cancelled；活动运行 reset 取消并重新武装", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
