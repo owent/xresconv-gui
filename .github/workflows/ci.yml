@@ -154,6 +154,21 @@ jobs:
       - name: Desktop E2E (xvfb)
         if: runner.os == 'Linux'
         run: xvfb-run -a corepack yarn test:desktop
+      - name: Diagnose app launch (Windows)
+        # DevToolsActivePort 排查：直接运行 debug exe 8s 捕获自身输出
+        #（预检/guardian 启动失败会在 stderr 现形）。非致命。
+        if: runner.os == 'Windows' && failure()
+        run: |
+          $job = Start-Job -ScriptBlock { & .\target\debug\xresconv-gui.exe 2>&1 }
+          Start-Sleep -Seconds 8
+          Receive-Job $job
+          Stop-Job $job; Remove-Job $job -Force
+        shell: pwsh
+      - name: Diagnose tauri-driver (macOS)
+        # tauri-driver 启动即退排查：捕获其 stderr。非致命。
+        if: runner.os == 'macOS' && failure()
+        run: |
+          (timeout 3 tauri-driver 2>&1 || true) | head -20
       # actions/upload-artifact v7.0.1（失败证据：日志/截图/退出码）
       - name: Upload E2E failure evidence
         if: failure()
