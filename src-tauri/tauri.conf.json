@@ -1,0 +1,74 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/",
+  "productName": "xresconv-gui",
+  "version": "3.0.0-dev.0",
+  "identifier": "com.xresloader.xresconv-gui",
+  "build": {
+    "beforeDevCommand": "yarn workspace @xresconv/desktop dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "yarn workspace @xresconv/desktop build",
+    "frontendDist": "../apps/desktop/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "xresconv-gui",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 500
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "plugins": {
+    "cli": {
+      "description": "xresconv batch conversion GUI",
+      "args": [
+        {
+          "name": "input",
+          "takesValue": true,
+          "description": "XML configuration file to load at startup"
+        },
+        {
+          "name": "debug-mode",
+          "takesValue": false,
+          "description": "Enable debug logging"
+        },
+        {
+          "name": "custom-selector",
+          "takesValue": true,
+          "multiple": true,
+          "description": "Custom selector JSON file(s)"
+        },
+        {
+          "name": "custom-button",
+          "takesValue": true,
+          "multiple": true,
+          "description": "Custom button definition file(s)"
+        },
+        {
+          "name": "log-configure",
+          "takesValue": true,
+          "description": "External log4js configuration file"
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ],
+    "resources": []
+  }
+}

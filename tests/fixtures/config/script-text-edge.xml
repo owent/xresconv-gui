@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global>
+        <work_dir>.</work_dir>
+        <xresloader_path>xresloader.jar</xresloader_path>
+        <output_type>bin</output_type>
+    </global>
+    <gui>
+        <set_name description="含小于号与引号">
+            if (item_data.name.length &lt; 3) { item_data.name = "短:" + item_data.name; }
+        </set_name>
+        <on_append_log name="实体与CDATA探针" timeout="5000">
+            data.message = data.message + " <probe>";
+        </on_append_log>
+    </gui>
+    <list>
+        <item file="a.xlsx" scheme="s" name="甲乙丙"></item>
+    </list>
+</root>

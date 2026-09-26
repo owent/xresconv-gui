@@ -1,0 +1,5 @@
+{
+  "code": "config.parse_error",
+  "message": "unexpected end tag",
+  "details": { "line": 3, "column": 5 }
+}

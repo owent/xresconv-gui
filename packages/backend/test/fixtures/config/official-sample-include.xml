@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 来源: https://github.com/xresloader/xresconv-conf/blob/main/sample_include.xml （下载于 2026-09-24；追加本注释行，并将 include 目标 sample.xml 改为 official-sample.xml 以匹配本仓库 fixture 命名） -->
+<!-- <?xml-stylesheet type="text/xsl" href="helper/view.xsl"?> -->
+<root>
+    <include>official-sample.xml</include>
+    <global>
+        <output_type desc="输出类型，-t选项">lua</output_type>
+
+        <output_dir desc="输出目录，-o选项">../..</output_dir>
+        
+        <rename desc="重命名规则，-n选项">/(?i)\.bin$/\.lua/</rename>
+        <option desc="自定义选项" name="美化输出，缩进为2个空格">--pretty 2</option>
+    </global>
+</root>

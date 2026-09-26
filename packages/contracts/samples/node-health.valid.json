@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "role": "guardian",
+  "pid": 4100,
+  "node": "v24.21.0",
+  "backend": {
+    "ok": true,
+    "role": "backend",
+    "pid": 4101,
+    "node": "v24.21.0",
+    "protocol_version": 1
+  }
+}

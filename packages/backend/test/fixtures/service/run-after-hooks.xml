@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>.</work_dir>
+    <xresloader_path>run-after-hooks.xml</xresloader_path>
+  </global>
+  <list>
+    <item name="one"><option>-c one</option></item>
+  </list>
+  <gui>
+    <on_after_convert><![CDATA[setTimeout(function(){ log_info("AFTER1"); resolve(); }, 600);]]></on_after_convert>
+    <on_after_convert><![CDATA[log_info("AFTER2"); resolve();]]></on_after_convert>
+  </gui>
+</root>

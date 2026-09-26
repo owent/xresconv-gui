@@ -1,0 +1,196 @@
+name: ci
+
+# 新架构 CI（P5 CI-01..CI-03）：工具链固定 → 质量（Node/契约 + 壳）→ 桌面 E2E。
+# 规则（docs/plan/05-packaging-release.md §CI）：
+# - Action 一律固定完整 commit SHA 并注释版本；传递 uses 同样审计；
+# - 先 setup Node → Corepack/Yarn → yarn install --immutable；不用 setup-node 的
+#   npm cache（与 Yarn 不匹配，P0 已登记的缺陷不复活）；
+# - Rust 用 runner rustup 锁定 toolchain 文件；cargo 一律 --locked；
+# - 失败即非零退出，不用末条命令掩盖；PR 不发布、不接触签名密钥。
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  # CI-02a：Node 业务/契约质量（无 Rust 依赖——D6 解耦验证）
+  quality-node:
+    name: quality (node)
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable Corepack Yarn (pinned by packageManager)
+        run: corepack enable
+      - name: Install (immutable)
+        run: corepack yarn install --immutable
+      - name: Lint & format
+        run: |
+          corepack yarn lint
+          npx --yes markdownlint-cli@latest "docs/plan/**/*.md" "Plan.md" "AGENTS.md" "CLAUDE.md"
+      - name: Typecheck
+        run: corepack yarn typecheck
+      - name: Unit & contracts
+        run: |
+          corepack yarn test:unit
+          corepack yarn test:contracts
+      - name: Browser E2E (chromium/firefox/webkit)
+        run: |
+          corepack yarn workspace @xresconv/desktop exec playwright install --with-deps chromium firefox webkit
+          corepack yarn test:browser
+        env:
+          PLAYWRIGHT_DOWNLOAD_HOST: https://npmmirror.com/mirrors/playwright/
+
+  # CI-02b：Tauri 壳原生检查（fmt/clippy/test，--locked）。yarn 脚本包装
+  # 需要 node_modules——先装 Node 依赖（仅安装，不跑 JS 测试）。
+  quality-shell:
+    name: quality (shell)
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable Corepack Yarn (pinned by packageManager)
+        run: corepack enable
+      - name: Install JS deps (script wrappers only)
+        run: corepack yarn install --immutable
+      - name: Install Linux GTK/WebKit build deps (glib-sys etc.)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - name: Rust toolchain (locked by src-tauri rust-toolchain)
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup component add rustfmt clippy
+      # Swatinem/rust-cache v2.9.2（E2E 与生产构建缓存分离：key 含用途）
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          workspaces: src-tauri
+          key: shell-quality
+      - name: fmt + clippy + test (locked, deny warnings)
+        run: |
+          cargo fmt --all --check
+          corepack yarn check:shell
+          corepack yarn test:shell
+
+  # CI-03：桌面 E2E（真实 WebView；平台矩阵）。Linux（xvfb+WebKitGTK）与
+  # 本机 Windows 交互会话已实证；两项环境限制如实登记（2026-09-25）：
+  # - windows-latest：runner 会话无交互桌面，WebView2 无法与 msedgedriver
+  #   完成 DevToolsActivePort 握手（app 本体 guardian/backend 正常，诊断步
+  #   实证）；权威 Windows 证据为本机交互会话（P4-09 记录 9/9）。
+  # - macos-latest：tauri-driver 启动即退且无 stderr（safaridriver 已 enable，
+  #   诊断步 /tmp/td.log 为空）；按用户决策 macOS 验收延后至 mac 实机/CI 平台。
+  # 两者 continue-on-error：结果如实展示，不阻塞流水线；恢复条件登记于
+  # docs/plan/records/P5-09.md。
+  desktop-e2e:
+    name: desktop e2e (${{ matrix.os }})
+    needs: [quality-node, quality-shell]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            gui-allowed: false
+          - os: ubuntu-latest
+            gui-allowed: true
+          - os: macos-latest
+            gui-allowed: false
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    continue-on-error: ${{ matrix.gui-allowed == false }}
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          lfs: true
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Enable Corepack Yarn
+        run: corepack enable
+      - name: Install Linux WebKitGTK build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev webkit2gtk-driver xvfb
+      - name: Install deps
+        run: corepack yarn install --immutable
+      - name: Install tauri-driver
+        run: cargo install tauri-driver --locked
+      - name: Enable safaridriver (macOS)
+        # tauri-driver 在 macOS 用系统 safaridriver；未启用时启动即退
+        # （官方要求一次性 `safaridriver --enable`，CI 实测定位）。
+        if: runner.os == 'macOS'
+        run: sudo safaridriver --enable
+      - name: Locate msedgedriver (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $runtime = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}').pv
+          Write-Host "WebView2 runtime: $runtime"
+          $url = "https://msedgedriver.azureedge.net/$runtime/edgedriver_win64.zip"
+          try { Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile edgedriver.zip } catch { $url = "https://registry.npmmirror.com/-/binary/edgedriver/$runtime/edgedriver_win64.zip"; Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile edgedriver.zip }
+          Expand-Archive edgedriver.zip -DestinationPath build/tools
+          & .\build\tools\msedgedriver.exe --version
+          "MSEDGEDRIVER_PATH=$pwd\build\tools\msedgedriver.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+        shell: pwsh
+      - name: Desktop E2E
+        run: corepack yarn test:desktop
+        # Linux 无显示服务器：xvfb-run 提供虚拟 X（wdio tauri-service 需要真实窗口）。
+        if: runner.os != 'Linux'
+      - name: Desktop E2E (xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a corepack yarn test:desktop
+      - name: Diagnose app launch (Windows)
+        # DevToolsActivePort 排查：直接运行 debug exe 8s 捕获自身输出
+        #（预检/guardian 启动失败会在 stderr 现形）。非致命。
+        if: runner.os == 'Windows' && failure()
+        run: |
+          $job = Start-Job -ScriptBlock { & .\target\debug\xresconv-gui.exe 2>&1 }
+          Start-Sleep -Seconds 8
+          Receive-Job $job
+          Stop-Job $job; Remove-Job $job -Force
+        shell: pwsh
+      - name: Diagnose tauri-driver (macOS)
+        # tauri-driver 启动即退排查：捕获其 stderr（macOS 无 timeout 命令，
+        # 用后台进程 + sleep + kill）。非致命。
+        if: runner.os == 'macOS' && failure()
+        run: |
+          tauri-driver > /tmp/td.log 2>&1 &
+          TPID=$!
+          sleep 3
+          kill $TPID 2>/dev/null || true
+          head -20 /tmp/td.log
+      # actions/upload-artifact v7.0.1（失败证据：日志/截图/退出码）
+      - name: Upload E2E failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: e2e-evidence-${{ matrix.os }}
+          path: |
+            apps/desktop/test-results
+            build/e2e-*.log
+          if-no-files-found: ignore

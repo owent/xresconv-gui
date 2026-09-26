@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global><work_dir>.</work_dir><output_type>bin</output_type></global>
+    <gui>
+        <on_before_convert name="异步抛错" timeout="3000">
+            require("timers").setTimeout(function () {
+                throw new Error("fault-async-throw");
+            }, 100);
+        </on_before_convert>
+    </gui>
+    <list>
+        <item file="a.xlsx" scheme="s" name="条目甲"></item>
+    </list>
+</root>

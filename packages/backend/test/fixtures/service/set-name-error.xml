@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <list>
+    <item name="good"><scheme name="DataSource">a.xlsx|s1|1,1</scheme></item>
+    <item name="partial"><scheme name="DataSource">b.xlsx|s2|1,1</scheme></item>
+    <item name="bad"><scheme name="DataSource">c.xlsx|s3|1,1</scheme></item>
+  </list>
+  <gui>
+    <set_name><![CDATA[
+      if (item_data.name === "bad") { throw new Error("boom-bad"); }
+      item_data.name = item_data.name + "-ok";
+      if (item_data.name === "partial-ok") { throw new Error("boom-partial"); }
+    ]]></set_name>
+  </gui>
+</root>

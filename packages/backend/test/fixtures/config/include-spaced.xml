@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <include>子 目录/包含 文件.xml</include>
+</root>

@@ -1,0 +1,8 @@
+{
+  "invocation_id": "inv-42",
+  "outcome": "resolved",
+  "ops": [
+    { "op": "log", "level": "info", "message": "hello" },
+    { "op": "set_item_fields", "item_id": 3, "fields": { "name": "新名字" } }
+  ]
+}

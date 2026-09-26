@@ -1,0 +1,165 @@
+/**
+ * 设计令牌（docs/plan/04-ui.md §样式；2026-09-26 现代化改版）：
+ * 颜色、间距、字号、圆角、阴影、动效均为 CSS 自定义属性。
+ * 主题三态：跟随系统（prefers-color-scheme）/亮（[data-theme="light"]）/
+ * 暗（[data-theme="dark"]）——[data-theme] 覆盖媒体查询，由显示设置写入。
+ * 仅使用最低 WebView 已验证能力，不引入外部字体/CDN 资源。
+ */
+:root {
+  color-scheme: light dark;
+
+  /*
+   * 默认字体栈（2026-09-26 用户指定优先序；浏览器按序自动选用本机已有字体，
+   * 不下载任何资源）。用户在显示设置里指定字体时经 inline style 覆盖
+   * `--font-<area>-family`，未指定则回落到这些栈。
+   */
+  --font-family-base:
+    "更纱黑体 UI SC", "Sarasa UI SC", "等距更纱黑体 SC", "Sarasa Mono SC", "Sarasa Mono CL",
+    "Noto Sans Mono", "Noto Sans Mono CJK SC", "Maple Mono Normal NF CN", "微软雅黑", "Segoe UI",
+    system-ui, sans-serif;
+  --font-family-tree:
+    "Maple Mono Normal NF CN", "Maple Mono NF CN", "更纱黑体 SC", "Sarasa Gothic SC",
+    "等距更纱黑体 SC", "Sarasa Mono SC", "Sarasa Mono CL", "Noto Sans Mono CJK SC",
+    "Noto Sans Mono", "微软雅黑", "Segoe UI", system-ui, sans-serif;
+  --font-family-log:
+    "Maple Mono Normal NL NF CN", "Maple Mono NL NF CN", "Maple Mono NL CN",
+    "等距更纱黑体 SC", "Sarasa Mono SC", "Sarasa Mono CL", "Noto Sans Mono",
+    "Noto Sans Mono CJK SC", "Maple Mono Normal NF CN", "Maple Mono NF CN", "微软雅黑",
+    ui-monospace, Consolas, "Courier New", monospace;
+  /* 分区字体变量（显示设置写入 inline style；空=上面的分区默认栈） */
+  --font-global-family: var(--font-family-base);
+  --font-global-size: var(--font-size-base);
+  --font-ui-family: var(--font-global-family);
+  --font-ui-size: var(--font-global-size);
+  --font-tree-family: var(--font-family-tree);
+  --font-tree-size: var(--font-global-size);
+  --font-log-family: var(--font-family-log);
+  --font-log-size: var(--font-size-sm);
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.875rem;
+  --font-size-lg: 1.0625rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  --radius-1: 0.375rem;
+  --radius-2: 0.625rem;
+  --radius-pill: 999px;
+
+  --z-dialog: 1000;
+  --z-tooltip: 1100;
+
+  --transition-fast: 120ms ease;
+
+  /* light（默认；[data-theme="light"] 显式锁定同值） */
+  --color-bg: #eef1f6;
+  --color-bg-inset: #e4e8f0;
+  --color-panel-bg: #ffffff;
+  --color-panel-bg-hover: #f6f8fb;
+  --color-border: #d3d9e3;
+  --color-border-strong: #b7c0ce;
+  --color-text: #1a2333;
+  --color-text-muted: #5d6a7d;
+  /* 2026-09-26 四轮：#2f6bff+白字对比 4.5:1 临界不过 axe，加深主色 */
+  --color-accent: #1f57e8;
+  --color-accent-hover: #184ad6;
+  --color-accent-soft: #e7eeff;
+  --color-accent-contrast: #ffffff;
+  /* 禁用控件文本（bg-inset 上 ≥4.5:1；普通 muted 在浅底不足） */
+  --color-disabled-ink: #4a5568;
+  --color-danger: #c93a3a;
+  --color-danger-soft: #fdeaea;
+  --color-warning: #9a6700;
+  --color-warning-soft: #fff3d6;
+  --color-success: #177f41;
+  --color-success-soft: #e2f5e9;
+  --color-info-soft: #e7eeff;
+  --color-focus-ring: #2f6bff;
+  /* 实底状态章/主按钮的前景墨色（axe AA ≥4.5:1 已验证；2026-09-26 对比度强化） */
+  --color-accent-ink: #ffffff;
+  --color-success-ink: #ffffff;
+  --color-danger-ink: #ffffff;
+  --color-warning-ink: #ffffff;
+
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-2: 0 2px 8px rgb(16 24 40 / 0.09);
+  --shadow-dialog: 0 12px 40px rgb(16 24 40 / 0.22);
+}
+
+/* 跟随系统：无 data-theme 时按媒体查询 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-bg: #10141c;
+    --color-bg-inset: #0b0f16;
+    --color-panel-bg: #181e29;
+    --color-panel-bg-hover: #1f2735;
+    --color-border: #2c3547;
+    --color-border-strong: #3d495f;
+    --color-text: #e7ecf4;
+    --color-text-muted: #97a3b6;
+    --color-accent: #6b9cff;
+    --color-accent-hover: #8ab2ff;
+    --color-accent-soft: #1c2a4a;
+    --color-accent-contrast: #0b1220;
+    --color-danger: #ff8080;
+    --color-danger-soft: #3d1f1f;
+    --color-warning: #e3b341;
+    --color-warning-soft: #3a2e12;
+    --color-success: #4fd07e;
+    --color-success-soft: #14301e;
+    --color-info-soft: #1c2a4a;
+    --color-focus-ring: #6b9cff;
+    --color-disabled-ink: #97a3b6;
+    --color-accent-ink: #0b1220;
+    --color-success-ink: #071510;
+    --color-danger-ink: #200a0a;
+    --color-warning-ink: #241a05;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 2px 10px rgb(0 0 0 / 0.45);
+    --shadow-dialog: 0 12px 40px rgb(0 0 0 / 0.6);
+  }
+}
+
+/* 强制暗色：完整暗色令牌 + color-scheme（原生表单控件/滚动条随主题——
+   2026-09-26 反馈：暗色下原生 select/输入框仍是亮色观感）。跟随系统时
+   :root 的 color-scheme: light dark 已覆盖。 */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: #10141c;
+  --color-bg-inset: #0b0f16;
+  --color-panel-bg: #181e29;
+  --color-panel-bg-hover: #1f2735;
+  --color-border: #2c3547;
+  --color-border-strong: #3d495f;
+  --color-text: #e7ecf4;
+  --color-text-muted: #97a3b6;
+  --color-accent: #6b9cff;
+  --color-accent-hover: #8ab2ff;
+  --color-accent-soft: #1c2a4a;
+  --color-accent-contrast: #0b1220;
+  --color-danger: #ff8080;
+  --color-danger-soft: #3d1f1f;
+  --color-warning: #e3b341;
+  --color-warning-soft: #3a2e12;
+  --color-success: #4fd07e;
+  --color-success-soft: #14301e;
+  --color-info-soft: #1c2a4a;
+  --color-focus-ring: #6b9cff;
+  --color-disabled-ink: #97a3b6;
+  --color-accent-ink: #0b1220;
+  --color-success-ink: #071510;
+  --color-danger-ink: #200a0a;
+  --color-warning-ink: #241a05;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 2px 10px rgb(0 0 0 / 0.45);
+  --shadow-dialog: 0 12px 40px rgb(0 0 0 / 0.6);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}

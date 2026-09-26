@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>work</work_dir>
+    <xresloader_path>jar/x.jar</xresloader_path>
+    <proto_file>a.pb</proto_file>
+    <proto_file>b.pb</proto_file>
+    <output_dir>out</output_dir>
+    <data_version>1.2.3</data_version>
+    <data_src_dir>ds1</data_src_dir>
+    <data_source_dir>ds2</data_source_dir>
+    <data_src_dir></data_src_dir>
+    <rename>/a/b/</rename>
+    <proto>protobuf</proto>
+    <output_type rename=" /x/y/ " output_dir=" od " tag="t1 t2" class="c1  c2">bin</output_type>
+    <option name="n1" desc="d1">v1</option>
+    <option>v-only</option>
+    <java_option>-Xmx1g</java_option>
+    <java_option></java_option>
+    <default_scheme name="KeyRow">2</default_scheme>
+    <default_scheme name="KeyRow" desc="第二行">3</default_scheme>
+    <default_scheme name="">ignored</default_scheme>
+    <unknown_tag desc="x">u</unknown_tag>
+  </global>
+</root>

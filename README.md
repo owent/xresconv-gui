@@ -1,11 +1,29 @@
 # xresconv-gui
 
-[ci-github-action]: https://github.com/xresloader/xresconv-gui/workflows/build/badge.svg
-![ci-github-action]
+[![CI](https://github.com/xresloader/xresconv-gui/actions/workflows/ci.yml/badge.svg)](https://github.com/xresloader/xresconv-gui/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/releases)
+[![Downloads](https://img.shields.io/github/downloads/xresloader/xresconv-gui/total?logo=github)](https://github.com/xresloader/xresconv-gui/releases)
+[![License](https://img.shields.io/github/license/xresloader/xresconv-gui)](https://github.com/xresloader/xresconv-gui/blob/main/LICENSE)
+
+[![Spec](https://img.shields.io/badge/Spec-xresconv--conf-informational?logo=github)](https://github.com/xresloader/xresconv-conf)
+[![Backend](https://img.shields.io/badge/Backend-xresloader-important?logo=github)](https://github.com/xresloader/xresloader)
+[![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)](https://v2.tauri.app/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Yarn](https://img.shields.io/badge/Yarn-4-2C8EBB?logo=yarn)](https://yarnpkg.com/)
+[![Windows](https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white)]
+[![Linux](https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black)]
+[![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)]
+
+[![Stars](https://img.shields.io/github/stars/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/stargazers)
+[![Forks](https://img.shields.io/github/forks/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/forks)
+[![Issues](https://img.shields.io/github/issues/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?logo=github)](https://github.com/xresloader/xresconv-gui/pulls)
+[![Contributors](https://img.shields.io/github/contributors/xresloader/xresconv-gui?logo=github)](https://github.com/xresloader/xresconv-gui/graphs/contributors)
+[![Last Commit](https://img.shields.io/github/last-commit/xresloader/xresconv-gui?logo=git&color=orange)](https://github.com/xresloader/xresconv-gui/commits/main)
 
 这是一个符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的GUI转表工具，并且使用 [xresloader](https://github.com/xresloader/xresloader) 作为数据导出工具后端。
 
-本项目基于 [Electron](http://electron.atom.io/) 项目，所以支持[Electron](http://electron.atom.io/)支持得所有平台（Linux、macOS和Windows）
+3.0 起基于 **Tauri 2 薄壳 + 系统 WebView + 独立 Node.js 业务内核**（业务与脚本宿主全在 Node/TypeScript，Rust 仅桌面壳胶水）。支持 Windows 10+/主流 Linux 桌面（Ubuntu 22.04/24.04、Debian 12/13、Fedora 最近两个正式版）和 macOS 13.5+，仅 64 位。每个目标提供 bootstrap（在线引导运行时）与 offline（离线自含）两种安装变体。
 
 ## 下载和使用
 
@@ -16,7 +34,7 @@
 + `--input <文件名>` : 指定初始的转表清单文件。
 + `--debug-mode` : 开启debug模式并启动开发人员工具。
 + `--custom-selector/--custom-button <json文件名>` : 增加自定义选择器,允许多个
-+ `--log-configure <log设置文件 json文件名>` : 设置额外的log配置。设置文件结构请参见: https://www.npmjs.com/package/log4js
++ `--log-configure <log设置文件 json文件名>` : 设置额外的log配置。设置文件结构请参见: <https://www.npmjs.com/package/log4js>
 
 ### 自定义选择器规则
 
@@ -40,7 +58,7 @@
 ```
 
 以上 `file` 、 `scheme` 、 `sheet` 字段都支持 `完全匹配的名称` 、 `glob: 通配符` 和 `regex: 正则表达式` 三种形式。
-按钮风格默认是 `outline-secondary` 。可选项为(详见: https://getbootstrap.com/docs/5.0/components/buttons/):
+按钮风格默认是 `outline-secondary` 。可选项为(详见: <https://getbootstrap.com/docs/5.0/components/buttons/>):
 
 + outline-primary
 + outline-secondary
@@ -59,7 +77,7 @@
 + light
 + dark
 
-> Sample: 使用 [doc/custom-selector.json](doc/custom-selector.json) 和 https://github.com/xresloader/xresconv-conf/blob/master/sample.xml 里的配置，可以使用 `--custom-selector doc/custom-selector.json` 来启动。
+> Sample: 使用 [docs/custom-selector.json](docs/custom-selector.json) 和 <https://github.com/xresloader/xresconv-conf/blob/master/sample.xml> 里的配置，可以使用 `--custom-selector docs/custom-selector.json` 来启动。
 
 特殊行为 **action** 字段的特殊功能:
 
@@ -70,13 +88,13 @@
 
 ## 示例
 
-![示例截图-1](doc/snapshoot-1.gif)
+![示例截图-1](docs/snapshoot-1.gif)
 
-![示例截图-2](doc/snapshoot-2.gif)
+![示例截图-2](docs/snapshoot-2.gif)
 
-![示例截图-3](doc/snapshoot-4.png)
+![示例截图-3](docs/snapshoot-4.png)
 
-自定义按钮启动示例: `./xresconv-gui.exe --custom-selector ./doc/custom-selector.json`
+自定义按钮启动示例: `./xresconv-gui.exe --custom-selector ./docs/custom-selector.json`
 
 ## 注意事项
 
@@ -222,86 +240,76 @@
 
 ## 已知问题
 
-### 用户脚本崩溃可能导致GUI白屏
+### 用户脚本崩溃隔离（3.0 已修复）
 
-如果用户脚本使用nodejs底层接口且在回调中有未捕获异常，目前没有高效且能够干净的隔离方式。崩溃会传递到GUI层。
-
-比如使用 `require("child_process").spawn` 并在 `spawn(...).on("event name", function(){})` 的回调中抛出异常。
-
-请先确保这类调用用 try 包裹一下并调用 `reject("错误消息")` 接口。
+3.0 起用户脚本运行在独立的受监督 Node 进程中：脚本抛未捕获异常、死循环、
+`process.exit` 或内存耗尽只会终止该脚本会话，GUI 与当前任务可正常收尾并给出
+可行动诊断（外部硬截止由独立 guardian 进程保证），不再导致 GUI 白屏或主进程退出。
+2.x 及更早版本中，脚本回调未捕获异常会传递到 GUI 层导致白屏；旧版用户请确保
+这类调用用 try 包裹并调用 `reject("错误消息")` 接口。
 
 ## 开发使用说明
 
-以下内容仅是对这个工具的开发和维护进行说明，直接使用的话[下载预发布包](https://github.com/xresloader/xresconv-gui/releases)即可
+以下内容仅是对这个工具的开发和维护进行说明，直接使用的话[下载发布包](https://github.com/xresloader/xresconv-gui/releases)即可。
 
 ### 环境准备
 
-1. 请自行安装node.js和npm（详见：<https://nodejs.org> ）
+1. 安装 Node.js LTS（>=24）与 Rust stable（构建 Tauri 壳）；Windows 另需
+   WebView2 运行时（一般系统自带），Linux 需 WebKitGTK 4.1 开发包
+   （`libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`）。
+1. 包管理器为 **Yarn 4**（Corepack 提供，仓库 `packageManager` 字段锁定版本）：
 
 ```bash
-# 基本组件安装
-npm install -g yarn
-yarn install
-
-# 开发环境安装
-yarn install --dev
-yarn install -g gulp-cli
-
-# 升级依赖包
-npm install -g ncu
-ncu
-ncu -u
+corepack yarn install      # 安装依赖（唯一 JS 锁文件 yarn.lock）
 ```
 
-### 直接启动
+### 直接启动（开发模式）
 
 ```bash
-yarn run start
+corepack yarn dev:desktop   # tauri dev：前端热更新 + 调试壳
 ```
 
-### 调试模式启动
+### 调试
+
++ 前端/业务内核（TypeScript）：`dev:desktop` 下使用浏览器开发者工具
+  （`--debug-mode` 启动参数自动打开）；Node 内核为独立进程，可在
+  VSCode 以 Attach 方式调试。
++ Tauri 壳（Rust）：`RUST_LOG=trace corepack yarn dev:desktop`。
+
+### 质量门禁与测试
 
 ```bash
-yarn run debug-start
+corepack yarn lint          # Biome + markdownlint
+corepack yarn typecheck     # 全 workspace TypeScript
+corepack yarn test:unit     # Node/前端单元（backend/guardian/contracts/ipc/packaging/script-host/desktop）
+corepack yarn test:contracts
+corepack yarn test:browser  # Playwright 三引擎（chromium/firefox/webkit）
+corepack yarn test:desktop  # 桌面 E2E（tauri-driver；Windows 另需 MSEDGEDRIVER_PATH 指向与
+                            # WebView2 运行时版本匹配的 msedgedriver.exe）
+corepack yarn check:shell   # Tauri 壳 clippy（-D warnings）
+corepack yarn test:shell    # Tauri 壳单元测试
 ```
-
-### VSCode调试启动
-
-先使用设定调试端口并启动
-
-```bash
-yarn run debug
-```
-
-然后VSCode打开调试面板Attach到进程上
-
-直接VSCode Lanch调试的方法见: <https://electronjs.org/docs/tutorial/debugging-main-process-vscode>
-
-> *VSCode里直接Launch的方式仅在Windows下有效*
-
-**注：VSCode连接成功后，会立刻断点在程序启动处，这时候可以对需要断点的地方打断点，然后直接继续即可。**
 
 ## 打包和发布
 
-+ 打包发布所有x64架构
-
-> `yarn run package`
-
-+ 打包发布所有平台
-
-> `yarn run package-all`
-
-## 关于加载和调试
-
-本软件中大部分的外部库加载都没有问题，但是由于默认走的是node.js的沙箱机制，所以html内的script标签里某些库不会写出到全局。这时候需要手动加一下，比如：
-
-```javascript
-window.jQuery = require(`${__dirname}/lib/jquery/jquery.min.js`);
+```bash
+corepack yarn package:windows   # Windows x64 双变体（bootstrap/offline NSIS）
+corepack yarn package:linux     # Linux 当前发行版双变体（deb/rpm + AppImage；在 Linux/WSL 运行）
+corepack yarn package:macos     # macOS 双变体 DMG（须在 mac 主机运行）
 ```
 
-另外，调试模式运行只能调试[Electron](http://electron.atom.io/)进入的代码。
-无法调试[Electron](http://electron.atom.io/)中[BrowserWindow](http://electron.atom.io/docs/api/browser-window/)的沙箱里的代码。
-所以如果要调试[BrowserWindow](http://electron.atom.io/docs/api/browser-window/)内的代码还是要在[src/setup.js](src/setup.js)中把***debug***选项改为true。
+产物按 `packaging/targets.json` 矩阵命名并附带 SHA-256 边车；签名可经环境变量
+注入（`XRESCONV_SIGN_CERT_THUMBPRINT` 等，见 `docs/plan/records/P5-07.md`），
+密钥不进仓库。
+
+## 迁移与回滚
+
++ 3.0 起为全新架构；Windows ia32 与 Linux armv7l 不再提供（2.6.0 为终点版本，
+  见 [v2.6.0 Release](https://github.com/owent/xresconv-gui/releases/tag/v2.6.0)）。
++ 配置文件格式（xresconv-conf XML）、启动参数、自定义选择器/按钮与五类用户脚本
+  接口保持兼容；仅依赖 DOM/jQuery/Fancytree 内部对象的脚本不受支持（会给出
+  迁移诊断）。
++ 如需回滚，直接安装旧版发布包即可；两代版本无共享系统状态。
 
 ## 关于NPM下载加速
 
@@ -309,21 +317,19 @@ window.jQuery = require(`${__dirname}/lib/jquery/jquery.min.js`);
 
 > `npm config set strict-ssl false`
 
-2. 设置npm的软件源
+1. 设置npm的软件源
 
 > `npm config set registry http://registry.npmjs.org/`
 > `npm config set registry https://mirrors.tencent.com/npm/`
-> `npm config set registry https://registry.npm.taobao.org/`
-> `npm install -g cnpm --registry=https://registry.npm.taobao.org`
+> `npm config set registry https://registry.npmmirror.com/`
 
-3. 代理
+1. 代理
 
 > + 设置代理： `npm config set proxy=http://代理服务器ip:代理服务器端口`
 > + 取消代理： `npm config delete http-proxy`
 > + 取消代理： `npm config delete https-proxy`
-> + 单独设置代理： `npm install --save-dev electron-prebuilt --proxy http://代理服务器ip:代理服务器端口`
 
-4. 信任通用HTTP缓存服务（比如Squid）的CA证书
+1. 信任通用HTTP缓存服务（比如Squid）的CA证书
 
 ```powershell
 $env:NODE_EXTRA_CA_CERTS = "D:/workspace/root-ca.crt"

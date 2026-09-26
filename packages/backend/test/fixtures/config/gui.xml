@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global><work_dir>.</work_dir></global>
+  <gui>
+    <set_name>item_data.name = "first";</set_name>
+    <set_name><![CDATA[
+      if (item_data.file && item_data.file.length > 0) {
+        item_data.name += " (" + item_data.file + ")";
+      }
+    ]]></set_name>
+    <on_before_convert>resolve();</on_before_convert>
+    <on_before_convert name="命名事件" timeout="15000" checked="false" mutable="no">if (a &gt; 0 &amp;&amp; b &lt; 2) { resolve(); }</on_before_convert>
+    <on_after_convert timeout="not-a-number">resolve();</on_after_convert>
+    <on_append_log checked="0">data.message = "x";</on_append_log>
+    <script name="s1" timeout="5000"><![CDATA[if (a < 1 && b > 2) { resolve(); }]]></script>
+    <script>resolve();</script>
+  </gui>
+</root>

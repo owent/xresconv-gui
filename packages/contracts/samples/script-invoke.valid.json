@@ -1,0 +1,16 @@
+{
+  "invocation_id": "inv-42",
+  "entry_kind": "on_before_convert",
+  "filename": "conv.xml",
+  "source": "resolve();",
+  "timeout_ms": 30000,
+  "run_seq": 6,
+  "context": {
+    "work_dir": "/work",
+    "configure_file": "conv.xml",
+    "xresloader_path": "/work/xresloader.jar",
+    "global_options": { "-p": "protobuf", "-a": "1.0.0.0" },
+    "selected_items": [],
+    "selected_nodes": []
+  }
+}

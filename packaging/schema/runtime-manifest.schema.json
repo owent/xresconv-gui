@@ -1,0 +1,274 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "packaging-runtime-manifest",
+  "title": "RuntimeManifest",
+  "description": "Artifact-side runtime manifest (P5-01 schema; emitted per built artifact by P5-02..P5-07). Identity fields (targetTriple/os/osVersionRange/distro/arch/variant/webviewStrategy/minimumWebview) mirror the build input packaging/targets.json; the remaining fields are only knowable at build/verify time and must never appear in targets.json. After installation the manifest is checkable against the actual files; its trustworthiness comes from the signed release / verified installer, not from merely containing hashes (05-book). Manifests must not contain developer-machine absolute paths or secrets; @xresconv/packaging lintManifest enforces that hygiene rule (PK01).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "appVersion",
+    "sourceCommit",
+    "targetTriple",
+    "os",
+    "osVersionRange",
+    "arch",
+    "variant",
+    "webviewStrategy",
+    "minimumWebview",
+    "runtimePayloads",
+    "nodeVersion",
+    "nodeHash",
+    "moduleTreeHash",
+    "nativeAddonAbi",
+    "files",
+    "signingEvidence",
+    "buildToolchain",
+    "repositorySnapshot",
+    "verificationReport"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Format version of this manifest. Breaking changes must bump it."
+    },
+    "appVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$",
+      "description": "Semantic version of the application inside this artifact; equals the <version> segment of the artifact file name."
+    },
+    "sourceCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full git commit SHA the artifact was built from (lowercase hex)."
+    },
+    "targetTriple": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Rust target triple; must match the originating target in packaging/targets.json."
+    },
+    "os": { "enum": ["windows", "macos", "linux"] },
+    "osVersionRange": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Copied from the originating target; semantics per os are documented in packaging-targets."
+    },
+    "distro": {
+      "$ref": "#/$defs/linuxDistro",
+      "description": "Present exactly when the originating target carries one (linux bootstrap only)."
+    },
+    "arch": { "enum": ["x64", "arm64", "x86_64", "aarch64"] },
+    "variant": { "enum": ["bootstrap", "offline"] },
+    "webviewStrategy": {
+      "enum": [
+        "webview2-embed-bootstrapper",
+        "webview2-offline-installer",
+        "system-only",
+        "webkitgtk-system",
+        "webkitgtk-bundled"
+      ]
+    },
+    "minimumWebview": {
+      "type": ["string", "null"],
+      "description": "Copied from the originating target; null for macOS system-only."
+    },
+    "runtimePayloads": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "shell",
+          "frontend",
+          "node-runtime",
+          "backend-js",
+          "guardian-js",
+          "script-host-js",
+          "npm-modules",
+          "native-addons",
+          "resources",
+          "webview2-bootstrapper",
+          "webview2-offline-installer",
+          "linux-selfcontained-runtime"
+        ]
+      },
+      "description": "Logical payloads carried by this artifact. Every variant ships one shared Node (node-runtime) plus compiled backend/guardian/script-host JS and production npm modules; webview2-bootstrapper / webview2-offline-installer / linux-selfcontained-runtime only appear on the matching variants."
+    },
+    "nodeVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Exact bundled Node.js version (e.g. 24.21.0); the major must equal the target's nodeVersion input."
+    },
+    "nodeHash": {
+      "type": "object",
+      "required": ["sha256", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Where the Node binary was obtained (e.g. the nodejs.org dist URL); recorded for reproduction, verified at build time."
+        }
+      }
+    },
+    "moduleTreeHash": {
+      "$ref": "#/$defs/sha256",
+      "description": "Hash over the production module tree listing (P5-02 assembly); identical between the two variants of one version on one target (05-book Windows rule 4)."
+    },
+    "nativeAddonAbi": {
+      "type": "object",
+      "required": ["nodeAbi"],
+      "additionalProperties": false,
+      "properties": {
+        "nodeAbi": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Node-ABI version the bundled native modules were built for."
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "path", "sha256"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "path": { "type": "string", "minLength": 1 },
+              "sha256": { "$ref": "#/$defs/sha256" }
+            }
+          },
+          "description": "Bundled native modules (e.g. koffi on win32); empty array when the target ships none."
+        }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["path", "size", "sha256", "origin", "license"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path relative to the installed application root; forward slashes, never absolute (lint-enforced)."
+          },
+          "size": { "type": "integer", "minimum": 0 },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "origin": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Provenance of the file, e.g. build:<workspace>, node-dist:<version>, npm:<name>@<version>, webview2:<channel>."
+          },
+          "license": {
+            "type": "string",
+            "minLength": 1,
+            "description": "SPDX identifier or license reference; licenses are shipped untrimmed (05-book)."
+          }
+        }
+      }
+    },
+    "signingEvidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "subject", "reference"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": ["authenticode", "apple-codesign", "apple-notarization", "gpg", "sbom-attestation"]
+          },
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "description": "What was signed/notarized (installer path, app bundle path, SBOM file name)."
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Where the evidence lives (detached signature file name, notarization log id); produced by the controlled release environment (P5-07)."
+          }
+        }
+      }
+    },
+    "buildToolchain": {
+      "type": "object",
+      "required": ["runnerOs", "runnerArch", "nodeVersion", "yarnVersion", "tauriCliVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "runnerOs": { "type": "string", "minLength": 1 },
+        "runnerArch": { "type": "string", "minLength": 1 },
+        "nodeVersion": { "type": "string", "minLength": 1 },
+        "yarnVersion": { "type": "string", "minLength": 1 },
+        "tauriCliVersion": { "type": "string", "minLength": 1 },
+        "rustVersion": { "type": "string", "minLength": 1 }
+      }
+    },
+    "repositorySnapshot": {
+      "type": "object",
+      "required": ["repository", "commit", "dirty"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "dirty": {
+          "type": "boolean",
+          "description": "Release artifacts must be built from a clean tree (dirty=false)."
+        }
+      }
+    },
+    "verificationReport": {
+      "type": "object",
+      "required": ["result"],
+      "additionalProperties": false,
+      "properties": {
+        "result": { "enum": ["pass", "fail"] },
+        "reportPath": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Index into the release's test/acceptance reports for this artifact (relative path or release asset name)."
+        },
+        "testedAt": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$",
+          "description": "RFC 3339 timestamp of the verification run."
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "os": { "const": "linux" }, "variant": { "const": "bootstrap" } },
+        "required": ["os", "variant"]
+      },
+      "then": {
+        "required": ["distro"],
+        "properties": { "distro": { "$ref": "#/$defs/linuxDistro" } }
+      },
+      "else": {
+        "properties": { "distro": false }
+      }
+    },
+    {
+      "if": {
+        "properties": { "os": { "const": "linux" } },
+        "required": ["os"]
+      },
+      "then": { "properties": { "arch": { "enum": ["x86_64", "aarch64"] } } },
+      "else": { "properties": { "arch": { "enum": ["x64", "arm64"] } } }
+    }
+  ],
+  "$defs": {
+    "linuxDistro": {
+      "enum": ["ubuntu-22.04", "ubuntu-24.04", "debian-12", "debian-13", "fedora-43", "fedora-44"]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

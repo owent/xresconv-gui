@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <include>include-child.xml</include>
+  <global>
+    <work_dir>parent-work</work_dir>
+    <proto_file>parent.pb</proto_file>
+    <option>parent-opt</option>
+  </global>
+  <list>
+    <item file="parent.xlsx" scheme="s" name="父项"></item>
+  </list>
+</root>

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "error-info",
+  "title": "ErrorInfo",
+  "description": "Structured error returned by every fallible command across all Node roles and the Tauri bridge.",
+  "type": "object",
+  "required": ["code", "message"],
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable machine-readable code, e.g. config.parse_error"
+    },
+    "message": {
+      "type": "string",
+      "description": "User-actionable message"
+    },
+    "details": {
+      "description": "Optional structured context (file, line, column, ...); any JSON value",
+      "type": "object"
+    }
+  }
+}

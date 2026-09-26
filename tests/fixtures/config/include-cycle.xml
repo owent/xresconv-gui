@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <include>include-cycle.xml</include>
+    <global>
+        <work_dir>.</work_dir>
+        <output_type>bin</output_type>
+    </global>
+    <list>
+        <item file="cycle.xlsx" scheme="scheme_cycle" name="自引用条目"></item>
+    </list>
+</root>

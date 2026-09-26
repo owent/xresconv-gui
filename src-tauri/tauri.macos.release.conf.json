@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/",
+  "bundle": {
+    "targets": ["dmg", "app"],
+    "resources": {
+      "../build/release-layout/runtime": "runtime",
+      "../build/release-layout/app": "app",
+      "../build/release-layout/runtime-manifest.json": "runtime-manifest.json"
+    },
+    "macOS": {
+      "minimumSystemVersion": "13.5"
+    }
+  }
+}

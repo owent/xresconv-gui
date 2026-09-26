@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>.</work_dir>
+    <xresloader_path>run-mirror.xml</xresloader_path>
+  </global>
+  <list>
+    <item name="one"><scheme name="DataSource">a.xlsx|s1|1,1</scheme></item>
+    <item name="two"><scheme name="DataSource">b.xlsx|s1|1,1</scheme></item>
+  </list>
+  <gui>
+    <on_before_convert><![CDATA[
+      if (selected_items.length > 0) {
+        selected_items[0].desc = "patched-by-hook";
+        selected_items[0].ft_node.setSelected(false);
+      }
+      resolve();
+    ]]></on_before_convert>
+    <on_before_convert><![CDATA[
+      log_info("SECOND items=" + selected_items.length + " nodes=" + selected_nodes.length);
+      resolve();
+    ]]></on_before_convert>
+  </gui>
+</root>

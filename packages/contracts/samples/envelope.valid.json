@@ -1,0 +1,18 @@
+{
+  "protocol_version": 1,
+  "kind": "invoke",
+  "id": "msg-000001",
+  "role": "guardian",
+  "session_id": "sess-1",
+  "revision": 3,
+  "invocation_id": "inv-1",
+  "generation": 1,
+  "payload": {
+    "invocation_id": "inv-1",
+    "entry_kind": "set_name",
+    "filename": "conv.xml",
+    "source": "item_data.name += ' x'",
+    "timeout_ms": 30000,
+    "context": { "work_dir": "/tmp", "configure_file": "conv.xml" }
+  }
+}

@@ -1,0 +1,35 @@
+[
+  {
+    "name": "proto选择",
+    "by_schemes": [{ "file": "glob:*.proto", "scheme": "Kind" }],
+    "default_selected": true
+  },
+  {
+    "name": "表格选择",
+    "by_sheets": [{ "file": "glob:x*.xlsx" }]
+  },
+  {
+    "name": "计数按钮",
+    "action": ["script:counter"]
+  },
+  {
+    "name": "重载按钮",
+    "action": "reload"
+  },
+  {
+    "name": "链中止",
+    "action": ["script:missing-script", "script:counter"]
+  },
+  {
+    "name": "全选全消",
+    "action": ["select_all", "unselect_all"]
+  },
+  {
+    "name": "未知动作",
+    "action": ["frobnicate", 42]
+  },
+  {
+    "name": "补丁按钮",
+    "action": ["script: patch"]
+  }
+]

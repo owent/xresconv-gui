@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 来源: https://github.com/xresloader/xresconv-conf/blob/main/sample.xml （下载于 2026-09-24，仅追加本注释行） -->
+<!-- <?xml-stylesheet type="text/xsl" href="helper/view.xsl"?> -->
+<root>
+    <!-- <include desc="可以包含其他文件配置，然后本文件里的配置将会覆盖或合并配置，相对于当前xml的目录">sample.xml</include> -->
+    <global>
+        <work_dir desc="工作目录，相对于当前xml的目录">../xresloader/sample</work_dir>
+        <xresloader_path desc="xresloader地址，相对于当前xml的目录">../target/xresloader-2.14.0-rc3.jar</xresloader_path>
+
+        <proto desc="协议类型，-p选项">protobuf</proto>
+        <output_type desc="输出类型，-t选项，支持多个同时配置多种输出">bin</output_type>
+        <output_type desc="多种输出时可以额外定义某个节点的重命名规则" rename="/(?i)\.bin$/\.json/" output_dir="json_output">json</output_type>
+        <output_type desc="可以通过指定class来限制输出的规则" rename="/(?i)\.bin$/\.csv/" class="client" >ue-csv</output_type>
+        <!-- output_type 里的class标签对应下面item里的class标签，均可配置多个，多个用空格隔开，任意一个class匹配都会启用这个输出 -->
+        <proto_file desc="协议描述文件，-f选项">proto_v3/kind.pb</proto_file>
+
+        <output_dir desc="输出目录，-o选项"></output_dir>
+        <data_src_dir desc="数据源目录，-d选项"></data_src_dir>
+        <data_version desc="数据版本号，留空则自动生成">1.0.0.0</data_version>
+
+        <rename desc="重命名规则，正则表达式：/搜索模式/替换内容/，对应xresloader的-n选项, 如果在output_type里设置了rename，以output_type里的rename为准，否则使用这里的全局配置" placeholder="/(?i)\.bin$/\.json/"></rename>
+
+        <java_option desc="java选项-最大内存限制2GB">-Xmx2048m</java_option>
+        <java_option desc="java选项-客户端模式">-client</java_option>
+
+        <default_scheme name="KeyRow" desc="默认scheme模式参数-Key行号">2</default_scheme>
+        <default_scheme name="MacroSource" desc="默认scheme模式参数-Key行号">资源转换示例.xlsx|macro|2,1</default_scheme>
+        <!--<default_scheme name="UeCg-CsvObjectWrapper" desc="Ue-Csv输出的包裹字符">{|}</default_scheme>-->
+        <option desc="自定义验证器">--validator-rules custom_validator.yaml</option>
+    </global>
+    
+    <groups desc="分组信息">
+        <group id="client" name="客户端"></group>
+        <group id="server" name="服务器"></group>
+    </groups>
+
+    <category desc="类信息">
+        <tree id="all_cats" name="大分类">
+            <tree id="kind" name="角色配置"></tree>
+        </tree>
+        <tree id="test" name="测试"></tree>
+    </category>
+
+    <list>
+        <item file="资源转换示例.xlsx" scheme="scheme_kind" name="人物表" cat="kind" class="server"></item>
+        <item file="资源转换示例.xlsx" scheme="scheme_upgrade" name="升级表" cat="kind" class="server">
+            <option desc="自定义选项" name="移除空列表项">--disable-empty-list</option>
+        </item>
+        <item name="嵌套数组测试" cat="test" class="client server">
+            <scheme name="DataSource" desc="数据源(文件名|表名|数据起始行号,数据起始列号)">资源转换示例.xlsx|arr_in_arr|3,1</scheme>
+            <scheme name="ProtoName" desc="协议名">arr_in_arr_cfg</scheme>
+            <scheme name="OutputFile" desc="输出文件名">arr_in_arr_cfg.bin</scheme>
+        </item>
+    </list>
+
+    <gui>
+        <set_name desc="这个脚本用于修改树形节点的显示数据,便于策划核对具体的表名">
+            if (item_data.file) {
+                item_data.name += " (" + item_data.file.match(/([^.]+)\.\w+$/)[1] + ")"
+            }
+        </set_name>
+        <on_before_convert name="转表开始前事件" type="text/javascript" timeout="15000" description="事件执行结束必须调用resolve(value)或reject(reason)函数，以触发进行下一步">
+            // 这里可以执行nodejs代码，比如下面是Windows平台执行 echo work_dir
+            var os = require("os");
+            var spawn = require("child_process").spawn;
+            if (os.type().substr(0, 7).toLowerCase() == "windows") {
+                var exec = spawn("cmd", ["/c", "echo " + work_dir], {
+                    cwd: work_dir,
+                    encoding: 'utf-8'
+                });
+                exec.stdout.on("data", function(data) {
+                    log_info(data);
+                });
+                exec.stderr.on("data", function(data) {
+                    log_error(data);
+                });
+                exec.on("error", function(data) {
+                    log_error(data.toString());
+                    resolve();
+                    // reject("执行失败" + data.toString());
+                });
+                exec.on("exit", function(code) {
+                    if (code === 0) {
+                        resolve();
+                    } else {
+                        resolve();
+                        // reject("执行失败");
+                    }
+                });
+            } else {
+                resolve();
+            }
+        </on_before_convert>
+        <on_after_convert name="转表完成后事件" type="text/javascript" timeout="60000" description="事件执行结束必须调用resolve(value)或reject(reason)函数，以触发进行下一步">
+            // 同上
+            alert_warning("自定义转表完成后事件，可以执行任意nodejs脚本");
+            resolve();
+        </on_after_convert>
+        <script 
+            name="delaycall" 
+            type="text/javascript">
+            if (data.running) {
+                reject("上一次未完成");
+            } else {
+                data.running = true;
+                var left_times = 5;
+                function counter() {
+                    if (left_times > 0) {
+                        log_notice(`定时器计数: ${left_times}`);
+                        left_times -= 1;
+
+                        require("timers").setTimeout(function(){
+                            counter();
+                        }, 1000);
+                        return;
+                    }
+                    log_notice("定时器结束");
+                    resolve();
+                }
+                counter();
+            }
+        </script>
+
+        <script name="自定义脚本" type="text/javascript">
+            // 同上
+            data.call_times = (data.call_times || 0) + 1;
+            alert_warning("自定义脚本，可用于自定义按钮");
+            log_notice(`自定义脚本:\n可用于自定义按钮 - notice日志(${data.call_times})`);
+            log_warning("自定义脚本\n可用于自定义按钮 - warning日志");
+            // resolve();
+            data.running = false;
+            resolve();
+        </script>
+    </gui>
+</root>

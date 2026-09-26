@@ -1,0 +1,25 @@
+{
+  "name": "@xresconv/script-host",
+  "version": "3.0.0-dev.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "xresconv-script-worker": "./bin/worker.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@xresconv/compat-service": "workspace:*",
+    "@xresconv/contracts": "workspace:*",
+    "@xresconv/ipc": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
+  }
+}

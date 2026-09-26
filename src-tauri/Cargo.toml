@@ -1,0 +1,29 @@
+[package]
+name = "xresconv-gui"
+description = "xresconv batch conversion tool GUI (Tauri thin shell)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+default-run = "xresconv-gui"
+
+[lib]
+name = "xresconv_gui_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.6", features = [] }
+tauri-plugin-cli = "2.4.1"
+tauri-plugin-dialog = "2.7.3"
+tauri-plugin-opener = "2.5.5"
+serde.workspace = true
+serde_json.workspace = true
+windows-registry = "0.100.0"
+windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging"] }
+
+[features]
+# Desktop E2E (WebdriverIO) hooks; never enabled for production builds.
+e2e = []

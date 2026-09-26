@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global>
+        <work_dir>.</work_dir>
+        <output_type>lua</output_type>
+        <data_version>1.0.0.1</data_version>
+        <java_option>-Xmx512m</java_option>
+    </global>
+    <list>
+        <item file="child_a.xlsx" scheme="scheme_a" name="子A条目"></item>
+    </list>
+</root>

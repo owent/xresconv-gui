@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global><work_dir>.</work_dir><output_type>bin</output_type></global>
+    <gui>
+        <script name="chain_step_one" timeout="3000">
+            log_notice("before process.exit");
+            require("process").exit(1);
+        </script>
+        <script name="chain_step_two" timeout="3000">
+            log_notice("should-not-reach");
+            resolve();
+        </script>
+    </gui>
+    <list>
+        <item file="a.xlsx" scheme="s" name="条目甲"></item>
+    </list>
+</root>

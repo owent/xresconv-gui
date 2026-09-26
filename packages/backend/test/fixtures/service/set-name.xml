@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <list>
+    <item name="alpha"><scheme name="DataSource">a.xlsx|s1|1,1</scheme></item>
+    <item name="beta"><scheme name="DataSource">b.xlsx|s2|1,1</scheme></item>
+  </list>
+  <gui>
+    <set_name><![CDATA[item_data.name = item_data.name + "-renamed";]]></set_name>
+  </gui>
+</root>

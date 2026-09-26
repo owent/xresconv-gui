@@ -1,0 +1,27 @@
+{
+  "name": "@xresconv/guardian",
+  "version": "3.0.0-dev.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@xresconv/contracts": "workspace:*",
+    "@xresconv/ipc": "workspace:*",
+    "koffi": "3.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.2",
+    "@xresconv/backend": "workspace:*",
+    "@xresconv/script-host": "workspace:*",
+    "ajv": "8.20.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
+  }
+}

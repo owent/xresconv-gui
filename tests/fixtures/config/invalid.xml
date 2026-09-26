@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+    <global>
+        <work_dir>.</work_dir>
+        <output_type>bin</output_type>
+    </global>
+    <list>
+        <item file="broken.xlsx" scheme="s" name="未闭合条目">
+    </list>
+</root>

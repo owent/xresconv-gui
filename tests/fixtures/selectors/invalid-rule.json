@@ -1,0 +1,8 @@
+[{
+    "name": "非法正则按钮",
+    "by_schemes": [{
+        "file": "regex: (unclosed",
+        "scheme": "glob: *"
+    }],
+    "default_selected": true
+}]

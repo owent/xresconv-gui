@@ -1,0 +1,1208 @@
+@import "./styles/tokens.css";
+
+/*
+ * 全局 border-box（2026-09-26 四轮）：此前缺省 content-box，显式 width:100%
+ * 的面板/输入框会把 padding+border 挤出容器——左树面板因此超出网格轨道
+ * 26px 与右栏重叠 14px、设置弹窗字体输入与字号输入重叠 10px、树底溢出视口。
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-global-family);
+  font-size: var(--font-global-size);
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+/* 界面控件区（表单/按钮/工具栏）字体 */
+input,
+select,
+button,
+.toolbar,
+.config-file-bar,
+.run-buttons,
+.form-grid {
+  font-family: var(--font-ui-family);
+  font-size: var(--font-ui-size);
+}
+
+/* 2026-09-26：表单控件统一现代化（输入/选择/搜索） */
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input:not([type]),
+select,
+textarea,
+.react-aria-TextField .react-aria-Input {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+  min-width: 0;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--color-accent);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--color-accent);
+}
+
+/* 骨架布局（对照旧版 card-group；2026-09-26 三轮改版移除顶部状态条，
+   调试信息进运行日志）：左树 ｜ 右参数+日志+按钮 */
+.app-shell {
+  display: grid;
+  grid-template-areas: "tree right";
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  box-sizing: border-box;
+  height: 100dvh;
+  padding: var(--space-3);
+}
+
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-panel-bg);
+  padding: var(--space-3);
+  box-shadow: var(--shadow-1);
+}
+
+.panel-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-lg);
+}
+
+.empty-state {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.conversion-tree {
+  grid-area: tree;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  font-family: var(--font-tree-family);
+  font-size: var(--font-tree-size);
+  /* 2026-09-26：树框尽量撑满左列（grid 列宽即面板宽）。 */
+  width: 100%;
+  height: 100%;
+}
+
+.tree-keyboard-scope {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.conversion-tree-view {
+  flex: 1;
+  min-height: 6rem;
+  outline: none;
+  /* 纵向滚动按需；横向永不滚动（标题省略号，行宽=容器宽）——纵向滚动条
+   * 出现/消失时虚拟行宽度不会随之重排，overflow-x:auto 会残留假横向滚动条
+   * （2026-09-27 用户反馈：全部收起后出现未溢出的横向滚动条）。 */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 树条目（RAC TreeItem 自定义 className 会替换默认 react-aria-TreeItem 类，
+ * 全部选择器直击 .tree-node）。层级缩进由渲染层传入的 level 内联
+ * paddingLeft 实现（虚拟化树 DOM 平铺，实测无嵌套，CSS 后代选择器不可用）。
+ * 分类行加粗与叶子区分层级语义（2026-09-26 四轮）。 */
+.tree-node {
+  outline: none;
+  border-radius: var(--radius-1);
+  padding: 1px var(--space-1);
+}
+
+.tree-node[data-focused] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.tree-node[data-hovered] {
+  background: var(--color-bg);
+}
+
+.tree-node-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-node--folder .tree-node-title {
+  font-weight: 600;
+}
+
+.tree-node-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tree-chevron {
+  border: none;
+  background: none;
+  padding: 0 var(--space-1);
+  font: inherit;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.tree-chevron-spacer {
+  display: inline-block;
+  width: 1.25rem;
+}
+
+.tree-node-hint {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.tree-error {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--space-2);
+}
+
+.tree-search-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.tree-placeholder {
+  min-height: 8rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+/* 右栏（对照旧版 info_list_panel）：参数区 → 大日志(flex:1) → 按钮组 → 自定义按钮 */
+.right-panel {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+/* 参数区首行：文件选择/重载/详细配置开关/并发数（旧版 conv_details_options_panel 首行） */
+.config-file-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.config-file-display {
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: inherit;
+  font-family: var(--font-log-family);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+}
+
+.select-field.compact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  flex-direction: row;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+/* 次要面板折叠（details/summary；布局反馈 2026-09-25） */
+details.collapsible > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+details.collapsible > summary::before {
+  content: "▸";
+  color: var(--color-text-muted);
+  font-size: 0.8em;
+  transition: transform 0.1s ease-in;
+}
+
+details.collapsible[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.collapsible > *:not(summary) {
+  margin-top: var(--space-2);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-2);
+}
+
+.select-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.react-aria-TextField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/*
+ * 按钮体系（2026-09-26 四轮重写）：RAC 传自定义 className 会“替换”默认
+ * react-aria-Button 类（与复选框同坑），凡带 .btn-* 变体的按钮都没拿到
+ * 基类样式——主操作按钮自二轮起实际是浏览器原生灰。全站按钮均为 RAC
+ * <Button>，故基样式落在 button 元素级、变体直击 .btn-* 类，不再依赖
+ * react-aria-Button 类名同时存在。
+ */
+button {
+  font: inherit;
+  font-weight: 500;
+  color: var(--color-text);
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+button[data-hovered] {
+  background: var(--color-panel-bg-hover);
+  border-color: var(--color-accent);
+}
+
+button[data-pressed] {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+
+button[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+button.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+button.btn-primary[data-hovered] {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+button.btn-primary[data-pressed] {
+  background: var(--color-accent-hover);
+}
+
+button.btn-success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-success-ink);
+}
+
+button.btn-success[data-hovered] {
+  filter: brightness(1.1);
+}
+
+button.btn-accent {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+button.btn-accent[data-hovered] {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+button.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+button.btn-ghost[data-hovered] {
+  background: var(--color-accent-soft);
+  border-color: transparent;
+}
+
+[data-disabled] {
+  opacity: 0.55;
+}
+
+/* 禁用按钮不用透明度（axe color-contrast 会按合成色判定不足 4.5:1）：
+ * 正常不透明 + 柔和配色区分可用性。 */
+button[data-disabled] {
+  color: var(--color-disabled-ink);
+  background: var(--color-bg-inset);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.hook-list,
+.format-list,
+.run-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: none;
+}
+
+.format-list legend,
+.run-buttons legend {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/*
+ * RAC Checkbox 可视化（2026-09-26 修复“看不到复选框”）：
+ * react-aria-components 1.x 把原生 input 包进 VisuallyHidden（绝对定位、不可见、
+ * 不可点），且传入自定义 className 会“替换”默认 react-aria-Checkbox 类——所以
+ * 可见方框必须是真实子元素 .checkbox-mark（树与事件开关都渲染它），状态取自
+ * label 上的 data-selected / data-indeterminate / data-disabled 画对勾/横杠。
+ */
+.react-aria-Checkbox,
+.tree-checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.checkbox-mark {
+  position: relative;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-bg);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.react-aria-Checkbox[data-hovered] .checkbox-mark,
+.tree-checkbox[data-hovered] .checkbox-mark,
+.react-aria-Checkbox[data-focus-visible] .checkbox-mark,
+.tree-checkbox[data-focus-visible] .checkbox-mark {
+  border-color: var(--color-accent);
+}
+
+.react-aria-Checkbox[data-selected] .checkbox-mark,
+.tree-checkbox[data-selected] .checkbox-mark,
+.react-aria-Checkbox[data-indeterminate] .checkbox-mark,
+.tree-checkbox[data-indeterminate] .checkbox-mark {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.react-aria-Checkbox[data-selected] .checkbox-mark::after,
+.tree-checkbox[data-selected] .checkbox-mark::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent-ink);
+}
+
+.react-aria-Checkbox[data-indeterminate] .checkbox-mark::after,
+.tree-checkbox[data-indeterminate] .checkbox-mark::after {
+  content: "–";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent-ink);
+}
+
+.react-aria-Checkbox[data-disabled],
+.tree-checkbox[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.react-aria-Checkbox[data-focus-visible],
+.tree-checkbox[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-1);
+}
+
+/* 树行内的复选框：无文本子节点，仅方框参与行高。 */
+.tree-checkbox {
+  gap: 0;
+}
+
+.run-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.run-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* 按钮一行（legend 视觉隐藏）；“开始转换”/“重置”主操作（特殊色+加大）
+ * 推到行尾，“开始转换”固定最右（2026-09-26 四轮）。 */
+.run-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+button.btn-run {
+  padding: var(--space-2) var(--space-5);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* 行尾主操作组：重置与开始转换相邻靠右。 */
+.run-button-row .btn-run {
+  margin-left: auto;
+}
+
+.run-button-row .btn-run + .btn-run {
+  margin-left: 0;
+}
+
+.run-summary {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* P4-06：运行终态结果（UI06：区分实际阶段与已发生副作用） */
+.run-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+.run-result--ok {
+  color: var(--color-success);
+}
+
+.run-result--error {
+  color: var(--color-danger);
+}
+
+.run-result--info {
+  color: var(--color-warning);
+}
+
+.log-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 10rem;
+  overflow: hidden;
+}
+
+.log-list {
+  flex: 1;
+  overflow: auto;
+  font-family: var(--font-log-family);
+  font-size: var(--font-log-size);
+}
+
+/* 「运行日志」标题样式（2026-09-26 四轮：加粗加大，但不换行、与工具栏同排）。 */
+.log-title {
+  font-weight: 700;
+  font-size: var(--font-size-lg);
+  color: var(--color-text);
+  margin-right: var(--space-2);
+  white-space: nowrap;
+}
+
+/* P4-07：日志工具栏 / 有界窗口信息 / 虚拟行 / 语义级别色 */
+.log-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.log-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.log-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.log-copy-hint {
+  color: var(--color-success);
+  font-size: var(--font-size-sm);
+}
+
+.log-window-info {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.log-load-older {
+  margin-bottom: var(--space-1);
+}
+
+/*
+ * 日志行（2026-09-26 四轮）：默认横向滚动模式——单行不折行（pre），行内容
+ * 超宽时撑出 .log-list 的横向滚动条（此前 pre-wrap 会折行，滚动条永远不出现；
+ * wrapper 不得裁剪溢出）。换行模式由 --wrap 覆盖，行高交给 measureElement。
+ */
+.log-row-wrapper {
+  height: 22px;
+}
+
+.log-row {
+  display: flex;
+  gap: var(--space-1);
+  white-space: pre;
+  line-height: 22px;
+  width: max-content;
+  min-width: 100%;
+}
+
+.log-module {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.log-level--notice {
+  color: var(--color-accent);
+}
+
+.log-level--warning {
+  color: var(--color-warning);
+}
+
+.log-level--error {
+  color: var(--color-danger);
+}
+
+/* 2026-09-26 现代化改版新增 */
+
+/* 紧凑运行状态行：实底状态色章（2026-09-26 对比度强化：暗色下也醒目）+ 结果同行 */
+.run-summary--inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  line-height: 1.7;
+  white-space: nowrap;
+}
+
+.state-chip--muted {
+  background: var(--color-bg-inset);
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.state-chip--info {
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.state-chip--success {
+  background: var(--color-success);
+  color: var(--color-success-ink);
+}
+
+.state-chip--danger {
+  background: var(--color-danger);
+  color: var(--color-danger-ink);
+}
+
+.state-chip--warning {
+  background: var(--color-warning);
+  color: var(--color-warning-ink);
+}
+
+.run-result {
+  font-size: var(--font-size-sm);
+}
+
+.run-result--ok {
+  color: var(--color-success);
+}
+
+.run-result--error {
+  color: var(--color-danger);
+}
+
+.run-result--info {
+  color: var(--color-text-muted);
+}
+
+.react-aria-Popover {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  box-shadow: var(--shadow-2);
+  min-width: 14rem;
+  max-height: 16rem;
+  overflow: auto;
+  z-index: var(--z-tooltip);
+}
+
+.react-aria-ListBoxItem {
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  border-radius: var(--radius-1);
+}
+
+.react-aria-ListBoxItem[data-hovered],
+.react-aria-ListBoxItem[data-focused] {
+  background: var(--color-accent-soft);
+}
+
+.react-aria-ListBoxItem[data-selected] {
+  font-weight: 600;
+}
+
+/* 详情弹窗（详细配置/显示设置共用 confirm-modal 骨架）：
+   2026-09-26 四轮——更宽（展示更多内容）、分区标题、长字段通栏等宽、
+   短字段标签+控件同行紧凑、底部固定操作行。 */
+.detail-modal {
+  width: min(72rem, 94vw);
+  max-height: 86vh;
+}
+
+.detail-overlay {
+  align-items: start;
+  padding-top: 5vh;
+}
+
+.detail-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.detail-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: calc(86vh - 8rem);
+  overflow: auto;
+  padding-right: var(--space-1);
+}
+
+.detail-section-title {
+  margin: 0 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+/* 短字段行（数据版本/协议类型/输出类型）：标签与控件同行紧凑排布。 */
+.detail-grid--row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* 等宽机器值（路径/正则/多值列表）与通栏字段 */
+.settings-field--wide {
+  grid-column: 1 / -1;
+}
+
+/* 行内字段：标签定宽、控件弹性填充 */
+.settings-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-field--inline > label,
+.select-field--inline > span {
+  flex: none;
+  white-space: nowrap;
+}
+
+.settings-field--inline .react-aria-Input,
+.select-field--inline select {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 6rem;
+}
+
+.select-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-field--mono .react-aria-Input,
+.settings-field--mono input,
+.settings-field--mono .react-aria-TextArea {
+  font-family: var(--font-log-family);
+  font-size: var(--font-size-sm);
+}
+
+.detail-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+/* 详情内的既有折叠面板（条目详情/输出矩阵）不再自带面板描边（外层已有分区） */
+.detail-section--flat .panel {
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
+}
+
+/* 日志换行模式：折行 + 行高交给 measureElement（虚拟器动态测高，不再固定
+ * 估算值——固定值会让长行溢出行框互相重叠）。 */
+.log-list--wrap .log-row {
+  white-space: pre-wrap;
+  word-break: break-all;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 22px;
+}
+
+.log-list--wrap .log-row-wrapper {
+  height: auto;
+  min-height: 22px;
+}
+
+/* 2026-09-26 三轮改版：显示设置弹窗（原状态条内样式已随组件移除）；
+   四轮加宽给字体候选输入留空间。 */
+.settings-modal {
+  width: min(48rem, 94vw);
+}
+
+.settings-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.settings-section {
+  margin: 0 0 var(--space-3);
+}
+
+.settings-section-title {
+  margin: 0 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.settings-hint {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.settings-last-file {
+  margin: 0;
+  font-family: var(--font-log-family);
+  font-size: var(--font-size-sm);
+  word-break: break-all;
+}
+
+/*
+ * 主题分段单选（2026-09-26 修复“看不到单选控件”）：RAC Radio 的原生 input
+ * 同样被 VisuallyHidden——圆点指示器由 ::before 画，选中态取 data-selected。
+ */
+.theme-choice {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.theme-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.theme-option::before {
+  content: "";
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-bg);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.theme-option[data-hovered],
+.theme-option[data-focus-visible] {
+  border-color: var(--color-accent);
+}
+
+.theme-option[data-selected] {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+
+.theme-option[data-selected]::before {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  /* 内圈留白形成实心圆点 */
+  box-shadow: inset 0 0 0 2.5px var(--color-panel-bg);
+}
+
+.theme-option[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.theme-option[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 字体分区行（带表头网格，列宽与行一致；2026-09-26 四轮：弹性列宽 +
+ * 窄窗折行，杜绝输入框互相重叠/溢出）。 */
+.font-grid-head,
+.font-row {
+  display: grid;
+  grid-template-columns: minmax(5rem, auto) minmax(10rem, 1fr) minmax(4.5rem, max-content);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.font-grid-head {
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.font-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.font-row-label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.font-family-input {
+  width: 100%;
+}
+
+.font-size-input {
+  width: 100%;
+}
+
+/* P4-04b：转换参数表单 / 输出矩阵 / 预览 / 本地确认对话框 */
+
+.react-aria-TextField .react-aria-TextArea {
+  font: inherit;
+  color: inherit;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+  resize: vertical;
+  /* 布局反馈 2026-09-25：多值字段两行起步（可纵向拉伸），压低表单整体高度。 */
+  min-height: 2.4rem;
+  font-family: var(--font-log-family);
+  font-size: var(--font-size-sm);
+}
+
+.matrix-rules {
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.matrix-rule {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-2);
+}
+
+.matrix-rule-remove {
+  margin-top: var(--space-2);
+}
+
+.matrix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* 预览结果/冲突自 2026-09-26 四轮起只写入运行日志（RunControls 不再有内联结果区）。 */
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-dialog);
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirm-modal {
+  background: var(--color-panel-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  padding: var(--space-4);
+  max-width: 26rem;
+}
+
+.confirm-dialog:focus {
+  outline: none;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* ---- P4-05b 转换事件开关与自定义按钮 ---- */
+
+.hook-group {
+  margin-bottom: var(--space-2);
+}
+
+.hook-group-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.custom-btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* 旧版 bootstrap 按钮样式语义（main.js:718-736 词表）映射到本地 tokens：
+   outline-* 描边、实色填充；info→accent、light→border、dark→text。 */
+.custom-btn--outline-primary,
+.custom-btn--outline-info {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.custom-btn--outline-secondary,
+.custom-btn--outline-light {
+  border-color: var(--color-text-muted);
+  color: var(--color-text-muted);
+}
+
+.custom-btn--outline-success {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.custom-btn--outline-danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.custom-btn--outline-warning {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.custom-btn--outline-dark {
+  border-color: var(--color-text);
+  color: var(--color-text);
+}
+
+.custom-btn--primary,
+.custom-btn--info {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.custom-btn--secondary,
+.custom-btn--light {
+  background: var(--color-bg);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.custom-btn--success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-accent-contrast);
+}
+
+.custom-btn--danger {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-accent-contrast);
+}
+
+.custom-btn--warning {
+  background: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-accent-contrast);
+}
+
+.custom-btn--dark {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg);
+}
+
+/* 弹框宿主：display contents——宿主 div 不生成盒，不占 grid 布局
+ * （此前作为 .app-shell 的第三个隐式 grid 项占据一行，左右底部留白虚高）。
+ * 弹框本身是 fixed 定位 overlay，不受影响。 */
+.dialog-host {
+  display: contents;
+}
+
+.script-dialog-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
