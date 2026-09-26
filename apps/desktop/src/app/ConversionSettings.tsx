@@ -1,5 +1,17 @@
-import { useState } from "react";
-import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
+import { useMemo, useState } from "react";
+import {
+  Button,
+  ComboBox,
+  Dialog,
+  Heading,
+  Input,
+  Label,
+  ListBox,
+  ListBoxItem,
+  Modal,
+  ModalOverlay,
+  Popover,
+} from "react-aria-components";
 import type { SettingsFields } from "../adapters/backend";
 import { pickXmlConfig } from "../adapters/tauri";
 import { DraftField } from "./DraftField";
@@ -20,14 +32,11 @@ const OUTPUT_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "ue-json", label: "UE资源Json格式" },
   { value: "ue-csv", label: "UE资源Csv格式" },
 ];
-/** 输出重命名预设（旧版 conv_list_rename_samples 下拉，逐项对应）。 */
-const RENAME_PRESETS: { label: string; value: string }[] = [
-  { label: ".bin后缀 => .lua", value: "/\\.bin$/.lua/" },
-  { label: ".bin后缀 => .json", value: "/\\.bin$/.json/" },
-  { label: ".bin后缀 => .msgpack.bin", value: "/\\.bin$/.msgpack.bin/" },
-  { label: ".bin后缀 => .xml", value: "/\\.bin$/.xml/" },
-  { label: ".bin后缀 => .js", value: "/\\.bin$/.js/" },
-];
+/**
+ * 重命名预设目标后缀（旧版 conv_list_rename_samples 的目标侧）；
+ * 源后缀不固定——由当前配置的输出矩阵推导（缺省 .bin，见 renamePresetsOf）。
+ */
+const RENAME_PRESET_TARGETS = ["lua", "json", "msgpack.bin", "xml", "js"] as const;
 /** 并发数 1..16（main.js:6-9 上限；>6 需本地确认，main.js:2611-2639）。 */
 const PARALLELISM_OPTIONS = Array.from({ length: 16 }, (_, index) => index + 1);
 const PARALLELISM_CONFIRM_THRESHOLD = 6;
@@ -43,15 +52,47 @@ function linesToList(text: string): string[] {
 }
 
 /**
- * 转换参数区（F01/F06，布局对照旧版 index.html conv_details_options_panel）：
- * - 首行常显：转换列表文件（选择/路径/重载）+ 详细配置开关 + 并发数；
- * - “详细配置”默认折叠（旧版 collapse 同款）：转表工具/执行目录/数据版本/
- *   协议描述/输出目录/数据目录 六字段 + 条目详情 + 输出矩阵（新增能力的入口
- *   收纳于此，不占主界面）；
- * - 次行常显：输出重命名（含旧版预设下拉）/协议类型/输出类型。
+ * 重命名预设：源后缀取当前配置输出矩阵的类型集合（未加载回退 .bin——旧版
+ * 行为；2026-09-26 用户指示“根据载入的 xml 分析可能的后缀”），目标为旧版
+ * 五预设目标侧。输入时可按已输入内容过滤（ComboBox 内建）。
+ */
+function renamePresetsOf(config: Record<string, unknown> | null): {
+  value: string;
+  label: string;
+}[] {
+  const matrix = config?.outputMatrix;
+  const sources =
+    Array.isArray(matrix) && matrix.length > 0
+      ? matrix
+          .map((rule) => (rule as { type?: unknown })?.type)
+          .filter((type): type is string => typeof type === "string")
+      : ["bin"];
+  const seen = new Set<string>();
+  const presets: { value: string; label: string }[] = [];
+  for (const source of sources.length > 0 ? sources : ["bin"]) {
+    if (seen.has(source)) continue;
+    seen.add(source);
+    for (const target of RENAME_PRESET_TARGETS) {
+      presets.push({
+        value: `/\\.${source}$/.${target}/`,
+        label: `.${source}后缀 => .${target}`,
+      });
+    }
+  }
+  return presets;
+}
+
+/**
+ * 转换参数区（F01/F06，2026-09-26 改版）：
+ * - 首行常显：转换列表文件（选择/路径/重载）+ 并发数 + “详情”按钮；
+ * - 次行常显：输出重命名（可输正则，下拉给按配置推导的预设，输入即时过滤）/
+ *   协议类型 / 输出类型；
+ * - “详情”弹窗承载全部详细参数（六字段 + 条目详情 + 输出矩阵），保留原
+ *   detail 面板的字段与操作方式；打开即取当前 effective 值（加载后自动刷新）。
  */
 export function ConversionSettings() {
   const settings = useSessionStore((state) => state.snapshot?.settings);
+  const config = useSessionStore((state) => state.snapshot?.config);
   const runState = useSessionStore((state) => state.snapshot?.state ?? "idle");
   const configPath = useSessionStore((state) => state.configPath);
   const loadConfig = useSessionStore((state) => state.loadConfig);
@@ -59,6 +100,7 @@ export function ConversionSettings() {
   const updateSettings = useSessionStore((state) => state.updateSettings);
   const [pendingParallelism, setPendingParallelism] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [renameDraft, setRenameDraft] = useState<string | null>(null);
 
   const effective = settings?.effective ?? null;
   const disabled = effective === null || BUSY_STATES.has(runState);
@@ -72,7 +114,6 @@ export function ConversionSettings() {
     try {
       const selected = await pickXmlConfig();
       if (selected !== null) {
-        // 选择即加载：快照入 session store；失败经 store.lastError 可见。
         await loadConfig(selected);
       }
     } catch (error) {
@@ -95,6 +136,11 @@ export function ConversionSettings() {
     typeOptions.push({ value: outputType, label: `未知类型: ${outputType}` });
   }
 
+  const renameValue = effective?.rename ?? "";
+  const renamePresets = useMemo(() => renamePresetsOf(config ?? null), [config]);
+  const selectedPreset = renamePresets.find((preset) => preset.value === renameValue);
+  const renameInput = renameDraft ?? selectedPreset?.label ?? renameValue;
+
   return (
     <form
       className="panel conversion-settings"
@@ -102,7 +148,9 @@ export function ConversionSettings() {
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="config-file-bar">
-        <Button onPress={() => void pickConfig()}>转换列表文件</Button>
+        <Button className="btn-primary" onPress={() => void pickConfig()}>
+          转换列表文件
+        </Button>
         <input
           className="config-file-display"
           aria-label="配置文件路径"
@@ -114,9 +162,6 @@ export function ConversionSettings() {
         />
         <Button onPress={() => void reloadConfig()} isDisabled={configPath === null}>
           重载配置
-        </Button>
-        <Button aria-expanded={detailOpen} onPress={() => setDetailOpen((open) => !open)}>
-          {detailOpen ? "隐藏详细配置" : "展开详细配置"}
         </Button>
         <label className="select-field compact">
           并发数
@@ -140,83 +185,54 @@ export function ConversionSettings() {
             ))}
           </select>
         </label>
+        <Button onPress={() => setDetailOpen(true)} isDisabled={effective === null}>
+          详情…
+        </Button>
       </div>
 
-      {detailOpen && (
-        <div className="detail-config">
-          <div className="form-grid">
-            <DraftField
-              label="转表工具（xresloader.jar）"
-              value={effective?.xresloaderPath ?? ""}
-              disabled={disabled}
-              onCommit={(value) => submit({ xresloaderPath: value })}
-            />
-            <DraftField
-              label="执行目录（work_dir）"
-              value={effective?.workDir ?? ""}
-              disabled={disabled}
-              onCommit={(value) => submit({ workDir: value })}
-            />
-            <DraftField
-              label="数据版本"
-              value={effective?.dataVersion ?? ""}
-              disabled={disabled}
-              onCommit={(value) => submit({ dataVersion: value })}
-            />
-            <DraftField
-              label="协议描述文件（一行一个）"
-              value={(effective?.protoFile ?? []).join("\n")}
-              disabled={disabled}
-              multiline
-              onCommit={(value) => submit({ protoFile: linesToList(value) })}
-            />
-            <DraftField
-              label="输出目录"
-              value={effective?.outputDir ?? ""}
-              disabled={disabled}
-              onCommit={(value) => submit({ outputDir: value })}
-            />
-            <DraftField
-              label="数据目录（一行一个）"
-              value={(effective?.dataSrcDir ?? []).join("\n")}
-              disabled={disabled}
-              multiline
-              onCommit={(value) => submit({ dataSrcDir: linesToList(value) })}
-            />
-          </div>
-          <ItemDetails />
-          <OutputMatrixEditor />
-        </div>
-      )}
-
       <div className="form-grid quick-row">
-        <div className="rename-field">
-          <label className="select-field compact">
-            重命名预设
-            <select
-              disabled={disabled}
-              value=""
-              onChange={(event) => {
-                if (event.target.value !== "") {
-                  submit({ rename: event.target.value });
-                }
-              }}
-            >
-              <option value="">输出重命名…</option>
-              {RENAME_PRESETS.map((preset) => (
-                <option key={preset.value} value={preset.value}>
-                  {preset.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <DraftField
-            label="输出重命名（正则）"
-            value={effective?.rename ?? ""}
-            disabled={disabled}
-            onCommit={(value) => submit({ rename: value })}
-          />
-        </div>
+        <ComboBox
+          className="settings-field rename-combo"
+          aria-label="输出重命名（正则）"
+          allowsCustomValue
+          isDisabled={disabled}
+          items={renamePresets}
+          selectedKey={selectedPreset?.value ?? null}
+          inputValue={renameInput}
+          onInputChange={(value) => setRenameDraft(value)}
+          onSelectionChange={(key) => {
+            if (typeof key === "string") {
+              const preset = renamePresets.find((p) => p.value === key);
+              setRenameDraft(preset?.label ?? null);
+              submit({ rename: key });
+            }
+          }}
+          onBlur={(event) => {
+            // 提交语义与 DraftField 一致：失焦时把输入内容解析为正则提交（预设标签映射回正则）。
+            const text = event.currentTarget.value ?? "";
+            const preset = renamePresets.find((p) => p.label === text);
+            const value = preset?.value ?? text;
+            setRenameDraft(null);
+            if (value !== renameValue) {
+              submit({ rename: value });
+            }
+          }}
+        >
+          <Label>输出重命名（正则，下拉选预设）</Label>
+          <div className="combo-box">
+            <Input placeholder="/\.bin$/.lua/" />
+            <Button className="btn-ghost combo-chevron" aria-label="重命名预设" />
+          </div>
+          <Popover>
+            <Dialog>
+              <ListBox>
+                {(preset: { value: string; label: string }) => (
+                  <ListBoxItem id={preset.value}>{preset.label}</ListBoxItem>
+                )}
+              </ListBox>
+            </Dialog>
+          </Popover>
+        </ComboBox>
         <label className="select-field">
           协议类型
           <select
@@ -249,6 +265,70 @@ export function ConversionSettings() {
         </label>
       </div>
       {effective === null && <p className="empty-state">加载配置后可编辑转换参数。</p>}
+
+      <ModalOverlay
+        className="confirm-overlay detail-overlay"
+        isOpen={detailOpen}
+        onOpenChange={(open) => {
+          if (!open) setDetailOpen(false);
+        }}
+      >
+        <Modal className="confirm-modal detail-modal">
+          <Dialog aria-label="详细配置" className="confirm-dialog">
+            <Heading slot="title" className="detail-title">
+              详细配置
+              <Button className="btn-ghost detail-close" onPress={() => setDetailOpen(false)}>
+                关闭
+              </Button>
+            </Heading>
+            <div className="detail-config">
+              <div className="form-grid">
+                <DraftField
+                  label="转表工具（xresloader.jar）"
+                  value={effective?.xresloaderPath ?? ""}
+                  disabled={disabled}
+                  onCommit={(value) => submit({ xresloaderPath: value })}
+                />
+                <DraftField
+                  label="执行目录（work_dir）"
+                  value={effective?.workDir ?? ""}
+                  disabled={disabled}
+                  onCommit={(value) => submit({ workDir: value })}
+                />
+                <DraftField
+                  label="数据版本"
+                  value={effective?.dataVersion ?? ""}
+                  disabled={disabled}
+                  onCommit={(value) => submit({ dataVersion: value })}
+                />
+                <DraftField
+                  label="协议描述文件（一行一个）"
+                  value={(effective?.protoFile ?? []).join("\n")}
+                  disabled={disabled}
+                  multiline
+                  onCommit={(value) => submit({ protoFile: linesToList(value) })}
+                />
+                <DraftField
+                  label="输出目录"
+                  value={effective?.outputDir ?? ""}
+                  disabled={disabled}
+                  onCommit={(value) => submit({ outputDir: value })}
+                />
+                <DraftField
+                  label="数据目录（一行一个）"
+                  value={(effective?.dataSrcDir ?? []).join("\n")}
+                  disabled={disabled}
+                  multiline
+                  onCommit={(value) => submit({ dataSrcDir: linesToList(value) })}
+                />
+              </div>
+              <ItemDetails />
+              <OutputMatrixEditor />
+            </div>
+          </Dialog>
+        </Modal>
+      </ModalOverlay>
+
       <ModalOverlay
         className="confirm-overlay"
         isOpen={pendingParallelism !== null}
@@ -265,6 +345,7 @@ export function ConversionSettings() {
             </p>
             <div className="confirm-actions">
               <Button
+                className="btn-primary"
                 onPress={() => {
                   if (pendingParallelism !== null) {
                     submit({ parallelism: pendingParallelism });

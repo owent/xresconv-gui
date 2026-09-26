@@ -23,6 +23,7 @@ import {
 } from "../adapters/backend";
 import { exportTextFile, pickSavePath } from "../adapters/tauri";
 import { writeClipboardText } from "./clipboard";
+import { rememberLoadedConfig } from "./display-settings";
 
 /**
  * 会话 store（docs/plan/04-ui.md §状态分层）：后端快照缓存 + 事件水位 + UI 状态。
@@ -480,6 +481,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         const snapshot = await backendRpc<BackendSnapshot>("loadConfig", { path });
         if (epoch !== sessionEpoch) return false;
         storeSnapshot(snapshot, true);
+        // 显示设置：记住上次转换列表（下次启动自动加载；无桥接时静默跳过）。
+        void rememberLoadedConfig(path);
         return true;
       } catch (error) {
         if (epoch === sessionEpoch)

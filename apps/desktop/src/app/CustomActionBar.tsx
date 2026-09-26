@@ -70,6 +70,11 @@ export function CustomActionBar() {
     (view): view is CustomSelectorViewLike & { name: string } => view.name !== null,
   );
 
+  // 自适应（2026-09-26 用户需求）：未定义任何选择器/按钮时不占位渲染。
+  if (buttons.length === 0) {
+    return null;
+  }
+
   return (
     <section className="panel custom-action-bar" aria-label="自定义按钮">
       <h2 className="panel-title">自定义按钮</h2>

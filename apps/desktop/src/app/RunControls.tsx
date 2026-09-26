@@ -14,6 +14,19 @@ const PREVIEW_TASK_LIMIT = 200;
 /** 预览/开始禁用的繁忙状态（加载中 + 活动运行三态）。 */
 const BUSY_STATES = new Set(["loading", "before_hooks", "converting", "after_hooks"]);
 
+/** 状态→语义色（2026-09-26 紧凑改版：状态用颜色表达结果）。 */
+const STATE_TONES: Record<string, string> = {
+  idle: "muted",
+  ready: "info",
+  loading: "info",
+  before_hooks: "info",
+  converting: "info",
+  after_hooks: "info",
+  succeeded: "success",
+  failed: "danger",
+  cancelled: "warning",
+};
+
 const STATE_LABELS: Record<string, string> = {
   idle: "空闲",
   ready: "就绪",
@@ -168,23 +181,21 @@ export function RunControls() {
           重置
         </Button>
       </fieldset>
-      <p role="status" aria-label="运行状态" className="run-summary">
-        状态：{stateText}
-        {cancelRequested && canCancel ? "（已请求取消，等待清理…）" : ""}
+      <p role="status" aria-label="运行状态" className="run-summary run-summary--inline">
+        <span className={`state-chip state-chip--${STATE_TONES[state ?? "idle"] ?? "muted"}`}>
+          {stateText}
+          {cancelRequested && canCancel ? "·取消中" : ""}
+        </span>
+        {runResult !== null && (
+          <span
+            role="status"
+            aria-label="运行结果"
+            className={`run-result run-result--${runResult.tone}`}
+          >
+            {runResult.lines.join("；")}
+          </span>
+        )}
       </p>
-      {runResult !== null && (
-        <p
-          role="status"
-          aria-label="运行结果"
-          className={`run-result run-result--${runResult.tone}`}
-        >
-          {runResult.lines.map((line) => (
-            <span key={line} className="run-result-line">
-              {line}
-            </span>
-          ))}
-        </p>
-      )}
       {preview.status === "loading" && <p className="empty-state">预览生成中…</p>}
       {preview.status === "error" && (
         <p role="alert" className="preview-error">

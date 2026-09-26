@@ -1,15 +1,18 @@
 /**
- * 设计令牌（docs/plan/04-ui.md §样式）：颜色、间距、字号、层级均为 CSS 自定义属性；
- * 明暗主题经 prefers-color-scheme 切换。仅使用最低 WebView 已验证能力，
- * 不引入外部字体/CDN 资源。
+ * 设计令牌（docs/plan/04-ui.md §样式；2026-09-26 现代化改版）：
+ * 颜色、间距、字号、圆角、阴影、动效均为 CSS 自定义属性。
+ * 主题三态：跟随系统（prefers-color-scheme）/亮（[data-theme="light"]）/
+ * 暗（[data-theme="dark"]）——[data-theme] 覆盖媒体查询，由显示设置写入。
+ * 仅使用最低 WebView 已验证能力，不引入外部字体/CDN 资源。
  */
 :root {
   color-scheme: light dark;
 
   --font-family-base: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
   --font-family-mono: ui-monospace, Consolas, "Courier New", monospace;
+  --font-size-xs: 0.75rem;
   --font-size-sm: 0.8125rem;
-  --font-size-base: 0.9375rem;
+  --font-size-base: 0.875rem;
   --font-size-lg: 1.0625rem;
 
   --space-1: 0.25rem;
@@ -19,38 +22,97 @@
   --space-5: 1.5rem;
   --space-6: 2rem;
 
-  --radius-1: 0.25rem;
-  --radius-2: 0.5rem;
+  --radius-1: 0.375rem;
+  --radius-2: 0.625rem;
+  --radius-pill: 999px;
 
   --z-dialog: 1000;
   --z-tooltip: 1100;
 
-  /* light（默认） */
-  --color-bg: #f5f6f8;
+  --transition-fast: 120ms ease;
+
+  /* light（默认；[data-theme="light"] 显式锁定同值） */
+  --color-bg: #eef1f6;
+  --color-bg-inset: #e4e8f0;
   --color-panel-bg: #ffffff;
-  --color-border: #c9ced6;
-  --color-text: #1c2430;
-  --color-text-muted: #5a6472;
-  --color-accent: #0b5fff;
+  --color-panel-bg-hover: #f6f8fb;
+  --color-border: #d3d9e3;
+  --color-border-strong: #b7c0ce;
+  --color-text: #1a2333;
+  --color-text-muted: #5d6a7d;
+  --color-accent: #2f6bff;
+  --color-accent-hover: #1f57e8;
+  --color-accent-soft: #e7eeff;
   --color-accent-contrast: #ffffff;
-  --color-danger: #b3261e;
-  --color-warning: #8a5a00;
-  --color-success: #1a7f37;
-  --color-focus-ring: #0b5fff;
+  --color-danger: #c93a3a;
+  --color-danger-soft: #fdeaea;
+  --color-warning: #9a6700;
+  --color-warning-soft: #fff3d6;
+  --color-success: #177f41;
+  --color-success-soft: #e2f5e9;
+  --color-info-soft: #e7eeff;
+  --color-focus-ring: #2f6bff;
+
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-2: 0 2px 8px rgb(16 24 40 / 0.09);
+  --shadow-dialog: 0 12px 40px rgb(16 24 40 / 0.22);
 }
 
+/* 跟随系统：无 data-theme 时按媒体查询 */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #14181f;
-    --color-panel-bg: #1d232d;
-    --color-border: #3a4350;
-    --color-text: #e6eaf0;
-    --color-text-muted: #9aa5b3;
-    --color-accent: #6ea8ff;
+  :root:not([data-theme]) {
+    --color-bg: #10141c;
+    --color-bg-inset: #0b0f16;
+    --color-panel-bg: #181e29;
+    --color-panel-bg-hover: #1f2735;
+    --color-border: #2c3547;
+    --color-border-strong: #3d495f;
+    --color-text: #e7ecf4;
+    --color-text-muted: #97a3b6;
+    --color-accent: #6b9cff;
+    --color-accent-hover: #8ab2ff;
+    --color-accent-soft: #1c2a4a;
     --color-accent-contrast: #0b1220;
-    --color-danger: #ff7b72;
+    --color-danger: #ff8080;
+    --color-danger-soft: #3d1f1f;
     --color-warning: #e3b341;
-    --color-success: #57d977;
-    --color-focus-ring: #6ea8ff;
+    --color-warning-soft: #3a2e12;
+    --color-success: #4fd07e;
+    --color-success-soft: #14301e;
+    --color-info-soft: #1c2a4a;
+    --color-focus-ring: #6b9cff;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 2px 10px rgb(0 0 0 / 0.45);
+    --shadow-dialog: 0 12px 40px rgb(0 0 0 / 0.6);
   }
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #10141c;
+  --color-bg-inset: #0b0f16;
+  --color-panel-bg: #181e29;
+  --color-panel-bg-hover: #1f2735;
+  --color-border: #2c3547;
+  --color-border-strong: #3d495f;
+  --color-text: #e7ecf4;
+  --color-text-muted: #97a3b6;
+  --color-accent: #6b9cff;
+  --color-accent-hover: #8ab2ff;
+  --color-accent-soft: #1c2a4a;
+  --color-accent-contrast: #0b1220;
+  --color-danger: #ff8080;
+  --color-danger-soft: #3d1f1f;
+  --color-warning: #e3b341;
+  --color-warning-soft: #3a2e12;
+  --color-success: #4fd07e;
+  --color-success-soft: #14301e;
+  --color-info-soft: #1c2a4a;
+  --color-focus-ring: #6b9cff;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 2px 10px rgb(0 0 0 / 0.45);
+  --shadow-dialog: 0 12px 40px rgb(0 0 0 / 0.6);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
 }

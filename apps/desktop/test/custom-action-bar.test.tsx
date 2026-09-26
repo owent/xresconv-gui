@@ -54,14 +54,12 @@ describe("CustomActionBar（P4-05b）", () => {
     resetSessionStore();
   });
 
-  it("未设置选择器 → 启动参数提示；空数组 → 无可用条目提示", () => {
-    render(<CustomActionBar />);
-    expect(
-      screen.getByText("未配置自定义选择器（启动参数 --custom-selector/--custom-button）。"),
-    ).toBeTruthy();
+  it("自适应：未设置选择器/空数组 → 整个区域不渲染（2026-09-26 用户需求）", () => {
+    const view = render(<CustomActionBar />);
+    expect(view.container.firstChild).toBeNull();
 
     act(() => useSessionStore.setState({ snapshot: makeSnapshot([]) }));
-    expect(screen.getByText("自定义选择器文件中没有可用条目（错误条目见日志）。")).toBeTruthy();
+    expect(view.container.firstChild).toBeNull();
   });
 
   it("渲染命名条目为按钮；错误条目不渲染；样式白名单映射与缺省回退", () => {

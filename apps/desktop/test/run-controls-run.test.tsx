@@ -246,7 +246,7 @@ describe("RunControls 开始/取消/重置 RPC 流程（P4-06，EX03 前端侧�
     await user.click(screen.getByRole("button", { name: "取消" }));
     expect(mockedInvoke).toHaveBeenCalledWith("backend_rpc", { method: "cancel", params: {} });
     await waitFor(() =>
-      expect(screen.getByRole("status", { name: "运行状态" }).textContent).toContain("等待清理"),
+      expect(screen.getByRole("status", { name: "运行状态" }).textContent).toContain("取消中"),
     );
 
     // backend 清理完成：终态 state_change + run_end。
@@ -254,9 +254,7 @@ describe("RunControls 开始/取消/重置 RPC 流程（P4-06，EX03 前端侧�
     recordRunEnd(summaryText({ state: "cancelled" }));
 
     await waitFor(() =>
-      expect(screen.getByRole("status", { name: "运行状态" }).textContent).not.toContain(
-        "等待清理",
-      ),
+      expect(screen.getByRole("status", { name: "运行状态" }).textContent).not.toContain("取消中"),
     );
     expect(useSessionStore.getState().cancelRequested).toBe(false);
   });
@@ -300,7 +298,7 @@ describe("运行结果文案（P4-06，UI06：区分实际阶段与已发生副�
     render(<RunControls />);
     recordTerminalState(summary.state, terminalFrom);
     recordRunEnd(summary);
-    return await screen.findByRole("status", { name: "运行结果" });
+    return await screen.findByLabelText("运行结果");
   }
 
   it("before 失败：明确未启动转换", async () => {
@@ -365,7 +363,7 @@ describe("运行结果文案（P4-06，UI06：区分实际阶段与已发生副�
     await loadFixture();
     render(<RunControls />);
     recordRunEnd(summaryText({ state: "failed", failedCount: 2, taskCount: 5 }));
-    const region = await screen.findByRole("status", { name: "运行结果" });
+    const region = await screen.findByLabelText("运行结果");
     expect(region.textContent).toContain("失败");
     expect(region.textContent).toContain("失败计数 2");
     expect(region.textContent).not.toContain("前置事件");

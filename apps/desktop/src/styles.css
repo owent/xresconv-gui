@@ -33,6 +33,7 @@ body {
   border-radius: var(--radius-2);
   background: var(--color-panel-bg);
   padding: var(--space-3);
+  box-shadow: var(--shadow-1);
 }
 
 .panel-title {
@@ -316,28 +317,60 @@ details.collapsible > *:not(summary) {
   padding: var(--space-1) var(--space-2);
 }
 
+/* 按钮体系（现代化）：默认次要；.btn-primary 主操作；transition 反馈 */
 .react-aria-Button {
   font: inherit;
+  font-weight: 500;
   color: var(--color-text);
   background: var(--color-panel-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-1);
   padding: var(--space-1) var(--space-3);
   cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .react-aria-Button[data-hovered] {
+  background: var(--color-panel-bg-hover);
   border-color: var(--color-accent);
 }
 
 .react-aria-Button[data-pressed] {
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
 }
 
 .react-aria-Button[data-focus-visible] {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
+}
+
+.react-aria-Button.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.react-aria-Button.btn-primary[data-hovered] {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.react-aria-Button.btn-primary[data-pressed] {
+  background: var(--color-accent-hover);
+}
+
+.react-aria-Button.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.react-aria-Button.btn-ghost[data-hovered] {
+  background: var(--color-accent-soft);
+  border-color: transparent;
 }
 
 [data-disabled] {
@@ -501,6 +534,158 @@ details.collapsible > *:not(summary) {
 
 .log-level--error {
   color: var(--color-danger);
+}
+
+/* 2026-09-26 现代化改版新增 */
+
+/* 紧凑运行状态行：状态色章 + 结果同行 */
+.run-summary--inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.state-chip--muted {
+  background: var(--color-bg-inset);
+  color: var(--color-text);
+}
+
+.state-chip--info {
+  background: var(--color-info-soft);
+  color: var(--color-text);
+}
+
+.state-chip--success {
+  background: var(--color-success-soft);
+  color: var(--color-success-ink, var(--color-text));
+}
+
+.state-chip--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-ink, var(--color-text));
+}
+
+.state-chip--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-ink, var(--color-text));
+}
+
+.run-result {
+  font-size: var(--font-size-sm);
+}
+
+.run-result--ok {
+  color: var(--color-success);
+}
+
+.run-result--error {
+  color: var(--color-danger);
+}
+
+.run-result--info {
+  color: var(--color-text-muted);
+}
+
+/* 重命名 ComboBox（可输正则 + 过滤预设下拉） */
+.combo-box {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.combo-box .react-aria-Input {
+  flex: 1;
+}
+
+.combo-chevron::after {
+  content: "▾";
+  color: var(--color-text-muted);
+}
+
+.react-aria-Popover {
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  box-shadow: var(--shadow-2);
+  min-width: 14rem;
+  max-height: 16rem;
+  overflow: auto;
+  z-index: var(--z-tooltip);
+}
+
+.react-aria-ListBoxItem {
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  border-radius: var(--radius-1);
+}
+
+.react-aria-ListBoxItem[data-hovered],
+.react-aria-ListBoxItem[data-focused] {
+  background: var(--color-accent-soft);
+}
+
+.react-aria-ListBoxItem[data-selected] {
+  font-weight: 600;
+}
+
+/* 详情弹窗（详细配置/显示设置共用 confirm-modal 骨架） */
+.detail-modal {
+  width: min(56rem, 92vw);
+  max-height: 86vh;
+}
+
+.detail-overlay {
+  align-items: start;
+  padding-top: 6vh;
+}
+
+.detail-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.detail-close {
+  margin-left: auto;
+}
+
+.detail-modal .detail-config {
+  max-height: calc(86vh - 6rem);
+  overflow: auto;
+}
+
+/* 日志换行模式 */
+.log-list--wrap .log-row {
+  white-space: pre-wrap;
+  word-break: break-all;
+  height: auto;
+  min-height: 22px;
+}
+
+.log-list--wrap .log-row-wrapper {
+  height: auto;
+  min-height: 22px;
+}
+
+/* 环境状态设置按钮 */
+.environment-status .react-aria-Button[aria-label="显示设置"] {
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-base);
 }
 
 /* P4-04b：转换参数表单 / 输出矩阵 / 预览 / 本地确认对话框 */

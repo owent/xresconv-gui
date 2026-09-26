@@ -2,6 +2,7 @@ import { ConversionSettings } from "./ConversionSettings";
 import { ConversionTree } from "./ConversionTree";
 import { CustomActionBar } from "./CustomActionBar";
 import { DialogHost } from "./DialogHost";
+import { useDisplaySettings } from "./display-settings";
 import { EnvironmentStatus } from "./EnvironmentStatus";
 import { LogPanel } from "./LogPanel";
 import { RunControls } from "./RunControls";
@@ -19,6 +20,7 @@ import { useCliCustomSelectors } from "./use-cli-custom-selectors";
 export function AppShell() {
   useBackendEvents();
   useCliCustomSelectors();
+  useDisplaySettings();
   return (
     <div className="app-shell">
       <EnvironmentStatus />

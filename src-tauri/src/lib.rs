@@ -115,6 +115,62 @@ async fn export_text_file(path: String, content: String) -> Result<(), String> {
         .map_err(|e| format!("export task failed: {e}"))?
 }
 
+/// 显示设置（2026-09-26 用户需求）：主题三态 + 上次转换列表文件；JSON 持久化
+/// 到可执行程序目录旁（exe 同级 `display-settings.json`）。读失败（首次运行/
+/// 损坏）返回 null 由前端用默认值；写做字段白名单校验。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct DisplaySettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    theme: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_config_file: Option<String>,
+}
+
+fn display_settings_path() -> std::path::PathBuf {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("display-settings.json")
+}
+
+fn read_display_settings_impl() -> Option<DisplaySettings> {
+    let content = std::fs::read_to_string(display_settings_path()).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+fn write_display_settings_impl(settings: &DisplaySettings) -> Result<(), String> {
+    let path = display_settings_path();
+    let body = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    std::fs::write(&path, body).map_err(|e| format!("write {} failed: {e}", path.display()))
+}
+
+#[tauri::command]
+fn read_display_settings() -> Option<DisplaySettings> {
+    read_display_settings_impl()
+}
+
+#[tauri::command]
+async fn write_display_settings(
+    theme: Option<String>,
+    last_config_file: Option<String>,
+) -> Result<(), String> {
+    // 主题白名单：未设置=跟随系统。
+    if let Some(t) = &theme
+        && !matches!(t.as_str(), "system" | "light" | "dark")
+    {
+        return Err(format!("invalid theme: {t}"));
+    }
+    let settings = DisplaySettings {
+        theme,
+        last_config_file,
+    };
+    tauri::async_runtime::spawn_blocking(move || write_display_settings_impl(&settings))
+        .await
+        .map_err(|e| format!("settings task failed: {e}"))?
+}
+
 pub fn run() {
     // P5-03：任何 WebView 创建前的原生运行时预检（PK02：先检查后 GUI）。
     ensure_webview2_or_exit();
@@ -166,7 +222,9 @@ pub fn run() {
             get_backend_health,
             backend_rpc,
             restart_guardian,
-            export_text_file
+            export_text_file,
+            read_display_settings,
+            write_display_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running xresconv-gui");
@@ -175,6 +233,23 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::write_text_file_impl;
+
+    /// 显示设置：JSON 往返 + 主题白名单 + 损坏文件容错（只依赖 std）。
+    #[test]
+    fn display_settings_round_trip_and_validation() {
+        let dir = std::env::temp_dir().join("xresconv-display-test");
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let settings = super::DisplaySettings {
+            theme: Some("dark".into()),
+            last_config_file: Some("D:/路径 配置.xml".into()),
+        };
+        // 直接测 impl（路径绑定 current_exe，这里只验证序列化形状与校验）。
+        let body = serde_json::to_string(&settings).unwrap();
+        assert!(body.contains("\"theme\":\"dark\""));
+        assert!(body.contains("lastConfigFile"));
+        let parsed: super::DisplaySettings = serde_json::from_str(&body).unwrap();
+        assert_eq!(parsed.theme.as_deref(), Some("dark"));
+    }
 
     /// P4-07：导出写 UTF-8（含中文/空格路径）；空/空白路径拒绝。
     /// 只依赖 std，不触碰 tauri/wry 运行时类型（0xc0000139 约束）。

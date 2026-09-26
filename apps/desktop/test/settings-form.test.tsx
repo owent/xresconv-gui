@@ -115,7 +115,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
   it("加载后按 effective 渲染全部字段", async () => {
     await loadFixture();
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     expect(screen.getByLabelText("执行目录（work_dir）")).toHaveProperty("value", "D:/conf");
     expect(screen.getByLabelText("转表工具（xresloader.jar）")).toHaveProperty(
       "value",
@@ -133,7 +133,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     const user = userEvent.setup();
 
     const textarea = screen.getByLabelText("协议描述文件（一行一个）");
@@ -153,7 +153,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     const user = userEvent.setup();
 
     const input = screen.getByLabelText("执行目录（work_dir）");
@@ -170,13 +170,15 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     const user = userEvent.setup();
 
     const select = screen.getByLabelText("协议类型");
     expect(select).toHaveProperty("value", "capnproto");
-    const unknown = screen.getByRole("option", { name: "未知协议: capnproto" });
-    expect(unknown).toHaveProperty("value", "capnproto");
+    const unknown = [...select.querySelectorAll("option")].find(
+      (option) => option.value === "capnproto",
+    );
+    expect(unknown?.textContent).toBe("未知协议: capnproto");
 
     await user.selectOptions(select, "protobuf");
     await waitFor(() => expect(updateSettingsFields()).toHaveLength(1));
@@ -186,7 +188,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
   it("运行中整体禁用；后端 INVALID_STATE 经 lastError 可见", async () => {
     await loadFixture(makeSnapshot(makeEffective(), 2, "converting"));
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     expect(screen.getByLabelText("执行目录（work_dir）")).toHaveProperty("disabled", true);
     expect(screen.getByLabelText("并发数")).toHaveProperty("disabled", true);
   });
@@ -200,7 +202,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
       },
     });
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     const user = userEvent.setup();
 
     const input = screen.getByLabelText("数据版本");
@@ -224,7 +226,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshotA);
     routeRpc({ preview: () => previewResult });
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     expect(screen.getByLabelText("转表工具（xresloader.jar）")).toHaveProperty("value", "a.jar");
     await act(async () => {
       await expect(useSessionStore.getState().runPreview()).resolves.toBe(true);
@@ -252,7 +254,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     const user = userEvent.setup();
 
     const select = screen.getByLabelText("并发数");
@@ -280,20 +282,21 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
+    fireEvent.click(screen.getByRole("button", { name: "详情…" }));
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText("并发数"), "4");
     await waitFor(() => expect(updateSettingsFields()).toHaveLength(1));
     expect(updateSettingsFields()[0]).toEqual({ parallelism: 4 });
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "确认高并发数" })).toBeNull();
   });
 
-  it("未加载配置时整体禁用", () => {
+  it("未加载配置时整体禁用（详情按钮不可开，弹窗不出现）", () => {
     render(<ConversionSettings />);
-    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
-    expect(screen.getByLabelText("执行目录（work_dir）")).toHaveProperty("disabled", true);
+    const detail = screen.getByRole("button", { name: "详情…" }) as HTMLButtonElement;
+    expect(detail.disabled).toBe(true);
     expect(screen.getByLabelText("并发数")).toHaveProperty("disabled", true);
     expect(screen.getByText("加载配置后可编辑转换参数。")).toBeTruthy();
+    expect(screen.queryByRole("dialog", { name: "详细配置" })).toBeNull();
   });
 });

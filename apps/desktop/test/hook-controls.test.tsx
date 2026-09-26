@@ -64,9 +64,9 @@ describe("HookControls（P4-05b）", () => {
     resetSessionStore();
   });
 
-  it("未加载配置 → 空态提示；配置无命名 hook → 无开关提示", () => {
-    render(<HookControls />);
-    expect(screen.getByText("加载配置后在此显示可开关的转换事件。")).toBeTruthy();
+  it("自适应：未加载配置/无命名 hook → 不渲染（2026-09-26 用户需求）", () => {
+    const view = render(<HookControls />);
+    expect(view.container.firstChild).toBeNull();
 
     act(() =>
       useSessionStore.setState({
@@ -77,7 +77,7 @@ describe("HookControls（P4-05b）", () => {
         }),
       }),
     );
-    expect(screen.getByText("当前配置没有可开关的命名事件。")).toBeTruthy();
+    expect(view.container.firstChild).toBeNull();
   });
 
   it("命名 hook 按组渲染（匿名不渲染）；mutable=false 禁用", () => {

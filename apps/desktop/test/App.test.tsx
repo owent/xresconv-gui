@@ -102,9 +102,10 @@ describe("App shell (P4-01)", () => {
     // 右侧主区（ConversionSettings：文件行+详细配置开关+快捷行；详情/矩阵在折叠内）
     expect(screen.getByRole("main")).toBeTruthy();
     expect(screen.getByRole("form", { name: "转换参数" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "展开详细配置" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "详情…" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("combobox", { name: "并发数" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "自定义按钮" })).toBeTruthy();
+    // 自适应（2026-09-26）：无选择器定义时自定义按钮区不渲染。
+    expect(screen.queryByRole("region", { name: "自定义按钮" })).toBeNull();
 
     // 底部运行控制与日志（RunControls / RunSummary / LogPanel / DialogHost）
     expect(screen.getByRole("group", { name: "运行控制" })).toBeTruthy();

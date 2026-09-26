@@ -82,3 +82,20 @@ export async function pickSavePath(defaultName: string): Promise<string | null> 
 export function exportTextFile(path: string, content: string): Promise<void> {
   return invoke("export_text_file", { path, content });
 }
+
+/** 显示设置（镜像壳层 DisplaySettings；缺省=跟随系统/无上次文件）。 */
+export interface DisplaySettings {
+  theme: "system" | "light" | "dark" | null;
+  lastConfigFile: string | null;
+}
+
+export function readDisplaySettings(): Promise<DisplaySettings | null> {
+  return invoke<DisplaySettings | null>("read_display_settings");
+}
+
+export function writeDisplaySettings(settings: DisplaySettings): Promise<void> {
+  return invoke("write_display_settings", {
+    theme: settings.theme,
+    lastConfigFile: settings.lastConfigFile,
+  });
+}

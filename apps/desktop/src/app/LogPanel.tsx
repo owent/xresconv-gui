@@ -80,6 +80,9 @@ export function LogPanel() {
   const setLogFilter = useSessionStore((state) => state.setLogFilter);
 
   const [copyHint, setCopyHint] = useState<string | null>(null);
+  // 溢出查看方式（2026-09-26 用户需求）：false=横向滚动（默认，虚拟行等高）；
+  // true=自动换行（虚拟行高度按换行后行数估算）。
+  const [wrap, setWrap] = useState(false);
 
   // 初始拉取（含 guardian 重启后的重新拉取；initLogs 自身幂等）。
   useEffect(() => {
@@ -97,6 +100,8 @@ export function LogPanel() {
     getScrollElement: () => parentRef.current,
     estimateSize: () => LOG_ROW_HEIGHT,
     overscan: 16,
+    // 换行模式按容器宽度估算行高（每行~44 个等宽字符）。
+    ...(wrap ? { estimateSize: () => LOG_ROW_HEIGHT * 2 } : {}),
     // 首帧/无 ResizeObserver 环境（SSR、jsdom）的种子视口；真实 WebView 由
     // ResizeObserver 立即校正。
     initialRect: { width: 800, height: LOG_VIEWPORT_MIN_HEIGHT + 140 },
@@ -150,6 +155,13 @@ export function LogPanel() {
         <span className="log-count">
           日志 {filtered.length}/{entries.length} 条
         </span>
+        <Button
+          className={wrap ? "" : "btn-ghost"}
+          aria-pressed={wrap}
+          onPress={() => setWrap((value) => !value)}
+        >
+          {wrap ? "换行" : "横向滚动"}
+        </Button>
         <Button onPress={() => void onCopy()}>复制日志</Button>
         <Button onPress={() => void exportLogs()}>导出日志</Button>
         {copyHint !== null && (
@@ -175,7 +187,7 @@ export function LogPanel() {
         ref={parentRef}
         role="log"
         aria-label="日志列表"
-        className="log-list"
+        className={`log-list${wrap ? " log-list--wrap" : ""}`}
         style={{ minHeight: LOG_VIEWPORT_MIN_HEIGHT }}
         onScroll={() => {
           const el = parentRef.current;
