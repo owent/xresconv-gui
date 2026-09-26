@@ -210,7 +210,7 @@ button,
   overflow: hidden;
   text-overflow: ellipsis;
   font: inherit;
-  font-family: var(--font-family-mono);
+  font-family: var(--font-log-family);
   font-size: var(--font-size-sm);
   color: var(--color-text);
   background: var(--color-bg);
@@ -766,7 +766,7 @@ input[type="checkbox"] {
   resize: vertical;
   /* 布局反馈 2026-09-25：多值字段两行起步（可纵向拉伸），压低表单整体高度。 */
   min-height: 2.4rem;
-  font-family: var(--font-family-mono);
+  font-family: var(--font-log-family);
   font-size: var(--font-size-sm);
 }
 
@@ -830,7 +830,7 @@ input[type="checkbox"] {
 }
 
 .preview-tasks code {
-  font-family: var(--font-family-mono);
+  font-family: var(--font-log-family);
 }
 
 .confirm-overlay {
