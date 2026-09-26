@@ -34,9 +34,13 @@ const backendEntry =
   process.env.XRESCONV_BACKEND_ENTRY ||
   (existsSync(layoutBackendEntry) ? layoutBackendEntry : undefined);
 const backendEnv = {};
+// F10/F11：--log-configure 壳 → guardian → backend 接力（只在设置时传递）。
 if (existsSync(layoutWorkerEntry) && existsSync(join(appRoot, "node_modules"))) {
   backendEnv.XRESCONV_SCRIPT_MODULE_DIRS = appRoot;
   backendEnv.XRESCONV_WORKER_ENTRY = layoutWorkerEntry;
+}
+if (typeof process.env.XRESCONV_LOG_CONFIGURE === "string") {
+  backendEnv.XRESCONV_LOG_CONFIGURE = process.env.XRESCONV_LOG_CONFIGURE;
 }
 
 function envelope(kind, payload, extra = {}) {

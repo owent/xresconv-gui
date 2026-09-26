@@ -22,10 +22,10 @@ async function handle(value: unknown): Promise<void> {
       try {
         log4js.configure(request.payload.config as Parameters<typeof log4js.configure>[0]);
       } catch (err) {
-        diagnostic = `log4js configuration failed; falling back to default: ${String(err)}`;
-        log4js.configure(request.payload.fallback as Parameters<typeof log4js.configure>[0]);
+        diagnostic = `log4js configuration failed: ${String(err)}`;
+        error = diagnostic;
       }
-      configured = true;
+      configured = error === undefined;
     } else if (request.kind === "append" && configured) {
       const { level, moduleName, text } = request.payload;
       if (

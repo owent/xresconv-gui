@@ -5,7 +5,19 @@ import { createProcessScope, type ProcessScope } from "@xresconv/guardian";
 import { encodeFrame, FrameDecoder, writeFrame } from "@xresconv/ipc";
 import type { Log4jsSink, LogEntry } from "./log-pipeline.ts";
 
-const DEFAULT_CONFIG = fileURLToPath(new URL("../../../../src/log4js.json", import.meta.url));
+/**
+ * 默认 log4js 配置（与旧版 src/log4js.json 逐字一致）。P7 起内联为对象：
+ * 发行 bundle（esbuild）里相对 import.meta.url 的文件查找会指向不存在的路径，
+ * 内联消除该运行时文件依赖；外部 --log-configure 仍按文件读取（1MiB 上限）。
+ */
+const DEFAULT_CONFIG = {
+  appenders: {
+    app: { type: "file", filename: "xresconv-gui.info.log", maxLogSize: 10485760, numBackups: 3 },
+    errorFile: { type: "file", filename: "xresconv-gui.error.log" },
+    errors: { type: "logLevelFilter", level: "ERROR", appender: "errorFile" },
+  },
+  categories: { default: { appenders: ["app", "errors"], level: "DEBUG" } },
+} as const;
 const WORKER = fileURLToPath(new URL("./log-sink-worker.ts", import.meta.url));
 const MAX_PENDING = 128;
 
@@ -31,13 +43,12 @@ export function createLog4jsSink(
     if (statSync(file).size > 1024 * 1024) throw new Error("log4js configuration exceeds 1 MiB");
     return JSON.parse(readFileSync(file, "utf8"));
   };
-  const fallback = read(DEFAULT_CONFIG);
-  let config = fallback;
+  let config: unknown = DEFAULT_CONFIG;
   if (options.configurePath !== undefined) {
     try {
       config = read(options.configurePath);
     } catch (err) {
-      report(`failed to configure log4js: ${String(err)}; falling back to default src/log4js.json`);
+      report(`failed to configure log4js: ${String(err)}; falling back to default config`);
     }
   }
   // 进程树作用域（P2-02）：自定义 appender 可派生子进程，终止必须覆盖整树。
@@ -118,7 +129,7 @@ export function createLog4jsSink(
       );
     });
   };
-  let tail = request("init", { config, fallback }).catch((error: Error) => fail(error));
+  let tail = request("init", { config }).catch((error: Error) => fail(error));
   return {
     get diagnostic() {
       return diagnostic;

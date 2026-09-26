@@ -115,6 +115,16 @@ describe("LogPipeline", () => {
 });
 
 describe("log4js sink", () => {
+  it("默认配置内联（P7）：无 configurePath 即可用，不再依赖外部文件", async () => {
+    const sink = createLog4jsSink({}); // 旧实现此处读 src/log4js.json（已删除）
+    const pipeline = new LogPipeline();
+    pipeline.addSink((entry) => sink.append(entry));
+    await pipeline.error("inline-default-probe", "INLINE");
+    await sink.shutdown(5000);
+    // 诊断无输出=配置装载成功（失败会经 onDiagnostic 上报并留 diagnostic）。
+    expect(sink.diagnostic).toBeNull();
+  });
+
   it("keeps concurrent session configurations and shutdowns independent", async () => {
     const dir = makeTmpDir();
     const entries = await Promise.all([

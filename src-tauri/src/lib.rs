@@ -123,6 +123,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            // F10/F11：解析 --log-configure 并接力给 guardian 进程（env 注入点
+            // 在 guardian.rs spawn；未提供时不设 env，backend 用内置默认配置）。
+            if let Ok(matches) = app.cli().matches()
+                && let Some(value) = matches.args.get("log-configure")
+                && let Some(path) = value.value.as_str().filter(|p| !p.is_empty())
+            {
+                guardian::set_guardian_log_configure(Some(path.to_string()));
+            }
             // P4-02：长驻 guardian 通道托管状态。事件出口经注入的 EventSink
             // 转发前端（xresconv-event / xresconv-guardian-dead）；guardian
             // 模块不依赖 tauri 类型，保持 unit test 无 GUI 导入可加载。

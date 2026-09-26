@@ -7,7 +7,7 @@
 | 主题 | 来源 | 结论 | status |
 | --- | --- | --- | --- |
 | 包管理器 | `package.json`、`.yarnrc.yml`、`yarn.lock`、工作树状态 | 唯一 JS 锁为 yarn.lock，Cargo.lock 服务 Tauri；2026-09-24 immutable 安装通过，WDIO 既有四项 peer 警告另列于审查记录 | current（Windows 本机） |
-| 构建/打包 | `gulpfile.js`、`package.json` scripts | gulp 5 任务驱动；`@electron/packager` 打包到 `out/`；macOS 必须 `asar=false` | current |
+| 构建/打包（P7 起新架构） | `scripts/package-{windows,linux,macos}.ts`、`src-tauri/tauri.*.conf.json` | 组装发行布局（单份 Node+闭包）→ tauri 双配置（bootstrap/offline）→ 矩阵命名+SHA-256；旧 Electron/gulp 管线已于 P7 删除 | current |
 | 应用图标与 LFS | `docs/brand/app-icon.svg`、`.gitattributes`、`src-tauri/tauri.conf.json`、`.github/workflows/build.yml` / `release.yml` | SVG 母版生成平台图标与 favicon；受跟踪静态资源及不透明二进制走 LFS，两个构建入口均需获取 LFS 内容 | current（2026-09-24 本地核验） |
 | 测试与 lint | [2026-09-24 审查](../plan/records/REVIEW-P0-P3-2026-09-24.md)、[P2-02](../plan/records/P2-02.md)、[P2-05](../plan/records/P2-05.md)、[P2-06](../plan/records/P2-06.md)、[P2-07](../plan/records/P2-07.md)、[P2-08](../plan/records/P2-08.md)、[P2-10](../plan/records/P2-10.md)、[P2-11](../plan/records/P2-11.md)、[P2-12](../plan/records/P2-12.md)、[P3-07](../plan/records/P3-07.md)、[P2-09](../plan/records/P2-09.md)、[P4-01](../plan/records/P4-01.md)、[P4-02](../plan/records/P4-02.md)、[P4-03](../plan/records/P4-03.md)、[P4-04a](../plan/records/P4-04a.md)、[P5-01](../plan/records/P5-01.md)、`package.json`、`tests/`、[增量审查](../plan/records/REVIEW-P2-P5-2026-09-24.md) | 489 例 Node/前端、8 例 Rust、3 例真实 WebView2、八格式 30 文件 JAR 差分；新增 35 例 JS/TS 与 3 例 Rust 回归。协议 v1 形状未变，漂移守卫通过；分包计数、复现/修复及限制见增量审查 | current（win32/x64；非 G2/G3 完整验收） |
 | P0 基线环境 | `docs/plan/records/P0-01.md`、`P0-04.md`、`P0-05.md` | 历史基线用 Yarn 1.22.22 + yarn.lock v1；与当前 Yarn 4 工作树区分。固定组合：OpenJDK 25.0.4.1 + xresloader 2.23.6.jar（sha256 `72fd7655…0caa88`）。记录提示旧 Electron 启动前需移除 `ELECTRON_RUN_AS_NODE=1` | 既有记录，本轮未重跑 |
@@ -68,7 +68,7 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | OpenSpec | <https://github.com/Fission-AI/OpenSpec> 及 docs/commands.md | 季度 | 团队决定采用时 | 本仓库未采用 |
 | MCP 安全 | <https://modelcontextprotocol.io/docs/getting-started/intro>、security best practices | 季度 | 接入任何 MCP 前 | 本仓库未接入 |
 | PowerShell 7+ 规则 | <https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_pwsh>、about_Parsing、about_Quoting_Rules、PSScriptAnalyzer | 半年 | 编写 .ps1 脚本前 | current |
-| 桌面图标格式与生成 | <https://v2.tauri.app/develop/icons/>、<https://github.com/electron/packager/blob/main/usage.txt> | 每次升级 Tauri / Electron Packager | 变更图标源或打包配置前 | 2026-09-24 官方文档复核；本机生成验证 |
+| 桌面图标格式与生成 | <https://v2.tauri.app/develop/icons/> | 每次升级 Tauri | 变更图标源或打包配置前 | 2026-09-24 官方文档复核；本机生成验证 |
 | Git LFS 与 Actions 检出 | <https://git-lfs.com/>、<https://github.com/actions/checkout/blob/main/README.md> | 半年 | 修改 LFS 文件类型或构建流程前 | 2026-09-24 官方文档复核；CI 待运行 |
 
 ## 已知缺口与后续建议

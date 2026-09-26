@@ -94,7 +94,16 @@ const workerEnv = {};
 if (process.env.XRESCONV_SCRIPT_MODULE_DIRS) {
   workerEnv.XRESCONV_SCRIPT_MODULE_DIRS = process.env.XRESCONV_SCRIPT_MODULE_DIRS;
 }
-const app = new BackendRpcApp({ pool: new ScriptWorkerPool({ workerEnv }) });
+// F10/F11：--log-configure 经壳 CLI 解析 → guardian env 接力至此（BD-O12 语义）。
+const log4jsConfigurePath =
+  typeof process.env.XRESCONV_LOG_CONFIGURE === "string" &&
+  process.env.XRESCONV_LOG_CONFIGURE.length > 0
+    ? process.env.XRESCONV_LOG_CONFIGURE
+    : undefined;
+const app = new BackendRpcApp({
+  pool: new ScriptWorkerPool({ workerEnv }),
+  ...(log4jsConfigurePath === undefined ? {} : { log4jsConfigurePath }),
+});
 // 事件面：log/state_change/dialog_*/run_end/diagnostic → kind "event"（P4-02）。
 app.onEvent((event) => {
   send("event", { source: "backend", ...event });

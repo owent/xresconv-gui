@@ -5,7 +5,7 @@
 ## 项目目标与边界
 
 - xresconv-gui：符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的 GUI 批量转表工具，以 [xresloader](https://github.com/xresloader/xresloader) 为后端。
-- 基于 Electron，支持 Windows / Linux / macOS。
+- 基于 Tauri 2 薄壳 + 系统 WebView + 独立 Node.js 业务内核，支持 Windows / Linux / macOS（64 位；D1 决策，旧 2.6.0 为 32 位终点版本）。
 - 本仓库只包含 GUI 壳与打包逻辑；转表协议变更属于 xresconv-conf / xresloader 仓库。
 
 ## 不可违反的原则
@@ -33,21 +33,17 @@
 
 ## 技术栈与命令
 
-- Node.js LTS（>=24）+ Electron 44 + gulp 5 + `@electron/packager`。入口 `src/setup.js`（主进程），`src/main.js` + `src/index.html`（渲染进程）。新架构（Tauri 2 薄壳 + Node/TS workspaces）见 `Plan.md` 与 `docs/plan/`。
+- Node.js LTS（>=24）+ Tauri 2 + React 19 + TypeScript workspaces。壳入口 `src-tauri/`（最小胶水），前端 `apps/desktop/`，业务内核 `packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`（D6：业务全在 Node/TS，Rust 仅壳）。
 - 包管理器：**Yarn 4（corepack，`packageManager: yarn@4.18.0`）为唯一 JS 包管理器**；`package-lock.json`、`pnpm-lock.yaml` 已删除（P1-02），唯一 JS 锁文件为 `yarn.lock`，`Cargo.lock` 仅服务 Tauri 薄壳。安装用 `corepack yarn install`，变更依赖时只更新 `yarn.lock`。
 - 常用命令：
-  - 安装依赖：`yarn install`（`prepare` 钩子会执行 `node scripts/patch-fancytree.js && gulp copy-libs`）
-  - 启动：`yarn run start`；调试模式：`yarn run debug-start`；VSCode Attach：`yarn run debug`（端口 5858）
-  - 打包：`yarn run package-test`（当前平台）、`package-win32` / `package-linux` / `package-darwin` / `package-all`，产物在 `out/`
-- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → tauri 双配置 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）。旧 Electron 命令保留至 P7 交接；旧架构验证手段为 `yarn run package-test` 打包成功 + 手动冒烟。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
+  - 开发运行：`yarn dev:desktop`（tauri dev，前端热更新）
+  - 构建壳：`yarn build:desktop`
+- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → tauri 双配置 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
 
 ## 目录结构
 
 - `apps/desktop/`、`packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`、`src-tauri/`、`tests/`：新架构骨架（D6，P1 已验收本机范围，见 `docs/plan/records/`）
 
-- `src/`：应用源码（`setup.js` 主进程、`main.js` 渲染进程、`index.html`、`main.css`、`log4js.json` 日志配置）
-- `scripts/patch-fancytree.js`：安装后修补 jquery.fancytree 的脚本（`prepare` 钩子调用）
-- `gulpfile.js`：运行、调试与打包任务
 - `docs/`：文档截图、图标、自定义选择器示例 `custom-selector.json`
 - `.github/workflows/`：CI（build.yml 三平台构建并上传 release；release.yml；stale.yml）
 - `.agents/skills/`：跨工具 Agent Skills（索引见 `.agents/skills/README.md`）
@@ -58,7 +54,6 @@
 - 用户自定义脚本（事件 `set_name` / `on_before_convert` / `on_after_convert` / `script` / `on_append_log`）在渲染进程沙箱中执行，未捕获异常会导致 GUI 白屏——这是已知限制，修改相关代码时不得破坏 `resolve()`/`reject()` 的约定（见 README“已知问题”）。
 - GUI 与文件编码统一 UTF-8；Windows 默认 GBK，文件名建议全英文（见 README“注意事项”）。
 - 渲染进程里部分 npm 库不会自动挂到全局，需手动 `window.jQuery = require(...)`（见 README“关于加载和调试”）。
-- macOS 打包必须 `asar = false`（asar 包在 macOS 下无法读取，`gulpfile.js` 已处理，不要改回）。
 - src-tauri 中被 `#[cfg(test)]` 测试引用的模块不得触碰 tauri/wry 运行时类型（如 `AppHandle`/`Emitter`）：测试 exe 无 SxS manifest，经 Drop glue 保留 wry 对话框代码会导入 comctl32 v6 专有符号，进程加载即 0xc0000139。事件出口用注入闭包（P4-02 `EventSink`，诊断工具 `build/tools/check-imports.mjs`）。
 
 ## 任务分流

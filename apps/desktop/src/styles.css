@@ -98,15 +98,11 @@ body {
   flex-direction: column;
 }
 
-.tree-keyboard-scope .conversion-tree-view {
+.conversion-tree-view {
   flex: 1;
   min-height: 6rem;
-  overflow: auto;
-}
-
-.conversion-tree-view {
-  min-height: 8rem;
   outline: none;
+  overflow: auto;
 }
 
 .react-aria-TreeItem {
@@ -242,6 +238,14 @@ body {
   color: var(--color-text-muted);
 }
 
+.preview-panel {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow: auto;
+}
 .preview-details[open] .preview-panel {
   max-height: 30vh;
   overflow: auto;
@@ -538,15 +542,6 @@ details.collapsible > *:not(summary) {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-
-.preview-panel {
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  overflow: auto;
 }
 
 .preview-summary {

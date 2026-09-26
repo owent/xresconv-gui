@@ -148,6 +148,8 @@ export interface BackendRpcAppOptions {
   setNameTimeoutMs?: number;
   /** 选择器匹配的隔离 matcher 工厂（P4-05a）；缺省真实 MatcherService（懒创建）。 */
   matcherFactory?: () => MatcherService;
+  /** log4js 落盘配置路径（F10/F11 --log-configure；缺省用内置默认配置）。 */
+  log4jsConfigurePath?: string;
 }
 
 /** 弹框 token 推导与 pool 的注册表键一致（P2-06：payload.token，缺省回退 env.id）。 */
@@ -283,6 +285,9 @@ export class BackendRpcApp {
         ? {}
         : { setNameTimeoutMs: options.setNameTimeoutMs }),
       ...(options.matcherFactory === undefined ? {} : { matcherFactory: options.matcherFactory }),
+      ...(options.log4jsConfigurePath === undefined
+        ? {}
+        : { log4js: { configurePath: options.log4jsConfigurePath } }),
       onDialogRequest: (env, respond) => this.handleDialogRequest(env, respond),
       onDialogInvalidate: (env, reason) => this.handleDialogInvalidate(env, reason),
     });

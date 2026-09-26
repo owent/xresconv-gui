@@ -2,8 +2,7 @@
   "name": "xresconv-gui",
   "version": "2.6.0",
   "publisher": "owent",
-  "description": "xresconv 批量转表工具-GUI\r ==========",
-  "main": "src/setup.js",
+  "description": "xresconv 批量转表工具-GUI (Tauri 2 薄壳 + Node.js 业务内核)",
   "packageManager": "yarn@4.18.0",
   "engines": {
     "node": ">=24.0.0"
@@ -13,45 +12,21 @@
     "packages/*",
     "tests/desktop"
   ],
-  "files": [
-    "src",
-    "docs",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE"
-  ],
   "directories": {
     "doc": "docs"
   },
   "dependencies": {
-    "@popperjs/core": "^2.11.8",
     "adm-zip": "^0.6.1",
-    "bootstrap": "^5.3.8",
     "compressing": "^2.1.3",
-    "jquery": "^4.0.0",
-    "jquery.fancytree": "^2.38.5",
     "log4js": "^6.9.1",
     "minimatch": "^10.2.6"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
-    "@electron/packager": "^20.3.0",
     "@tauri-apps/cli": "2.11.5",
-    "electron": "^44.4.5",
-    "gulp": "^5.0.1",
     "markdownlint-cli": "0.49.1"
   },
   "scripts": {
-    "prepare": "node scripts/patch-fancytree.js && gulp copy-libs",
-    "start": "gulp run",
-    "debug-start": "gulp debug-run",
-    "vscode-start": "electron --debug=5858 .",
-    "debug": "gulp debug",
-    "package-test": "gulp package-test",
-    "package-win32": "gulp package-win32",
-    "package-linux": "gulp package-linux",
-    "package-darwin": "gulp package-darwin",
-    "package-all": "gulp package-all",
     "check:toolchain": "node scripts/check-toolchain.mjs",
     "dev:desktop": "tauri dev",
     "build:desktop": "tauri build",

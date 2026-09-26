@@ -196,6 +196,17 @@ fn spawn_reader(
     });
 }
 
+/// 壳 CLI 的 --log-configure 值（lib.rs setup 解析后注入；None=未提供）。
+static LOG_CONFIGURE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+
+pub fn set_guardian_log_configure(path: Option<String>) {
+    let _ = LOG_CONFIGURE.set(path);
+}
+
+fn guardian_log_configure() -> Option<String> {
+    LOG_CONFIGURE.get().cloned().flatten()
+}
+
 pub struct GuardianClient {
     child: Mutex<Child>,
     writer: mpsc::SyncSender<Outbound>,
@@ -274,11 +285,17 @@ impl GuardianClient {
                     .into_owned()
                 }),
         };
-        let mut child = Command::new(&node)
+        let mut command = Command::new(&node);
+        command
             .arg(&entry)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        // F10/F11：--log-configure 由壳 CLI 解析后经 env 接力给 guardian → backend。
+        if let Some(path) = guardian_log_configure() {
+            command.env("XRESCONV_LOG_CONFIGURE", path);
+        }
+        let mut child = command
             .spawn()
             .map_err(|e| ChannelError::Io(format!("spawn {node} {entry} failed: {e}")))?;
         let stdout = child
