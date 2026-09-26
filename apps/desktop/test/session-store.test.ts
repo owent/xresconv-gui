@@ -314,6 +314,17 @@ describe("session store (P4-03)", () => {
     expect(useSessionStore.getState().logs.entries).toHaveLength(1);
   });
 
+  it("configLoadSeq 仅在 loadConfig/reload 成功时递增（ops/run 重同步不动）", async () => {
+    await loadFixture();
+    expect(useSessionStore.getState().configLoadSeq).toBe(1);
+    routeRpc({ getSnapshot: () => makeSnapshot() });
+    await useSessionStore.getState().refreshSnapshot();
+    expect(useSessionStore.getState().configLoadSeq).toBe(1);
+    routeRpc({ loadConfig: () => makeSnapshot() });
+    await useSessionStore.getState().loadConfig("D:/conf/again.xml");
+    expect(useSessionStore.getState().configLoadSeq).toBe(2);
+  });
+
   it("startRun 成功后日志窗口清空（运行从干净日志追加）", async () => {
     await loadFixture();
     useSessionStore.getState().appendLocalLog("加载期的诊断行", "notice");

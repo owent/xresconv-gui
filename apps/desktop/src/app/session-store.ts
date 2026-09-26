@@ -163,6 +163,8 @@ interface SessionData {
   lastError: string | null;
   /** 当前已成功加载的配置路径。 */
   configPath: string | null;
+  /** 配置加载代数：仅 loadConfig/reload 成功时 +1（加载后日志摘要的触发点）。 */
+  configLoadSeq: number;
   /** 事件水位：累计收到的 xresconv-event 帧数。 */
   eventCount: number;
   /** 最近一次 state_change 事件的 state/previous。 */
@@ -354,6 +356,7 @@ const initialData: SessionData = {
   connection: "idle",
   lastError: null,
   configPath: null,
+  configLoadSeq: 0,
   eventCount: 0,
   lastStateChange: null,
   searchTerm: "",
@@ -474,6 +477,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         focusedKey,
         ...(resetUi
           ? {
+              configLoadSeq: state.configLoadSeq + 1,
               searchTerm: "",
               // 配置变了旧预览失效（P4-04b）：loadConfig/reload 成功重置 preview。
               preview: initialPreview(),

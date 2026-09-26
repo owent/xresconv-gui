@@ -3,7 +3,7 @@ import { ConversionTree } from "./ConversionTree";
 import { CustomActionBar } from "./CustomActionBar";
 import { DialogHost } from "./DialogHost";
 import { useDisplaySettings } from "./display-settings";
-import { useEnvironmentDiagnostics } from "./environment-diagnostics";
+import { useEnvironmentDiagnostics, usePostLoadLogSummary } from "./environment-diagnostics";
 import { LogPanel } from "./LogPanel";
 import { RunControls } from "./RunControls";
 import { useBackendEvents } from "./use-backend-events";
@@ -22,6 +22,7 @@ export function AppShell() {
   useCliCustomSelectors();
   useDisplaySettings();
   useEnvironmentDiagnostics();
+  usePostLoadLogSummary();
   return (
     <div className="app-shell">
       <ConversionTree />

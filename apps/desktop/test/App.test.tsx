@@ -193,6 +193,13 @@ describe("App shell (P4-01)", () => {
     const picked = await screen.findByTestId("picked-path");
     expect((picked as HTMLInputElement).value).toBe("D:/conf/convert_list.xml");
 
+    // 2026-09-26 五轮：加载成功重置日志后补写 Java 环境与输出矩阵概要。
+    await waitFor(() => {
+      const text = screen.getByRole("log", { name: "日志列表" }).textContent ?? "";
+      expect(text).toContain("Java 环境：openjdk version");
+      expect(text).toContain("输出矩阵：");
+    });
+
     const reload = screen.getByRole("button", { name: "重载配置" });
     expect(reload).toHaveProperty("disabled", false);
     await user.click(reload);

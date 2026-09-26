@@ -221,6 +221,13 @@ describe("ConversionTree (P4-03)", () => {
     expect(applyOpsPayloads(invoke)[0]).toEqual([{ v: 1, op: "select_node", key: 2 }]);
     await waitFor(() => expect(checkboxOf("beta").checked).toBe(true));
     expect(useSessionStore.getState().snapshot?.tree?.version).toBe(2);
+    // 2026-09-26 五轮：全选目录 partsel=true（fancytree“有牵连”语义）但显示为
+    // 全选 ✓——isIndeterminate 仅在未全选时为 true。
+    const category = checkboxOf("基础分类");
+    expect(category.checked).toBe(true);
+    expect(category.indeterminate).toBe(false);
+    expect(category.closest("[data-selected]")).not.toBeNull();
+    expect(category.closest("[data-indeterminate]")).toBeNull();
   });
 
   it("全部选中/全部取消发送整树 op（有配置才可用；按钮在 RunControls 组）", async () => {

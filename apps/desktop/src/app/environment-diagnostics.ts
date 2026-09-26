@@ -125,3 +125,54 @@ export function useEnvironmentDiagnostics(): void {
     });
   }, []);
 }
+
+/** 输出矩阵概要行（2026-09-26 五轮：加载后日志重置需补写关键配置信息）。 */
+function matrixSummaryLines(config: Record<string, unknown> | null): string[] {
+  const matrix = config?.outputMatrix;
+  if (!Array.isArray(matrix) || matrix.length === 0) {
+    return ["输出矩阵：未配置（默认单类型输出）"];
+  }
+  return matrix.map((rule, index) => {
+    const typed = (rule ?? {}) as {
+      type?: unknown;
+      rename?: unknown;
+      outputDir?: unknown;
+      tags?: unknown;
+      classes?: unknown;
+    };
+    const parts: string[] = [
+      `type=${typeof typed.type === "string" && typed.type !== "" ? typed.type : "（默认）"}`,
+    ];
+    if (Array.isArray(typed.tags) && typed.tags.length > 0) {
+      parts.push(`tag=${typed.tags.join(" ")}`);
+    }
+    if (Array.isArray(typed.classes) && typed.classes.length > 0) {
+      parts.push(`class=${typed.classes.join(" ")}`);
+    }
+    if (typeof typed.rename === "string" && typed.rename !== "") {
+      parts.push(`rename=${typed.rename}`);
+    }
+    if (typeof typed.outputDir === "string" && typed.outputDir !== "") {
+      parts.push(`目录=${typed.outputDir}`);
+    }
+    return `输出矩阵 #${String(index + 1)}：${parts.join("；")}`;
+  });
+}
+
+/**
+ * 加载后日志摘要（2026-09-26 五轮用户需求）：loadConfig/reload 成功会重置
+ * 运行日志显示面——重置后补写启动同款 Java 环境信息与本次配置的输出矩阵
+ * 概要。触发点 store.configLoadSeq（仅加载成功 +1；ops/run 的重同步不动）。
+ */
+export function usePostLoadLogSummary(): void {
+  const configLoadSeq = useSessionStore((state) => state.configLoadSeq);
+  useEffect(() => {
+    if (configLoadSeq === 0) return;
+    // Java 信息（与启动一致；backend 未就绪时静默，ready 事件不会重复打扰）
+    logJava();
+    const config = useSessionStore.getState().snapshot?.config ?? null;
+    for (const line of matrixSummaryLines(config)) {
+      useSessionStore.getState().appendLocalLog(line, "info");
+    }
+  }, [configLoadSeq]);
+}

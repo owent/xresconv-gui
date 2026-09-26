@@ -109,13 +109,15 @@ function TreeNodeRow({ node, level }: { node: TreeNodeSnap; level: number }) {
             ) : (
               <span className="tree-chevron-spacer" aria-hidden="true" />
             )}
+            {/* fancytree 三态语义：全选目录 partsel 也为 true（“有牵连”）——
+                半选（mixed）仅当 partsel 且未全选；全选目录与条目一律 ✓。 */}
             <Checkbox
               className="tree-checkbox"
               aria-label={
                 node.unselectable ? `选择 ${node.title}（不可勾选）` : `选择 ${node.title}`
               }
               isSelected={node.selected}
-              isIndeterminate={node.partsel}
+              isIndeterminate={node.partsel && !node.selected}
               isDisabled={node.unselectable}
               onChange={() => void store().toggleNode(node.key)}
             >
