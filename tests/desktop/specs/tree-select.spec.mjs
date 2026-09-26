@@ -7,7 +7,10 @@ import { existsSync, writeFileSync, rmSync } from "node:fs";
  * 页面内容显示正常。配置经 --input 注入（CLI 参数 → loadConfig），
  * 勾选经真实 WebView 点击 → applyOps RPC → 快照回写。
  */
-describe("tree selection and layout with a loaded config", () => {
+// 需要 XRESCONV_E2E_INPUT 注入配置（本地验证链路）；CI 常规运行无输入时跳过。
+const describeLoaded = process.env.XRESCONV_E2E_INPUT ? describe : describe.skip;
+
+describeLoaded("tree selection and layout with a loaded config", () => {
   before(async () => {
     const handles = await browser.getWindowHandles();
     assert.strictEqual(handles.length, 1);
