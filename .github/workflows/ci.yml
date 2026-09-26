@@ -97,11 +97,14 @@ jobs:
           corepack yarn test:shell
 
   # CI-03：桌面 E2E（真实 WebView；平台矩阵）。Linux（xvfb+WebKitGTK）与
-  # 本机 Windows 交互会话已实证；windows-latest 的 runner 会话无交互桌面，
-  # WebView2 无法与 msedgedriver 完成 DevToolsActivePort 握手（app 本体
-  # guardian/backend 正常，2026-09-25 诊断步实证）——设 continue-on-error
-  # 如实展示结果但不阻塞，权威 Windows 证据为本机交互会话（P4-09 记录），
-  # 恢复条件：专用 Windows GUI runner / RDP 会话。
+  # 本机 Windows 交互会话已实证；两项环境限制如实登记（2026-09-25）：
+  # - windows-latest：runner 会话无交互桌面，WebView2 无法与 msedgedriver
+  #   完成 DevToolsActivePort 握手（app 本体 guardian/backend 正常，诊断步
+  #   实证）；权威 Windows 证据为本机交互会话（P4-09 记录 9/9）。
+  # - macos-latest：tauri-driver 启动即退且无 stderr（safaridriver 已 enable，
+  #   诊断步 /tmp/td.log 为空）；按用户决策 macOS 验收延后至 mac 实机/CI 平台。
+  # 两者 continue-on-error：结果如实展示，不阻塞流水线；恢复条件登记于
+  # docs/plan/records/P5-09.md。
   desktop-e2e:
     name: desktop e2e (${{ matrix.os }})
     needs: [quality-node, quality-shell]
@@ -114,7 +117,7 @@ jobs:
           - os: ubuntu-latest
             gui-allowed: true
           - os: macos-latest
-            gui-allowed: true
+            gui-allowed: false
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     continue-on-error: ${{ matrix.gui-allowed == false }}
