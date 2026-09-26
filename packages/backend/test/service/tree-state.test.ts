@@ -233,6 +233,44 @@ describe("SessionTreeState", () => {
     expect(snapshot.nodes[0]?.selected).toBe(true);
   });
 
+  it("矩阵屏蔽项不被父级级联/select_all 选中（2026-09-27 用户反馈回归）", () => {
+    const keep = makeItem("keep", { classes: ["ok"] });
+    const blocked = makeItem("blocked");
+    const matrix = [{ tags: [], classes: ["ok"], type: "bin" }];
+    const config = makeConfig(
+      [
+        {
+          kind: "category",
+          name: "group",
+          children: [
+            { kind: "item", item: keep },
+            { kind: "item", item: blocked },
+          ],
+        },
+      ],
+      matrix,
+    );
+    const state = new SessionTreeState(config);
+    // blocked 不匹配规则 → unselectable
+    expect(state.buildSnapshot().nodes[0]?.children[1]?.unselectable).toBe(true);
+
+    // 父级目录勾选（UI select_node op → applySetSelected 级联）
+    const v = state.buildSnapshot().version;
+    const report = state.applyScriptOps([
+      { op: "select_node", v, key: "cat:group", selected: true },
+    ]);
+    expect(report.rejected).toHaveLength(0);
+    const snap = state.buildSnapshot();
+    const group = snap.nodes[0];
+    expect(group?.children[0]?.selected).toBe(true); // keep 被级联选中
+    expect(group?.children[1]?.selected).toBe(false); // blocked 保持未选
+    expect(group?.children[1]?.unselectable).toBe(true);
+    // 屏蔽项不阻碍父级达成全选（可计子项全选 → 目录 ✓）
+    expect(group?.selected).toBe(true);
+    // 屏蔽项不进入转换选择集
+    expect(state.getSelectedItems().map((item) => item.name)).toEqual(["keep"]);
+  });
+
   it("矩阵资格：auto_select 记忆——禁用前勾选的 item 在恢复时重新勾选", () => {
     // 单规则无限定 → withRule=false，加载期不动；随后矩阵换成带限定规则时
     // 已勾选的匹配项不受影响；不匹配且已勾选的项被记忆 auto_select=true 并取消。

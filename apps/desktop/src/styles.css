@@ -129,7 +129,11 @@ input[type="checkbox"] {
   flex: 1;
   min-height: 6rem;
   outline: none;
-  overflow: auto;
+  /* 纵向滚动按需；横向永不滚动（标题省略号，行宽=容器宽）——纵向滚动条
+   * 出现/消失时虚拟行宽度不会随之重排，overflow-x:auto 会残留假横向滚动条
+   * （2026-09-27 用户反馈：全部收起后出现未溢出的横向滚动条）。 */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* 树条目（RAC TreeItem 自定义 className 会替换默认 react-aria-TreeItem 类，

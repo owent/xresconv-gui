@@ -81,6 +81,19 @@ function makeSnapshot(): TreeSnapshot {
             item: { id: 2, name: "banana", desc: "", tags: [], classes: [] },
             children: [],
           },
+          {
+            key: 4,
+            title: "cherry",
+            tooltip: "",
+            folder: false,
+            unselectable: false,
+            selected: false,
+            partsel: false,
+            expanded: false,
+            autoSelect: false,
+            item: { id: 4, name: "cherry", desc: "", tags: [], classes: [] },
+            children: [],
+          },
         ],
       },
       {
@@ -104,7 +117,7 @@ describe("别名恒等与初始状态（P0-08 §8）", () => {
   it("item.ft_node === node、node.data.item === item、node.key === item.id", () => {
     const mirror = buildMirror(makeSnapshot());
     expect(mirror.version).toBe(7);
-    // 构造期聚合：apple 选中、banana 未选 → fruits partsel
+    // 构造期聚合：apple 选中、cherry 未选、banana 被屏蔽（不计入聚合）→ fruits partsel
     expect(mirror.selectedNodes).toHaveLength(1);
     const node = mirror.selectedNodes[0] as AnyNode;
     const item = must(mirror.selectedItems[0], "selectedItems[0]");
@@ -133,7 +146,7 @@ describe("别名恒等与初始状态（P0-08 §8）", () => {
     const node = mirror.selectedNodes[0] as AnyNode;
     expect(node.getChildren()).toBeNull();
     const folderNode = node.getParent() as AnyNode;
-    expect(folderNode.getChildren()).toHaveLength(2);
+    expect(folderNode.getChildren()).toHaveLength(3);
   });
 });
 
@@ -143,17 +156,19 @@ describe("同步方法与有序 ops", () => {
     const node = mirror.selectedNodes[0] as AnyNode;
     const folderNode = node.getParent() as AnyNode;
     folderNode.setSelected(true);
-    // unselectable 的 banana 也被级联覆盖（unselectableStatus 未配置穿透）
+    // 2026-09-27 新语义：unselectable 的 banana 不被级联改写（屏蔽项绝不
+    // 进入选择集）；可选子项被级联选中。
     const banana = folderNode.getChildren()?.[1] as AnyNode;
-    expect(banana.isSelected()).toBe(true);
+    expect(banana.isSelected()).toBe(false);
     expect(folderNode.isSelected()).toBe(true);
     folderNode.setExpanded(false);
     const ops = mirror.collectOps();
     expect(ops[0]).toMatchObject({ op: "set_node_states", v: 7 });
     const changes = (ops[0] as { changes: { key: string | number; selected: boolean }[] }).changes;
-    // banana(false→true) 与 folder(partsel→selected) 在变更集中
-    expect(changes.map((c) => c.key)).toContain(2);
+    // cherry(false→true) 与 folder(partsel→selected) 在变更集中；banana 不在
+    expect(changes.map((c) => c.key)).toContain(4);
     expect(changes.map((c) => c.key)).toContain("cat:fruits");
+    expect(changes.map((c) => c.key)).not.toContain(2);
     expect(ops[1]).toMatchObject({ op: "set_node_expanded", key: "cat:fruits", expanded: false });
   });
 
@@ -263,7 +278,8 @@ describe("getSelectedNodes / visit 经镜像", () => {
     const folderNode = node.getParent() as AnyNode;
     folderNode.setSelected(true);
     const all = node.getTree().getSelectedNodes();
-    expect(all.map((n) => n.key)).toEqual(["cat:fruits", 1, 2]);
+    // banana 被屏蔽不进选择集；cherry 被级联选中
+    expect(all.map((n) => n.key)).toEqual(["cat:fruits", 1, 4]);
     const stopped = node.getTree().getSelectedNodes(true);
     expect(stopped.map((n) => n.key)).toEqual(["cat:fruits"]);
   });
@@ -277,7 +293,7 @@ describe("getSelectedNodes / visit 经镜像", () => {
       seen.push(child.key);
       return undefined;
     });
-    expect(seen).toEqual([1, 2]);
+    expect(seen).toEqual([1, 2, 4]);
     const seen2: (string | number)[] = [];
     folderNode.visit((child) => {
       seen2.push(child.key);

@@ -84,13 +84,32 @@ describe("setSelected 级联（nodeSetSelected + fixSelection3AfterClick）", ()
     expect(keys).toEqual([1, 2, "f", "g"].sort());
   });
 
-  it("级联覆盖 unselectable 子孙（unselectableStatus 未配置的穿透语义）", () => {
-    // _changeSelectStatusAttrs：unselectable && unselectableStatus==null 时状态照常写入
-    // （ft-all.js:998-1008）；nodeSetSelected 注释明确 "only by propagation"。
+  it("级联跳过 unselectable 子孙；父级聚合排除屏蔽项（2026-09-27 用户反馈修复）", () => {
+    // 语义变更：不再沿用官方 _changeSelectStatusAttrs 对未配置 unselectableStatus
+    // 节点的“穿透”怪癖——矩阵屏蔽项（记忆勾选→取消勾选→屏蔽）绝不允许被父级
+    // 级联重新选中（否则屏蔽失效、屏蔽项会进入转换集）。采用 fancytree 自家
+    // `unselectableIgnore` 语义：级联跳过 + 聚合不计入。
     const tree = new SelectionTree([folder("f", [item(1, { unselectable: true }), item(2)])]);
     tree.applySetSelected("f", true);
-    expect(stateOf(tree, 1).selected).toBe(true);
+    // 屏蔽项保持未选
+    expect(stateOf(tree, 1).selected).toBe(false);
+    expect(stateOf(tree, 1).partsel).toBe(false);
+    // 可选子项被级联选中
     expect(stateOf(tree, 2).selected).toBe(true);
+    // 屏蔽项不阻碍父级达成全选（f = selected ✓ 而非半选）
+    expect(stateOf(tree, "f")).toMatchObject({ selected: true, partsel: true });
+  });
+
+  it("全部子项被屏蔽的目录：子项保持未选，目录反映直选意图（countable=0 不误聚合）", () => {
+    const tree = new SelectionTree([
+      folder("f", [item(1, { unselectable: true }), item(2, { unselectable: true })]),
+    ]);
+    tree.applySetSelected("f", true);
+    expect(stateOf(tree, 1).selected).toBe(false);
+    expect(stateOf(tree, 2).selected).toBe(false);
+    // 无可计子节点：目录保持直选本身（visitState 含自身先写入 true；目录不进
+    // 转换集，无副作用），不受 countable=0 的 allSelected 初值二次改写。
+    expect(stateOf(tree, "f")).toMatchObject({ selected: true, partsel: true });
   });
 
   it("unselectable 节点直接 setSelected 为 no-op（ft-all.js:5758-5761）", () => {

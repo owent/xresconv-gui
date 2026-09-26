@@ -155,6 +155,13 @@ export class SelectionTree {
     // 但 clicked 节点随后被 fixSelection3FromEndNodes 的 _walk 覆盖定稿；此处直接
     // 让级联覆盖自身，终态等价且变更集能正确包含 clicked 节点（backend 盖章依据）。
     this.visitState(node, (child) => {
+      // 2026-09-27：级联不改写 unselectable 节点（fancytree `unselectableIgnore`
+      // 语义）——矩阵屏蔽项保持未选；旧 GUI 的 auto_select 记忆+屏蔽意图明确
+      // 要求屏蔽项绝不进入选择集（官方 _changeSelectStatusAttrs 对未配置
+      // unselectableStatus 的节点不做拦截，属上游潜伏行为，不沿用）。
+      if (child.unselectable) {
+        return;
+      }
       this.changeSelectStatusAttrs(child, normalized, tracker);
     });
     this.fixFromEndNodes(node, tracker);
@@ -346,7 +353,14 @@ export class SelectionTree {
       if (current.children.length > 0) {
         let allSelected = true;
         let someSelected = false;
+        let countable = 0;
         for (const child of current.children) {
+          // unselectable 子节点不计入聚合（unselectableIgnore 语义）：
+          // 屏蔽项既不阻碍父级全选 ✓，也不制造假半选。
+          if (child.unselectable) {
+            continue;
+          }
+          countable++;
           const s = walk(child);
           if (s !== false) {
             someSelected = true;
@@ -355,7 +369,15 @@ export class SelectionTree {
             allSelected = false;
           }
         }
-        state = allSelected ? true : someSelected ? undefined : false;
+        // 无可计子节点（全被屏蔽）→ 维持自身状态，避免空目录被误判全选。
+        state =
+          countable === 0
+            ? current.selected
+            : allSelected
+              ? true
+              : someSelected
+                ? undefined
+                : false;
       } else {
         state = current.selected;
       }
@@ -368,7 +390,12 @@ export class SelectionTree {
     while (parent !== null) {
       let allSelected = true;
       let someSelected = false;
+      let countable = 0;
       for (const child of parent.children) {
+        if (child.unselectable) {
+          continue; // unselectableIgnore 语义，同 _walk
+        }
+        countable++;
         const state = child.selected;
         if (state || child.partsel) {
           someSelected = true;
@@ -377,11 +404,13 @@ export class SelectionTree {
           allSelected = false;
         }
       }
-      this.changeSelectStatusAttrs(
-        parent,
-        allSelected ? true : someSelected ? undefined : false,
-        tracker,
-      );
+      if (countable > 0) {
+        this.changeSelectStatusAttrs(
+          parent,
+          allSelected ? true : someSelected ? undefined : false,
+          tracker,
+        );
+      }
       parent = parent.parent;
     }
   }
