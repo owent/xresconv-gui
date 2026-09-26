@@ -1,10 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { App } from "../src/App";
+import { resetEnvironmentDiagnostics } from "../src/app/environment-diagnostics";
 import { resetSessionStore } from "../src/app/session-store";
 
 // The WebView bridge is not present under jsdom; mock the Tauri API layer.
@@ -35,11 +36,37 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: vi.fn(async () => null),
 }));
 
-const mockedInvoke = invoke as unknown as Mock<(cmd: string) => Promise<unknown>>;
+const mockedInvoke = invoke as unknown as Mock<(cmd: string, args?: unknown) => Promise<unknown>>;
 const mockedOpen = open as unknown as Mock<(options?: unknown) => Promise<string | null>>;
 
-function defaultInvokeImpl(cmd: string): Promise<unknown> {
-  if (cmd === "backend_rpc")
+const JAVA_OK = {
+  ok: true,
+  versionText: 'openjdk version "17.0.9" 2023-10-17',
+  versions: [17, 0, 9],
+  bit64: true,
+  executable: { command: "java", source: "path" },
+  problem: null,
+  downloadHints: [],
+};
+
+function defaultInvokeImpl(cmd: string, args?: unknown): Promise<unknown> {
+  if (cmd === "backend_rpc") {
+    const method = (args as { method?: string } | undefined)?.method;
+    if (method === "getLogs") {
+      return Promise.resolve({ entries: [], droppedCount: 0, capacity: 10000 });
+    }
+    if (method === "checkJava") {
+      return Promise.resolve(JAVA_OK);
+    }
+    if (method === "applyOps") {
+      return Promise.resolve({
+        applied: 0,
+        rejected: [],
+        diagnostics: [],
+        version: 1,
+        stateChanges: [],
+      });
+    }
     return Promise.resolve({
       state: "ready",
       runSeq: 0,
@@ -47,6 +74,7 @@ function defaultInvokeImpl(cmd: string): Promise<unknown> {
       tree: null,
       selectedItems: [],
     });
+  }
   if (cmd === "get_app_info") {
     return Promise.resolve({ name: "xresconv-gui", version: "3.0.0-dev.0", protocol_version: 1 });
   }
@@ -62,6 +90,13 @@ function defaultInvokeImpl(cmd: string): Promise<unknown> {
       backend: { state: "ready", pid: 1235, generation: 1 },
     });
   }
+  if (cmd === "read_display_settings") {
+    // null：不触发自动加载链（display-settings 引导读到 null 即止）。
+    return Promise.resolve(null);
+  }
+  if (cmd === "write_display_settings") {
+    return Promise.resolve(null);
+  }
   return Promise.reject(new Error(`unexpected command: ${cmd}`));
 }
 
@@ -69,17 +104,24 @@ function invokeCallCount(cmd: string): number {
   return mockedInvoke.mock.calls.filter(([called]) => called === cmd).length;
 }
 
-/** 渲染并等待全部桥接探测结算，保证 adapter 的在途去重表清空、用例间隔离。 */
+/** 渲染并等待诊断信息写入运行日志（2026-09-26 三轮改版：调试信息进日志）。 */
 async function renderAndSettle() {
   render(<App />);
-  await screen.findByText(/xresconv-gui v3\.0\.0-dev\.0 · protocol v1/);
-  await screen.findByTestId("backend-health");
+  const log = await screen.findByRole("log", { name: "日志列表" });
+  await waitFor(() => {
+    const text = log.textContent ?? "";
+    expect(text).toContain("xresconv-gui v3.0.0-dev.0 · protocol v1");
+    expect(text).toContain("guardian ok · node v24.21.0");
+    expect(text).toContain('Java 环境：openjdk version "17.0.9" 2023-10-17');
+  });
+  return log;
 }
 
 describe("App shell (P4-01)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
+    resetEnvironmentDiagnostics();
     mockedInvoke.mockImplementation(defaultInvokeImpl);
     mockedOpen.mockResolvedValue(null);
   });
@@ -87,11 +129,10 @@ describe("App shell (P4-01)", () => {
   it("renders every UI region with its accessible name", async () => {
     await renderAndSettle();
 
-    // 顶部环境状态（AppShell / EnvironmentStatus）
-    expect(screen.getByRole("banner")).toBeTruthy();
+    // 顶部环境状态条已移除（调试信息进运行日志；2026-09-26 用户反馈）。
+    expect(screen.queryByRole("banner")).toBeNull();
     expect(screen.getByRole("button", { name: "转换列表文件" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "重载配置" })).toBeTruthy();
-    expect(screen.getByRole("status", { name: "后端状态" })).toBeTruthy();
 
     // 左侧转换树与工具栏（ConversionTree / TreeToolbar）
     expect(screen.getByRole("complementary", { name: "转换列表" })).toBeTruthy();
@@ -99,10 +140,11 @@ describe("App shell (P4-01)", () => {
     expect(screen.getByRole("tree", { name: "转换条目" })).toBeTruthy();
     expect(screen.getByPlaceholderText("搜索转换条目…")).toBeTruthy();
 
-    // 右侧主区（ConversionSettings：文件行+详细配置开关+快捷行；详情/矩阵在折叠内）
+    // 右侧主区（ConversionSettings：文件行+详情/显示设置按钮同排）
     expect(screen.getByRole("main")).toBeTruthy();
     expect(screen.getByRole("form", { name: "转换参数" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "详情…" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "⚙ 显示设置" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "并发数" })).toBeTruthy();
     // 自适应（2026-09-26）：无选择器定义时自定义按钮区不渲染。
     expect(screen.queryByRole("region", { name: "自定义按钮" })).toBeNull();
@@ -114,41 +156,22 @@ describe("App shell (P4-01)", () => {
     }
     expect(screen.getByRole("status", { name: "运行状态" }).textContent).toContain("未加载配置");
     expect(screen.getByRole("region", { name: "运行日志" })).toBeTruthy();
-    expect(screen.getByRole("log", { name: "日志列表" })).toBeTruthy();
     expect(screen.getByTestId("dialog-host")).toBeTruthy();
   });
 
-  it("shows handshake info from the shell", async () => {
-    await renderAndSettle();
-    expect(screen.getByText(/xresconv-gui v3\.0\.0-dev\.0 · protocol v1/)).toBeTruthy();
-  });
-
-  it("lists CLI args returned by the shell", async () => {
-    await renderAndSettle();
-    expect(screen.getByText(/tests\/fixtures\/config\/basic\.xml/)).toBeTruthy();
-  });
-
-  it("shows the guardian and backend handshake", async () => {
-    await renderAndSettle();
-    const text = screen.getByTestId("backend-health").textContent ?? "";
-    expect(text).toContain("guardian ok · node v24.21.0");
+  it("routes handshake info from the shell into the run log", async () => {
+    const log = await renderAndSettle();
+    const text = log.textContent ?? "";
+    expect(text).toContain("xresconv-gui v3.0.0-dev.0 · protocol v1");
     expect(text).toContain("backend ready · pid 1235 · generation 1");
+    // 主面板不再有常驻状态行（版本/健康/Java 都只在日志里）。
+    expect(screen.queryByTestId("backend-health")).toBeNull();
+    expect(screen.queryByTestId("java-status")).toBeNull();
   });
 
-  it("shows an error state when the health probe fails but keeps the shell usable", async () => {
-    mockedInvoke.mockImplementation((cmd: string) => {
-      if (cmd === "get_backend_health") {
-        return Promise.reject(new Error("guardian unreachable"));
-      }
-      return defaultInvokeImpl(cmd);
-    });
-    render(<App />);
-    const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("guardian unreachable");
-    expect(screen.getByTestId("backend-health-error")).toBeTruthy();
-    // backend 失联时壳仍可显示故障并展示版本信息
-    await screen.findByText(/xresconv-gui v3\.0\.0-dev\.0 · protocol v1/);
-    expect(screen.getByRole("banner")).toBeTruthy();
+  it("lists CLI args returned by the shell in the run log", async () => {
+    const log = await renderAndSettle();
+    expect(log.textContent ?? "").toContain("tests/fixtures/config/basic.xml");
   });
 
   it("keeps the empty config state when the file picker is cancelled", async () => {
@@ -177,16 +200,51 @@ describe("App shell (P4-01)", () => {
     await waitFor(() => expect(invokeCallCount("backend_rpc")).toBeGreaterThanOrEqual(2));
   });
 
+  it("logs a warning instead of a blocking alert when the health probe fails", async () => {
+    mockedInvoke.mockImplementation((cmd: string, args?: unknown) => {
+      if (cmd === "get_backend_health") {
+        return Promise.reject(new Error("guardian unreachable"));
+      }
+      return defaultInvokeImpl(cmd, args);
+    });
+    render(<App />);
+    const log = await screen.findByRole("log", { name: "日志列表" });
+    await waitFor(() => expect(log.textContent ?? "").toContain("后端状态检查失败"));
+    const row = log.textContent ?? "";
+    expect(row).toContain("guardian unreachable");
+    // 壳仍可用：无环境状态条/横幅，表单与按钮照常渲染。
+    expect(screen.getByRole("form", { name: "转换参数" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "开始转换" })).toBeTruthy();
+  });
+
   it("does not duplicate bridge fetches under StrictMode double-mount", async () => {
     render(
       <StrictMode>
         <App />
       </StrictMode>,
     );
-    await screen.findByText(/xresconv-gui v3\.0\.0-dev\.0 · protocol v1/);
-    await screen.findByTestId("backend-health");
+    await waitFor(() =>
+      expect(screen.getByRole("log", { name: "日志列表" }).textContent ?? "").toContain(
+        "xresconv-gui v3.0.0-dev.0",
+      ),
+    );
     expect(invokeCallCount("get_app_info")).toBe(1);
     expect(invokeCallCount("get_cli_matches")).toBe(1);
     expect(invokeCallCount("get_backend_health")).toBe(1);
+  });
+
+  it("opens the display settings dialog from the config bar with visible theme radios", async () => {
+    await renderAndSettle();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "⚙ 显示设置" }));
+    const dialog = await screen.findByRole("dialog", { name: "显示设置" });
+    const radios = within(dialog).getAllByRole("radio");
+    expect(radios.length).toBe(3);
+    expect(within(dialog).getByText("跟随系统")).toBeTruthy();
+    expect(within(dialog).getByText("亮色")).toBeTruthy();
+    expect(within(dialog).getByText("暗色")).toBeTruthy();
+    expect(within(dialog).getByTestId("last-config-file")).toBeTruthy();
+    await user.click(within(dialog).getByRole("button", { name: "关闭" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "显示设置" })).toBeNull());
   });
 });

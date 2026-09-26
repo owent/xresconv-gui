@@ -119,9 +119,10 @@ for (const name of variants) {
   const signingIdentity = process.env.XRESCONV_MACOS_SIGNING_IDENTITY;
   let overlay = path.join("src-tauri", "tauri.macos.release.conf.json");
   if (signingIdentity !== undefined) {
-    const base = JSON.parse(
-      readFileSync(path.join(root, overlay), "utf8"),
-    ) as Record<string, unknown>;
+    const base = JSON.parse(readFileSync(path.join(root, overlay), "utf8")) as Record<
+      string,
+      unknown
+    >;
     const bundle = (base.bundle ?? {}) as Record<string, unknown>;
     const mac = (bundle.macOS ?? {}) as Record<string, unknown>;
     const merged = {

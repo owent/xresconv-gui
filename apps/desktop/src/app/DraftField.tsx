@@ -5,6 +5,7 @@ import { Input, Label, TextArea, TextField } from "react-aria-components";
  * 受控文本字段（P4-04b）：聚焦时进入草稿，blur（单行含 Enter）提交变更；
  * 未聚焦时直接显示后端 effective 值——reload/加载新配置/后端拒绝后自动回写，
  * 不残留旧表单值（docs/plan/04-ui.md §状态分层：显示值以后端返回为准）。
+ * mono：路径/协议文件等机器值用等宽日志字体（2026-09-26 详情弹窗改版）。
  */
 export function DraftField({
   label,
@@ -13,6 +14,8 @@ export function DraftField({
   onCommit,
   multiline = false,
   placeholder,
+  mono = false,
+  spanFull = false,
 }: {
   label: string;
   value: string;
@@ -20,6 +23,8 @@ export function DraftField({
   onCommit: (value: string) => void;
   multiline?: boolean;
   placeholder?: string;
+  mono?: boolean;
+  spanFull?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   const [editing, setEditing] = useState(false);
@@ -31,7 +36,16 @@ export function DraftField({
     }
   };
   return (
-    <TextField isDisabled={disabled} className="settings-field">
+    <TextField
+      isDisabled={disabled}
+      className={[
+        "settings-field",
+        mono ? "settings-field--mono" : "",
+        spanFull ? "settings-field--wide" : "",
+      ]
+        .filter((name) => name !== "")
+        .join(" ")}
+    >
       <Label>{label}</Label>
       {multiline ? (
         <TextArea

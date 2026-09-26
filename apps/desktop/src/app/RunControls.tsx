@@ -156,71 +156,81 @@ export function RunControls() {
   return (
     <div className="panel run-controls">
       <fieldset className="run-buttons">
-        <legend>运行控制</legend>
-        <Button isDisabled={treeOpsDisabled} onPress={() => void selectAll()}>
-          全部选中
-        </Button>
-        <Button isDisabled={treeOpsDisabled} onPress={() => void selectNone()}>
-          全部取消
-        </Button>
-        <Button isDisabled={treeOpsDisabled} onPress={expandAll}>
-          全部展开
-        </Button>
-        <Button isDisabled={treeOpsDisabled} onPress={() => setExpandedKeys(new Set())}>
-          全部收起
-        </Button>
-        <Button
-          isDisabled={!canPreview}
-          onPress={() => {
-            void runPreview().then((ok) => {
-              if (!ok) return;
-              // 2026-09-26 用户需求：预览结果同步写入运行日志（本地证据行）。
-              const result = useSessionStore.getState().preview.result;
-              if (result === null) return;
-              appendLocalLog(
-                `预览：${String(result.plan.taskCount)} 个任务（选中 ${String(
-                  result.selectionCount,
-                )} 条目）；执行目录 ${result.plan.workDir}；转表工具 ${result.plan.xresloaderPath}`,
-                "notice",
-              );
-              for (const conflict of result.conflicts) {
+        <legend className="visually-hidden">运行控制</legend>
+        <div className="run-button-row">
+          <Button isDisabled={treeOpsDisabled} onPress={() => void selectAll()}>
+            全部选中
+          </Button>
+          <Button isDisabled={treeOpsDisabled} onPress={() => void selectNone()}>
+            全部取消
+          </Button>
+          <Button isDisabled={treeOpsDisabled} onPress={expandAll}>
+            全部展开
+          </Button>
+          <Button isDisabled={treeOpsDisabled} onPress={() => setExpandedKeys(new Set())}>
+            全部收起
+          </Button>
+          <Button
+            isDisabled={!canPreview}
+            onPress={() => {
+              void runPreview().then((ok) => {
+                if (!ok) return;
+                // 2026-09-26 用户需求：预览结果同步写入运行日志（本地证据行）。
+                const result = useSessionStore.getState().preview.result;
+                if (result === null) return;
                 appendLocalLog(
-                  `预览冲突：输出目录 ${conflict.outputDir || "（默认）"} / 重命名 ${
-                    conflict.rename || "（无）"
-                  }：${conflict.items.join("、")}`,
-                  "warning",
+                  `预览：${String(result.plan.taskCount)} 个任务（选中 ${String(
+                    result.selectionCount,
+                  )} 条目）；执行目录 ${result.plan.workDir}；转表工具 ${result.plan.xresloaderPath}`,
+                  "notice",
                 );
-              }
-            });
-          }}
-        >
-          预览
-        </Button>
-        <Button className="btn-primary" isDisabled={!canStart} onPress={() => void startRun()}>
-          开始转换
-        </Button>
-        <Button isDisabled={!canCancel} onPress={() => void cancelRun()}>
-          取消
-        </Button>
-        <Button className="btn-success" isDisabled={!canReset} onPress={() => void resetSession()}>
-          重置
-        </Button>
-      </fieldset>
-      <p role="status" aria-label="运行状态" className="run-summary run-summary--inline">
-        <span className={`state-chip state-chip--${STATE_TONES[state ?? "idle"] ?? "muted"}`}>
-          {stateText}
-          {cancelRequested && canCancel ? "·取消中" : ""}
-        </span>
-        {runResult !== null && (
-          <span
-            role="status"
-            aria-label="运行结果"
-            className={`run-result run-result--${runResult.tone}`}
+                for (const conflict of result.conflicts) {
+                  appendLocalLog(
+                    `预览冲突：输出目录 ${conflict.outputDir || "（默认）"} / 重命名 ${
+                      conflict.rename || "（无）"
+                    }：${conflict.items.join("、")}`,
+                    "warning",
+                  );
+                }
+              });
+            }}
           >
-            {runResult.lines.join("；")}
+            预览
+          </Button>
+          <Button
+            className="btn-primary btn-run"
+            isDisabled={!canStart}
+            onPress={() => void startRun()}
+          >
+            开始转换
+          </Button>
+          <Button isDisabled={!canCancel} onPress={() => void cancelRun()}>
+            取消
+          </Button>
+          <Button
+            className="btn-success"
+            isDisabled={!canReset}
+            onPress={() => void resetSession()}
+          >
+            重置
+          </Button>
+        </div>
+        <p role="status" aria-label="运行状态" className="run-summary run-summary--inline">
+          <span className={`state-chip state-chip--${STATE_TONES[state ?? "idle"] ?? "muted"}`}>
+            {stateText}
+            {cancelRequested && canCancel ? "·取消中" : ""}
           </span>
-        )}
-      </p>
+          {runResult !== null && (
+            <span
+              role="status"
+              aria-label="运行结果"
+              className={`run-result run-result--${runResult.tone}`}
+            >
+              {runResult.lines.join("；")}
+            </span>
+          )}
+        </p>
+      </fieldset>
       {preview.status === "loading" && <p className="empty-state">预览生成中…</p>}
       {preview.status === "error" && (
         <p role="alert" className="preview-error">

@@ -1,20 +1,27 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import {
   type DisplaySettings,
   getCliMatches,
   readDisplaySettings,
   writeDisplaySettings,
 } from "../adapters/tauri";
+import {
+  isRetryableStartupError,
+  STARTUP_RETRY_INTERVAL_MS,
+  STARTUP_RETRY_TIMEOUT_MS,
+} from "./startup-retry";
 
 /**
- * 显示设置（2026-09-26 用户需求）：
+ * 显示设置（2026-09-26 用户需求；同日三轮修复改为模块级单例 store）：
  * - 主题三态（system/light/dark）：写入 `<html data-theme>`；"system" 移除属性
  *   交回 prefers-color-scheme（tokens.css 三态支持）。
- * - 上次转换列表文件：loadConfig 成功后持久化；启动时读取并自动加载
- *   （backend 就绪重试；失败不阻塞，错误走 lastError 可见）。
- * - 分区字体（全局/UI/树/日志 的 family+size）：经 CSS 变量应用到对应区域
- *   （--font-global-* / --font-ui-* / --font-tree-* / --font-log-*）。
- * - 状态为 UI 本地（不经 session store——与后端会话无关）；写盘合并保留其它字段。
+ * - 上次转换列表文件：loadConfig 成功后持久化；启动时读取并自动加载。
+ * - 分区字体（全局/UI/树/日志 的 family+size）：经 CSS 变量应用到对应区域。
+ * - 状态与 DOM 副作用放模块级 store（useSyncExternalStore 订阅）：
+ *   多组件消费同一状态，且 StrictMode 双挂载不会让 cancelled 标志吞掉
+ *   整个启动流程（旧实现第一挂载的 readDisplaySettings 在 cleanup 后 resolve，
+ *   cancelled=true 直接跳过 applyTheme/自动加载，第二挂载 wired=true 也跳过
+ *   ——dev 下主题与自动加载从未生效，为 BACKEND_NOT_READY 误报的根因之一）。
  */
 export type ThemeMode = NonNullable<DisplaySettings["theme"]>;
 
@@ -64,13 +71,7 @@ function applyTheme(theme: ThemeMode): void {
 /** 分区字体 → CSS 变量（空值清除回默认）。 */
 function applyFonts(fonts: FontsConfig): void {
   const root = document.documentElement;
-  const areas: Record<FontArea, { family: string; size: number | null }> = {
-    global: fonts.global,
-    ui: fonts.ui,
-    tree: fonts.tree,
-    log: fonts.log,
-  };
-  for (const [area, prefs] of Object.entries(areas)) {
+  for (const [area, prefs] of Object.entries(fonts) as [FontArea, FontPrefs][]) {
     const key = `--font-${area}`;
     if (prefs.family !== "") {
       root.style.setProperty(`${key}-family`, prefs.family);
@@ -126,114 +127,141 @@ async function persist(patch: {
   }
 }
 
-/**
- * 自动加载上次配置（带 backend 就绪重试）：启动时 guardian/backend 可能仍在
- * 启动中（BACKEND_NOT_READY/BACKEND_TIMEOUT/guardian 通道未就绪），立即发
- * loadConfig 会以 "guardian protocol violation" 失败。轮询重试直到成功、
- * 明确的业务失败（如文件不存在）或超时；业务失败不重试（重试无意义）。
- */
-const AUTO_LOAD_RETRY_MS = 600;
-const AUTO_LOAD_TIMEOUT_MS = 30_000;
+/* ---- 模块级 store ---- */
 
-function isRetryableStartupError(message: string): boolean {
-  return (
-    message.includes("BACKEND_NOT_READY") ||
-    message.includes("BACKEND_TIMEOUT") ||
-    message.includes("guardian") ||
-    message.includes("channel")
-  );
+let state: DisplaySettingsState = DEFAULT_SETTINGS;
+const listeners = new Set<() => void>();
+const emit = (): void => {
+  for (const listener of listeners) {
+    listener();
+  }
+};
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
+/* ---- 自动加载（backend 就绪重试；瞬态错误不进可见告警） ---- */
+
+/**
+ * 自动加载上次配置（带 backend 就绪重试）：启动时 guardian/backend 可能仍在
+ * 启动中（BACKEND_NOT_READY 等瞬态错误），立即发 loadConfig 会失败。轮询重试
+ * 直到成功、明确业务失败（不重试）或超时；重试期间清掉瞬态 lastError 并在
+ * 日志里记一条等待提示——用户不应看到 raw "guardian protocol violation"。
+ */
 async function autoLoadWithRetry(path: string): Promise<void> {
   const { useSessionStore } = await import("./session-store");
-  const deadline = Date.now() + AUTO_LOAD_TIMEOUT_MS;
+  const deadline = Date.now() + STARTUP_RETRY_TIMEOUT_MS;
+  let noticed = false;
   for (;;) {
-    if (useSessionStore.getState().snapshot !== null) return;
-    const ok = await useSessionStore.getState().loadConfig(path);
+    const store = useSessionStore.getState();
+    if (store.snapshot !== null) return;
+    const ok = await store.loadConfig(path);
     if (ok) return;
     const error = useSessionStore.getState().lastError ?? "";
-    if (!isRetryableStartupError(error) || Date.now() + AUTO_LOAD_RETRY_MS > deadline) {
-      // 明确失败（文件不存在/CONFIG_ERROR）或超时：保留 lastError 可见，不再重试。
+    if (!isRetryableStartupError(error)) {
+      // 业务失败（文件不存在/CONFIG_ERROR）：保持 lastError 可见，不重试。
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, AUTO_LOAD_RETRY_MS));
+    if (Date.now() + STARTUP_RETRY_INTERVAL_MS > deadline) {
+      // 超时：保留最后的瞬态错误为可见错误（不再静默）。
+      useSessionStore.getState().appendLocalLog(`自动加载上次配置超时：${error}`, "error");
+      return;
+    }
+    if (!noticed) {
+      noticed = true;
+      useSessionStore
+        .getState()
+        .appendLocalLog(
+          `后端启动中，正在自动加载上次转换列表（最长等待 ${Math.round(
+            STARTUP_RETRY_TIMEOUT_MS / 1000,
+          )} 秒）…`,
+          "info",
+        );
+    }
+    // 瞬态错误不留在告警区（重试成功后无需用户处理）。
+    useSessionStore.setState({ lastError: null });
+    await new Promise((resolve) => setTimeout(resolve, STARTUP_RETRY_INTERVAL_MS));
   }
+}
+
+/** 解析自动加载目标：优先 CLI --input（F11 启动参数语义），其次上次文件。 */
+async function resolveAutoLoadTarget(fallback: string | null): Promise<string | null> {
+  try {
+    const matches = await getCliMatches();
+    const cliInput: unknown = (matches as { input?: unknown }).input;
+    if (typeof cliInput === "string" && cliInput.length > 0) {
+      return cliInput;
+    }
+    if (typeof cliInput === "object" && cliInput !== null) {
+      const value = (cliInput as { value?: unknown }).value;
+      if (typeof value === "string" && value.length > 0) {
+        return value;
+      }
+    }
+  } catch {
+    /* CLI 读取失败回退上次文件 */
+  }
+  return fallback;
+}
+
+/* ---- 一次性引导（模块级，StrictMode 安全） ---- */
+
+let bootstrapStarted = false;
+
+function bootstrap(): void {
+  if (bootstrapStarted) return;
+  bootstrapStarted = true;
+  readDisplaySettings()
+    .then(async (loaded) => {
+      if (loaded === null) return;
+      state = {
+        theme: (loaded.theme ?? "system") as ThemeMode,
+        lastConfigFile: loaded.lastConfigFile ?? null,
+        fonts: {
+          global: toPrefs(loaded.fonts?.global),
+          ui: toPrefs(loaded.fonts?.ui),
+          tree: toPrefs(loaded.fonts?.tree),
+          log: toPrefs(loaded.fonts?.log),
+        },
+      };
+      applyTheme(state.theme);
+      applyFonts(state.fonts);
+      emit();
+      const target = await resolveAutoLoadTarget(state.lastConfigFile);
+      if (target !== null && target.length > 0) {
+        await autoLoadWithRetry(target);
+      }
+    })
+    .catch(() => {
+      /* 无桥接（浏览器预览）：默认主题即可 */
+    });
 }
 
 export function useDisplaySettings(): DisplaySettingsState & {
   setTheme: (theme: ThemeMode) => void;
   setFontPrefs: (area: FontArea, prefs: FontPrefs) => void;
 } {
-  const [settings, setSettings] = useState<DisplaySettingsState>(DEFAULT_SETTINGS);
-  const wired = useRef(false);
-
+  const settings = useSyncExternalStore(subscribe, () => state);
   useEffect(() => {
-    if (wired.current) return;
-    wired.current = true;
-    let cancelled = false;
-    readDisplaySettings()
-      .then((loaded) => {
-        if (cancelled || loaded === null) return;
-        const next: DisplaySettingsState = {
-          theme: (loaded.theme ?? "system") as ThemeMode,
-          lastConfigFile: loaded.lastConfigFile ?? null,
-          fonts: {
-            global: toPrefs(loaded.fonts?.global),
-            ui: toPrefs(loaded.fonts?.ui),
-            tree: toPrefs(loaded.fonts?.tree),
-            log: toPrefs(loaded.fonts?.log),
-          },
-        };
-        setSettings(next);
-        applyTheme(next.theme);
-        applyFonts(next.fonts);
-        // 自动加载（backend 就绪重试；失败可见不阻塞）：优先 CLI --input
-        // （F11 启动参数语义），其次显示设置的上次文件（2026-09-26 用户需求）。
-        void (async () => {
-          let target: string | null = null;
-          try {
-            const matches = await getCliMatches();
-            const cliInput: unknown = (matches as { input?: unknown }).input;
-            if (typeof cliInput === "string" && cliInput.length > 0) {
-              target = cliInput;
-            } else if (typeof cliInput === "object" && cliInput !== null) {
-              const value = (cliInput as { value?: unknown }).value;
-              if (typeof value === "string" && value.length > 0) {
-                target = value;
-              }
-            }
-          } catch {
-            /* CLI 读取失败回退上次文件 */
-          }
-          if (target === null) {
-            target = next.lastConfigFile;
-          }
-          if (target !== null && target.length > 0) {
-            await autoLoadWithRetry(target);
-          }
-        })();
-      })
-      .catch(() => {
-        /* 无桥接（浏览器预览）：默认主题即可 */
-      });
-    return () => {
-      cancelled = true;
-    };
+    bootstrap();
   }, []);
 
   const setTheme = (theme: ThemeMode) => {
-    setSettings((prev) => ({ ...prev, theme }));
+    state = { ...state, theme };
     applyTheme(theme);
+    emit();
     void persist({ theme });
   };
 
   const setFontPrefs = (area: FontArea, prefs: FontPrefs) => {
-    setSettings((prev) => {
-      const fonts = { ...prev.fonts, [area]: prefs };
-      applyFonts(fonts);
-      void persist({ fonts });
-      return { ...prev, fonts };
-    });
+    state = { ...state, fonts: { ...state.fonts, [area]: prefs } };
+    applyFonts(state.fonts);
+    emit();
+    void persist({ fonts: state.fonts });
   };
 
   return { ...settings, setTheme, setFontPrefs };
@@ -241,5 +269,7 @@ export function useDisplaySettings(): DisplaySettingsState & {
 
 /** loadConfig 成功后调用：持久化上次文件（供自动加载）。 */
 export function rememberLoadedConfig(path: string): void {
+  state = { ...state, lastConfigFile: path };
+  emit();
   void persist({ lastConfigFile: path });
 }

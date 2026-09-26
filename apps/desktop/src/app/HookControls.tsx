@@ -42,6 +42,8 @@ export function HookControls() {
                   isDisabled={hook.toggle?.mutable === false}
                   onChange={(selected) => void setHookEnabled(group, index, selected)}
                 >
+                  {/* 可见方框（同树复选框：原生 input 被 RAC 视觉隐藏）。 */}
+                  <span className="checkbox-mark" aria-hidden="true" />
                   {hook.toggle?.name}
                 </Checkbox>
               ))}

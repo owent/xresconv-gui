@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import type { SettingsFields } from "../adapters/backend";
 import { pickXmlConfig } from "../adapters/tauri";
+import { DisplaySettingsDialog } from "./DisplaySettingsDialog";
 import { DraftField } from "./DraftField";
 import { ItemDetails } from "./ItemDetails";
 import { OutputMatrixEditor } from "./OutputMatrixEditor";
@@ -71,12 +72,14 @@ function renamePresetsOf(config: Record<string, unknown> | null): {
 }
 
 /**
- * 转换参数区（F01/F06，2026-09-26 二轮改版）：
- * - 常显仅文件行：转换列表文件（选择/路径/重载）+ 并发数 + “详情”按钮
- *   （详情与状态条的显示设置各自独立面板）；
- * - 输出重命名/协议类型/输出类型移入“详情”弹窗（2026-09-26 用户指示：
- *   不默认占主页面）；重命名为原生 input + datalist——焦点保持、可连续输入、
- *   下拉预设按已输入内容即时过滤、选预设即得正则、也可手输任意正则。
+ * 转换参数区（F01/F06；2026-09-26 三轮改版）：
+ * - 常显仅文件行：转换列表文件（选择/路径/重载）+ 并发数 + “详情”与
+ *   “⚙ 显示设置”按钮（同排，不另起行——2026-09-26 用户指示）。
+ * - 详情弹窗分区呈现（工具与目录/数据与协议/输出重命名/条目详情/输出矩阵），
+ *   路径与多值字段等宽字体、通栏展示，底部固定操作行。
+ * - 输出重命名/协议类型/输出类型在“详情”弹窗内（不默认占主页面）；重命名为
+ *   原生 input + datalist——焦点保持、可连续输入、下拉预设按已输入内容即时
+ *   过滤、选预设即得正则、也可手输任意正则。
  */
 export function ConversionSettings() {
   const settings = useSessionStore((state) => state.snapshot?.settings);
@@ -88,6 +91,7 @@ export function ConversionSettings() {
   const updateSettings = useSessionStore((state) => state.updateSettings);
   const [pendingParallelism, setPendingParallelism] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const effective = settings?.effective ?? null;
   const disabled = effective === null || BUSY_STATES.has(runState);
@@ -178,6 +182,9 @@ export function ConversionSettings() {
         >
           详情…
         </Button>
+        <Button className="btn-accent" onPress={() => setSettingsOpen(true)}>
+          ⚙ 显示设置
+        </Button>
       </div>
       {effective === null && <p className="empty-state">加载配置后可编辑转换参数。</p>}
 
@@ -200,110 +207,140 @@ export function ConversionSettings() {
           <Dialog aria-label="详细配置" className="confirm-dialog">
             <Heading slot="title" className="detail-title">
               详细配置
-              <Button className="btn-ghost detail-close" onPress={() => setDetailOpen(false)}>
-                关闭
-              </Button>
             </Heading>
             <div className="detail-config">
-              <div className="form-grid">
-                <DraftField
-                  label="转表工具（xresloader.jar）"
-                  value={effective?.xresloaderPath ?? ""}
-                  disabled={disabled}
-                  onCommit={(value) => submit({ xresloaderPath: value })}
-                />
-                <DraftField
-                  label="执行目录（work_dir）"
-                  value={effective?.workDir ?? ""}
-                  disabled={disabled}
-                  onCommit={(value) => submit({ workDir: value })}
-                />
-                <DraftField
-                  label="数据版本"
-                  value={effective?.dataVersion ?? ""}
-                  disabled={disabled}
-                  onCommit={(value) => submit({ dataVersion: value })}
-                />
-                <DraftField
-                  label="协议描述文件（一行一个）"
-                  value={(effective?.protoFile ?? []).join("\n")}
-                  disabled={disabled}
-                  multiline
-                  onCommit={(value) => submit({ protoFile: linesToList(value) })}
-                />
-                <DraftField
-                  label="输出目录"
-                  value={effective?.outputDir ?? ""}
-                  disabled={disabled}
-                  onCommit={(value) => submit({ outputDir: value })}
-                />
-                <DraftField
-                  label="数据目录（一行一个）"
-                  value={(effective?.dataSrcDir ?? []).join("\n")}
-                  disabled={disabled}
-                  multiline
-                  onCommit={(value) => submit({ dataSrcDir: linesToList(value) })}
-                />
-                {/* 重命名：input+datalist（焦点保持/连续输入/预设过滤；选预设即得正则）。 */}
-                <div className="settings-field">
-                  <label htmlFor="rename-input">输出重命名（正则，下拉选预设）</label>
-                  <input
-                    id="rename-input"
-                    list={datalistId}
+              <section className="detail-section" aria-label="转表工具与目录">
+                <h3 className="detail-section-title">转表工具与目录</h3>
+                <div className="detail-grid">
+                  <DraftField
+                    label="转表工具（xresloader.jar）"
+                    value={effective?.xresloaderPath ?? ""}
                     disabled={disabled}
-                    defaultValue={renameValue}
-                    key={renameValue}
-                    placeholder="/\.bin$/.lua/"
-                    onBlur={(event) => {
-                      const value = event.currentTarget.value.trim();
-                      if (value !== renameValue) {
-                        submit({ rename: value });
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.currentTarget.blur();
-                      }
-                    }}
+                    mono
+                    spanFull
+                    onCommit={(value) => submit({ xresloaderPath: value })}
+                  />
+                  <DraftField
+                    label="执行目录（work_dir）"
+                    value={effective?.workDir ?? ""}
+                    disabled={disabled}
+                    mono
+                    onCommit={(value) => submit({ workDir: value })}
+                  />
+                  <DraftField
+                    label="输出目录"
+                    value={effective?.outputDir ?? ""}
+                    disabled={disabled}
+                    mono
+                    onCommit={(value) => submit({ outputDir: value })}
                   />
                 </div>
-                <label className="select-field">
-                  协议类型
-                  <select
+              </section>
+              <section className="detail-section" aria-label="数据与协议">
+                <h3 className="detail-section-title">数据与协议</h3>
+                <div className="detail-grid">
+                  <DraftField
+                    label="数据版本"
+                    value={effective?.dataVersion ?? ""}
                     disabled={disabled}
-                    value={proto}
-                    onChange={(event) => submit({ proto: event.target.value })}
-                  >
-                    {proto === "" && <option value="">（未设置）</option>}
-                    {protoOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="select-field">
-                  输出类型
-                  <select
+                    onCommit={(value) => submit({ dataVersion: value })}
+                  />
+                  <label className="select-field">
+                    协议类型
+                    <select
+                      disabled={disabled}
+                      value={proto}
+                      onChange={(event) => submit({ proto: event.target.value })}
+                    >
+                      {proto === "" && <option value="">（未设置）</option>}
+                      {protoOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="select-field">
+                    输出类型
+                    <select
+                      disabled={disabled}
+                      value={outputType}
+                      onChange={(event) => submit({ type: event.target.value })}
+                    >
+                      {outputType === "" && <option value="">（未设置）</option>}
+                      {typeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <DraftField
+                    label="协议描述文件（一行一个）"
+                    value={(effective?.protoFile ?? []).join("\n")}
                     disabled={disabled}
-                    value={outputType}
-                    onChange={(event) => submit({ type: event.target.value })}
-                  >
-                    {outputType === "" && <option value="">（未设置）</option>}
-                    {typeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <ItemDetails />
-              <OutputMatrixEditor />
+                    multiline
+                    mono
+                    spanFull
+                    onCommit={(value) => submit({ protoFile: linesToList(value) })}
+                  />
+                  <DraftField
+                    label="数据目录（一行一个）"
+                    value={(effective?.dataSrcDir ?? []).join("\n")}
+                    disabled={disabled}
+                    multiline
+                    mono
+                    spanFull
+                    onCommit={(value) => submit({ dataSrcDir: linesToList(value) })}
+                  />
+                </div>
+              </section>
+              <section className="detail-section" aria-label="输出重命名">
+                <h3 className="detail-section-title">输出重命名</h3>
+                <div className="detail-grid">
+                  {/* 重命名：input+datalist（焦点保持/连续输入/预设过滤；选预设即得正则）。 */}
+                  <div className="settings-field settings-field--wide settings-field--mono">
+                    <label htmlFor="rename-input">输出重命名（正则，下拉选预设）</label>
+                    <input
+                      id="rename-input"
+                      list={datalistId}
+                      disabled={disabled}
+                      defaultValue={renameValue}
+                      key={renameValue}
+                      placeholder="/\.bin$/.lua/"
+                      onBlur={(event) => {
+                        const value = event.currentTarget.value.trim();
+                        if (value !== renameValue) {
+                          submit({ rename: value });
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.currentTarget.blur();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </section>
+              <section className="detail-section detail-section--flat" aria-label="条目详情">
+                <ItemDetails />
+              </section>
+              <section className="detail-section detail-section--flat" aria-label="输出矩阵">
+                <OutputMatrixEditor />
+              </section>
+            </div>
+            <div className="detail-footer">
+              <span className="settings-hint">字段修改在失焦/回车时生效（直写后端覆盖值）。</span>
+              <Button className="btn-primary" onPress={() => setDetailOpen(false)}>
+                关闭
+              </Button>
             </div>
           </Dialog>
         </Modal>
       </ModalOverlay>
+
+      <DisplaySettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <ModalOverlay
         className="confirm-overlay"

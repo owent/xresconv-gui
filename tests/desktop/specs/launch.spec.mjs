@@ -16,30 +16,36 @@ withEmptyState("xresconv-gui desktop skeleton", () => {
     assert.strictEqual(title, "xresconv-gui");
   });
 
+  // 2026-09-26 三轮改版：顶部状态条移除，环境/版本/Java 调试信息进运行日志
+  // （[GUI] 前缀本地行）；握手断言改为读日志聚合文本。
   it("completes the shell -> guardian -> backend handshake in the real webview", async () => {
-    const ok = await $('[data-testid="backend-health"]');
-    const err = await $('[data-testid="backend-health-error"]');
     await browser.waitUntil(
       async () => {
-        const okText = (await ok.isExisting()) ? await ok.getText() : "";
-        const errText = (await err.isExisting()) ? await err.getText() : "";
-        if (errText && errText !== "checking…") {
-          throw new Error(`guardian handshake failed in app: ${errText}`);
-        }
-        return okText.includes("backend ready");
+        const rows = await $$(".log-row");
+        const text = (
+          await Promise.all(rows.map((row) => row.getText()))
+        ).join("\n");
+        return text.includes("guardian ok · node v") && text.includes("backend ready · pid ");
       },
-      { timeout: 30_000, timeoutMsg: "guardian/backend handshake line did not appear" },
+      { timeout: 30_000, timeoutMsg: "guardian/backend handshake log line did not appear" },
     );
-    const text = await ok.getText();
+    const rows = await $$(".log-row");
+    const text = (await Promise.all(rows.map((row) => row.getText()))).join("\n");
     assert.match(text, /guardian ok · node v\d+\.\d+\.\d+ · pid \d+/);
     assert.match(text, /backend ready · pid \d+ · generation \d+/);
   });
 
-  it("exposes parsed CLI args to the UI", async () => {
-    const section = await $('[data-testid="cli-args"]');
-    await section.waitForExist({ timeout: 15_000 });
-    await section.$("summary").click();
-    const text = await section.getText();
-    assert.match(text, /input/);
+  it("logs the app version and java environment into the run log", async () => {
+    await browser.waitUntil(
+      async () => {
+        const rows = await $$(".log-row");
+        const text = (await Promise.all(rows.map((row) => row.getText()))).join("\n");
+        return /xresconv-gui v\S+ · protocol v\d+/.test(text) && text.includes("Java 环境：");
+      },
+      { timeout: 30_000, timeoutMsg: "version/java diagnostics log lines did not appear" },
+    );
+    // 状态条/横幅不再存在（调试信息只在日志里）。
+    assert.ok(!(await $('[data-testid="backend-health"]').isExisting()));
+    assert.ok(!(await $('[data-testid="cli-args"]').isExisting()));
   });
 });

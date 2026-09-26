@@ -114,7 +114,12 @@ function TreeNodeRow({ node }: { node: TreeNodeSnap }) {
               isIndeterminate={node.partsel}
               isDisabled={node.unselectable}
               onChange={() => void store().toggleNode(node.key)}
-            />
+            >
+              {/* 可见方框（RAC 把原生 input 藏进 VisuallyHidden；自定义 className
+                  还会替换默认 react-aria-Checkbox 类——方框必须是真实子元素，
+                  否则 label 零尺寸不可点击）。 */}
+              <span className="checkbox-mark" aria-hidden="true" />
+            </Checkbox>
             {/* biome-ignore lint/a11y/useKeyWithClickEvents: 键盘切换由行级 Space 处理（scope keydown） */}
             {/* biome-ignore lint/a11y/useSemanticElements: RAC TreeItem 内不嵌套 button（破坏树角色），标题 role=button 标记位 */}
             <span

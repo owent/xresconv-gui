@@ -22,16 +22,19 @@ describeLoaded("tree selection and layout with a loaded config", () => {
     const firstItem = await $('[role="row"][data-key]');
     await firstItem.waitForExist({ timeout: 30_000 });
 
-    // 原生 input 视觉隐藏(RAC):读隐藏 input 的勾选态,点击标题(span)触发切换
-    // ——与用户可见交互一致(fancytree 点行切换语义)。
+    // 2026-09-26 三轮修复:RAC Checkbox 的原生 input 仍是 VisuallyHidden,
+    // 可见方框画在 .tree-checkbox(label)上——断言复选框可见,并直接点击它切换
+    // (与用户真实交互一致;此前无可见复选框是用户反馈的问题)。
+    const checkboxLabel = await $(".tree-checkbox");
+    await checkboxLabel.waitForExist({ timeout: 10_000 });
+    assert.ok(await checkboxLabel.isDisplayed(), "复选框应可见");
     const checkbox = await $('[role="row"][data-key] input[type="checkbox"]');
-    await checkbox.waitForExist({ timeout: 10_000 });
     const title = await $(".tree-node-title");
     await title.waitForExist({ timeout: 10_000 });
     const before = await checkbox.isSelected();
 
-    await browser.execute((el) => el.scrollIntoView({ block: "center" }), title);
-    await title.click();
+    await browser.execute((el) => el.scrollIntoView({ block: "center" }), checkboxLabel);
+    await checkboxLabel.click();
 
     // 快照回写后勾选态翻转(applyOps → stateChanges → 本地树更新)
     await browser.waitUntil(
@@ -39,7 +42,7 @@ describeLoaded("tree selection and layout with a loaded config", () => {
       { timeout: 10_000, timeoutMsg: "树勾选状态未翻转" },
     );
 
-    // 再点一次标题反选回来
+    // 点标题(旧版点行切换语义)再切回来
     await title.click();
     await browser.waitUntil(
       async () => (await checkbox.isSelected()) === before,

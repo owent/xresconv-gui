@@ -6,11 +6,12 @@
  * - 旧实现依据：README.md 对应小节与 src/index.html 旧控件 id（旧 UI 仅供对照，见 P4-09）。
  */
 export const APP_REGIONS = [
-  "EnvironmentStatus",
+  "EnvironmentDiagnostics",
   "ConversionTree",
   "TreeToolbar",
   "ItemDetails",
   "ConversionSettings",
+  "DisplaySettingsDialog",
   "OutputMatrixEditor",
   "HookControls",
   "CustomActionBar",
@@ -38,7 +39,7 @@ export const FEATURE_MAP: readonly FeatureMapping[] = [
   {
     id: "F01",
     summary: "XML 加载、相对路径、include、循环/重复 include 检测",
-    regions: ["EnvironmentStatus"],
+    regions: ["ConversionSettings"],
     legacySource: "src/index.html #conv_list_file_btn；README「启动参数」--input",
     status: "skeleton",
   },
@@ -114,14 +115,14 @@ export const FEATURE_MAP: readonly FeatureMapping[] = [
   {
     id: "F11",
     summary: "启动参数和调试",
-    regions: ["EnvironmentStatus"],
+    regions: ["EnvironmentDiagnostics", "LogPanel"],
     legacySource: "README「启动参数」--input/--debug-mode/--custom-selector/--log-configure",
     status: "skeleton",
   },
   {
     id: "F12",
     summary: "Windows/Linux/macOS、多分辨率、版本与 Java 环境检查",
-    regions: ["EnvironmentStatus"],
+    regions: ["EnvironmentDiagnostics", "LogPanel", "DisplaySettingsDialog"],
     legacySource: "README「下载和使用」；旧 setup.js 版本/Java 环境对话框",
     status: "skeleton",
   },

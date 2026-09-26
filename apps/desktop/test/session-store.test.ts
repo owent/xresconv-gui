@@ -297,4 +297,44 @@ describe("session store (P4-03)", () => {
     expect(useSessionStore.getState().expandedKeys.has("cat:basic")).toBe(false);
     expect(rpcCalls("applyOps")).toHaveLength(0);
   });
+
+  // 2026-09-26 用户反馈回归：启动期 getLogs 撞上 BACKEND_NOT_READY 不应把
+  // "guardian protocol violation" 卡成持久告警，也不应让日志永远拉不出来。
+  it("initLogs 启动瞬态失败静默重试，就绪后成功且 lastError 保持干净", async () => {
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      routeRpc({
+        getLogs: () => {
+          calls++;
+          if (calls < 3) {
+            throw new Error("BACKEND_NOT_READY: backend not ready (state: starting)");
+          }
+          return { entries: [], droppedCount: 0, capacity: 10000 };
+        },
+      });
+      void useSessionStore.getState().initLogs();
+      await vi.advanceTimersByTimeAsync(601); // 第 2 次仍瞬态失败
+      expect(useSessionStore.getState().lastError).toBeNull();
+      expect(useSessionStore.getState().logs.initialized).toBe(false);
+      await vi.advanceTimersByTimeAsync(601); // 第 3 次成功
+      expect(useSessionStore.getState().logs.initialized).toBe(true);
+      expect(useSessionStore.getState().lastError).toBeNull();
+      expect(calls).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("initLogs 非瞬态失败立即可见：initialized 置位 + lastError", async () => {
+    routeRpc({
+      getLogs: () => {
+        throw new Error("INVALID_STATE: no session");
+      },
+    });
+    await useSessionStore.getState().initLogs();
+    const state = useSessionStore.getState();
+    expect(state.logs.initialized).toBe(true);
+    expect(state.lastError).toBe("INVALID_STATE: no session");
+  });
 });

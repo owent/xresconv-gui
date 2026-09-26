@@ -24,6 +24,7 @@ import {
 import { exportTextFile, pickSavePath } from "../adapters/tauri";
 import { writeClipboardText } from "./clipboard";
 import { rememberLoadedConfig } from "./display-settings";
+import { isRetryableStartupError, STARTUP_RETRY_INTERVAL_MS } from "./startup-retry";
 
 /**
  * 会话 store（docs/plan/04-ui.md §状态分层）：后端快照缓存 + 事件水位 + UI 状态。
@@ -372,6 +373,9 @@ let previewRequest = 0;
 let loadingConfig = false;
 /** 日志条目本地稳定键计数器（backend seq 缺失的直发诊断用）。 */
 let logLocalSeq = 0;
+/** initLogs 启动瞬态错误的重试计数（600ms×50≈30s 上限；成功即复位）。 */
+let logInitRetries = 0;
+const MAX_LOG_INIT_RETRIES = 50;
 
 export const useSessionStore = create<SessionStore>()((set, get) => {
   /** 选择 ops 串行链：任一环节失败不断链（错误已写入 lastError）。 */
@@ -634,25 +638,55 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         const fetched = (Array.isArray(result?.entries) ? result.entries : [])
           .map(normalizeLogEntry)
           .filter((entry): entry is LogEntryLike => entry !== null);
-        set((state) => ({
-          logs: {
-            ...state.logs,
-            entries: fetched.map((entry) => ({ ...entry, localId: ++logLocalSeq })),
-            initialized: true,
-            backendDroppedCount: typeof result?.droppedCount === "number" ? result.droppedCount : 0,
-            maxSeq: fetched.reduce(
-              (max, entry) => (entry.seq !== undefined && entry.seq > max ? entry.seq : max),
-              state.logs.maxSeq,
-            ),
-          },
-        }));
+        logInitRetries = 0;
+        set((state) => {
+          // 合并而非整替：重试窗口内可能已追加本地 [GUI] 行（环境诊断/自动加载
+          // 提示）或事件流条目——fetch 页是历史，排在既有行之前；seq 去重。
+          const existing = state.logs.entries;
+          const existingSeqs = new Set(
+            existing.filter((entry) => entry.seq !== undefined).map((entry) => entry.seq),
+          );
+          const merged = [
+            ...fetched
+              .filter((entry) => entry.seq === undefined || !existingSeqs.has(entry.seq))
+              .map((entry) => ({ ...entry, localId: ++logLocalSeq })),
+            ...existing,
+          ];
+          return {
+            logs: {
+              ...state.logs,
+              entries: merged,
+              initialized: true,
+              backendDroppedCount:
+                typeof result?.droppedCount === "number" ? result.droppedCount : 0,
+              maxSeq: merged.reduce(
+                (max, entry) => (entry.seq !== undefined && entry.seq > max ? entry.seq : max),
+                state.logs.maxSeq,
+              ),
+            },
+          };
+        });
       } catch (error) {
-        // 初始拉取失败：置 initialized 防渲染期重试风暴；事件流仍可继续补充，
-        // guardian 死亡复位后会重新拉取。错误可见。
+        const message = describeError(error);
+        // 启动瞬态错误（backend 仍在 starting）：静默重试，不置 initialized、
+        // 不写 lastError——否则首个 BACKEND_NOT_READY 会作为持久告警卡在树上
+        // 且日志永远拉不出来（2026-09-26 用户反馈的启动报错来源之一）。
+        if (
+          isRetryableStartupError(message) &&
+          logInitRetries < MAX_LOG_INIT_RETRIES &&
+          epoch === sessionEpoch
+        ) {
+          logInitRetries++;
+          setTimeout(() => {
+            void get().initLogs();
+          }, STARTUP_RETRY_INTERVAL_MS);
+          return;
+        }
+        // 非瞬态错误或重试超限：置 initialized 防渲染期重试风暴；错误可见。
         if (epoch === sessionEpoch) {
           set((state) => ({
             logs: { ...state.logs, initialized: true },
-            lastError: describeError(error),
+            lastError: message,
           }));
         }
       }
@@ -993,6 +1027,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
     markGuardianDead: (payload) => {
       sessionEpoch++;
       loadingConfig = false;
+      logInitRetries = 0;
       invalidateBackendSnapshot();
       // 在途动作的 finally 因 epoch 失配跳过清理，这里统一复位（否则按钮永久禁用）。
       set((state) => ({
@@ -1019,6 +1054,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
 export function resetSessionStore(): void {
   sessionEpoch++;
   loadingConfig = false;
+  logInitRetries = 0;
   invalidateBackendSnapshot();
   useSessionStore.setState({
     ...initialData,

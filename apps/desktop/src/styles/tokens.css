@@ -77,6 +77,11 @@
   --color-success-soft: #e2f5e9;
   --color-info-soft: #e7eeff;
   --color-focus-ring: #2f6bff;
+  /* 实底状态章/主按钮的前景墨色（axe AA ≥4.5:1 已验证；2026-09-26 对比度强化） */
+  --color-accent-ink: #ffffff;
+  --color-success-ink: #ffffff;
+  --color-danger-ink: #ffffff;
+  --color-warning-ink: #ffffff;
 
   --shadow-1: 0 1px 2px rgb(16 24 40 / 0.05);
   --shadow-2: 0 2px 8px rgb(16 24 40 / 0.09);
@@ -106,13 +111,21 @@
     --color-success-soft: #14301e;
     --color-info-soft: #1c2a4a;
     --color-focus-ring: #6b9cff;
+    --color-accent-ink: #0b1220;
+    --color-success-ink: #071510;
+    --color-danger-ink: #200a0a;
+    --color-warning-ink: #241a05;
     --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
     --shadow-2: 0 2px 10px rgb(0 0 0 / 0.45);
     --shadow-dialog: 0 12px 40px rgb(0 0 0 / 0.6);
   }
 }
 
+/* 强制暗色：完整暗色令牌 + color-scheme（原生表单控件/滚动条随主题——
+   2026-09-26 反馈：暗色下原生 select/输入框仍是亮色观感）。跟随系统时
+   :root 的 color-scheme: light dark 已覆盖。 */
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --color-bg: #10141c;
   --color-bg-inset: #0b0f16;
   --color-panel-bg: #181e29;
@@ -133,6 +146,10 @@
   --color-success-soft: #14301e;
   --color-info-soft: #1c2a4a;
   --color-focus-ring: #6b9cff;
+  --color-accent-ink: #0b1220;
+  --color-success-ink: #071510;
+  --color-danger-ink: #200a0a;
+  --color-warning-ink: #241a05;
   --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-2: 0 2px 10px rgb(0 0 0 / 0.45);
   --shadow-dialog: 0 12px 40px rgb(0 0 0 / 0.6);

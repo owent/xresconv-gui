@@ -26,13 +26,12 @@ button,
   font-size: var(--font-ui-size);
 }
 
-/* 骨架布局（对照旧版 card-group）：顶部细状态条 / 左树 ｜ 右参数+日志+按钮 */
+/* 骨架布局（对照旧版 card-group；2026-09-26 三轮改版移除顶部状态条，
+   调试信息进运行日志）：左树 ｜ 右参数+日志+按钮 */
 .app-shell {
   display: grid;
-  grid-template-areas:
-    "env env"
-    "tree right";
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "tree right";
+  grid-template-rows: minmax(0, 1fr);
   grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
   gap: var(--space-3);
   box-sizing: border-box;
@@ -56,45 +55,6 @@ button,
 .empty-state {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
-}
-
-.environment-status {
-  grid-area: env;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-4);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--font-size-sm);
-}
-
-.environment-status p {
-  margin: 0;
-}
-
-.app-version {
-  font-weight: 600;
-}
-
-.backend-health {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-4);
-}
-
-.health-error {
-  color: var(--color-danger);
-}
-
-.cli-args {
-  margin-left: auto;
-  font-size: var(--font-size-sm);
-}
-
-.cli-args summary {
-  cursor: pointer;
-  color: var(--color-text-muted);
 }
 
 .conversion-tree {
@@ -225,28 +185,6 @@ button,
   gap: var(--space-1);
   font-size: var(--font-size-sm);
   flex-direction: row;
-}
-
-/* 详细配置展开区（旧版 collapse：六字段 + 条目详情 + 输出矩阵） */
-.detail-config {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-2);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-1);
-}
-
-/* 常显快捷行：重命名预设+正则 / 协议类型 / 输出类型 */
-.quick-row {
-  align-items: end;
-}
-
-.rename-field {
-  display: flex;
-  align-items: end;
-  gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 /* 预览结果折叠（新增辅助能力，不占主界面） */
@@ -428,10 +366,92 @@ details.collapsible > *:not(summary) {
   color: var(--color-text-muted);
 }
 
-.react-aria-Checkbox {
-  display: flex;
+/*
+ * RAC Checkbox 可视化（2026-09-26 修复“看不到复选框”）：
+ * react-aria-components 1.x 把原生 input 包进 VisuallyHidden（绝对定位、不可见、
+ * 不可点），且传入自定义 className 会“替换”默认 react-aria-Checkbox 类——所以
+ * 可见方框必须是真实子元素 .checkbox-mark（树与事件开关都渲染它），状态取自
+ * label 上的 data-selected / data-indeterminate / data-disabled 画对勾/横杠。
+ */
+.react-aria-Checkbox,
+.tree-checkbox {
+  position: relative;
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  cursor: pointer;
+}
+
+.checkbox-mark {
+  position: relative;
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-bg);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.react-aria-Checkbox[data-hovered] .checkbox-mark,
+.tree-checkbox[data-hovered] .checkbox-mark,
+.react-aria-Checkbox[data-focus-visible] .checkbox-mark,
+.tree-checkbox[data-focus-visible] .checkbox-mark {
+  border-color: var(--color-accent);
+}
+
+.react-aria-Checkbox[data-selected] .checkbox-mark,
+.tree-checkbox[data-selected] .checkbox-mark,
+.react-aria-Checkbox[data-indeterminate] .checkbox-mark,
+.tree-checkbox[data-indeterminate] .checkbox-mark {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.react-aria-Checkbox[data-selected] .checkbox-mark::after,
+.tree-checkbox[data-selected] .checkbox-mark::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 4px;
+  height: 8px;
+  margin-top: -5px;
+  border: solid var(--color-accent-ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.react-aria-Checkbox[data-indeterminate] .checkbox-mark::after,
+.tree-checkbox[data-indeterminate] .checkbox-mark::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 7px;
+  height: 0;
+  border-top: 2px solid var(--color-accent-ink);
+}
+
+.react-aria-Checkbox[data-disabled],
+.tree-checkbox[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.react-aria-Checkbox[data-focus-visible],
+.tree-checkbox[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-1);
+}
+
+/* 树行内的复选框：无文本子节点，仅方框参与行高。 */
+.tree-checkbox {
+  gap: 0;
 }
 
 .run-controls {
@@ -442,8 +462,38 @@ details.collapsible > *:not(summary) {
 
 .run-buttons {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* 按钮一行（legend 视觉隐藏）；主操作“开始转换”加大加粗（2026-09-26 反馈：
+   暗色下主要按钮不明显）。 */
+.run-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.react-aria-Button.btn-run {
+  padding: var(--space-2) var(--space-5);
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 .run-summary {
@@ -567,7 +617,7 @@ details.collapsible > *:not(summary) {
 
 /* 2026-09-26 现代化改版新增 */
 
-/* 紧凑运行状态行：状态色章 + 结果同行 */
+/* 紧凑运行状态行：实底状态色章（2026-09-26 对比度强化：暗色下也醒目）+ 结果同行 */
 .run-summary--inline {
   display: flex;
   flex-wrap: wrap;
@@ -580,36 +630,37 @@ details.collapsible > *:not(summary) {
 .state-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-3);
   border-radius: var(--radius-pill);
   font-weight: 600;
-  line-height: 1.6;
+  line-height: 1.7;
   white-space: nowrap;
 }
 
 .state-chip--muted {
   background: var(--color-bg-inset);
   color: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
 }
 
 .state-chip--info {
-  background: var(--color-info-soft);
-  color: var(--color-text);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
 .state-chip--success {
-  background: var(--color-success-soft);
-  color: var(--color-success-ink, var(--color-text));
+  background: var(--color-success);
+  color: var(--color-success-ink);
 }
 
 .state-chip--danger {
-  background: var(--color-danger-soft);
-  color: var(--color-danger-ink, var(--color-text));
+  background: var(--color-danger);
+  color: var(--color-danger-ink);
 }
 
 .state-chip--warning {
-  background: var(--color-warning-soft);
-  color: var(--color-warning-ink, var(--color-text));
+  background: var(--color-warning);
+  color: var(--color-warning-ink);
 }
 
 .run-result {
@@ -625,22 +676,6 @@ details.collapsible > *:not(summary) {
 }
 
 .run-result--info {
-  color: var(--color-text-muted);
-}
-
-/* 重命名 ComboBox（可输正则 + 过滤预设下拉） */
-.combo-box {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.combo-box .react-aria-Input {
-  flex: 1;
-}
-
-.combo-chevron::after {
-  content: "▾";
   color: var(--color-text-muted);
 }
 
@@ -670,7 +705,8 @@ details.collapsible > *:not(summary) {
   font-weight: 600;
 }
 
-/* 详情弹窗（详细配置/显示设置共用 confirm-modal 骨架） */
+/* 详情弹窗（详细配置/显示设置共用 confirm-modal 骨架）：
+   2026-09-26 三轮改版——分区标题 + 两列网格 + 通栏等宽路径 + 底部固定操作行。 */
 .detail-modal {
   width: min(56rem, 92vw);
   max-height: 86vh;
@@ -682,20 +718,62 @@ details.collapsible > *:not(summary) {
 }
 
 .detail-title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
   margin: 0 0 var(--space-3);
   font-size: var(--font-size-lg);
 }
 
-.detail-close {
-  margin-left: auto;
+.detail-config {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: calc(86vh - 8rem);
+  overflow: auto;
+  padding-right: var(--space-1);
 }
 
-.detail-modal .detail-config {
-  max-height: calc(86vh - 6rem);
-  overflow: auto;
+.detail-section-title {
+  margin: 0 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+/* 等宽机器值（路径/正则/多值列表）与通栏字段 */
+.settings-field--wide {
+  grid-column: 1 / -1;
+}
+
+.settings-field--mono .react-aria-Input,
+.settings-field--mono input,
+.settings-field--mono .react-aria-TextArea {
+  font-family: var(--font-log-family);
+  font-size: var(--font-size-sm);
+}
+
+.detail-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+/* 详情内的既有折叠面板（条目详情/输出矩阵）不再自带面板描边（外层已有分区） */
+.detail-section--flat .panel {
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  background: transparent;
 }
 
 /* 日志换行模式 */
@@ -711,10 +789,142 @@ details.collapsible > *:not(summary) {
   min-height: 22px;
 }
 
-/* 环境状态设置按钮 */
-.environment-status .react-aria-Button[aria-label="显示设置"] {
-  padding: 0 var(--space-2);
-  font-size: var(--font-size-base);
+/* 2026-09-26 三轮改版：显示设置弹窗（原状态条内样式已随组件移除） */
+.settings-modal {
+  width: min(44rem, 92vw);
+}
+
+.settings-title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.settings-section {
+  margin: 0 0 var(--space-3);
+}
+
+.settings-section-title {
+  margin: 0 0 var(--space-2);
+  padding-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.settings-hint {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.settings-last-file {
+  margin: 0;
+  font-family: var(--font-log-family);
+  font-size: var(--font-size-sm);
+  word-break: break-all;
+}
+
+/*
+ * 主题分段单选（2026-09-26 修复“看不到单选控件”）：RAC Radio 的原生 input
+ * 同样被 VisuallyHidden——圆点指示器由 ::before 画，选中态取 data-selected。
+ */
+.theme-choice {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.theme-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.theme-option::before {
+  content: "";
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  box-sizing: border-box;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-bg);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.theme-option[data-hovered],
+.theme-option[data-focus-visible] {
+  border-color: var(--color-accent);
+}
+
+.theme-option[data-selected] {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+}
+
+.theme-option[data-selected]::before {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  /* 内圈留白形成实心圆点 */
+  box-shadow: inset 0 0 0 2.5px var(--color-panel-bg);
+}
+
+.theme-option[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.theme-option[data-focus-visible] {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* 字体分区行（带表头网格，列宽与行一致） */
+.font-grid-head {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(12rem, 1fr) 5.5rem;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.font-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.font-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(12rem, 1fr) 5.5rem;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.font-row-label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.font-family-input {
+  width: 100%;
+}
+
+.font-size-input {
+  width: 100%;
 }
 
 /* 2026-09-26：表单控件统一现代化（输入/选择/搜索） */
@@ -957,72 +1167,4 @@ input[type="checkbox"] {
 .script-dialog-content {
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-/* Java 运行时状态（2026-09-26 恢复旧版检查展示） */
-.java-status--ok {
-  color: var(--color-success);
-}
-
-.java-status--bad {
-  color: var(--color-danger);
-  font-weight: 600;
-}
-
-.java-warning {
-  flex-basis: 100%;
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-1);
-  background: var(--color-danger-soft);
-  padding: var(--space-1) var(--space-2);
-}
-
-.java-warning p {
-  margin: 0;
-  color: var(--color-danger);
-}
-
-.java-warning .empty-state {
-  color: var(--color-text-muted);
-}
-
-/* 状态条右侧独立设置面板按钮组 */
-.status-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin-left: auto;
-}
-
-/* 显示设置弹窗：字体分区行 */
-.settings-modal {
-  width: min(44rem, 92vw);
-}
-
-.font-settings {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: var(--space-3) 0;
-}
-
-.font-row {
-  display: grid;
-  grid-template-columns: minmax(6rem, auto) minmax(12rem, 1fr) 5.5rem;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.font-row-label {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-}
-
-.font-family-input {
-  width: 100%;
-}
-
-.font-size-input {
-  width: 100%;
 }
