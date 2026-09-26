@@ -27,7 +27,13 @@ export const config = {
   capabilities: [
     {
       maxInstances: 1,
-      "tauri:options": { application: exe },
+      "tauri:options": {
+        application: exe,
+        // 2026-09-26：树选中等真实交互用例需加载配置——经 --input 注入 fixture。
+        ...(process.env.XRESCONV_E2E_INPUT
+          ? { args: ["--input", process.env.XRESCONV_E2E_INPUT] }
+          : {}),
+      },
       // Windows CI（无交互桌面的会话）上 msedgedriver 偶发
       // "DevToolsActivePort file doesn't exist"——按社区通行做法关 GPU 沙箱
       // 参数（不影响本机交互会话的既有通过）。

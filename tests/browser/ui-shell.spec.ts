@@ -33,7 +33,7 @@ test.afterEach(async ({ page }) => {
 
 test("UI08-1 骨架渲染：全部主区域可见，无白屏/未捕获异常", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "转换列表" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "运行日志" })).toBeVisible();
+  await expect(page.getByText("运行日志").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "开始转换" })).toBeVisible();
   await expect(page.getByRole("button", { name: "预览" })).toBeVisible();
   // 空态可读（未加载配置），非崩溃页。

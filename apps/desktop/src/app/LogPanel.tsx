@@ -129,8 +129,8 @@ export function LogPanel() {
 
   return (
     <section className="panel log-panel" aria-label="运行日志">
-      <h2 className="panel-title">运行日志</h2>
       <div className="log-toolbar">
+        <span className="log-title">运行日志</span>
         <label className="log-filter-label">
           级别
           <select

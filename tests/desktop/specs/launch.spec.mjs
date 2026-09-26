@@ -1,6 +1,9 @@
 import assert from "node:assert";
 
-describe("xresconv-gui desktop skeleton", () => {
+
+const withEmptyState = process.env.XRESCONV_E2E_INPUT ? describe.skip : describe;
+
+withEmptyState("xresconv-gui desktop skeleton", () => {
   before(async () => {
     // Explicit window selection uses the external WebDriver protocol and keeps
     // the service from probing the optional in-app focus plugin before each command.

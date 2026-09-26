@@ -8,10 +8,22 @@ body,
 
 body {
   margin: 0;
-  font-family: var(--font-family-base);
-  font-size: var(--font-size-base);
+  font-family: var(--font-global-family);
+  font-size: var(--font-global-size);
   color: var(--color-text);
   background: var(--color-bg);
+}
+
+/* 界面控件区（表单/按钮/工具栏）字体 */
+input,
+select,
+button,
+.toolbar,
+.config-file-bar,
+.run-buttons,
+.form-grid {
+  font-family: var(--font-ui-family);
+  font-size: var(--font-ui-size);
 }
 
 /* 骨架布局（对照旧版 card-group）：顶部细状态条 / 左树 ｜ 右参数+日志+按钮 */
@@ -21,7 +33,7 @@ body {
     "env env"
     "tree right";
   grid-template-rows: auto minmax(0, 1fr);
-  grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
+  grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
   gap: var(--space-3);
   box-sizing: border-box;
   height: 100dvh;
@@ -90,6 +102,12 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  font-family: var(--font-tree-family);
+  font-size: var(--font-tree-size);
+  /* 2026-09-26：树框尽量撑满左列（grid 列宽即面板宽）。 */
+  width: 100%;
+  height: 100%;
 }
 
 .tree-keyboard-scope {
@@ -187,8 +205,10 @@ body {
 }
 
 .config-file-display {
-  flex: 1 1 16rem;
-  min-width: 12rem;
+  flex: 1 1 12rem;
+  min-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font: inherit;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
@@ -306,17 +326,6 @@ details.collapsible > *:not(summary) {
   gap: var(--space-1);
 }
 
-.react-aria-TextField .react-aria-Input,
-.select-field select,
-.tree-search .react-aria-Input {
-  font: inherit;
-  color: inherit;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  padding: var(--space-1) var(--space-2);
-}
-
 /* 按钮体系（现代化）：默认次要；.btn-primary 主操作；transition 反馈 */
 .react-aria-Button {
   font: inherit;
@@ -361,6 +370,27 @@ details.collapsible > *:not(summary) {
 
 .react-aria-Button.btn-primary[data-pressed] {
   background: var(--color-accent-hover);
+}
+
+.react-aria-Button.btn-success {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #ffffff;
+}
+
+.react-aria-Button.btn-success[data-hovered] {
+  filter: brightness(1.1);
+}
+
+.react-aria-Button.btn-accent {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.react-aria-Button.btn-accent[data-hovered] {
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
 }
 
 .react-aria-Button.btn-ghost {
@@ -455,8 +485,17 @@ details.collapsible > *:not(summary) {
 .log-list {
   flex: 1;
   overflow: auto;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
+  font-family: var(--font-log-family);
+  font-size: var(--font-log-size);
+}
+
+/* 2026-09-26：标题与工具栏同行紧凑（非粗、非标题字体） */
+.log-title {
+  font-weight: 400;
+  font-size: inherit;
+  color: var(--color-text);
+  margin-right: var(--space-1);
+  white-space: nowrap;
 }
 
 /* P4-07：日志工具栏 / 有界窗口信息 / 虚拟行 / 语义级别色 */
@@ -464,7 +503,7 @@ details.collapsible > *:not(summary) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   margin-bottom: var(--space-1);
 }
 
@@ -473,16 +512,6 @@ details.collapsible > *:not(summary) {
   align-items: center;
   gap: var(--space-1);
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.log-filter-label select,
-.log-toolbar input[type="search"] {
-  color: inherit;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  padding: var(--space-1) var(--space-2);
   font-size: var(--font-size-sm);
 }
 
@@ -688,6 +717,43 @@ details.collapsible > *:not(summary) {
   font-size: var(--font-size-base);
 }
 
+/* 2026-09-26：表单控件统一现代化（输入/选择/搜索） */
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input:not([type]),
+select,
+textarea,
+.react-aria-TextField .react-aria-Input {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+  min-width: 0;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--color-accent);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--color-accent);
+}
+
 /* P4-04b：转换参数表单 / 输出矩阵 / 预览 / 本地确认对话框 */
 
 .react-aria-TextField .react-aria-TextArea {
@@ -891,4 +957,72 @@ details.collapsible > *:not(summary) {
 .script-dialog-content {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Java 运行时状态（2026-09-26 恢复旧版检查展示） */
+.java-status--ok {
+  color: var(--color-success);
+}
+
+.java-status--bad {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.java-warning {
+  flex-basis: 100%;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-1);
+  background: var(--color-danger-soft);
+  padding: var(--space-1) var(--space-2);
+}
+
+.java-warning p {
+  margin: 0;
+  color: var(--color-danger);
+}
+
+.java-warning .empty-state {
+  color: var(--color-text-muted);
+}
+
+/* 状态条右侧独立设置面板按钮组 */
+.status-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+/* 显示设置弹窗：字体分区行 */
+.settings-modal {
+  width: min(44rem, 92vw);
+}
+
+.font-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.font-row {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(12rem, 1fr) 5.5rem;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.font-row-label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.font-family-input {
+  width: 100%;
+}
+
+.font-size-input {
+  width: 100%;
 }

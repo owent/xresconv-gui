@@ -1,17 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  Button,
-  ComboBox,
-  Dialog,
-  Heading,
-  Input,
-  Label,
-  ListBox,
-  ListBoxItem,
-  Modal,
-  ModalOverlay,
-  Popover,
-} from "react-aria-components";
+import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import type { SettingsFields } from "../adapters/backend";
 import { pickXmlConfig } from "../adapters/tauri";
 import { DraftField } from "./DraftField";
@@ -54,7 +42,7 @@ function linesToList(text: string): string[] {
 /**
  * 重命名预设：源后缀取当前配置输出矩阵的类型集合（未加载回退 .bin——旧版
  * 行为；2026-09-26 用户指示“根据载入的 xml 分析可能的后缀”），目标为旧版
- * 五预设目标侧。输入时可按已输入内容过滤（ComboBox 内建）。
+ * 五预设目标侧。
  */
 function renamePresetsOf(config: Record<string, unknown> | null): {
   value: string;
@@ -83,12 +71,12 @@ function renamePresetsOf(config: Record<string, unknown> | null): {
 }
 
 /**
- * 转换参数区（F01/F06，2026-09-26 改版）：
- * - 首行常显：转换列表文件（选择/路径/重载）+ 并发数 + “详情”按钮；
- * - 次行常显：输出重命名（可输正则，下拉给按配置推导的预设，输入即时过滤）/
- *   协议类型 / 输出类型；
- * - “详情”弹窗承载全部详细参数（六字段 + 条目详情 + 输出矩阵），保留原
- *   detail 面板的字段与操作方式；打开即取当前 effective 值（加载后自动刷新）。
+ * 转换参数区（F01/F06，2026-09-26 二轮改版）：
+ * - 常显仅文件行：转换列表文件（选择/路径/重载）+ 并发数 + “详情”按钮
+ *   （详情与状态条的显示设置各自独立面板）；
+ * - 输出重命名/协议类型/输出类型移入“详情”弹窗（2026-09-26 用户指示：
+ *   不默认占主页面）；重命名为原生 input + datalist——焦点保持、可连续输入、
+ *   下拉预设按已输入内容即时过滤、选预设即得正则、也可手输任意正则。
  */
 export function ConversionSettings() {
   const settings = useSessionStore((state) => state.snapshot?.settings);
@@ -100,7 +88,6 @@ export function ConversionSettings() {
   const updateSettings = useSessionStore((state) => state.updateSettings);
   const [pendingParallelism, setPendingParallelism] = useState<number | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [renameDraft, setRenameDraft] = useState<string | null>(null);
 
   const effective = settings?.effective ?? null;
   const disabled = effective === null || BUSY_STATES.has(runState);
@@ -138,8 +125,7 @@ export function ConversionSettings() {
 
   const renameValue = effective?.rename ?? "";
   const renamePresets = useMemo(() => renamePresetsOf(config ?? null), [config]);
-  const selectedPreset = renamePresets.find((preset) => preset.value === renameValue);
-  const renameInput = renameDraft ?? selectedPreset?.label ?? renameValue;
+  const datalistId = "rename-presets";
 
   return (
     <form
@@ -185,86 +171,23 @@ export function ConversionSettings() {
             ))}
           </select>
         </label>
-        <Button onPress={() => setDetailOpen(true)} isDisabled={effective === null}>
+        <Button
+          className="btn-accent"
+          onPress={() => setDetailOpen(true)}
+          isDisabled={effective === null}
+        >
           详情…
         </Button>
       </div>
-
-      <div className="form-grid quick-row">
-        <ComboBox
-          className="settings-field rename-combo"
-          aria-label="输出重命名（正则）"
-          allowsCustomValue
-          isDisabled={disabled}
-          items={renamePresets}
-          selectedKey={selectedPreset?.value ?? null}
-          inputValue={renameInput}
-          onInputChange={(value) => setRenameDraft(value)}
-          onSelectionChange={(key) => {
-            if (typeof key === "string") {
-              const preset = renamePresets.find((p) => p.value === key);
-              setRenameDraft(preset?.label ?? null);
-              submit({ rename: key });
-            }
-          }}
-          onBlur={(event) => {
-            // 提交语义与 DraftField 一致：失焦时把输入内容解析为正则提交（预设标签映射回正则）。
-            const text = event.currentTarget.value ?? "";
-            const preset = renamePresets.find((p) => p.label === text);
-            const value = preset?.value ?? text;
-            setRenameDraft(null);
-            if (value !== renameValue) {
-              submit({ rename: value });
-            }
-          }}
-        >
-          <Label>输出重命名（正则，下拉选预设）</Label>
-          <div className="combo-box">
-            <Input placeholder="/\.bin$/.lua/" />
-            <Button className="btn-ghost combo-chevron" aria-label="重命名预设" />
-          </div>
-          <Popover>
-            <Dialog>
-              <ListBox>
-                {(preset: { value: string; label: string }) => (
-                  <ListBoxItem id={preset.value}>{preset.label}</ListBoxItem>
-                )}
-              </ListBox>
-            </Dialog>
-          </Popover>
-        </ComboBox>
-        <label className="select-field">
-          协议类型
-          <select
-            disabled={disabled}
-            value={proto}
-            onChange={(event) => submit({ proto: event.target.value })}
-          >
-            {proto === "" && <option value="">（未设置）</option>}
-            {protoOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="select-field">
-          输出类型
-          <select
-            disabled={disabled}
-            value={outputType}
-            onChange={(event) => submit({ type: event.target.value })}
-          >
-            {outputType === "" && <option value="">（未设置）</option>}
-            {typeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
       {effective === null && <p className="empty-state">加载配置后可编辑转换参数。</p>}
+
+      <datalist id={datalistId}>
+        {renamePresets.map((preset) => (
+          <option key={preset.value} value={preset.value}>
+            {preset.label}
+          </option>
+        ))}
+      </datalist>
 
       <ModalOverlay
         className="confirm-overlay detail-overlay"
@@ -321,6 +244,59 @@ export function ConversionSettings() {
                   multiline
                   onCommit={(value) => submit({ dataSrcDir: linesToList(value) })}
                 />
+                {/* 重命名：input+datalist（焦点保持/连续输入/预设过滤；选预设即得正则）。 */}
+                <div className="settings-field">
+                  <label htmlFor="rename-input">输出重命名（正则，下拉选预设）</label>
+                  <input
+                    id="rename-input"
+                    list={datalistId}
+                    disabled={disabled}
+                    defaultValue={renameValue}
+                    key={renameValue}
+                    placeholder="/\.bin$/.lua/"
+                    onBlur={(event) => {
+                      const value = event.currentTarget.value.trim();
+                      if (value !== renameValue) {
+                        submit({ rename: value });
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.currentTarget.blur();
+                      }
+                    }}
+                  />
+                </div>
+                <label className="select-field">
+                  协议类型
+                  <select
+                    disabled={disabled}
+                    value={proto}
+                    onChange={(event) => submit({ proto: event.target.value })}
+                  >
+                    {proto === "" && <option value="">（未设置）</option>}
+                    {protoOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="select-field">
+                  输出类型
+                  <select
+                    disabled={disabled}
+                    value={outputType}
+                    onChange={(event) => submit({ type: event.target.value })}
+                  >
+                    {outputType === "" && <option value="">（未设置）</option>}
+                    {typeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
               <ItemDetails />
               <OutputMatrixEditor />

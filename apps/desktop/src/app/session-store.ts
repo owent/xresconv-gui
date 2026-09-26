@@ -223,6 +223,11 @@ interface SessionActions {
   exportLogs: () => Promise<boolean>;
   /** 设置日志筛选（P4-07 UI 状态）。 */
   setLogFilter: (patch: Partial<LogFilterState>) => void;
+  /**
+   * 注入本地日志行（2026-09-26 用户需求：预览结果显示到运行日志）：
+   * 不经 backend 事件流（UI 本地证据），seq 缺省（不参与游标分页）。
+   */
+  appendLocalLog: (message: string, level?: LogLevelLike) => void;
   /** 事件 hook 开关（P4-05b，F09）：成功就地改写快照 config.gui；失败写 lastError。 */
   setHookEnabled: (group: HookGroup, index: number, enabled: boolean) => Promise<boolean>;
   /** 设置/重读自定义选择器文件（P4-05b）：成功后重同步快照（default_selected 已改树）。 */
@@ -736,6 +741,34 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
 
     setLogFilter: (patch) => {
       set((state) => ({ logFilter: { ...state.logFilter, ...patch } }));
+    },
+
+    appendLocalLog: (message, level = "notice") => {
+      set((state) => {
+        const entry: UiLogEntry = {
+          message,
+          rawMessage: message,
+          moduleName: "GUI",
+          style: "",
+          level,
+          text: message === "" ? "" : `[GUI]: ${message}`,
+          localId: ++logLocalSeq,
+        };
+        const entries = [...state.logs.entries, entry];
+        let localDroppedCount = state.logs.localDroppedCount;
+        const overflow = entries.length - state.logs.windowCapacity;
+        if (overflow > 0) {
+          entries.splice(0, overflow);
+          localDroppedCount += overflow;
+        }
+        return {
+          logs: {
+            ...state.logs,
+            entries,
+            localDroppedCount,
+          },
+        };
+      });
     },
 
     setHookEnabled: async (group, index, enabled) => {

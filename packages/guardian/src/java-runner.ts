@@ -18,6 +18,8 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import { createProcessScope, type ProcessScope } from "./process-tree.ts";
 import { HardDeadlineError, SpawnError } from "./run-with-deadline.ts";
@@ -103,11 +105,30 @@ export class AbortError extends Error {
   }
 }
 
+/** Java 可执行文件解析：XRESCONV_JAVA → JAVA_HOME/bin/java(.exe) → "java"(PATH)。 */
+function resolveJavaCommand(): string {
+  const explicit = process.env.XRESCONV_JAVA;
+  if (typeof explicit === "string" && explicit.length > 0) {
+    return explicit;
+  }
+  const javaHome = process.env.JAVA_HOME;
+  if (typeof javaHome === "string" && javaHome.length > 0) {
+    const candidate = `${javaHome}${path.sep}bin${path.sep}${process.platform === "win32" ? "java.exe" : "java"}`;
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return "java";
+}
+
 /** 运行一批 xresloader stdin 任务；tasks 为空时直接关闭 stdin 等待退出。 */
 export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult> {
   const { javaArgs = [], jarPath, workDir, tasks, onLog, deadlineMs, signal } = options;
   const started = Date.now();
-  const program = options.spawnSpec?.command ?? "java";
+  // Java 解析（2026-09-26 用户需求）：XRESCONV_JAVA → JAVA_HOME/bin/java → PATH，
+  // 与 backend checkJava 展示一致（"显示的 java"="运行转换的 java"）。
+  // 守护进程自身不引 backend 包（角色边界）；此处内联同规则小函数。
+  const program = options.spawnSpec?.command ?? resolveJavaCommand();
   const args = options.spawnSpec?.args ?? javaArgs.concat(["-jar", jarPath, "--stdin"]);
   const scope = options.scope ?? createProcessScope({ name: "java-batch" });
 

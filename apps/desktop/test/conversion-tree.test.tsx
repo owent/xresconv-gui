@@ -286,22 +286,28 @@ describe("ConversionTree (P4-03)", () => {
     const user = userEvent.setup();
 
     // 点击行文本使行获得焦点（user-event 会上溯到最近可聚焦祖先 = 行），再按空格
-    await user.click(screen.getByText("beta"));
+    // 标题点击=切换(fancytree 点行语义);本用例聚焦用 row.focus() 不产生 op。
+    (screen.getByText("beta").closest('[role="row"]') as HTMLElement | null)?.focus();
     await user.keyboard(" ");
 
     await waitFor(() => expect(applyOpsPayloads(invoke)).toHaveLength(1));
     expect(applyOpsPayloads(invoke)[0]).toEqual([{ v: 1, op: "select_node", key: 2 }]);
   });
 
-  it("双击切换勾选（旧版行为）", async () => {
+  it("双击切换勾选（旧版行为；净效果=切换一次）", async () => {
     const invoke = await loadFixture();
     routeRpc(invoke, { applyOps: () => okReport() });
     render(<ConversionTree />);
     const user = userEvent.setup();
 
+    // 双击= 标题 click×2(两次切换,互相抵消) + onDoubleClick(一次切换) →
+    // 净效果为切换一次;ops 为奇数个 select_node。
     await user.dblClick(screen.getByText("beta"));
-    await waitFor(() => expect(applyOpsPayloads(invoke)).toHaveLength(1));
-    expect(applyOpsPayloads(invoke)[0]).toEqual([{ v: 1, op: "select_node", key: 2 }]);
+    await waitFor(() => {
+      const payloads = applyOpsPayloads(invoke);
+      expect(payloads.length % 2).toBe(1);
+      expect(payloads[0]).toEqual([{ v: 1, op: "select_node", key: 2 }]);
+    });
   });
 
   it("禁用节点不可勾选（点击/空格均不产生 ops），但可聚焦", async () => {
@@ -355,9 +361,8 @@ describe("ConversionTree (P4-03)", () => {
         <ItemDetails />
       </>,
     );
-    const user = userEvent.setup();
-
-    await user.click(screen.getByText("beta"));
+    // 标题点击=切换(fancytree 点行语义);本用例聚焦用 row.focus() 不产生 op。
+    (screen.getByText("beta").closest('[role="row"]') as HTMLElement | null)?.focus();
 
     const details = screen.getByRole("group", { name: "条目详情" });
     await waitFor(() => expect(within(details).getByDisplayValue("beta")).toBeTruthy());
@@ -376,9 +381,12 @@ describe("ConversionTree (P4-03)", () => {
     render(<ConversionTree />);
     const user = userEvent.setup();
 
-    // 初始：cat:basic 展开（快照 expanded=true）
+    // 初始：cat:basic 展开（快照 expanded=true）。标题现在也是按钮(点行切换勾选)，
+    // 收起必须点 chevron（.tree-chevron），不再按名称匹配。
     expect(screen.getByText("alpha")).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: /基础分类/ }));
+    const chevron = document.querySelector('[data-key="cat:basic"] .tree-chevron');
+    expect(chevron).not.toBeNull();
+    await user.click(chevron as HTMLElement);
     expect(useSessionStore.getState().expandedKeys.has("cat:basic")).toBe(false);
     await waitFor(() => expect(screen.queryByText("alpha")).toBeNull());
     expect(applyOpsPayloads(invoke)).toHaveLength(0);

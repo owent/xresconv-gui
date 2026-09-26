@@ -10,6 +10,15 @@
 
   --font-family-base: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
   --font-family-mono: ui-monospace, Consolas, "Courier New", monospace;
+  /* 分区字体变量（显示设置写入 inline style；空=继承 base/mono） */
+  --font-global-family: var(--font-family-base);
+  --font-global-size: var(--font-size-base);
+  --font-ui-family: var(--font-global-family);
+  --font-ui-size: var(--font-global-size);
+  --font-tree-family: var(--font-global-family);
+  --font-tree-size: var(--font-global-size);
+  --font-log-family: var(--font-family-mono);
+  --font-log-size: var(--font-size-sm);
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.8125rem;
   --font-size-base: 0.875rem;

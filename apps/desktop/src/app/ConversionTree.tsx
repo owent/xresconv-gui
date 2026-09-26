@@ -115,7 +115,22 @@ function TreeNodeRow({ node }: { node: TreeNodeSnap }) {
               isDisabled={node.unselectable}
               onChange={() => void store().toggleNode(node.key)}
             />
-            <span className="tree-node-title" title={node.tooltip}>
+            {/* biome-ignore lint/a11y/useKeyWithClickEvents: 键盘切换由行级 Space 处理（scope keydown） */}
+            {/* biome-ignore lint/a11y/useSemanticElements: RAC TreeItem 内不嵌套 button（破坏树角色），标题 role=button 标记位 */}
+            <span
+              className="tree-node-title"
+              title={node.tooltip}
+              role="button"
+              tabIndex={-1}
+              onClick={() => {
+                // 旧版点行即切换（fancytree checkbox 模式）；标题点击=切换勾选。
+                // role=button 仅为可访问性标记（键盘切换由行级 Space 处理，
+                // tabIndex=-1 不进 Tab 序）。
+                if (!node.unselectable) {
+                  void store().toggleNode(node.key);
+                }
+              }}
+            >
               {node.title}
             </span>
             {node.unselectable ? <span className="tree-node-hint">不可勾选</span> : null}

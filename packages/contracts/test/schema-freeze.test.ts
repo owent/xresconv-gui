@@ -10,6 +10,8 @@
 //   （number，1..16，会话级，不进 overrides；纯文本变更，docs/plan/records/P4-04b.md）；
 //   P4-05a 给 backend-rpc method 枚举追加 setHookEnabled/setCustomSelectors/
 //   invokeCustomButton、params 描述补三方法参数形状（docs/plan/records/P4-05a.md）；
+//   2026-09-26 给 backend-rpc method 枚举追加 checkJava（java -version 探测，
+//   F06/F12 旧版 conv_env_check 恢复）
 //   P4-07 给 backend-rpc method 枚举追加 getLogs、params 描述补 {limit:
 //   integer 1..1000}（日志游标窗口，docs/plan/records/P4-07.md）。
 import { readdirSync, readFileSync } from "node:fs";

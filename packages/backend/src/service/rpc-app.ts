@@ -52,6 +52,7 @@ import {
 import { isTerminal, type RunState } from "../domain/run-state.ts";
 import type { CustomSelectorView } from "./custom-selector.ts";
 import { formatUnknownError } from "./format.ts";
+import { checkJavaEnvironment, JAVA_DOWNLOAD_HINTS } from "./java-env.ts";
 import type { LogEntry } from "./log-pipeline.ts";
 import type { MatcherService } from "./matcher-service.ts";
 import type { JavaRunner, RunSummary } from "./run.ts";
@@ -379,6 +380,8 @@ export class BackendRpcApp {
         return await this.rpcSetCustomSelectors(p);
       case "invokeCustomButton":
         return await this.rpcInvokeCustomButton(p);
+      case "checkJava":
+        return await this.rpcCheckJava();
       default:
         throw new RpcError("UNKNOWN_METHOD", `unknown rpc method: ${method}`);
     }
@@ -582,6 +585,32 @@ export class BackendRpcApp {
       ),
       droppedCount: pipeline.droppedCount,
       capacity: pipeline.capacity,
+    };
+  }
+
+  /**
+   * checkJava（F06/F12，旧版 conv_env_check 恢复）：java -version 探测 +
+   * 版本/位数判定 + 下载指引。无状态门禁（启动即可查）；实际转换用同一
+   * 解析（XRESCONV_JAVA/JAVA_HOME/PATH，java-runner 共用 resolveJavaExecutable）。
+   */
+  private async rpcCheckJava(): Promise<{
+    ok: boolean;
+    versionText: string;
+    versions: number[];
+    bit64: boolean;
+    executable: { command: string; source: string };
+    problem: string | null;
+    downloadHints: readonly { name: string; url: string }[];
+  }> {
+    const result = await checkJavaEnvironment();
+    return {
+      ok: result.ok,
+      versionText: result.versionText,
+      versions: result.versions,
+      bit64: result.bit64,
+      executable: result.executable,
+      problem: result.problem,
+      downloadHints: JAVA_DOWNLOAD_HINTS,
     };
   }
 

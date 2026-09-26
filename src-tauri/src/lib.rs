@@ -118,13 +118,43 @@ async fn export_text_file(path: String, content: String) -> Result<(), String> {
 /// 显示设置（2026-09-26 用户需求）：主题三态 + 上次转换列表文件；JSON 持久化
 /// 到可执行程序目录旁（exe 同级 `display-settings.json`）。读失败（首次运行/
 /// 损坏）返回 null 由前端用默认值；写做字段白名单校验。
+/// 分区字体设置（2026-09-26）：family 空=该区默认；size 为 px 数值。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct FontPrefs {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    family: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size: Option<f64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct FontsConfig {
+    #[serde(default)]
+    global: FontPrefs,
+    #[serde(default)]
+    ui: FontPrefs,
+    #[serde(default)]
+    tree: FontPrefs,
+    #[serde(default)]
+    log: FontPrefs,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct DisplaySettings {
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     theme: Option<String>,
+    #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     last_config_file: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fonts: Option<FontsConfig>,
 }
 
 fn display_settings_path() -> std::path::PathBuf {
@@ -155,6 +185,7 @@ fn read_display_settings() -> Option<DisplaySettings> {
 async fn write_display_settings(
     theme: Option<String>,
     last_config_file: Option<String>,
+    fonts: Option<serde_json::Value>,
 ) -> Result<(), String> {
     // 主题白名单：未设置=跟随系统。
     if let Some(t) = &theme
@@ -162,9 +193,43 @@ async fn write_display_settings(
     {
         return Err(format!("invalid theme: {t}"));
     }
+    // 字体：结构经 serde 反序列化校验；字号白名单 [6,48]，family 去控制字符。
+    let fonts = match fonts {
+        None => None,
+        Some(value) => {
+            let mut parsed: FontsConfig =
+                serde_json::from_value(value).map_err(|e| format!("invalid fonts: {e}"))?;
+            for prefs in [
+                &mut parsed.global,
+                &mut parsed.ui,
+                &mut parsed.tree,
+                &mut parsed.log,
+            ] {
+                if let Some(size) = prefs.size
+                    && !(6.0..=48.0).contains(&size)
+                {
+                    return Err(format!("font size {size} out of range [6,48]"));
+                }
+                if let Some(family) = &prefs.family {
+                    let cleaned: String = family
+                        .chars()
+                        .filter(|c| !c.is_control() && *c != '<' && *c != '>' && *c != '"')
+                        .collect();
+                    let cleaned = cleaned.trim().to_string();
+                    prefs.family = if cleaned.is_empty() {
+                        None
+                    } else {
+                        Some(cleaned)
+                    };
+                }
+            }
+            Some(parsed)
+        }
+    };
     let settings = DisplaySettings {
         theme,
         last_config_file,
+        fonts,
     };
     tauri::async_runtime::spawn_blocking(move || write_display_settings_impl(&settings))
         .await
@@ -242,13 +307,22 @@ mod tests {
         let settings = super::DisplaySettings {
             theme: Some("dark".into()),
             last_config_file: Some("D:/路径 配置.xml".into()),
+            fonts: Some(super::FontsConfig {
+                tree: super::FontPrefs {
+                    family: Some("Microsoft YaHei".into()),
+                    size: Some(14.0),
+                },
+                ..Default::default()
+            }),
         };
         // 直接测 impl（路径绑定 current_exe，这里只验证序列化形状与校验）。
         let body = serde_json::to_string(&settings).unwrap();
         assert!(body.contains("\"theme\":\"dark\""));
         assert!(body.contains("lastConfigFile"));
+        assert!(body.contains("Microsoft YaHei"));
         let parsed: super::DisplaySettings = serde_json::from_str(&body).unwrap();
         assert_eq!(parsed.theme.as_deref(), Some("dark"));
+        assert_eq!(parsed.fonts.and_then(|f| f.tree.size), Some(14.0));
     }
 
     /// P4-07：导出写 UTF-8（含中文/空格路径）；空/空白路径拒绝。

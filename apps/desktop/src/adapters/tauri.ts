@@ -87,15 +87,24 @@ export function exportTextFile(path: string, content: string): Promise<void> {
 export interface DisplaySettings {
   theme: "system" | "light" | "dark" | null;
   lastConfigFile: string | null;
+  fonts?: {
+    global?: { family?: string | null; size?: number | null };
+    ui?: { family?: string | null; size?: number | null };
+    tree?: { family?: string | null; size?: number | null };
+    log?: { family?: string | null; size?: number | null };
+  } | null;
 }
 
 export function readDisplaySettings(): Promise<DisplaySettings | null> {
   return invoke<DisplaySettings | null>("read_display_settings");
 }
 
-export function writeDisplaySettings(settings: DisplaySettings): Promise<void> {
+export function writeDisplaySettings(
+  settings: DisplaySettings & { fontsAsValue?: unknown },
+): Promise<void> {
   return invoke("write_display_settings", {
     theme: settings.theme,
     lastConfigFile: settings.lastConfigFile,
+    fonts: (settings.fontsAsValue ?? settings.fonts) as unknown,
   });
 }
