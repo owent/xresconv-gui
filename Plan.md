@@ -27,7 +27,7 @@ Hint:
 ## 1. 状态、目标与实施边界
 
 - 编制日期：2026-09-23；源码基线 `3e8ec5773368ce02455a74bcd42d7ff03487be08`，应用版本 `2.6.0`。
-- 当前状态（2026-09-25）：P0–P4 完成（G4 Windows 范围通过）；P5 本机可验证范围完成至 P5-09（P5-04/07/08/10 阻塞于 macOS 主机/受控签名环境/VM 实机，已如实登记）；597 例 Node/前端 + 15 例三引擎浏览器 + 13 例 Rust 测试通过；Windows 桌面 E2E 9/9、八格式真实 JAR 差分通过；Windows x64 双变体（29/232 MiB）与 WSL Debian 13 双变体（DEB+自含 AppImage 141 MiB）实构。**待办：CI 推送验证（CI-01..07 已落地）、macOS 实构、签名、VM 安装矩阵、G5/G6 全量验收、P7 切换。** 证据见 `docs/plan/records/`。
+- 当前状态（2026-09-25）：P0–P4 完成（G4 Windows 范围通过）；P5 本机可验证范围完成至 P5-09（P5-04/07/08/10 阻塞于 macOS 主机/受控签名环境/VM 实机，已如实登记）；597 例 Node/前端 + 15 例三引擎浏览器 + 13 例 Rust 测试通过；Windows 桌面 E2E 9/9、八格式真实 JAR 差分通过；Windows x64 双变体（29/232 MiB）与 WSL Debian 13 双变体（DEB+自含 AppImage 141 MiB）实构。**CI 推送验证已完成（2026-09-25，PR #60：quality node/shell 绿、Linux 真桌面 E2E 绿；win/macOS 桌面 E2E 因 runner 无交互桌面/驱动静默退出设 continue-on-error，恢复条件见 P5-09 记录）。待办：macOS 实构、签名、VM 安装矩阵、G5/G6 全量验收、P7 切换。** 证据见 `docs/plan/records/`。
 
 用户已确定的目标：
 
@@ -397,7 +397,7 @@ Linux 没有统一的 WebView2 式安装器。支持范围是明确发行版/版
 
 已完成：P1-00 Rust 业务 → Node/TS 迁移审计；Electron 44.4.5 升级（无架构冲突）；Yarn 4 唯一锁文件与 Corepack/Node 锁定；backend/guardian 入口与壳握手链；JSON Schema 唯一协议源（TS/Ajv，无 Cargo）；Biome/类型检查/Vitest/薄壳原生检查/初始桌面 E2E（Windows 实测；记录 P1-00～P1-09）。
 
-未完成：Actions 全部升级（CI-01～CI-07，需推送后验证）；Linux/macOS 骨架实测（待 CI）。
+已完成（2026-09-25 追记）：ci.yml/release.yml/stale.yml 落地并推送验证（PR #60 六轮迭代后运行级全绿；Actions 全 SHA 固定）。未完成：macOS 真桌面 E2E（tauri-driver 静默退出待 mac 实机定位）、Windows GUI runner 桌面 E2E。
 
 出口：三平台骨架和质量检查通过；依赖组合可重现，不依赖开发机全局 npm 包。
 
