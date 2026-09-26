@@ -65,10 +65,13 @@
   --color-border-strong: #b7c0ce;
   --color-text: #1a2333;
   --color-text-muted: #5d6a7d;
-  --color-accent: #2f6bff;
-  --color-accent-hover: #1f57e8;
+  /* 2026-09-26 四轮：#2f6bff+白字对比 4.5:1 临界不过 axe，加深主色 */
+  --color-accent: #1f57e8;
+  --color-accent-hover: #184ad6;
   --color-accent-soft: #e7eeff;
   --color-accent-contrast: #ffffff;
+  /* 禁用控件文本（bg-inset 上 ≥4.5:1；普通 muted 在浅底不足） */
+  --color-disabled-ink: #4a5568;
   --color-danger: #c93a3a;
   --color-danger-soft: #fdeaea;
   --color-warning: #9a6700;
@@ -111,6 +114,7 @@
     --color-success-soft: #14301e;
     --color-info-soft: #1c2a4a;
     --color-focus-ring: #6b9cff;
+    --color-disabled-ink: #97a3b6;
     --color-accent-ink: #0b1220;
     --color-success-ink: #071510;
     --color-danger-ink: #200a0a;
@@ -146,6 +150,7 @@
   --color-success-soft: #14301e;
   --color-info-soft: #1c2a4a;
   --color-focus-ring: #6b9cff;
+  --color-disabled-ink: #97a3b6;
   --color-accent-ink: #0b1220;
   --color-success-ink: #071510;
   --color-danger-ink: #200a0a;

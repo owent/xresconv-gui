@@ -524,7 +524,7 @@ describe("BackendRpcApp（P4-02）", () => {
     expect(preview.conflicts).toEqual([]);
   });
 
-  it("preview：两 item 同 outputDir+rename 检出输出冲突（UI04）", {
+  it("preview：同一条目被同 (type,outputDir,rename) 双规则重复发射才检出冲突；不同条目同目录+重命名不误报（2026-09-26 四轮修正）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const { app } = makeApp();
@@ -537,9 +537,11 @@ describe("BackendRpcApp（P4-02）", () => {
     expect(selected.applied).toBe(1);
     const preview = (await app.handleRpc("preview")) as PreviewResult;
     expect(preview.selectionCount).toBe(2);
-    expect(preview.plan.taskCount).toBe(2);
+    // one 命中两条规则（tag a+b）= 2 任务；two 仅命中 tag=a = 1 任务。
+    expect(preview.plan.taskCount).toBe(3);
+    // 只有 "one" 是同条目重复发射；"two" 与 "one" 共享目录+重命名但不算冲突。
     expect(preview.conflicts).toEqual([
-      { outputDir: "same-out", rename: "/(?i)\\.bin$/.lua/", items: ["one", "two"] },
+      { outputDir: "same-out", rename: "/(?i)\\.bin$/.lua/", items: ["one"] },
     ]);
   });
 

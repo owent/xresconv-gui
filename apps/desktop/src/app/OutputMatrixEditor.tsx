@@ -19,6 +19,40 @@ const OUTPUT_FORMATS = [
 const BUSY_STATES = new Set(["loading", "before_hooks", "converting", "after_hooks"]);
 
 /**
+ * 重命名预设目标后缀（旧版 conv_list_rename_samples 的目标侧）；源后缀由当前
+ * 配置输出矩阵推导（缺省 .bin）。2026-09-26 四轮：重命名只保留在输出矩阵内
+ * （详情弹窗不再有第二个重命名入口），经 datalist 可选可输（输入即过滤）。
+ */
+const RENAME_PRESET_TARGETS = ["lua", "json", "msgpack.bin", "xml", "js"] as const;
+
+/** 预设 datalist 的共享 id（单类型/矩阵各字段同候选）。 */
+const RENAME_DATALIST_ID = "rename-presets";
+
+function renamePresetsOf(
+  matrix: readonly OutputMatrixRuleLike[],
+): { value: string; label: string }[] {
+  const sources =
+    matrix.length > 0
+      ? matrix
+          .map((rule) => rule.type)
+          .filter((type): type is string => typeof type === "string" && type !== "")
+      : ["bin"];
+  const seen = new Set<string>();
+  const presets: { value: string; label: string }[] = [];
+  for (const source of sources.length > 0 ? sources : ["bin"]) {
+    if (seen.has(source)) continue;
+    seen.add(source);
+    for (const target of RENAME_PRESET_TARGETS) {
+      presets.push({
+        value: `/\\.${source}$/.${target}/`,
+        label: `.${source}后缀 => .${target}`,
+      });
+    }
+  }
+  return presets;
+}
+
+/**
  * 矩阵模式判定：与 backend domain/selection.ts isMatrixMode 同规则——
  * 规则多于一条，或唯一规则带 tags/classes 限定（main.js:1333-1338）。
  * 前端只按此决定展示形态，矩阵语义（资格/计划）由后端判定。
@@ -54,8 +88,8 @@ function FormatSelect({
 }) {
   const known = (OUTPUT_FORMATS as readonly string[]).includes(value);
   return (
-    <label className="select-field">
-      {label}
+    <label className="select-field select-field--inline">
+      <span>{label}</span>
       <select disabled={disabled} value={value} onChange={(event) => onCommit(event.target.value)}>
         {(allowUnset || value === "") && <option value="">（默认）</option>}
         {OUTPUT_FORMATS.map((format) => (
@@ -85,7 +119,8 @@ function initialMatrix(effective: EffectiveSettingsLike): OutputMatrixRuleLike[]
  * 输出矩阵编辑器（F07，P4-04b）：单类型模式编辑全局 type/rename/outputDir；
  * 矩阵模式逐规则编辑 type/rename/outputDir/tags/classes，任何变更整体提交
  * updateSettings({matrix})。删除到 ≤1 条且无 tag/class 时自然回单类型模式
- * （矩阵语义由后端判定，前端如实提交）。
+ * （矩阵语义由后端判定，前端如实提交）。重命名是全 GUI 唯一入口
+ * （2026-09-26 四轮：input+datalist 可选可输、预设按源后缀推导）。
  */
 export function OutputMatrixEditor() {
   const settings = useSessionStore((state) => state.snapshot?.settings);
@@ -96,6 +131,7 @@ export function OutputMatrixEditor() {
   const disabled = effective === null || BUSY_STATES.has(runState);
   const matrix = effective?.matrix ?? [];
   const matrixMode = isMatrixModeLocal(matrix);
+  const renamePresets = renamePresetsOf(matrix);
 
   const submitMatrix = (next: OutputMatrixRuleLike[]) => {
     void updateSettings({ matrix: next });
@@ -103,9 +139,16 @@ export function OutputMatrixEditor() {
 
   return (
     <details className="panel output-matrix collapsible" aria-label="输出矩阵">
-      <summary className="panel-title collapsible-summary">输出矩阵</summary>
+      <summary className="panel-title collapsible-summary">输出矩阵与重命名</summary>
+      <datalist id={RENAME_DATALIST_ID}>
+        {renamePresets.map((preset) => (
+          <option key={preset.value} value={preset.value}>
+            {preset.label}
+          </option>
+        ))}
+      </datalist>
       {!matrixMode && effective !== null && (
-        <div className="form-grid">
+        <div className="detail-grid">
           <FormatSelect
             label="输出格式"
             value={effective.type}
@@ -117,6 +160,8 @@ export function OutputMatrixEditor() {
             label="重命名（正则）"
             value={effective.rename}
             disabled={disabled}
+            mono
+            datalistId={RENAME_DATALIST_ID}
             placeholder="/\.bin$/.lua/"
             onCommit={(value) => void updateSettings({ rename: value })}
           />
@@ -124,6 +169,8 @@ export function OutputMatrixEditor() {
             label="输出目录（output_dir）"
             value={effective.outputDir}
             disabled={disabled}
+            mono
+            spanFull
             onCommit={(value) => void updateSettings({ outputDir: value })}
           />
         </div>
@@ -134,7 +181,7 @@ export function OutputMatrixEditor() {
             // 规则无自然身份且按位置编辑（提交走后端往返）；内容 key 会在每次提交后重挂载整行丢失焦点，位置 key 是有意选择。
             // biome-ignore lint/suspicious/noArrayIndexKey: 矩阵规则为位置语义的有序列表，无稳定业务 id
             <li key={index} className="matrix-rule" aria-label={`输出规则 ${index + 1}`}>
-              <div className="form-grid">
+              <div className="detail-grid">
                 <FormatSelect
                   label="输出格式"
                   value={rule.type ?? ""}
@@ -150,6 +197,9 @@ export function OutputMatrixEditor() {
                   label="重命名（正则）"
                   value={rule.rename ?? ""}
                   disabled={disabled}
+                  mono
+                  datalistId={RENAME_DATALIST_ID}
+                  placeholder="/\.bin$/.lua/"
                   onCommit={(value) =>
                     submitMatrix(
                       matrix.map((entry, i) => (i === index ? { ...entry, rename: value } : entry)),
@@ -160,6 +210,8 @@ export function OutputMatrixEditor() {
                   label="输出目录（output_dir）"
                   value={rule.outputDir ?? ""}
                   disabled={disabled}
+                  mono
+                  spanFull
                   onCommit={(value) =>
                     submitMatrix(
                       matrix.map((entry, i) =>

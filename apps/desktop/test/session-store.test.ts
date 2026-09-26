@@ -39,9 +39,9 @@ function itemNode(id: number, title: string, extra: Partial<TreeNodeSnap> = {}):
 }
 
 /** 夹具：含 selected / partsel / unselectable / 空分类 / 展开标记。 */
-function makeSnapshot(): BackendSnapshot {
+function makeSnapshot(state = "ready"): BackendSnapshot {
   return {
-    state: "ready",
+    state: state as BackendSnapshot["state"],
     runSeq: 0,
     config: { path: "D:/conf/convert_list.xml" },
     tree: {
@@ -284,6 +284,46 @@ describe("session store (P4-03)", () => {
     const state = useSessionStore.getState();
     expect(state.connection).toBe("degraded");
     expect(state.lastError).toContain("channel EOF");
+  });
+
+  // 2026-09-26 四轮：加载配置/开始转换即重置运行日志显示面（同首次启动）。
+  it("loadConfig 成功后日志窗口清空且不再重拉历史（保留 seq 水位）", async () => {
+    await loadFixture();
+    // 先注入带 seq 的后端事件（推进水位）与本地行，模拟旧会话累积的日志。
+    useSessionStore.getState().recordBackendEvent({
+      kind: "event",
+      payload: { type: "log", entry: { message: "旧后端日志", level: "info", seq: 5 } },
+    });
+    useSessionStore.getState().appendLocalLog("旧会话的日志行", "info");
+    routeRpc({ loadConfig: () => makeSnapshot() });
+    await expect(useSessionStore.getState().loadConfig("D:/conf/other.xml")).resolves.toBe(true);
+    const logs = useSessionStore.getState().logs;
+    expect(logs.entries).toHaveLength(0);
+    expect(logs.initialized).toBe(true);
+    expect(logs.noMoreOlder).toBe(true);
+    // 水位保留：旧 seq 的事件不会灌回新窗口，新 seq 正常追加。
+    useSessionStore.getState().recordBackendEvent({
+      kind: "event",
+      payload: { type: "log", entry: { message: "旧事件", level: "info", seq: 5 } },
+    });
+    expect(useSessionStore.getState().logs.entries).toHaveLength(0);
+    useSessionStore.getState().recordBackendEvent({
+      kind: "event",
+      payload: { type: "log", entry: { message: "新会话日志", level: "info", seq: 6 } },
+    });
+    expect(useSessionStore.getState().logs.entries).toHaveLength(1);
+  });
+
+  it("startRun 成功后日志窗口清空（运行从干净日志追加）", async () => {
+    await loadFixture();
+    useSessionStore.getState().appendLocalLog("加载期的诊断行", "notice");
+    routeRpc({
+      run: () => ({ runSeq: 1 }),
+      getSnapshot: () => makeSnapshot("before_hooks"),
+    });
+    await expect(useSessionStore.getState().startRun()).resolves.toBe(true);
+    expect(useSessionStore.getState().logs.entries).toHaveLength(0);
+    expect(useSessionStore.getState().logs.initialized).toBe(true);
   });
 
   it("search/toggleExpanded 只改 UI 状态", async () => {

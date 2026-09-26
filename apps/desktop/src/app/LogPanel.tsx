@@ -98,10 +98,11 @@ export function LogPanel() {
   const virtualizer = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => LOG_ROW_HEIGHT,
+    // 滚动模式：单行不折行，固定行高；换行模式：初始按两行估算，行元素经
+    // measureElement 按实际折行数动态测高（2026-09-26 四轮：固定估算高度会
+    // 让长行溢出行框互相重叠）。
+    estimateSize: () => (wrap ? LOG_ROW_HEIGHT * 2 : LOG_ROW_HEIGHT),
     overscan: 16,
-    // 换行模式按容器宽度估算行高（每行~44 个等宽字符）。
-    ...(wrap ? { estimateSize: () => LOG_ROW_HEIGHT * 2 } : {}),
     // 首帧/无 ResizeObserver 环境（SSR、jsdom）的种子视口；真实 WebView 由
     // ResizeObserver 立即校正。
     initialRect: { width: 800, height: LOG_VIEWPORT_MIN_HEIGHT + 140 },
@@ -204,6 +205,7 @@ export function LogPanel() {
               return (
                 <div
                   key={entry?.localId ?? item.index}
+                  ref={wrap ? virtualizer.measureElement : undefined}
                   data-index={item.index}
                   className="log-row-wrapper"
                   style={{

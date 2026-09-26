@@ -312,6 +312,19 @@ function applyStateChanges(
 
 const initialPreview = (): PreviewState => ({ status: "idle", result: null, error: null });
 
+/** 日志显示面重置（2026-09-26 四轮：加载配置/开始转换后同首次启动）。
+ *  保留 seq 水位（旧事件不灌回）与容量；initialized=true 防止重拉历史。 */
+const resetLogWindow = (logs: LogWindowState): LogWindowState => ({
+  entries: [],
+  initialized: true,
+  backendDroppedCount: 0,
+  localDroppedCount: 0,
+  maxSeq: logs.maxSeq,
+  loadingOlder: false,
+  noMoreOlder: true,
+  windowCapacity: logs.windowCapacity,
+});
+
 /** run_end 摘要防御性窄化（backend 序列化漂移由 backend 测试拦截；畸形不崩溃）。 */
 function parseRunSummary(value: unknown): RunSummaryLike | null {
   if (typeof value !== "object" || value === null) {
@@ -469,6 +482,10 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
                 collectExpandedKeys(snapshot.tree?.nodes ?? [], keys);
                 return keys;
               })(),
+              // 2026-09-26 四轮：加载新配置即重置运行日志显示面（同首次启动）——
+              // 清空窗口、不再重拉历史（initialized=true），保留 seq 水位防旧
+              // 事件灌回；后续新会话日志经事件流继续追加。
+              logs: resetLogWindow(state.logs),
             }
           : {}),
       };
@@ -584,8 +601,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       try {
         await backendRpc<{ runSeq: number }>("run");
         if (epoch !== sessionEpoch) return false;
-        // 新运行开始：上次终态记录与取消标记失效（run_end 只针对当前运行）。
-        set({ lastRun: null, pendingEndPhase: null, cancelRequested: false });
+        // 新运行开始：上次终态记录与取消标记失效（run_end 只针对当前运行）；
+        // 运行日志显示面重置（2026-09-26 四轮：每次开始转换从干净日志追加）。
+        set((state) => ({
+          lastRun: null,
+          pendingEndPhase: null,
+          cancelRequested: false,
+          logs: resetLogWindow(state.logs),
+        }));
         // 状态权威同步（runConversion 首个 await 前已迁移 before_hooks）。
         await get().refreshSnapshot();
         return true;

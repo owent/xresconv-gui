@@ -8,13 +8,13 @@ import {
 import { collectFolderKeys } from "./ConversionTree";
 import { type RunRecord, useSessionStore } from "./session-store";
 
-/** 预览任务展示上限（有界展示；超出仅给总数）。 */
-const PREVIEW_TASK_LIMIT = 200;
+/** 预览任务写入运行日志的上限（有界输出；超出仅给总数）。 */
+const PREVIEW_TASK_LOG_LIMIT = 50;
 
 /** 预览/开始禁用的繁忙状态（加载中 + 活动运行三态）。 */
 const BUSY_STATES = new Set(["loading", "before_hooks", "converting", "after_hooks"]);
 
-/** 状态→语义色（2026-09-26 紧凑改版：状态用颜色表达结果）。 */
+/** 状态→语义色（状态用实底色章表达）。 */
 const STATE_TONES: Record<string, string> = {
   idle: "muted",
   ready: "info",
@@ -110,11 +110,13 @@ function describeRun(run: RunRecord): { tone: "ok" | "error" | "info"; lines: st
 }
 
 /**
- * 运行控制与摘要（F08）：按钮组对照旧版 conv_list_internal_btn_group 顺序
- * （全部选中/全部取消/全部展开/全部收起/开始转换/重置），新增能力（预览/取消）
- * 排在其间不改变原按钮语义；预览结果收纳为折叠区（旧版无此面板，不占主界面）。
- * 开始/取消/重置门禁由后端状态机决定（run 允许自 ready/终态；cancel 仅活动
- * 运行且幂等；reset 先取消等清理再重新武装）。结果区只显示有证据的信息。
+ * 运行控制与摘要（F08）：按钮组对照旧版顺序（全部选中/全部取消/全部展开/
+ * 全部收起/预览/取消），“开始转换”与“重置”为主操作（特殊色、加大）且
+ * “开始转换”固定最右（2026-09-26 四轮）。
+ * 预览结果只写入运行日志（本地证据行），不再占独立结果区。
+ * 开始/取消门禁由后端状态机决定；重置对齐 backend 语义——任意已加载状态可调
+ * （活动运行先取消等回收；ready 下为幂等清理。此前前端比后端更严，导致按钮
+ * 在常见 ready 状态长期灰置）。
  */
 export function RunControls() {
   const snapshot = useSessionStore((state) => state.snapshot);
@@ -139,18 +141,62 @@ export function RunControls() {
   const canPreview = hasConfig && !BUSY_STATES.has(state ?? "") && preview.status !== "loading";
   const canStart = hasConfig && (state === "ready" || terminal) && !runStarting;
   const canCancel = active;
-  const canReset = (active || terminal) && !resetting;
+  // backend session.reset 无状态门禁（终态重新武装；ready 下幂等清理）。
+  // 仅 loading（配置加载中转态）禁用。
+  const canReset = hasConfig && state !== "loading" && !resetting;
   const treeOpsDisabled = !hasConfig;
   const stateText = state === null ? "未加载配置" : (STATE_LABELS[state] ?? state);
 
-  const result = preview.status === "ok" ? preview.result : null;
-  const shownTasks = result?.plan.tasks.slice(0, PREVIEW_TASK_LIMIT) ?? [];
   const runResult = lastRun === null ? null : describeRun(lastRun);
 
   const expandAll = () => {
     const keys = new Set<TreeNodeKey>();
     collectFolderKeys(snapshot?.tree?.nodes ?? [], keys);
     setExpandedKeys(keys);
+  };
+
+  const onPreview = () => {
+    void runPreview().then(() => {
+      const preview = useSessionStore.getState().preview;
+      if (preview.result === null) {
+        // 预览失败也只进日志（2026-09-26 四轮：结果统一输出到运行日志框）。
+        const message = preview.error ?? "预览失败";
+        appendLocalLog(
+          `预览失败：${message}${
+            message.startsWith("XRESLOADER_NOT_FOUND")
+              ? "（请在“详细配置”中填写有效的转表工具 xresloader JAR 路径）"
+              : ""
+          }`,
+          "error",
+        );
+        return;
+      }
+      const result = preview.result;
+      appendLocalLog(
+        `预览：${String(result.plan.taskCount)} 个任务（选中 ${String(
+          result.selectionCount,
+        )} 条目）；执行目录 ${result.plan.workDir}；转表工具 ${result.plan.xresloaderPath}`,
+        "notice",
+      );
+      for (const conflict of result.conflicts) {
+        appendLocalLog(
+          `预览发现重复输出：${conflict.items.join("、")} 以相同类型/目录/重命名被重复发射（输出目录 ${
+            conflict.outputDir || "（默认）"
+          } / 重命名 ${conflict.rename || "（无）"}）`,
+          "warning",
+        );
+      }
+      const shown = result.plan.tasks.slice(0, PREVIEW_TASK_LOG_LIMIT);
+      for (const task of shown) {
+        appendLocalLog(`预览任务：${task.display}`, "info");
+      }
+      if (result.plan.taskCount > shown.length) {
+        appendLocalLog(
+          `预览任务仅列出前 ${String(shown.length)} 条，共 ${String(result.plan.taskCount)} 条`,
+          "info",
+        );
+      }
+    });
   };
 
   return (
@@ -170,49 +216,25 @@ export function RunControls() {
           <Button isDisabled={treeOpsDisabled} onPress={() => setExpandedKeys(new Set())}>
             全部收起
           </Button>
-          <Button
-            isDisabled={!canPreview}
-            onPress={() => {
-              void runPreview().then((ok) => {
-                if (!ok) return;
-                // 2026-09-26 用户需求：预览结果同步写入运行日志（本地证据行）。
-                const result = useSessionStore.getState().preview.result;
-                if (result === null) return;
-                appendLocalLog(
-                  `预览：${String(result.plan.taskCount)} 个任务（选中 ${String(
-                    result.selectionCount,
-                  )} 条目）；执行目录 ${result.plan.workDir}；转表工具 ${result.plan.xresloaderPath}`,
-                  "notice",
-                );
-                for (const conflict of result.conflicts) {
-                  appendLocalLog(
-                    `预览冲突：输出目录 ${conflict.outputDir || "（默认）"} / 重命名 ${
-                      conflict.rename || "（无）"
-                    }：${conflict.items.join("、")}`,
-                    "warning",
-                  );
-                }
-              });
-            }}
-          >
+          <Button isDisabled={!canPreview} onPress={onPreview}>
             预览
-          </Button>
-          <Button
-            className="btn-primary btn-run"
-            isDisabled={!canStart}
-            onPress={() => void startRun()}
-          >
-            开始转换
           </Button>
           <Button isDisabled={!canCancel} onPress={() => void cancelRun()}>
             取消
           </Button>
           <Button
-            className="btn-success"
+            className="btn-success btn-run"
             isDisabled={!canReset}
             onPress={() => void resetSession()}
           >
             重置
+          </Button>
+          <Button
+            className="btn-primary btn-run btn-run--primary"
+            isDisabled={!canStart}
+            onPress={() => void startRun()}
+          >
+            开始转换
           </Button>
         </div>
         <p role="status" aria-label="运行状态" className="run-summary run-summary--inline">
@@ -231,55 +253,6 @@ export function RunControls() {
           )}
         </p>
       </fieldset>
-      {preview.status === "loading" && <p className="empty-state">预览生成中…</p>}
-      {preview.status === "error" && (
-        <p role="alert" className="preview-error">
-          预览失败：{preview.error}
-          {preview.error?.startsWith("XRESLOADER_NOT_FOUND") &&
-            "（请在“转换参数”中展开详细配置，填写有效的转表工具 xresloader JAR 路径）"}
-        </p>
-      )}
-      {result !== null && (
-        <details className="preview-details">
-          <summary>
-            预览结果：{result.plan.taskCount} 个任务
-            {result.conflicts.length > 0 ? ` · ${result.conflicts.length} 组输出冲突` : ""}
-          </summary>
-          <section className="preview-panel" aria-label="预览结果">
-            <p className="preview-summary">
-              任务数：{result.plan.taskCount}；选中条目：{result.selectionCount}；执行目录：
-              {result.plan.workDir}；转表工具：{result.plan.xresloaderPath}
-            </p>
-            {result.conflicts.length > 0 && (
-              <div className="preview-conflicts" role="alert">
-                <h3 className="preview-conflicts-title">输出冲突（同输出目录 + 重命名）</h3>
-                <ul>
-                  {result.conflicts.map((conflict) => (
-                    <li key={`${conflict.outputDir}${conflict.rename}`}>
-                      输出目录 {conflict.outputDir || "（默认）"} / 重命名{" "}
-                      {conflict.rename || "（无）"}：{conflict.items.join("、")}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <ol className="preview-tasks">
-              {shownTasks.map((task, index) => (
-                // 预览结果是只读快照，列表不重排；display 可重复，无稳定业务 id。
-                // biome-ignore lint/suspicious/noArrayIndexKey: 预览任务为一次性只读快照的有序列表
-                <li key={index}>
-                  <code>{task.display}</code>
-                </li>
-              ))}
-            </ol>
-            {result.plan.taskCount > shownTasks.length && (
-              <p className="empty-state">
-                仅显示前 {shownTasks.length} 条，共 {result.plan.taskCount} 条
-              </p>
-            )}
-          </section>
-        </details>
-      )}
     </div>
   );
 }

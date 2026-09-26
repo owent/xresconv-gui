@@ -48,6 +48,8 @@ export interface ConversionTask {
   argv: string[];
   /** 来源 item 的 name（模型无独立 id，main.js:1612 的 id 为 GUI 运行时身份）。 */
   itemKey?: string;
+  /** 本任务生效的输出类型（-t 值；缺省时未发 -t）。冲突预览分组用（P4-04a）。 */
+  type?: string;
   /** 本任务生效的输出目录（-o 值；缺省时未发 -o）。 */
   outputDir?: string;
   /** 本任务生效的 rename 规则（-n 值；缺省时未发 -n）。冲突预览分组用（P4-04a）。 */
@@ -327,6 +329,7 @@ export function buildConversionPlan(
       tasks.push({
         argv,
         itemKey: item.name,
+        type: rule.type,
         outputDir: rule.outputDir,
         rename: rule.rename,
         display: display.join(" "),

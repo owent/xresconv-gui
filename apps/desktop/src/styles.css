@@ -1,5 +1,16 @@
 @import "./styles/tokens.css";
 
+/*
+ * 全局 border-box（2026-09-26 四轮）：此前缺省 content-box，显式 width:100%
+ * 的面板/输入框会把 padding+border 挤出容器——左树面板因此超出网格轨道
+ * 26px 与右栏重叠 14px、设置弹窗字体输入与字号输入重叠 10px、树底溢出视口。
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html,
 body,
 #root {
@@ -24,6 +35,43 @@ button,
 .form-grid {
   font-family: var(--font-ui-family);
   font-size: var(--font-ui-size);
+}
+
+/* 2026-09-26：表单控件统一现代化（输入/选择/搜索） */
+input[type="text"],
+input[type="search"],
+input[type="number"],
+input:not([type]),
+select,
+textarea,
+.react-aria-TextField .react-aria-Input {
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+  min-width: 0;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--color-accent);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+input[type="checkbox"] {
+  accent-color: var(--color-accent);
 }
 
 /* 骨架布局（对照旧版 card-group；2026-09-26 三轮改版移除顶部状态条，
@@ -84,19 +132,33 @@ button,
   overflow: auto;
 }
 
-.react-aria-TreeItem {
+/* 树条目（RAC TreeItem 自定义 className 会替换默认 react-aria-TreeItem 类，
+ * 全部选择器直击 .tree-node）。层级缩进由渲染层传入的 level 内联
+ * paddingLeft 实现（虚拟化树 DOM 平铺，实测无嵌套，CSS 后代选择器不可用）。
+ * 分类行加粗与叶子区分层级语义（2026-09-26 四轮）。 */
+.tree-node {
   outline: none;
   border-radius: var(--radius-1);
   padding: 1px var(--space-1);
 }
 
-.react-aria-TreeItem[data-focused] {
+.tree-node[data-focused] {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: -2px;
 }
 
-.react-aria-TreeItem[data-hovered] {
+.tree-node[data-hovered] {
   background: var(--color-bg);
+}
+
+.tree-node-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-node--folder .tree-node-title {
+  font-weight: 600;
 }
 
 .tree-node-row {
@@ -117,12 +179,6 @@ button,
 .tree-chevron-spacer {
   display: inline-block;
   width: 1.25rem;
-}
-
-.tree-node-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .tree-node-hint {
@@ -187,29 +243,6 @@ button,
   flex-direction: row;
 }
 
-/* 预览结果折叠（新增辅助能力，不占主界面） */
-.preview-details {
-  font-size: var(--font-size-sm);
-}
-
-.preview-details > summary {
-  cursor: pointer;
-  color: var(--color-text-muted);
-}
-
-.preview-panel {
-  border-top: 1px solid var(--color-border);
-  padding-top: var(--space-2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  overflow: auto;
-}
-.preview-details[open] .preview-panel {
-  max-height: 30vh;
-  overflow: auto;
-}
-
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -264,8 +297,14 @@ details.collapsible > *:not(summary) {
   gap: var(--space-1);
 }
 
-/* 按钮体系（现代化）：默认次要；.btn-primary 主操作；transition 反馈 */
-.react-aria-Button {
+/*
+ * 按钮体系（2026-09-26 四轮重写）：RAC 传自定义 className 会“替换”默认
+ * react-aria-Button 类（与复选框同坑），凡带 .btn-* 变体的按钮都没拿到
+ * 基类样式——主操作按钮自二轮起实际是浏览器原生灰。全站按钮均为 RAC
+ * <Button>，故基样式落在 button 元素级、变体直击 .btn-* 类，不再依赖
+ * react-aria-Button 类名同时存在。
+ */
+button {
   font: inherit;
   font-weight: 500;
   color: var(--color-text);
@@ -280,63 +319,63 @@ details.collapsible > *:not(summary) {
     box-shadow var(--transition-fast);
 }
 
-.react-aria-Button[data-hovered] {
+button[data-hovered] {
   background: var(--color-panel-bg-hover);
   border-color: var(--color-accent);
 }
 
-.react-aria-Button[data-pressed] {
+button[data-pressed] {
   background: var(--color-accent-soft);
   border-color: var(--color-accent);
 }
 
-.react-aria-Button[data-focus-visible] {
+button[data-focus-visible] {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
 }
 
-.react-aria-Button.btn-primary {
+button.btn-primary {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--color-accent-contrast);
 }
 
-.react-aria-Button.btn-primary[data-hovered] {
+button.btn-primary[data-hovered] {
   background: var(--color-accent-hover);
   border-color: var(--color-accent-hover);
 }
 
-.react-aria-Button.btn-primary[data-pressed] {
+button.btn-primary[data-pressed] {
   background: var(--color-accent-hover);
 }
 
-.react-aria-Button.btn-success {
+button.btn-success {
   background: var(--color-success);
   border-color: var(--color-success);
-  color: #ffffff;
+  color: var(--color-success-ink);
 }
 
-.react-aria-Button.btn-success[data-hovered] {
+button.btn-success[data-hovered] {
   filter: brightness(1.1);
 }
 
-.react-aria-Button.btn-accent {
+button.btn-accent {
   background: var(--color-accent-soft);
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
 
-.react-aria-Button.btn-accent[data-hovered] {
+button.btn-accent[data-hovered] {
   background: var(--color-accent);
   color: var(--color-accent-contrast);
 }
 
-.react-aria-Button.btn-ghost {
+button.btn-ghost {
   border-color: transparent;
   background: transparent;
 }
 
-.react-aria-Button.btn-ghost[data-hovered] {
+button.btn-ghost[data-hovered] {
   background: var(--color-accent-soft);
   border-color: transparent;
 }
@@ -345,8 +384,14 @@ details.collapsible > *:not(summary) {
   opacity: 0.55;
 }
 
-.react-aria-Button[data-disabled] {
+/* 禁用按钮不用透明度（axe color-contrast 会按合成色判定不足 4.5:1）：
+ * 正常不透明 + 柔和配色区分可用性。 */
+button[data-disabled] {
+  color: var(--color-disabled-ink);
+  background: var(--color-bg-inset);
+  border-color: var(--color-border);
   cursor: not-allowed;
+  opacity: 1;
 }
 
 .hook-list,
@@ -413,27 +458,30 @@ details.collapsible > *:not(summary) {
 
 .react-aria-Checkbox[data-selected] .checkbox-mark::after,
 .tree-checkbox[data-selected] .checkbox-mark::after {
-  content: "";
+  content: "✓";
   position: absolute;
-  left: 3px;
-  top: 50%;
-  width: 4px;
-  height: 8px;
-  margin-top: -5px;
-  border: solid var(--color-accent-ink);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent-ink);
 }
 
 .react-aria-Checkbox[data-indeterminate] .checkbox-mark::after,
 .tree-checkbox[data-indeterminate] .checkbox-mark::after {
-  content: "";
+  content: "–";
   position: absolute;
-  left: 3px;
-  top: 50%;
-  width: 7px;
-  height: 0;
-  border-top: 2px solid var(--color-accent-ink);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-accent-ink);
 }
 
 .react-aria-Checkbox[data-disabled],
@@ -469,8 +517,8 @@ details.collapsible > *:not(summary) {
   border: none;
 }
 
-/* 按钮一行（legend 视觉隐藏）；主操作“开始转换”加大加粗（2026-09-26 反馈：
-   暗色下主要按钮不明显）。 */
+/* 按钮一行（legend 视觉隐藏）；“开始转换”/“重置”主操作（特殊色+加大）
+ * 推到行尾，“开始转换”固定最右（2026-09-26 四轮）。 */
 .run-button-row {
   display: flex;
   flex-wrap: wrap;
@@ -490,10 +538,19 @@ details.collapsible > *:not(summary) {
   border: 0;
 }
 
-.react-aria-Button.btn-run {
+button.btn-run {
   padding: var(--space-2) var(--space-5);
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+/* 行尾主操作组：重置与开始转换相邻靠右。 */
+.run-button-row .btn-run {
+  margin-left: auto;
+}
+
+.run-button-row .btn-run + .btn-run {
+  margin-left: 0;
 }
 
 .run-summary {
@@ -539,12 +596,12 @@ details.collapsible > *:not(summary) {
   font-size: var(--font-log-size);
 }
 
-/* 2026-09-26：标题与工具栏同行紧凑（非粗、非标题字体） */
+/* 「运行日志」标题样式（2026-09-26 四轮：加粗加大，但不换行、与工具栏同排）。 */
 .log-title {
-  font-weight: 400;
-  font-size: inherit;
+  font-weight: 700;
+  font-size: var(--font-size-lg);
   color: var(--color-text);
-  margin-right: var(--space-1);
+  margin-right: var(--space-2);
   white-space: nowrap;
 }
 
@@ -585,17 +642,22 @@ details.collapsible > *:not(summary) {
   margin-bottom: var(--space-1);
 }
 
+/*
+ * 日志行（2026-09-26 四轮）：默认横向滚动模式——单行不折行（pre），行内容
+ * 超宽时撑出 .log-list 的横向滚动条（此前 pre-wrap 会折行，滚动条永远不出现；
+ * wrapper 不得裁剪溢出）。换行模式由 --wrap 覆盖，行高交给 measureElement。
+ */
 .log-row-wrapper {
   height: 22px;
-  overflow: hidden;
 }
 
 .log-row {
   display: flex;
   gap: var(--space-1);
-  white-space: pre-wrap;
-  word-break: break-all;
+  white-space: pre;
   line-height: 22px;
+  width: max-content;
+  min-width: 100%;
 }
 
 .log-module {
@@ -706,15 +768,16 @@ details.collapsible > *:not(summary) {
 }
 
 /* 详情弹窗（详细配置/显示设置共用 confirm-modal 骨架）：
-   2026-09-26 三轮改版——分区标题 + 两列网格 + 通栏等宽路径 + 底部固定操作行。 */
+   2026-09-26 四轮——更宽（展示更多内容）、分区标题、长字段通栏等宽、
+   短字段标签+控件同行紧凑、底部固定操作行。 */
 .detail-modal {
-  width: min(56rem, 92vw);
+  width: min(72rem, 94vw);
   max-height: 86vh;
 }
 
 .detail-overlay {
   align-items: start;
-  padding-top: 6vh;
+  padding-top: 5vh;
 }
 
 .detail-title {
@@ -746,9 +809,43 @@ details.collapsible > *:not(summary) {
   gap: var(--space-3);
 }
 
+/* 短字段行（数据版本/协议类型/输出类型）：标签与控件同行紧凑排布。 */
+.detail-grid--row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 /* 等宽机器值（路径/正则/多值列表）与通栏字段 */
 .settings-field--wide {
   grid-column: 1 / -1;
+}
+
+/* 行内字段：标签定宽、控件弹性填充 */
+.settings-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-field--inline > label,
+.select-field--inline > span {
+  flex: none;
+  white-space: nowrap;
+}
+
+.settings-field--inline .react-aria-Input,
+.select-field--inline select {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 6rem;
+}
+
+.select-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .settings-field--mono .react-aria-Input,
@@ -776,10 +873,13 @@ details.collapsible > *:not(summary) {
   background: transparent;
 }
 
-/* 日志换行模式 */
+/* 日志换行模式：折行 + 行高交给 measureElement（虚拟器动态测高，不再固定
+ * 估算值——固定值会让长行溢出行框互相重叠）。 */
 .log-list--wrap .log-row {
   white-space: pre-wrap;
   word-break: break-all;
+  width: 100%;
+  min-width: 0;
   height: auto;
   min-height: 22px;
 }
@@ -789,9 +889,10 @@ details.collapsible > *:not(summary) {
   min-height: 22px;
 }
 
-/* 2026-09-26 三轮改版：显示设置弹窗（原状态条内样式已随组件移除） */
+/* 2026-09-26 三轮改版：显示设置弹窗（原状态条内样式已随组件移除）；
+   四轮加宽给字体候选输入留空间。 */
 .settings-modal {
-  width: min(44rem, 92vw);
+  width: min(48rem, 94vw);
 }
 
 .settings-title {
@@ -890,11 +991,17 @@ details.collapsible > *:not(summary) {
   outline-offset: 2px;
 }
 
-/* 字体分区行（带表头网格，列宽与行一致） */
-.font-grid-head {
+/* 字体分区行（带表头网格，列宽与行一致；2026-09-26 四轮：弹性列宽 +
+ * 窄窗折行，杜绝输入框互相重叠/溢出）。 */
+.font-grid-head,
+.font-row {
   display: grid;
-  grid-template-columns: minmax(6rem, auto) minmax(12rem, 1fr) 5.5rem;
+  grid-template-columns: minmax(5rem, auto) minmax(10rem, 1fr) minmax(4.5rem, max-content);
+  align-items: center;
   gap: var(--space-2);
+}
+
+.font-grid-head {
   margin-bottom: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
@@ -903,13 +1010,6 @@ details.collapsible > *:not(summary) {
 .font-settings {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-}
-
-.font-row {
-  display: grid;
-  grid-template-columns: minmax(6rem, auto) minmax(12rem, 1fr) 5.5rem;
-  align-items: center;
   gap: var(--space-2);
 }
 
@@ -925,43 +1025,6 @@ details.collapsible > *:not(summary) {
 
 .font-size-input {
   width: 100%;
-}
-
-/* 2026-09-26：表单控件统一现代化（输入/选择/搜索） */
-input[type="text"],
-input[type="search"],
-input[type="number"],
-input:not([type]),
-select,
-textarea,
-.react-aria-TextField .react-aria-Input {
-  font: inherit;
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-1);
-  padding: var(--space-1) var(--space-2);
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
-  min-width: 0;
-}
-
-input:hover,
-select:hover,
-textarea:hover {
-  border-color: var(--color-accent);
-}
-
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 1px;
-}
-
-input[type="checkbox"] {
-  accent-color: var(--color-accent);
 }
 
 /* P4-04b：转换参数表单 / 输出矩阵 / 预览 / 本地确认对话框 */
@@ -1005,43 +1068,7 @@ input[type="checkbox"] {
   gap: var(--space-2);
 }
 
-.preview-summary {
-  margin: 0;
-  font-size: var(--font-size-sm);
-}
-
-.preview-error {
-  margin: 0;
-  color: var(--color-danger);
-  font-size: var(--font-size-sm);
-}
-
-.preview-conflicts {
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-1);
-  padding: var(--space-2);
-  color: var(--color-danger);
-}
-
-.preview-conflicts-title {
-  margin: 0 0 var(--space-1);
-  font-size: var(--font-size-base);
-}
-
-.preview-conflicts ul {
-  margin: 0;
-  padding-left: var(--space-4);
-}
-
-.preview-tasks {
-  margin: 0;
-  padding-left: var(--space-4);
-  font-size: var(--font-size-sm);
-}
-
-.preview-tasks code {
-  font-family: var(--font-log-family);
-}
+/* 预览结果/冲突自 2026-09-26 四轮起只写入运行日志（RunControls 不再有内联结果区）。 */
 
 .confirm-overlay {
   position: fixed;

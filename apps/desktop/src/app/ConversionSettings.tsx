@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import type { SettingsFields } from "../adapters/backend";
 import { pickXmlConfig } from "../adapters/tauri";
@@ -21,11 +21,6 @@ const OUTPUT_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: "ue-json", label: "UE资源Json格式" },
   { value: "ue-csv", label: "UE资源Csv格式" },
 ];
-/**
- * 重命名预设目标后缀（旧版 conv_list_rename_samples 的目标侧）；
- * 源后缀不固定——由当前配置的输出矩阵推导（缺省 .bin，见 renamePresetsOf）。
- */
-const RENAME_PRESET_TARGETS = ["lua", "json", "msgpack.bin", "xml", "js"] as const;
 /** 并发数 1..16（main.js:6-9 上限；>6 需本地确认，main.js:2611-2639）。 */
 const PARALLELISM_OPTIONS = Array.from({ length: 16 }, (_, index) => index + 1);
 const PARALLELISM_CONFIRM_THRESHOLD = 6;
@@ -41,49 +36,16 @@ function linesToList(text: string): string[] {
 }
 
 /**
- * 重命名预设：源后缀取当前配置输出矩阵的类型集合（未加载回退 .bin——旧版
- * 行为；2026-09-26 用户指示“根据载入的 xml 分析可能的后缀”），目标为旧版
- * 五预设目标侧。
- */
-function renamePresetsOf(config: Record<string, unknown> | null): {
-  value: string;
-  label: string;
-}[] {
-  const matrix = config?.outputMatrix;
-  const sources =
-    Array.isArray(matrix) && matrix.length > 0
-      ? matrix
-          .map((rule) => (rule as { type?: unknown })?.type)
-          .filter((type): type is string => typeof type === "string")
-      : ["bin"];
-  const seen = new Set<string>();
-  const presets: { value: string; label: string }[] = [];
-  for (const source of sources.length > 0 ? sources : ["bin"]) {
-    if (seen.has(source)) continue;
-    seen.add(source);
-    for (const target of RENAME_PRESET_TARGETS) {
-      presets.push({
-        value: `/\\.${source}$/.${target}/`,
-        label: `.${source}后缀 => .${target}`,
-      });
-    }
-  }
-  return presets;
-}
-
-/**
- * 转换参数区（F01/F06；2026-09-26 三轮改版）：
+ * 转换参数区（F01/F06；2026-09-26 四轮改版）：
  * - 常显仅文件行：转换列表文件（选择/路径/重载）+ 并发数 + “详情”与
- *   “⚙ 显示设置”按钮（同排，不另起行——2026-09-26 用户指示）。
- * - 详情弹窗分区呈现（工具与目录/数据与协议/输出重命名/条目详情/输出矩阵），
- *   路径与多值字段等宽字体、通栏展示，底部固定操作行。
- * - 输出重命名/协议类型/输出类型在“详情”弹窗内（不默认占主页面）；重命名为
- *   原生 input + datalist——焦点保持、可连续输入、下拉预设按已输入内容即时
- *   过滤、选预设即得正则、也可手输任意正则。
+ *   “⚙ 显示设置”按钮（同排）。
+ * - 详情弹窗重新分区排版（不拘泥旧版）：路径/多值字段通栏等宽、短字段
+ *   （数据版本/协议类型/输出类型）标签与控件同行紧凑；重命名不再在此出现
+ *   ——全 GUI 唯一入口在“输出矩阵与重命名”（datalist 可选可输，预设按
+ *   配置矩阵推导，2026-09-26 四轮去重复）。
  */
 export function ConversionSettings() {
   const settings = useSessionStore((state) => state.snapshot?.settings);
-  const config = useSessionStore((state) => state.snapshot?.config);
   const runState = useSessionStore((state) => state.snapshot?.state ?? "idle");
   const configPath = useSessionStore((state) => state.configPath);
   const loadConfig = useSessionStore((state) => state.loadConfig);
@@ -127,10 +89,6 @@ export function ConversionSettings() {
     typeOptions.push({ value: outputType, label: `未知类型: ${outputType}` });
   }
 
-  const renameValue = effective?.rename ?? "";
-  const renamePresets = useMemo(() => renamePresetsOf(config ?? null), [config]);
-  const datalistId = "rename-presets";
-
   return (
     <form
       className="panel conversion-settings"
@@ -153,8 +111,8 @@ export function ConversionSettings() {
         <Button onPress={() => void reloadConfig()} isDisabled={configPath === null}>
           重载配置
         </Button>
-        <label className="select-field compact">
-          并发数
+        <label className="select-field select-field--inline compact">
+          <span>并发数</span>
           <select
             disabled={disabled}
             value={parallelism}
@@ -188,14 +146,6 @@ export function ConversionSettings() {
       </div>
       {effective === null && <p className="empty-state">加载配置后可编辑转换参数。</p>}
 
-      <datalist id={datalistId}>
-        {renamePresets.map((preset) => (
-          <option key={preset.value} value={preset.value}>
-            {preset.label}
-          </option>
-        ))}
-      </datalist>
-
       <ModalOverlay
         className="confirm-overlay detail-overlay"
         isOpen={detailOpen}
@@ -225,28 +175,31 @@ export function ConversionSettings() {
                     value={effective?.workDir ?? ""}
                     disabled={disabled}
                     mono
+                    spanFull
                     onCommit={(value) => submit({ workDir: value })}
                   />
                   <DraftField
-                    label="输出目录"
+                    label="输出目录（output_dir）"
                     value={effective?.outputDir ?? ""}
                     disabled={disabled}
                     mono
+                    spanFull
                     onCommit={(value) => submit({ outputDir: value })}
                   />
                 </div>
               </section>
               <section className="detail-section" aria-label="数据与协议">
                 <h3 className="detail-section-title">数据与协议</h3>
-                <div className="detail-grid">
+                <div className="detail-grid detail-grid--row">
                   <DraftField
                     label="数据版本"
                     value={effective?.dataVersion ?? ""}
                     disabled={disabled}
+                    inline
                     onCommit={(value) => submit({ dataVersion: value })}
                   />
-                  <label className="select-field">
-                    协议类型
+                  <label className="select-field select-field--inline">
+                    <span>协议类型</span>
                     <select
                       disabled={disabled}
                       value={proto}
@@ -260,8 +213,8 @@ export function ConversionSettings() {
                       ))}
                     </select>
                   </label>
-                  <label className="select-field">
-                    输出类型
+                  <label className="select-field select-field--inline">
+                    <span>输出类型</span>
                     <select
                       disabled={disabled}
                       value={outputType}
@@ -275,6 +228,8 @@ export function ConversionSettings() {
                       ))}
                     </select>
                   </label>
+                </div>
+                <div className="detail-grid">
                   <DraftField
                     label="协议描述文件（一行一个）"
                     value={(effective?.protoFile ?? []).join("\n")}
@@ -295,38 +250,13 @@ export function ConversionSettings() {
                   />
                 </div>
               </section>
-              <section className="detail-section" aria-label="输出重命名">
-                <h3 className="detail-section-title">输出重命名</h3>
-                <div className="detail-grid">
-                  {/* 重命名：input+datalist（焦点保持/连续输入/预设过滤；选预设即得正则）。 */}
-                  <div className="settings-field settings-field--wide settings-field--mono">
-                    <label htmlFor="rename-input">输出重命名（正则，下拉选预设）</label>
-                    <input
-                      id="rename-input"
-                      list={datalistId}
-                      disabled={disabled}
-                      defaultValue={renameValue}
-                      key={renameValue}
-                      placeholder="/\.bin$/.lua/"
-                      onBlur={(event) => {
-                        const value = event.currentTarget.value.trim();
-                        if (value !== renameValue) {
-                          submit({ rename: value });
-                        }
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.currentTarget.blur();
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-              </section>
               <section className="detail-section detail-section--flat" aria-label="条目详情">
                 <ItemDetails />
               </section>
-              <section className="detail-section detail-section--flat" aria-label="输出矩阵">
+              <section
+                className="detail-section detail-section--flat"
+                aria-label="输出矩阵与重命名"
+              >
                 <OutputMatrixEditor />
               </section>
             </div>

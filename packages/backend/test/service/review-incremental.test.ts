@@ -165,16 +165,29 @@ it("does not merge distinct preview conflict tuples containing spaces", async ()
     await app.handleRpc("applyOps", {
       ops: [{ op: "select_all", v: app.snapshot().tree?.version }],
     });
+    // 2026-09-26 四轮修正后冲突=同条目被同 (type,outputDir,rename) 重复发射：
+    // 两组重复规则（键含空格）各产生一个冲突组，键编码不得把它们合并成一个。
     await app.handleRpc("updateSettings", {
       fields: {
         matrix: [
           { type: "lua", outputDir: "a b", rename: "c" },
+          { type: "lua", outputDir: "a b", rename: "c" },
+          { type: "json", outputDir: "a", rename: "b c" },
           { type: "json", outputDir: "a", rename: "b c" },
         ],
       },
     });
     const preview = (await app.handleRpc("preview")) as PreviewResult;
-    expect(preview.conflicts).toHaveLength(2);
+    // run-mirror 全选 2 条目 × 每组重复规则按条目各成一组 = 2×2；
+    // 键含空格的两组（"a b|c" 与 "a|b c"）不得互相合并。
+    expect(preview.conflicts).toHaveLength(4);
+    const dirs = preview.conflicts.map((conflict) => `${conflict.outputDir}|${conflict.rename}`);
+    expect(new Set(dirs).size).toBe(2);
+    expect(dirs).toContain("a b|c");
+    expect(dirs).toContain("a|b c");
+    for (const conflict of preview.conflicts) {
+      expect(conflict.items).toHaveLength(1);
+    }
   } finally {
     await app.dispose();
   }

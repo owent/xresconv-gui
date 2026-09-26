@@ -104,13 +104,13 @@ describe("RunControls 运行控制门禁（P4-06）", () => {
     mockedInvoke.mockReset();
   });
 
-  it("ready：预览/开始可用，取消/重置禁用", async () => {
+  it("ready：预览/开始/重置可用（重置对齐 backend 无状态门禁），取消禁用", async () => {
     await loadFixture();
     render(<RunControls />);
     expect(buttonEnabled("预览")).toBe(true);
     expect(buttonEnabled("开始转换")).toBe(true);
     expect(buttonEnabled("取消")).toBe(false);
-    expect(buttonEnabled("重置")).toBe(false);
+    expect(buttonEnabled("重置")).toBe(true);
   });
 
   it("运行中（before_hooks/converting/after_hooks）：取消/重置可用，开始/预览禁用", async () => {

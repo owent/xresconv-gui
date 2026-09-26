@@ -506,12 +506,16 @@ export class BackendRpcApp {
       }
       throw new RpcError("CONFIG_ERROR", formatUnknownError(err));
     }
-    // 输出冲突（UI04）：同 (outputDir, rename) 分组内 >1 任务。
+    // 输出冲突（UI04；2026-09-26 四轮修正）：真实冲突 = 同一条目以相同
+    // (type, outputDir, rename) 被重复发射（输出文件必相同）。不同条目共享
+    // 目录/重命名规则是正常形态——最终文件名由 xresloader 从各条目 scheme 的
+    // OutputFile 取（SchemeConf.getOutputFile），GUI 无法跨条目判重，只报告
+    // 可证明的重复发射（此前按 (outputDir, rename) 分组>1 误报一切多条目配置）。
     const groups = new Map<string, PreviewConflict & { count: number }>();
     for (const task of plan.tasks) {
       const outputDir = task.outputDir ?? "";
       const rename = task.rename ?? "";
-      const key = JSON.stringify([outputDir, rename]);
+      const key = JSON.stringify([task.itemKey ?? "", task.type ?? "", outputDir, rename]);
       let group = groups.get(key);
       if (group === undefined) {
         group = { outputDir, rename, items: [], count: 0 };

@@ -149,9 +149,9 @@ describe("display settings bootstrap (auto-load retry)", () => {
       { timeout: 5000 },
     );
 
-    // 日志里有等待提示（一次性），且没有任何 BACKEND_NOT_READY 错误行。
+    // 日志无任何 BACKEND_NOT_READY 错误行。重试期的“后端启动中”提示属旧会话
+    // 显示面——loadConfig 成功即被四轮新增的日志重置清掉（同首次启动）。
     const logText = screen.getByRole("log", { name: "日志列表" }).textContent ?? "";
-    expect(logText).toContain("后端启动中，正在自动加载上次转换列表");
     expect(logText).not.toContain("BACKEND_NOT_READY");
 
     // 主题从显示设置应用（模块级 bootstrap 不再被 StrictMode 取消）。

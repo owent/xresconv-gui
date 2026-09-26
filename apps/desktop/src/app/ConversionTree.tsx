@@ -79,15 +79,19 @@ export function collectFolderKeys(nodes: readonly TreeNodeSnap[], out: Set<TreeN
 /** 虚拟行高估计（ListLayout rowHeight；单行文本行）。 */
 const TREE_ROW_HEIGHT = 26;
 
+/** 每层级进缩进（px）；虚拟化树 DOM 是平铺行（实测无嵌套），层级只能渲染时传入。 */
+const TREE_LEVEL_INDENT_PX = 18;
+
 /** 单个树行（动态集合 render item）：子级经嵌套 Collection 延迟提供。 */
-function TreeNodeRow({ node }: { node: TreeNodeSnap }) {
+function TreeNodeRow({ node, level }: { node: TreeNodeSnap; level: number }) {
   const store = useSessionStore.getState;
   return (
     <TreeItem
       id={node.key}
       textValue={node.title}
       hasChildItems={node.children.length > 0}
-      className="tree-node"
+      className={node.children.length > 0 ? "tree-node tree-node--folder" : "tree-node"}
+      style={{ paddingLeft: `calc(var(--space-1) + ${String(level * TREE_LEVEL_INDENT_PX)}px)` }}
       onDoubleClick={(event) => {
         // 双击切换（旧版行为）；落在复选框/展开按钮上的双击由各自控件处理。
         if ((event.target as HTMLElement).closest("input, button") === null) {
@@ -143,7 +147,9 @@ function TreeNodeRow({ node }: { node: TreeNodeSnap }) {
         )}
       </TreeItemContent>
       {node.children.length > 0 && (
-        <Collection items={node.children}>{(child) => <TreeNodeRow node={child} />}</Collection>
+        <Collection items={node.children}>
+          {(child) => <TreeNodeRow node={child} level={level + 1} />}
+        </Collection>
       )}
     </TreeItem>
   );
@@ -260,7 +266,7 @@ export function ConversionTree() {
                 }
               }}
             >
-              {(node) => <TreeNodeRow key={String(node.key)} node={node} />}
+              {(node) => <TreeNodeRow key={String(node.key)} node={node} level={0} />}
             </Tree>
           </Virtualizer>
         </div>
