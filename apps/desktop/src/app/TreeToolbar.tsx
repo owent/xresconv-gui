@@ -1,28 +1,17 @@
-import { Button, Input, SearchField } from "react-aria-components";
+import { Input, SearchField } from "react-aria-components";
 import { useSessionStore } from "./session-store";
 
 /**
- * 转换树工具栏（F03）：全选/全不选 + 搜索。
- * 全选/全不选为旧版按钮语义（整棵有效配置树，select_all/select_none op），
- * 有配置加载后才可用；搜索仅过滤显示（保留祖先链、显示命中数），
- * 不改变真实选择（04-ui §页面和组件边界：搜索属辅助操作，
- * 不改变“全选”的原含义）。
+ * 转换树工具栏：仅搜索（布局对照旧版——全选/全取消/展开/收起按钮在旧版位于
+ * 右侧按钮组，已随 RunControls 归位；搜索为新增辅助操作，只过滤显示、
+ * 保留祖先链、显示命中数，不改变真实选择）。
  */
 export function TreeToolbar({ hitCount }: { hitCount: number | null }) {
-  const hasConfig = useSessionStore((state) => state.snapshot?.tree != null);
   const searchTerm = useSessionStore((state) => state.searchTerm);
   const search = useSessionStore((state) => state.search);
-  const selectAll = useSessionStore((state) => state.selectAll);
-  const selectNone = useSessionStore((state) => state.selectNone);
 
   return (
     <div role="toolbar" aria-label="转换树工具栏" className="toolbar">
-      <Button isDisabled={!hasConfig} onPress={() => void selectAll()}>
-        全部选中
-      </Button>
-      <Button isDisabled={!hasConfig} onPress={() => void selectNone()}>
-        全部取消
-      </Button>
       <SearchField
         aria-label="搜索转换条目"
         className="tree-search"

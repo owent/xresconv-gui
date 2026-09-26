@@ -1,11 +1,33 @@
 import { useState } from "react";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import type { SettingsFields } from "../adapters/backend";
+import { pickXmlConfig } from "../adapters/tauri";
 import { DraftField } from "./DraftField";
+import { ItemDetails } from "./ItemDetails";
+import { OutputMatrixEditor } from "./OutputMatrixEditor";
 import { useSessionStore } from "./session-store";
 
 /** 内置协议（旧版 index.html 下拉仅 protobuf；配置值无匹配时追加“未知协议: X”选项）。 */
 const PROTOCOL_OPTIONS = ["protobuf"] as const;
+/** 输出类型词表与文案（旧版 index.html conv_list_output_type 逐项对应）。 */
+const OUTPUT_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "bin", label: "协议二进制" },
+  { value: "lua", label: "Lua配置" },
+  { value: "msgpack", label: "MsgPack二进制" },
+  { value: "json", label: "Json格式" },
+  { value: "xml", label: "Xml" },
+  { value: "javascript", label: "Javascript配置" },
+  { value: "ue-json", label: "UE资源Json格式" },
+  { value: "ue-csv", label: "UE资源Csv格式" },
+];
+/** 输出重命名预设（旧版 conv_list_rename_samples 下拉，逐项对应）。 */
+const RENAME_PRESETS: { label: string; value: string }[] = [
+  { label: ".bin后缀 => .lua", value: "/\\.bin$/.lua/" },
+  { label: ".bin后缀 => .json", value: "/\\.bin$/.json/" },
+  { label: ".bin后缀 => .msgpack.bin", value: "/\\.bin$/.msgpack.bin/" },
+  { label: ".bin后缀 => .xml", value: "/\\.bin$/.xml/" },
+  { label: ".bin后缀 => .js", value: "/\\.bin$/.js/" },
+];
 /** 并发数 1..16（main.js:6-9 上限；>6 需本地确认，main.js:2611-2639）。 */
 const PARALLELISM_OPTIONS = Array.from({ length: 16 }, (_, index) => index + 1);
 const PARALLELISM_CONFIRM_THRESHOLD = 6;
@@ -21,16 +43,22 @@ function linesToList(text: string): string[] {
 }
 
 /**
- * 转换参数表单（F06，P4-04b）：work_dir/JAR/协议文件/数据目录/数据版本/协议/并发数。
- * 数据源为 snapshot.settings.effective（配置默认 ⊕ 覆盖）；提交走 updateSettings
- * 合并语义，显示值以后端返回为准。parallelism 为会话级设置（不进 overrides），
- * >6 弹本地确认对话框（React Aria Modal；对应旧版 alert_warning，不走脚本弹框通道）。
+ * 转换参数区（F01/F06，布局对照旧版 index.html conv_details_options_panel）：
+ * - 首行常显：转换列表文件（选择/路径/重载）+ 详细配置开关 + 并发数；
+ * - “详细配置”默认折叠（旧版 collapse 同款）：转表工具/执行目录/数据版本/
+ *   协议描述/输出目录/数据目录 六字段 + 条目详情 + 输出矩阵（新增能力的入口
+ *   收纳于此，不占主界面）；
+ * - 次行常显：输出重命名（含旧版预设下拉）/协议类型/输出类型。
  */
 export function ConversionSettings() {
   const settings = useSessionStore((state) => state.snapshot?.settings);
   const runState = useSessionStore((state) => state.snapshot?.state ?? "idle");
+  const configPath = useSessionStore((state) => state.configPath);
+  const loadConfig = useSessionStore((state) => state.loadConfig);
+  const reloadConfig = useSessionStore((state) => state.reload);
   const updateSettings = useSessionStore((state) => state.updateSettings);
   const [pendingParallelism, setPendingParallelism] = useState<number | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const effective = settings?.effective ?? null;
   const disabled = effective === null || BUSY_STATES.has(runState);
@@ -38,6 +66,18 @@ export function ConversionSettings() {
 
   const submit = (fields: SettingsFields) => {
     void updateSettings(fields);
+  };
+
+  const pickConfig = async () => {
+    try {
+      const selected = await pickXmlConfig();
+      if (selected !== null) {
+        // 选择即加载：快照入 session store；失败经 store.lastError 可见。
+        await loadConfig(selected);
+      }
+    } catch (error) {
+      useSessionStore.setState({ lastError: String(error) });
+    }
   };
 
   const proto = effective?.proto ?? "";
@@ -49,6 +89,11 @@ export function ConversionSettings() {
     // 配置/覆盖值不在内置列表：追加“未知协议”选项并选中（main.js:1247-1261），不静默丢弃。
     protoOptions.push({ value: proto, label: `未知协议: ${proto}` });
   }
+  const outputType = effective?.type ?? "";
+  const typeOptions = [...OUTPUT_TYPE_OPTIONS];
+  if (outputType !== "" && !OUTPUT_TYPE_OPTIONS.some((option) => option.value === outputType)) {
+    typeOptions.push({ value: outputType, label: `未知类型: ${outputType}` });
+  }
 
   return (
     <form
@@ -56,56 +101,24 @@ export function ConversionSettings() {
       aria-label="转换参数"
       onSubmit={(event) => event.preventDefault()}
     >
-      <h2 className="panel-title">转换参数</h2>
-      <div className="form-grid">
-        <DraftField
-          label="执行目录（work_dir）"
-          value={effective?.workDir ?? ""}
-          disabled={disabled}
-          onCommit={(value) => submit({ workDir: value })}
+      <div className="config-file-bar">
+        <Button onPress={() => void pickConfig()}>转换列表文件</Button>
+        <input
+          className="config-file-display"
+          aria-label="配置文件路径"
+          data-testid="picked-path"
+          disabled
+          placeholder="尚未载入任何文件，需要载入清单列表的xml文件(比如: convert_list.xml)"
+          value={configPath ?? ""}
+          readOnly
         />
-        <DraftField
-          label="转表工具（xresloader.jar）"
-          value={effective?.xresloaderPath ?? ""}
-          disabled={disabled}
-          onCommit={(value) => submit({ xresloaderPath: value })}
-        />
-        <DraftField
-          label="协议描述文件（一行一个）"
-          value={(effective?.protoFile ?? []).join("\n")}
-          disabled={disabled}
-          multiline
-          onCommit={(value) => submit({ protoFile: linesToList(value) })}
-        />
-        <DraftField
-          label="数据目录（一行一个）"
-          value={(effective?.dataSrcDir ?? []).join("\n")}
-          disabled={disabled}
-          multiline
-          onCommit={(value) => submit({ dataSrcDir: linesToList(value) })}
-        />
-        <DraftField
-          label="数据版本"
-          value={effective?.dataVersion ?? ""}
-          disabled={disabled}
-          onCommit={(value) => submit({ dataVersion: value })}
-        />
-        <label className="select-field">
-          协议类型
-          <select
-            disabled={disabled}
-            value={proto}
-            onChange={(event) => submit({ proto: event.target.value })}
-          >
-            {proto === "" && <option value="">（未设置）</option>}
-            {protoOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="select-field">
+        <Button onPress={() => void reloadConfig()} isDisabled={configPath === null}>
+          重载配置
+        </Button>
+        <Button aria-expanded={detailOpen} onPress={() => setDetailOpen((open) => !open)}>
+          {detailOpen ? "隐藏详细配置" : "展开详细配置"}
+        </Button>
+        <label className="select-field compact">
           并发数
           <select
             disabled={disabled}
@@ -123,6 +136,113 @@ export function ConversionSettings() {
             {PARALLELISM_OPTIONS.map((value) => (
               <option key={value} value={value}>
                 {value}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {detailOpen && (
+        <div className="detail-config">
+          <div className="form-grid">
+            <DraftField
+              label="转表工具（xresloader.jar）"
+              value={effective?.xresloaderPath ?? ""}
+              disabled={disabled}
+              onCommit={(value) => submit({ xresloaderPath: value })}
+            />
+            <DraftField
+              label="执行目录（work_dir）"
+              value={effective?.workDir ?? ""}
+              disabled={disabled}
+              onCommit={(value) => submit({ workDir: value })}
+            />
+            <DraftField
+              label="数据版本"
+              value={effective?.dataVersion ?? ""}
+              disabled={disabled}
+              onCommit={(value) => submit({ dataVersion: value })}
+            />
+            <DraftField
+              label="协议描述文件（一行一个）"
+              value={(effective?.protoFile ?? []).join("\n")}
+              disabled={disabled}
+              multiline
+              onCommit={(value) => submit({ protoFile: linesToList(value) })}
+            />
+            <DraftField
+              label="输出目录"
+              value={effective?.outputDir ?? ""}
+              disabled={disabled}
+              onCommit={(value) => submit({ outputDir: value })}
+            />
+            <DraftField
+              label="数据目录（一行一个）"
+              value={(effective?.dataSrcDir ?? []).join("\n")}
+              disabled={disabled}
+              multiline
+              onCommit={(value) => submit({ dataSrcDir: linesToList(value) })}
+            />
+          </div>
+          <ItemDetails />
+          <OutputMatrixEditor />
+        </div>
+      )}
+
+      <div className="form-grid quick-row">
+        <div className="rename-field">
+          <label className="select-field compact">
+            重命名预设
+            <select
+              disabled={disabled}
+              value=""
+              onChange={(event) => {
+                if (event.target.value !== "") {
+                  submit({ rename: event.target.value });
+                }
+              }}
+            >
+              <option value="">输出重命名…</option>
+              {RENAME_PRESETS.map((preset) => (
+                <option key={preset.value} value={preset.value}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <DraftField
+            label="输出重命名（正则）"
+            value={effective?.rename ?? ""}
+            disabled={disabled}
+            onCommit={(value) => submit({ rename: value })}
+          />
+        </div>
+        <label className="select-field">
+          协议类型
+          <select
+            disabled={disabled}
+            value={proto}
+            onChange={(event) => submit({ proto: event.target.value })}
+          >
+            {proto === "" && <option value="">（未设置）</option>}
+            {protoOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="select-field">
+          输出类型
+          <select
+            disabled={disabled}
+            value={outputType}
+            onChange={(event) => submit({ type: event.target.value })}
+          >
+            {outputType === "" && <option value="">（未设置）</option>}
+            {typeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>

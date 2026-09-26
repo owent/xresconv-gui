@@ -14,15 +14,14 @@ body {
   background: var(--color-bg);
 }
 
-/* 骨架布局：顶部环境状态 / 左侧转换树 / 右侧配置区 / 底部运行与日志 */
+/* 骨架布局（对照旧版 card-group）：顶部细状态条 / 左树 ｜ 右参数+日志+按钮 */
 .app-shell {
   display: grid;
   grid-template-areas:
     "env env"
-    "tree main"
-    "bottom bottom";
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+    "tree right";
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
   gap: var(--space-3);
   box-sizing: border-box;
   height: 100dvh;
@@ -52,6 +51,8 @@ body {
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2) var(--space-4);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-sm);
 }
 
 .environment-status p {
@@ -60,18 +61,6 @@ body {
 
 .app-version {
   font-weight: 600;
-}
-
-.config-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.config-path {
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
 }
 
 .backend-health {
@@ -86,7 +75,7 @@ body {
 }
 
 .cli-args {
-  flex-basis: 100%;
+  margin-left: auto;
   font-size: var(--font-size-sm);
 }
 
@@ -97,6 +86,21 @@ body {
 
 .conversion-tree {
   grid-area: tree;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tree-keyboard-scope {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-keyboard-scope .conversion-tree-view {
+  flex: 1;
+  min-height: 6rem;
   overflow: auto;
 }
 
@@ -168,23 +172,79 @@ body {
   border-radius: var(--radius-1);
 }
 
-.main-area {
-  grid-area: main;
+/* 右栏（对照旧版 info_list_panel）：参数区 → 大日志(flex:1) → 按钮组 → 自定义按钮 */
+.right-panel {
+  grid-area: right;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  /* 布局反馈 2026-09-25：参数区不得挤压树/按钮/日志——主区自身滚动。 */
-  overflow-y: auto;
   min-height: 0;
 }
 
-.bottom-area {
-  grid-area: bottom;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+/* 参数区首行：文件选择/重载/详细配置开关/并发数（旧版 conv_details_options_panel 首行） */
+.config-file-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.config-file-display {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+  font: inherit;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: var(--space-1) var(--space-2);
+}
+
+.select-field.compact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  flex-direction: row;
+}
+
+/* 详细配置展开区（旧版 collapse：六字段 + 条目详情 + 输出矩阵） */
+.detail-config {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
-  /* 日志优先：底部占固定可观高度（clamp 下限），不被主区挤压。 */
-  height: clamp(11rem, 26vh, 34vh);
+  padding: var(--space-2);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-1);
+}
+
+/* 常显快捷行：重命名预设+正则 / 协议类型 / 输出类型 */
+.quick-row {
+  align-items: end;
+}
+
+.rename-field {
+  display: flex;
+  align-items: end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* 预览结果折叠（新增辅助能力，不占主界面） */
+.preview-details {
+  font-size: var(--font-size-sm);
+}
+
+.preview-details > summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.preview-details[open] .preview-panel {
+  max-height: 30vh;
+  overflow: auto;
 }
 
 .toolbar {
@@ -350,7 +410,8 @@ details.collapsible > *:not(summary) {
 .log-panel {
   display: flex;
   flex-direction: column;
-  min-height: 4rem;
+  flex: 1 1 auto;
+  min-height: 10rem;
   overflow: hidden;
 }
 

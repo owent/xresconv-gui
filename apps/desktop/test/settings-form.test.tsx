@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type {
@@ -115,6 +115,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
   it("加载后按 effective 渲染全部字段", async () => {
     await loadFixture();
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     expect(screen.getByLabelText("执行目录（work_dir）")).toHaveProperty("value", "D:/conf");
     expect(screen.getByLabelText("转表工具（xresloader.jar）")).toHaveProperty(
       "value",
@@ -132,6 +133,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     const user = userEvent.setup();
 
     const textarea = screen.getByLabelText("协议描述文件（一行一个）");
@@ -151,6 +153,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     const user = userEvent.setup();
 
     const input = screen.getByLabelText("执行目录（work_dir）");
@@ -167,6 +170,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     const user = userEvent.setup();
 
     const select = screen.getByLabelText("协议类型");
@@ -182,6 +186,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
   it("运行中整体禁用；后端 INVALID_STATE 经 lastError 可见", async () => {
     await loadFixture(makeSnapshot(makeEffective(), 2, "converting"));
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     expect(screen.getByLabelText("执行目录（work_dir）")).toHaveProperty("disabled", true);
     expect(screen.getByLabelText("并发数")).toHaveProperty("disabled", true);
   });
@@ -195,6 +200,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
       },
     });
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     const user = userEvent.setup();
 
     const input = screen.getByLabelText("数据版本");
@@ -218,6 +224,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshotA);
     routeRpc({ preview: () => previewResult });
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     expect(screen.getByLabelText("转表工具（xresloader.jar）")).toHaveProperty("value", "a.jar");
     await act(async () => {
       await expect(useSessionStore.getState().runPreview()).resolves.toBe(true);
@@ -245,6 +252,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     const user = userEvent.setup();
 
     const select = screen.getByLabelText("并发数");
@@ -272,6 +280,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     await loadFixture(snapshot);
     routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     const user = userEvent.setup();
 
     await user.selectOptions(screen.getByLabelText("并发数"), "4");
@@ -282,6 +291,7 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
 
   it("未加载配置时整体禁用", () => {
     render(<ConversionSettings />);
+    fireEvent.click(screen.getByRole("button", { name: "展开详细配置" }));
     expect(screen.getByLabelText("执行目录（work_dir）")).toHaveProperty("disabled", true);
     expect(screen.getByLabelText("并发数")).toHaveProperty("disabled", true);
     expect(screen.getByText("加载配置后可编辑转换参数。")).toBeTruthy();

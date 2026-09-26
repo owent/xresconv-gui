@@ -89,7 +89,7 @@ describe("App shell (P4-01)", () => {
 
     // 顶部环境状态（AppShell / EnvironmentStatus）
     expect(screen.getByRole("banner")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "选择 XML 配置…" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "转换列表文件" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "重载配置" })).toBeTruthy();
     expect(screen.getByRole("status", { name: "后端状态" })).toBeTruthy();
 
@@ -98,16 +98,12 @@ describe("App shell (P4-01)", () => {
     expect(screen.getByRole("toolbar", { name: "转换树工具栏" })).toBeTruthy();
     expect(screen.getByRole("tree", { name: "转换条目" })).toBeTruthy();
     expect(screen.getByPlaceholderText("搜索转换条目…")).toBeTruthy();
-    for (const name of ["全部选中", "全部取消"]) {
-      expect(screen.getByRole("button", { name })).toHaveProperty("disabled", true);
-    }
 
-    // 右侧主区（ConversionSettings / ItemDetails / OutputMatrixEditor / HookControls / CustomActionBar）
+    // 右侧主区（ConversionSettings：文件行+详细配置开关+快捷行；详情/矩阵在折叠内）
     expect(screen.getByRole("main")).toBeTruthy();
     expect(screen.getByRole("form", { name: "转换参数" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "条目详情" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "输出矩阵" })).toBeTruthy();
-    expect(screen.getByRole("group", { name: "转换事件" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "展开详细配置" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "并发数" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "自定义按钮" })).toBeTruthy();
 
     // 底部运行控制与日志（RunControls / RunSummary / LogPanel / DialogHost）
@@ -158,10 +154,9 @@ describe("App shell (P4-01)", () => {
     mockedOpen.mockResolvedValue(null);
     await renderAndSettle();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "选择 XML 配置…" }));
+    await user.click(screen.getByRole("button", { name: "转换列表文件" }));
     await waitFor(() => expect(mockedOpen).toHaveBeenCalledTimes(1));
-    expect(screen.queryByTestId("picked-path")).toBeNull();
-    expect(screen.getByText("尚未加载配置文件")).toBeTruthy();
+    expect((screen.getByTestId("picked-path") as HTMLInputElement).value).toBe("");
     expect(screen.getByRole("button", { name: "重载配置" })).toHaveProperty("disabled", true);
   });
 
@@ -170,14 +165,15 @@ describe("App shell (P4-01)", () => {
     await renderAndSettle();
     const user = userEvent.setup();
 
-    await user.click(screen.getByRole("button", { name: "选择 XML 配置…" }));
+    await user.click(screen.getByRole("button", { name: "转换列表文件" }));
     const picked = await screen.findByTestId("picked-path");
-    expect(picked.textContent).toBe("D:/conf/convert_list.xml");
+    expect((picked as HTMLInputElement).value).toBe("D:/conf/convert_list.xml");
 
     const reload = screen.getByRole("button", { name: "重载配置" });
     expect(reload).toHaveProperty("disabled", false);
     await user.click(reload);
-    await waitFor(() => expect(invokeCallCount("get_backend_health")).toBe(2));
+    // 重载=配置层 RPC(健康刷新由 backend 事件驱动,不再耦合按钮)
+    await waitFor(() => expect(invokeCallCount("backend_rpc")).toBeGreaterThanOrEqual(2));
   });
 
   it("does not duplicate bridge fetches under StrictMode double-mount", async () => {

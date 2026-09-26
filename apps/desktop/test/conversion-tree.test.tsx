@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { AppliedOpsReport, BackendSnapshot, TreeNodeSnap } from "../src/adapters/backend";
 import { ConversionTree } from "../src/app/ConversionTree";
 import { ItemDetails } from "../src/app/ItemDetails";
+import { RunControls } from "../src/app/RunControls";
 import { resetSessionStore, useSessionStore } from "../src/app/session-store";
 import { useBackendEvents } from "../src/app/use-backend-events";
 
@@ -222,10 +223,15 @@ describe("ConversionTree (P4-03)", () => {
     expect(useSessionStore.getState().snapshot?.tree?.version).toBe(2);
   });
 
-  it("全部选中/全部取消发送整树 op（有配置才可用）", async () => {
+  it("全部选中/全部取消发送整树 op（有配置才可用；按钮在 RunControls 组）", async () => {
     const invoke = await loadFixture();
     routeRpc(invoke, { applyOps: () => okReport() });
-    render(<ConversionTree />);
+    render(
+      <>
+        <ConversionTree />
+        <RunControls />
+      </>,
+    );
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "全部选中" }));
@@ -237,8 +243,13 @@ describe("ConversionTree (P4-03)", () => {
     expect(applyOpsPayloads(invoke)[1]).toEqual([{ v: 2, op: "select_none" }]);
   });
 
-  it("未加载配置时全选/全不选禁用且保留空态", () => {
-    render(<ConversionTree />);
+  it("未加载配置时全选/全不选禁用且保留空态（按钮在 RunControls 组）", () => {
+    render(
+      <>
+        <ConversionTree />
+        <RunControls />
+      </>,
+    );
     expect(screen.getByRole("button", { name: "全部选中" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "全部取消" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("tree", { name: "转换条目" })).toBeTruthy();

@@ -11,6 +11,7 @@ import {
   Virtualizer,
 } from "react-aria-components";
 import type { TreeNodeKey, TreeNodeSnap } from "../adapters/backend";
+import { HookControls } from "./HookControls";
 import { useSessionStore } from "./session-store";
 import { TreeToolbar } from "./TreeToolbar";
 
@@ -65,8 +66,8 @@ export function filterTreeNodes(nodes: readonly TreeNodeSnap[], term: string): F
   return { nodes: walk(nodes), hits };
 }
 
-/** 搜索态下强制展开所有可见 folder（显示层覆盖，不写回 store 展开集合）。 */
-function collectFolderKeys(nodes: readonly TreeNodeSnap[], out: Set<TreeNodeKey>): void {
+/** 收集全部 folder key（RunControls 全部展开用；搜索态强展亦用）。 */
+export function collectFolderKeys(nodes: readonly TreeNodeSnap[], out: Set<TreeNodeKey>): void {
   for (const node of nodes) {
     if (node.children.length > 0) {
       out.add(node.key);
@@ -244,6 +245,9 @@ export function ConversionTree() {
           </Virtualizer>
         </div>
       )}
+      {/* 树 footer：转换事件开关（布局对照旧版 conv_list_event_group_wrapper；
+          无 hook 时不渲染，不占位）。 */}
+      <HookControls />
     </aside>
   );
 }

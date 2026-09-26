@@ -1,5 +1,11 @@
 import { Button } from "react-aria-components";
-import { RUN_ACTIVE_STATES, RUN_TERMINAL_STATES, type RunStateLike } from "../adapters/backend";
+import {
+  RUN_ACTIVE_STATES,
+  RUN_TERMINAL_STATES,
+  type RunStateLike,
+  type TreeNodeKey,
+} from "../adapters/backend";
+import { collectFolderKeys } from "./ConversionTree";
 import { type RunRecord, useSessionStore } from "./session-store";
 
 /** 预览任务展示上限（有界展示；超出仅给总数）。 */
@@ -91,10 +97,11 @@ function describeRun(run: RunRecord): { tone: "ok" | "error" | "info"; lines: st
 }
 
 /**
- * 运行控制与摘要（F08）：预览（P4-04b）+ 开始/取消/重置（P4-06）。
- * 按钮可用性由后端状态机决定：run 允许自 ready/终态启动；cancel 仅活动运行
- * （重复取消幂等，EX03）；reset 自终态/活动运行（先取消等清理再重新武装）。
- * 结果区只显示有证据的信息：run_end 摘要 + 终态来源阶段。
+ * 运行控制与摘要（F08）：按钮组对照旧版 conv_list_internal_btn_group 顺序
+ * （全部选中/全部取消/全部展开/全部收起/开始转换/重置），新增能力（预览/取消）
+ * 排在其间不改变原按钮语义；预览结果收纳为折叠区（旧版无此面板，不占主界面）。
+ * 开始/取消/重置门禁由后端状态机决定（run 允许自 ready/终态；cancel 仅活动
+ * 运行且幂等；reset 先取消等清理再重新武装）。结果区只显示有证据的信息。
  */
 export function RunControls() {
   const snapshot = useSessionStore((state) => state.snapshot);
@@ -107,25 +114,47 @@ export function RunControls() {
   const startRun = useSessionStore((state) => state.startRun);
   const cancelRun = useSessionStore((state) => state.cancelRun);
   const resetSession = useSessionStore((state) => state.resetSession);
+  const selectAll = useSessionStore((state) => state.selectAll);
+  const selectNone = useSessionStore((state) => state.selectNone);
+  const setExpandedKeys = useSessionStore((state) => state.setExpandedKeys);
 
   const state = (snapshot?.state ?? null) as RunStateLike | null;
   const terminal = state !== null && RUN_TERMINAL_STATES.has(state);
   const active = state !== null && RUN_ACTIVE_STATES.has(state);
-  const canPreview =
-    snapshot?.config != null && !BUSY_STATES.has(state ?? "") && preview.status !== "loading";
-  const canStart = snapshot?.config != null && (state === "ready" || terminal) && !runStarting;
+  const hasConfig = snapshot?.config != null;
+  const canPreview = hasConfig && !BUSY_STATES.has(state ?? "") && preview.status !== "loading";
+  const canStart = hasConfig && (state === "ready" || terminal) && !runStarting;
   const canCancel = active;
   const canReset = (active || terminal) && !resetting;
+  const treeOpsDisabled = !hasConfig;
   const stateText = state === null ? "未加载配置" : (STATE_LABELS[state] ?? state);
 
   const result = preview.status === "ok" ? preview.result : null;
   const shownTasks = result?.plan.tasks.slice(0, PREVIEW_TASK_LIMIT) ?? [];
   const runResult = lastRun === null ? null : describeRun(lastRun);
 
+  const expandAll = () => {
+    const keys = new Set<TreeNodeKey>();
+    collectFolderKeys(snapshot?.tree?.nodes ?? [], keys);
+    setExpandedKeys(keys);
+  };
+
   return (
     <div className="panel run-controls">
       <fieldset className="run-buttons">
         <legend>运行控制</legend>
+        <Button isDisabled={treeOpsDisabled} onPress={() => void selectAll()}>
+          全部选中
+        </Button>
+        <Button isDisabled={treeOpsDisabled} onPress={() => void selectNone()}>
+          全部取消
+        </Button>
+        <Button isDisabled={treeOpsDisabled} onPress={expandAll}>
+          全部展开
+        </Button>
+        <Button isDisabled={treeOpsDisabled} onPress={() => setExpandedKeys(new Set())}>
+          全部收起
+        </Button>
         <Button isDisabled={!canPreview} onPress={() => void runPreview()}>
           预览
         </Button>
@@ -161,43 +190,49 @@ export function RunControls() {
         <p role="alert" className="preview-error">
           预览失败：{preview.error}
           {preview.error?.startsWith("XRESLOADER_NOT_FOUND") &&
-            "（请在“转换参数”中配置有效的转表工具 xresloader JAR 路径）"}
+            "（请在“转换参数”中展开详细配置，填写有效的转表工具 xresloader JAR 路径）"}
         </p>
       )}
       {result !== null && (
-        <section className="preview-panel" aria-label="预览结果">
-          <p className="preview-summary">
-            任务数：{result.plan.taskCount}；选中条目：{result.selectionCount}；执行目录：
-            {result.plan.workDir}；转表工具：{result.plan.xresloaderPath}
-          </p>
-          {result.conflicts.length > 0 && (
-            <div className="preview-conflicts" role="alert">
-              <h3 className="preview-conflicts-title">输出冲突（同输出目录 + 重命名）</h3>
-              <ul>
-                {result.conflicts.map((conflict) => (
-                  <li key={`${conflict.outputDir}${conflict.rename}`}>
-                    输出目录 {conflict.outputDir || "（默认）"} / 重命名{" "}
-                    {conflict.rename || "（无）"}：{conflict.items.join("、")}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <ol className="preview-tasks">
-            {shownTasks.map((task, index) => (
-              // 预览结果是只读快照，列表不重排；display 可重复，无稳定业务 id。
-              // biome-ignore lint/suspicious/noArrayIndexKey: 预览任务为一次性只读快照的有序列表
-              <li key={index}>
-                <code>{task.display}</code>
-              </li>
-            ))}
-          </ol>
-          {result.plan.taskCount > shownTasks.length && (
-            <p className="empty-state">
-              仅显示前 {shownTasks.length} 条，共 {result.plan.taskCount} 条
+        <details className="preview-details">
+          <summary>
+            预览结果：{result.plan.taskCount} 个任务
+            {result.conflicts.length > 0 ? ` · ${result.conflicts.length} 组输出冲突` : ""}
+          </summary>
+          <section className="preview-panel" aria-label="预览结果">
+            <p className="preview-summary">
+              任务数：{result.plan.taskCount}；选中条目：{result.selectionCount}；执行目录：
+              {result.plan.workDir}；转表工具：{result.plan.xresloaderPath}
             </p>
-          )}
-        </section>
+            {result.conflicts.length > 0 && (
+              <div className="preview-conflicts" role="alert">
+                <h3 className="preview-conflicts-title">输出冲突（同输出目录 + 重命名）</h3>
+                <ul>
+                  {result.conflicts.map((conflict) => (
+                    <li key={`${conflict.outputDir}${conflict.rename}`}>
+                      输出目录 {conflict.outputDir || "（默认）"} / 重命名{" "}
+                      {conflict.rename || "（无）"}：{conflict.items.join("、")}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <ol className="preview-tasks">
+              {shownTasks.map((task, index) => (
+                // 预览结果是只读快照，列表不重排；display 可重复，无稳定业务 id。
+                // biome-ignore lint/suspicious/noArrayIndexKey: 预览任务为一次性只读快照的有序列表
+                <li key={index}>
+                  <code>{task.display}</code>
+                </li>
+              ))}
+            </ol>
+            {result.plan.taskCount > shownTasks.length && (
+              <p className="empty-state">
+                仅显示前 {shownTasks.length} 条，共 {result.plan.taskCount} 条
+              </p>
+            )}
+          </section>
+        </details>
       )}
     </div>
   );
