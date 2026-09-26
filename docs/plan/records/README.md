@@ -59,6 +59,7 @@
 | [P5-06](P5-06.md) | Linux 离线自含 AppImage 原型（141MiB 内嵌 WebKitGTK 闭包；koffi musl 变体剔除修复） |
 | [P5-07](P5-07.md) | SPDX 2.3 SBOM 生成（59 包样张）与哈希/许可清单；签名阻塞于受控环境 |
 | [P5-09](P5-09.md) | 大小分解（bootstrap -70% 达标）、产物扫描、CI 工作流 CI-01..07 落地（SHA 固定）；P5-08/P5-10 状态如实登记 |
+| [P7](P7.md) | 切换与交接：旧 Electron/gulp/旧 src/build.yml 删除；log4js 默认配置内联；--log-configure 全链接线；旧版布局重构+真实项目转换验证（28 任务 bytes 一致）；README/AGENTS 交接 |
 
 | 记录 | 内容 |
 | --- | --- |

@@ -27,7 +27,7 @@ Hint:
 ## 1. 状态、目标与实施边界
 
 - 编制日期：2026-09-23；源码基线 `3e8ec5773368ce02455a74bcd42d7ff03487be08`，应用版本 `2.6.0`。
-- 当前状态（2026-09-25）：P0–P4 完成（G4 Windows 范围通过）；P5 本机可验证范围完成至 P5-09（P5-04/07/08/10 阻塞于 macOS 主机/受控签名环境/VM 实机，已如实登记）；597 例 Node/前端 + 15 例三引擎浏览器 + 13 例 Rust 测试通过；Windows 桌面 E2E 9/9、八格式真实 JAR 差分通过；Windows x64 双变体（29/232 MiB）与 WSL Debian 13 双变体（DEB+自含 AppImage 141 MiB）实构。**CI 推送验证已完成（2026-09-25，PR #60：quality node/shell 绿、Linux 真桌面 E2E 绿；win/macOS 桌面 E2E 因 runner 无交互桌面/驱动静默退出设 continue-on-error，恢复条件见 P5-09 记录）。待办：macOS 实构、签名、VM 安装矩阵、G5/G6 全量验收、P7 切换。** 证据见 `docs/plan/records/`。
+- 当前状态（2026-09-25）：P0–P4 完成（G4 Windows 范围通过）；P5 本机可验证范围完成至 P5-09（P5-04/07/08/10 阻塞于 macOS 主机/受控签名环境/VM 实机，已如实登记）；597 例 Node/前端 + 15 例三引擎浏览器 + 13 例 Rust 测试通过；Windows 桌面 E2E 9/9、八格式真实 JAR 差分通过；Windows x64 双变体（29/232 MiB）与 WSL Debian 13 双变体（DEB+自含 AppImage 141 MiB）实构。**CI 推送验证已完成（PR #60 运行级绿）；P7 切换已执行（2026-09-26：旧架构删除+布局对照旧版重构+真实项目转换验证通过+--log-configure 补齐）。剩余（用户指示排最后，手动执行）：macOS 实构、签名实跑、VM 安装矩阵、G5/G6 签字式验收、draft release 复核。** 证据见 `docs/plan/records/`。
 
 用户已确定的目标：
 
@@ -445,11 +445,11 @@ P4 范围外遗留随 CI/P6：真实 WebView 键盘全键位走查与 p95 实测
 
 ### P7：移除旧架构与交接
 
-- [ ] 在新架构出口条件满足后删除 Electron、gulp、旧 HTML/main/setup、Fancytree 补丁及失效工作流。
-- [ ] 更新 README、CHANGELOG、脚本 API、安装/离线说明、支持矩阵、调试文档和示例配置。
-- [ ] 更新 `AGENTS.md`、`CLAUDE.md` 中相关引用、`docs/ai/source-index.md` 与本计划状态；只调整与新架构相关的内容，保留用户规则。
-- [ ] 构建一个完整 draft release，复核所有产物；正式发布另按项目发行流程执行。
-- [ ] 保留旧稳定发行与迁移说明，记录回滚入口；不要留下两个无人维护的主实现长期并行。
+已完成（2026-09-26，记录 [P7](docs/plan/records/P7.md)）：旧 Electron/gulp/旧 src/build.yml/Fancytree 补丁/旧依赖删除；log4js 默认配置内联（随删除暴露的 P5 隐患一并修复）；`--log-configure` 全链接线（壳 CLI→guardian env→backend，F10/F11 缺口补齐）；README/AGENTS/source-index 交接更新；回滚入口=v2.6.0 tag+README 迁移说明。
+
+- [ ] （随 P5-10 实机验收）构建一个完整 draft release，复核所有产物；正式发布另按项目发行流程执行。
+
+依赖顺序：P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7。安装器原型可在 P1 后提前验证，但不能绕过平台/脚本兼容门槛。
 
 依赖顺序：P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7。安装器原型可在 P1 后提前验证，但不能绕过平台/脚本兼容门槛。
 
