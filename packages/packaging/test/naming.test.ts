@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { PackagingError } from "../src/errors.ts";
-import { artifactName, formatFor } from "../src/matrix.ts";
+import {
+  artifactName,
+  formatFor,
+  portableArtifactName,
+  portableArtifactNames,
+  portableBundleTarget,
+} from "../src/matrix.ts";
 import { pickTarget, realTargetsFile } from "./fixtures.ts";
 
 const VERSION = "3.0.0-dev.0";
@@ -92,5 +98,59 @@ describe("artifactName (locked pattern xresconv-gui-<version>-<os>-<distro?>-<ar
       expect(name).not.toMatch(/\s/);
     }
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+describe("portable artifact naming (macOS .app.zip / Linux offline AppImage)", () => {
+  it("derives portable names from the same locked base name", () => {
+    const cases: Array<[Parameters<typeof pickTarget>[0], string]> = [
+      [
+        (t) => t.os === "macos" && t.arch === "x64" && t.variant === "offline",
+        "xresconv-gui-3.0.0-dev.0-macos-x64-offline.app.zip",
+      ],
+      [
+        (t) => t.os === "macos" && t.arch === "arm64" && t.variant === "offline",
+        "xresconv-gui-3.0.0-dev.0-macos-arm64-offline.app.zip",
+      ],
+      [
+        (t) => t.os === "linux" && t.variant === "offline" && t.arch === "x86_64",
+        "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.AppImage",
+      ],
+      [
+        (t) => t.os === "linux" && t.variant === "offline" && t.arch === "aarch64",
+        "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.AppImage",
+      ],
+    ];
+    for (const [pred, expected] of cases) {
+      expect(portableArtifactName(pickTarget(pred), VERSION)).toBe(expected);
+    }
+  });
+
+  it("has no portable format for installer-only targets", () => {
+    expect(portableBundleTarget(pickTarget((t) => t.os === "macos"))).toBe("app");
+    expect(
+      portableBundleTarget(pickTarget((t) => t.os === "linux" && t.variant === "offline")),
+    ).toBe("appimage");
+    expect(() => portableBundleTarget(pickTarget((t) => t.os === "windows"))).toThrow(
+      /no portable format/,
+    );
+    expect(() =>
+      portableBundleTarget(pickTarget((t) => t.os === "linux" && t.variant === "bootstrap")),
+    ).toThrow(/no portable format/);
+    expect(() =>
+      portableArtifactName(
+        pickTarget((t) => t.os === "windows"),
+        VERSION,
+      ),
+    ).toThrow(/no portable format/);
+  });
+
+  it("pins the portable verification scope to macOS/Linux offline (4 artifacts)", () => {
+    expect(portableArtifactNames(realTargetsFile(), VERSION)).toEqual([
+      "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.AppImage",
+      "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.AppImage",
+      "xresconv-gui-3.0.0-dev.0-macos-arm64-offline.app.zip",
+      "xresconv-gui-3.0.0-dev.0-macos-x64-offline.app.zip",
+    ]);
   });
 });

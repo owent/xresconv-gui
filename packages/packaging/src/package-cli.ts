@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { assembleRuntimeLayout } from "./assemble.ts";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
-import { artifactName, formatFor } from "./matrix.ts";
+import { artifactName, formatFor, portableArtifactName, portableBundleTarget } from "./matrix.ts";
 import type { ReleaseTarget, RuntimeManifest, TargetOs } from "./types.ts";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -30,6 +30,7 @@ export function parsePackageArgs(args: string[]) {
       arch: { type: "string" },
       distro: { type: "string" },
       "skip-assemble": { type: "boolean", default: false },
+      portable: { type: "boolean", default: false },
     },
   });
   if (!["all", "bootstrap", "offline"].includes(values.variant))
@@ -104,6 +105,18 @@ export function selectArtifact(dir: string, extension: string, builtAfter: numbe
   return files[0] as string;
 }
 
+/** macOS portable 打包：ditto 压缩 .app（保留符号链接/xattr，--keepParent 使
+ * zip 根为 <productName>.app）。仅 darwin 宿主可达（nativeArch 已保证）。 */
+export function zipMacAppBundle(appPath: string, dest: string): void {
+  const result = spawnSync(
+    "ditto",
+    ["-c", "-k", "--sequesterRsrc", "--keepParent", appPath, dest],
+    { stdio: "inherit", timeout: 10 * 60_000, windowsHide: true },
+  );
+  if (result.error || result.status !== 0)
+    throw new Error(`ditto zip failed (${result.error?.message ?? result.status})`);
+}
+
 function git(args: string[]): string {
   const result = spawnSync("git", args, {
     cwd: ROOT,
@@ -113,6 +126,11 @@ function git(args: string[]): string {
   });
   if (result.error || result.status !== 0) throw new Error("cannot obtain repository identity");
   return result.stdout.trim();
+}
+
+/** 当前 HEAD（浅 clone 亦可）；verify-portable 复用同一仓库身份。 */
+export function gitHead(): string {
+  return git(["rev-parse", "HEAD"]);
 }
 
 function signingBundle(os: TargetOs): Record<string, unknown> {
@@ -159,6 +177,8 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
   const variants = options.variant === "all" ? ["bootstrap", "offline"] : [options.variant];
   if (options["skip-assemble"] && variants.length > 1)
     throw new Error("--skip-assemble requires one explicit --variant");
+  if (options.portable && variants.length > 1)
+    throw new Error("--portable requires one explicit --variant");
   const targets = loadTargets().targets;
   const commit = git(["rev-parse", "HEAD"]);
   const layout = path.join(ROOT, "build/release-layout");
@@ -202,7 +222,7 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
     const signing = signingBundle(os);
     for (const key of Object.keys(signing))
       base.bundle[key] = { ...base.bundle[key], ...(signing[key] as object) };
-    const format = formatFor(target);
+    const format = options.portable ? portableBundleTarget(target) : formatFor(target);
     base.bundle.targets = [format];
     const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
     writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
@@ -210,18 +230,28 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
     const result = spawnSync(
       process.execPath,
       [path.join(ROOT, "node_modules/@tauri-apps/cli/tauri.js"), "build", "--config", overlay],
-      { cwd: ROOT, stdio: "inherit", windowsHide: true, timeout: 30 * 60_000 },
+      { cwd: ROOT, stdio: "inherit", windowsHide: true, timeout: 45 * 60_000 },
     );
     if (result.error || result.status !== 0)
       throw new Error(`tauri build failed (${result.error?.message ?? result.status})`);
-    const name = artifactName(target, version);
-    const source = selectArtifact(
-      path.join(ROOT, "target/release/bundle", format),
-      path.extname(name),
-      started,
-    );
+    const name = options.portable
+      ? portableArtifactName(target, version)
+      : artifactName(target, version);
     const dest = path.join(output, name);
-    cpSync(source, dest);
+    if (options.portable && os === "macos") {
+      // Tauri 的 "app" 目标产出 bundle/macos/<productName>.app 目录。ditto
+      // 保留符号链接/元数据并以 .app 为包根压缩；无签名身份环境时 bundler
+      // 跳过签名（v2.11.5 keychain()=None），portable 即未签名 .app。
+      const app = selectArtifact(path.join(ROOT, "target/release/bundle/macos"), ".app", started);
+      zipMacAppBundle(app, dest);
+    } else {
+      const source = selectArtifact(
+        path.join(ROOT, "target/release/bundle", format),
+        path.extname(name),
+        started,
+      );
+      cpSync(source, dest);
+    }
     const digest = createHash("sha256").update(readFileSync(dest)).digest("hex");
     writeFileSync(`${dest}.sha256`, `${digest}  ${name}\n`, "utf8");
     console.log(`${digest}  ${name}`);

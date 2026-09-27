@@ -19,6 +19,11 @@ it("rejects unknown option prefixes and invalid variants", () => {
     variant: "offline",
     "skip-assemble": true,
   });
+  expect(parsePackageArgs(["--portable", "--variant=offline"])).toMatchObject({
+    portable: true,
+    variant: "offline",
+  });
+  expect(parsePackageArgs([])).toMatchObject({ portable: false, variant: "all" });
 });
 it("preserves an exact Ubuntu baseline and rejects a foreign native host", () => {
   expect(detectDistro('ID=ubuntu\nVERSION_ID="24.10"')).toBe("ubuntu-24.10");
