@@ -32,6 +32,9 @@ it("resolves real portable targets (macOS offline + Linux bootstrap/offline)", (
   expect(() => resolvePortableTarget("linux", "x86_64", "bootstrap")).toThrow(
     /no declared portable target/,
   );
+  expect(() => resolvePortableTarget("linux", "x86_64", "bootstrap", "arch-1")).toThrow(
+    /no declared portable target.*arch-1/,
+  );
 });
 
 it("finds the layout root under macOS .app and AppImage extraction shapes", () => {
@@ -77,6 +80,30 @@ it("verifies layout identity strictly against the target and current build", () 
   expect(() => verifyLayoutIdentity({ ...manifest, os: "linux" }, expected, target)).toThrow(
     /identity mismatch/,
   );
+});
+
+it("verifies layout identity on the distro axis for linux bootstrap targets", () => {
+  const target = pickTarget((t) => t.distro === "ubuntu-22.04" && t.arch === "x86_64");
+  const manifest = sampleManifest(target);
+  const expected = {
+    os: "linux",
+    arch: "x86_64",
+    variant: "bootstrap",
+    version: manifest.appVersion,
+    commit: manifest.sourceCommit,
+    distro: "ubuntu-22.04",
+  } as const;
+  expect(manifest.distro).toBe("ubuntu-22.04");
+  expect(() => verifyLayoutIdentity(manifest, expected, target)).not.toThrow();
+
+  const noDistro = { ...manifest };
+  delete noDistro.distro;
+  expect(() => verifyLayoutIdentity(noDistro, expected, target)).toThrow(
+    /identity mismatch: distro/,
+  );
+  expect(() =>
+    verifyLayoutIdentity({ ...manifest, distro: "debian-12" }, expected, target),
+  ).toThrow(/identity mismatch: distro/);
 });
 
 it("verifies every payload file byte-for-byte and rejects tampering", () => {

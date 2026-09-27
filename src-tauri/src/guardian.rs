@@ -665,7 +665,8 @@ mod tests {
     }
 
     /// Linux deb/rpm 与 AppImage 形态：exe 在 `usr/bin`（AppImage 为
-    /// `<AppDir>/usr/bin`），resources 在 `usr/lib/<productName>`。
+    /// `<AppDir>/usr/bin`），负载经 `bundle.linux.*.files` 落位
+    /// `usr/share/<productName>`（linuxdeploy 会改写 usr/lib 下 ELF，P5-11）。
     #[test]
     fn release_layout_candidates_cover_linux_resource_dir() {
         let base = std::env::temp_dir().join("xresconv-release-linux-test");

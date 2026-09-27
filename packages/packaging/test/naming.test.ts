@@ -161,6 +161,39 @@ describe("portable artifact naming (macOS .app.zip / Linux tar.gz + AppImage)", 
     ).toThrow(/no portable format/);
   });
 
+  it("rejects a portable format that does not belong to the target (fail-closed per format)", () => {
+    const linuxOffline = pickTarget((t) => t.os === "linux" && t.variant === "offline");
+    const macos = pickTarget((t) => t.os === "macos");
+    const linuxBootstrap = pickTarget((t) => t.os === "linux" && t.variant === "bootstrap");
+    expect(() => portableArtifactName(linuxOffline, VERSION, "app.zip")).toThrow(
+      /is not portable for target/,
+    );
+    expect(() => portableArtifactName(macos, VERSION, "appimage")).toThrow(
+      /is not portable for target/,
+    );
+    expect(() => portableArtifactName(macos, VERSION, "tarball")).toThrow(
+      /is not portable for target/,
+    );
+    expect(() => portableArtifactName(linuxBootstrap, VERSION, "appimage")).toThrow(
+      /is not portable for target/,
+    );
+  });
+
+  it.each(["", "1.2", "v3.0.0", "../3.0.0", "3.0.0/x", "3.0.0 beta", "3.0.0-beta_1"])(
+    "rejects invalid or unsafe version %j for portable names",
+    (version) => {
+      const target = pickTarget((t) => t.os === "linux" && t.variant === "offline");
+      try {
+        portableArtifactName(target, version, "tarball");
+      } catch (error) {
+        expect(error).toBeInstanceOf(PackagingError);
+        expect((error as PackagingError).code).toBe("INVALID_VERSION");
+        return;
+      }
+      throw new Error(`expected INVALID_VERSION for ${version}`);
+    },
+  );
+
   it("pins the portable verification scope (8 artifacts: macOS app.zip + Linux bootstrap/offline tar.gz + offline AppImage)", () => {
     expect(portableArtifactNames(realTargetsFile(), VERSION)).toEqual([
       "xresconv-gui-3.0.0-dev.0-linux-aarch64-bootstrap.tar.gz",

@@ -80,6 +80,9 @@ export function portableArtifactName(
   version: string,
   format: PortableFormat,
 ): string {
+  if (!VERSION_PATTERN.test(version)) {
+    throw new PackagingError("INVALID_VERSION", `invalid version "${version}"`, [version]);
+  }
   if (!portableFormats(target).includes(format))
     throw new PackagingError(
       "NO_PORTABLE_FORMAT",
