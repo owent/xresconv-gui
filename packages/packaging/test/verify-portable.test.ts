@@ -16,10 +16,22 @@ function digest(content: string): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
-it("resolves real portable targets (macOS + Linux offline)", () => {
-  expect(resolvePortableTarget("macos", "arm64").targetTriple).toBe("aarch64-apple-darwin");
-  expect(resolvePortableTarget("linux", "aarch64").targetTriple).toBe("aarch64-unknown-linux-gnu");
-  expect(() => resolvePortableTarget("linux", "mips64")).toThrow(/no declared portable target/);
+it("resolves real portable targets (macOS offline + Linux bootstrap/offline)", () => {
+  expect(resolvePortableTarget("macos", "arm64", "offline").targetTriple).toBe(
+    "aarch64-apple-darwin",
+  );
+  expect(resolvePortableTarget("linux", "aarch64", "offline").targetTriple).toBe(
+    "aarch64-unknown-linux-gnu",
+  );
+  expect(
+    resolvePortableTarget("linux", "x86_64", "bootstrap", "ubuntu-22.04").webviewStrategy,
+  ).toBe("webkitgtk-system");
+  expect(() => resolvePortableTarget("linux", "mips64", "offline")).toThrow(
+    /no declared portable target/,
+  );
+  expect(() => resolvePortableTarget("linux", "x86_64", "bootstrap")).toThrow(
+    /no declared portable target/,
+  );
 });
 
 it("finds the layout root under macOS .app and AppImage extraction shapes", () => {
@@ -54,6 +66,7 @@ it("verifies layout identity strictly against the target and current build", () 
   const expected = {
     os: "macos",
     arch: "arm64",
+    variant: "offline",
     version: manifest.appVersion,
     commit: manifest.sourceCommit,
   } as const;

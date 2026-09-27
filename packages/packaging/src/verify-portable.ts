@@ -1,7 +1,11 @@
 /** Portable 产物验证（portable-build.yml）：安装器链路从不产出这些形态，
  * 因此每个 portable 产物在解包后按自身 manifest 逐文件核验，并实测包内
  * Node 二进制可在当前宿主原生运行（架构正确性的直接证据）。聚合口径 =
- * portableArtifactNames 精确集合（fail-closed）。 */
+ * portableArtifactNames 精确集合（fail-closed）。
+ *
+ * Linux 两种 tar.gz（用户 2026-09-27 增补）：offline = AppImage 同内容解包树
+ * （自含 WebKitGTK 闭包）；bootstrap = exe+布局平铺（运行时用系统 WebKitGTK，
+ * 宿主须已具备——ldd 与 preflight.sh 探针在这里充当运行时策略的证据）。 */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -14,12 +18,10 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
-import { portableArtifactName, portableArtifactNames } from "./matrix.ts";
+import { portableArtifactName, portableArtifactNames, portableFormats } from "./matrix.ts";
 import { verifyReleaseArtifacts } from "./release-artifacts.ts";
 import type { ReleaseTarget, RuntimeManifest, TargetVariant } from "./types.ts";
 
-/** 解包后的逐文件核验范围。AppImage 负载约 150 MiB（P5-06），全量哈希
- * 在 4 核 runner 上秒级，且与 --skip-assemble 的复用核验同等强度。 */
 const EXTRACT_TIMEOUT_MS = 5 * 60_000;
 const NODE_PROBE_TIMEOUT_MS = 30_000;
 const LAYOUT_SEARCH_DEPTH = 8;
@@ -27,19 +29,29 @@ const LAYOUT_SEARCH_DEPTH = 8;
 export interface PortableExpectation {
   os: "macos" | "linux";
   arch: string;
+  variant: TargetVariant;
   version: string;
   commit: string;
+  distro?: string;
 }
 
 export function resolvePortableTarget(
   os: "macos" | "linux",
   arch: string,
-  variant: TargetVariant = "offline",
+  variant: TargetVariant,
+  distro?: string,
 ): ReleaseTarget {
   const target = loadTargets().targets.find(
-    (t) => t.os === os && t.arch === arch && t.variant === variant,
+    (t) =>
+      t.os === os &&
+      t.arch === arch &&
+      t.variant === variant &&
+      (variant === "offline" || t.distro === distro),
   );
-  if (!target) throw new Error(`no declared portable target for ${os}/${arch}/${variant}`);
+  if (!target)
+    throw new Error(
+      `no declared portable target for ${os}/${arch}/${variant}${distro === undefined ? "" : `/${distro}`}`,
+    );
   return target;
 }
 
@@ -77,15 +89,17 @@ export function verifyLayoutIdentity(
     ["webviewStrategy", target.webviewStrategy],
     ["minimumWebview", target.minimumWebview],
     ["osVersionRange", target.osVersionRange],
+    ["distro", target.distro ?? null],
     ["appVersion", expected.version],
     ["sourceCommit", expected.commit],
   ] as const) {
-    if (manifest[key] !== want) throw new Error(`layout identity mismatch: ${key}`);
+    // manifest 的可选字段（如 distro）缺省为 undefined，与 null 归一后比较。
+    if ((manifest[key] ?? null) !== want) throw new Error(`layout identity mismatch: ${key}`);
   }
 }
 
 /** 负载核验：manifest.files 全量存在 + 大小 + SHA-256（与 verifyReusableLayout
- * 同强度；布局组装阶段已验过一次，这里证明打包（.app/zip/squashfs）未损坏负载）。 */
+ * 同强度；布局组装阶段已验过一次，这里证明打包未损坏负载）。 */
 export function verifyLayoutPayload(layoutRoot: string, manifest: RuntimeManifest): void {
   if (manifest.files.length === 0) throw new Error("layout payload is empty");
   for (const file of manifest.files) {
@@ -139,7 +153,36 @@ function verifyLinuxExtras(squashRoot: string): void {
   if (!existsSync(path.join(squashRoot, "AppRun"))) throw new Error("AppImage is missing AppRun");
   const usrLib = readdirSync(path.join(squashRoot, "usr", "lib"));
   if (!usrLib.some((name) => name === "libwebkit2gtk-4.1.so.0"))
-    throw new Error("self-contained AppImage does not bundle WebKitGTK 4.1");
+    throw new Error("self-contained package does not bundle WebKitGTK 4.1");
+}
+
+/** bootstrap tar.gz 专属：平铺布局（无 AppDir/usr 树）、系统 WebKitGTK 运行时
+ * （ldd 必须解析到 webkit4.1——这就是"尽量复用发行版运行时"的直接证据）、
+ * preflight.sh 可执行且就绪路径通过。 */
+function verifyBootstrapExtras(topDir: string): void {
+  const exe = path.join(topDir, "xresconv-gui");
+  if (!existsSync(exe)) throw new Error("bootstrap tarball is missing the app binary");
+  const preflight = path.join(topDir, "preflight.sh");
+  if (!existsSync(preflight)) throw new Error("bootstrap tarball is missing preflight.sh");
+  if (existsSync(path.join(topDir, "usr")))
+    throw new Error("bootstrap tarball must be a flat layout (no AppDir usr tree)");
+  const ldd = spawnSync("ldd", [exe], {
+    encoding: "utf8",
+    timeout: NODE_PROBE_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (ldd.error || ldd.status !== 0 || ldd.stdout === undefined)
+    throw new Error(`ldd probe failed: ${String(ldd.error ?? ldd.status)}`);
+  const webkitLine = ldd.stdout.split("\n").find((line) => line.includes("libwebkit2gtk-4.1.so.0"));
+  if (webkitLine === undefined || /not found/.test(webkitLine))
+    throw new Error("bootstrap portable expects system WebKitGTK 4.1 on the runtime host");
+  const probe = spawnSync("bash", [preflight, "--quiet"], {
+    encoding: "utf8",
+    timeout: 60_000,
+    windowsHide: true,
+  });
+  if (probe.error || probe.status !== 0)
+    throw new Error(`preflight probe failed (exit ${probe.status}): ${probe.stderr ?? ""}`);
 }
 
 function extractMacZip(zipPath: string, destDir: string): string {
@@ -166,44 +209,85 @@ function extractAppImage(appImagePath: string, destDir: string): string {
   return path.join(destDir, "squashfs-root");
 }
 
-/** 单产物验证：构建 job 内调用（同 job 内执行位完好，无需经过 artifact 中转）。 */
-export async function verifyPortableArtifact(
-  distDir: string,
-  expected: PortableExpectation,
-  workDir: string,
-): Promise<string> {
-  const target = resolvePortableTarget(expected.os, expected.arch);
-  const name = portableArtifactName(target, expected.version);
-  const file = path.join(distDir, name);
-  if (!existsSync(file)) throw new Error(`portable artifact missing: ${file}`);
+function extractTarGz(tarPath: string, destDir: string): string {
+  const result = spawnSync("tar", ["-xzf", tarPath, "-C", destDir], {
+    timeout: EXTRACT_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0)
+    throw new Error(`tar extract failed: ${String(result.error ?? result.status)}`);
+  const tops = readdirSync(destDir);
+  if (tops.length !== 1 || tops[0] !== "xresconv-gui")
+    throw new Error(
+      `tarball must contain exactly one xresconv-gui top dir, found ${tops.join(", ")}`,
+    );
+  return path.join(destDir, "xresconv-gui");
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(filePath)) hash.update(chunk);
+  return hash.digest("hex");
+}
+
+async function verifySidecar(file: string, name: string): Promise<void> {
   const sidecar = readFileSync(`${file}.sha256`, "utf8").trim();
   const match = /^([a-fA-F0-9]{64}) [ *](.+)$/.exec(sidecar);
   if (!match || match[2] !== name) throw new Error(`invalid SHA-256 sidecar: ${name}`);
-  const hash = createHash("sha256");
-  for await (const chunk of createReadStream(file)) hash.update(chunk);
-  if (hash.digest("hex") !== match[1]?.toLowerCase()) throw new Error(`SHA-256 mismatch: ${name}`);
+  if ((await sha256File(file)) !== match[1]?.toLowerCase())
+    throw new Error(`SHA-256 mismatch: ${name}`);
+}
 
+/** 单目标全部 portable 形态验证：构建 job 内调用（同 job 内执行位完好，无需
+ * 经过 artifact 中转）。Linux offline 一次验证 AppImage 与 tar.gz 两种产物。 */
+export async function verifyPortableArtifacts(
+  distDir: string,
+  expected: PortableExpectation,
+  workDir: string,
+): Promise<string[]> {
+  const target = resolvePortableTarget(
+    expected.os,
+    expected.arch,
+    expected.variant,
+    expected.distro,
+  );
+  const verified: string[] = [];
   rmSync(workDir, { recursive: true, force: true });
   mkdirSync(workDir, { recursive: true });
   try {
-    const extracted =
-      expected.os === "macos" ? extractMacZip(file, workDir) : extractAppImage(file, workDir);
-    const layoutRoot = findLayoutRoot(extracted);
-    const manifest = validateRuntimeManifest(
-      JSON.parse(readFileSync(path.join(layoutRoot, "runtime-manifest.json"), "utf8")),
-    );
-    verifyLayoutIdentity(manifest, expected, target);
-    verifyLayoutPayload(layoutRoot, manifest);
-    const nodeVersion = verifyBundledNode(layoutRoot, manifest);
-    if (expected.os === "macos") readInfoPlistVersion(extracted, manifest);
-    else verifyLinuxExtras(extracted);
-    console.log(
-      `verified ${name}: ${manifest.files.length} payload files, bundled node ${nodeVersion}`,
-    );
-    return name;
+    for (const format of portableFormats(target)) {
+      const name = portableArtifactName(target, expected.version, format);
+      const file = path.join(distDir, name);
+      if (!existsSync(file)) throw new Error(`portable artifact missing: ${file}`);
+      await verifySidecar(file, name);
+      const formatDir = path.join(workDir, format);
+      mkdirSync(formatDir, { recursive: true });
+      const extracted =
+        format === "app.zip"
+          ? extractMacZip(file, formatDir)
+          : format === "appimage"
+            ? extractAppImage(file, formatDir)
+            : extractTarGz(file, formatDir);
+      const layoutRoot = findLayoutRoot(extracted);
+      const manifest = validateRuntimeManifest(
+        JSON.parse(readFileSync(path.join(layoutRoot, "runtime-manifest.json"), "utf8")),
+      );
+      verifyLayoutIdentity(manifest, expected, target);
+      verifyLayoutPayload(layoutRoot, manifest);
+      const nodeVersion = verifyBundledNode(layoutRoot, manifest);
+      if (expected.os === "macos") readInfoPlistVersion(extracted, manifest);
+      else if (format === "tarball" && expected.variant === "bootstrap")
+        verifyBootstrapExtras(extracted);
+      else verifyLinuxExtras(extracted);
+      console.log(
+        `verified ${name}: ${manifest.files.length} payload files, bundled node ${nodeVersion}`,
+      );
+      verified.push(name);
+    }
   } finally {
     rmSync(workDir, { recursive: true, force: true });
   }
+  return verified;
 }
 
 /** 聚合验证：portable 范围的精确产物集合 + SHA-256 边车（CI-06 语义，无发布）。 */

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /** Portable 产物验证入口（portable-build.yml 使用；本机也可复跑）。
  *
- * 单产物：--os=macos|linux --arch=x64|arm64|aarch64 [--variant=offline]
+ * 单目标：--os=macos|linux --arch=x64|arm64|aarch64 [--variant=offline|bootstrap]
+ *         [--distro=ubuntu-22.04]（linux bootstrap 必填：定位构建基线目标行）
  * 聚合：  --aggregate（build/release-artifacts 全集合 + SHA-256 边车）
  */
 import { readFileSync } from "node:fs";
@@ -11,7 +12,7 @@ import { parseArgs } from "node:util";
 import { gitHead } from "../packages/packaging/src/package-cli.ts";
 import {
   verifyPortableAggregate,
-  verifyPortableArtifact,
+  verifyPortableArtifacts,
 } from "../packages/packaging/src/verify-portable.ts";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -22,6 +23,7 @@ const { values } = parseArgs({
     os: { type: "string" },
     arch: { type: "string" },
     variant: { type: "string", default: "offline" },
+    distro: { type: "string" },
     aggregate: { type: "boolean", default: false },
   },
 });
@@ -38,11 +40,22 @@ if (values.aggregate) {
 } else {
   if (values.os !== "macos" && values.os !== "linux")
     throw new Error("--os must be macos or linux (aggregate mode covers the full set)");
-  if (values.variant !== "offline") throw new Error("portable verification only covers offline");
+  if (values.variant !== "offline" && values.variant !== "bootstrap")
+    throw new Error("--variant must be offline or bootstrap");
   if (!values.arch) throw new Error("--arch is required");
-  await verifyPortableArtifact(
+  if (values.os === "linux" && values.variant === "bootstrap" && !values.distro)
+    throw new Error("--distro is required for the linux bootstrap tarball (build baseline)");
+  const verified = await verifyPortableArtifacts(
     path.join(ROOT, "build/dist"),
-    { os: values.os, arch: values.arch, version, commit: gitHead() },
+    {
+      os: values.os,
+      arch: values.arch,
+      variant: values.variant,
+      version,
+      commit: gitHead(),
+      ...(values.distro === undefined ? {} : { distro: values.distro }),
+    },
     path.join(ROOT, "build/portable-verify"),
   );
+  console.log(`verified ${verified.length} artifact(s)`);
 }

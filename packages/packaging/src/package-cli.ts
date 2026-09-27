@@ -2,11 +2,14 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
+  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -16,8 +19,14 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { assembleRuntimeLayout } from "./assemble.ts";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
-import { artifactName, formatFor, portableArtifactName, portableBundleTarget } from "./matrix.ts";
-import type { ReleaseTarget, RuntimeManifest, TargetOs } from "./types.ts";
+import {
+  artifactName,
+  formatFor,
+  type PortableFormat,
+  portableArtifactName,
+  portableFormats,
+} from "./matrix.ts";
+import type { ArtifactFormat, ReleaseTarget, RuntimeManifest, TargetOs } from "./types.ts";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -115,6 +124,81 @@ export function zipMacAppBundle(appPath: string, dest: string): void {
   );
   if (result.error || result.status !== 0)
     throw new Error(`ditto zip failed (${result.error?.message ?? result.status})`);
+}
+
+const TAURI_CLI = path.join(ROOT, "node_modules/@tauri-apps/cli/tauri.js");
+
+function runTauriBuild(args: string[]): void {
+  const result = spawnSync(process.execPath, [TAURI_CLI, ...args], {
+    cwd: ROOT,
+    stdio: "inherit",
+    windowsHide: true,
+    timeout: 45 * 60_000,
+  });
+  if (result.error || result.status !== 0)
+    throw new Error(`tauri build failed (${result.error?.message ?? result.status})`);
+}
+
+/** tar.gz 固定顶层目录名（= productName），解压后 `./xresconv-gui/` 即应用根。 */
+const PORTABLE_TAR_TOPDIR = "xresconv-gui";
+const PORTABLE_TAR_STAGE = path.join(ROOT, "build/portable-tar");
+
+function tarStageTo(dest: string): void {
+  const result = spawnSync("tar", ["-czf", dest, "-C", PORTABLE_TAR_STAGE, PORTABLE_TAR_TOPDIR], {
+    stdio: "inherit",
+    timeout: 10 * 60_000,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0)
+    throw new Error(`tar failed (${result.error?.message ?? result.status})`);
+}
+
+/** Linux offline portable：已产出的自含 AppImage `--appimage-extract`（免 FUSE，
+ * 内容与 AppImage 逐字节一致）后重压为 tar.gz——复用 linuxdeploy 闭包，不在
+ * 脚本侧重造依赖收集。仅 linux 宿主可达。 */
+export function tarPortableFromAppImage(appImagePath: string, dest: string): void {
+  rmSync(PORTABLE_TAR_STAGE, { recursive: true, force: true });
+  mkdirSync(PORTABLE_TAR_STAGE, { recursive: true });
+  try {
+    const result = spawnSync(appImagePath, ["--appimage-extract"], {
+      cwd: PORTABLE_TAR_STAGE,
+      timeout: 10 * 60_000,
+      windowsHide: true,
+    });
+    if (result.error || result.status !== 0)
+      throw new Error(`appimage extract failed (${result.error?.message ?? result.status})`);
+    renameSync(
+      path.join(PORTABLE_TAR_STAGE, "squashfs-root"),
+      path.join(PORTABLE_TAR_STAGE, PORTABLE_TAR_TOPDIR),
+    );
+    tarStageTo(dest);
+  } finally {
+    rmSync(PORTABLE_TAR_STAGE, { recursive: true, force: true });
+  }
+}
+
+/** Linux bootstrap portable：裸 exe + 发行布局平铺（exe 同级 runtime/app/
+ * runtime-manifest.json/preflight.sh），运行时复用系统 WebKitGTK。仅 linux
+ * 宿主可达（nativeArch 已保证）。 */
+export function tarPortableBootstrapLayout(exePath: string, layoutDir: string, dest: string): void {
+  rmSync(PORTABLE_TAR_STAGE, { recursive: true, force: true });
+  const top = path.join(PORTABLE_TAR_STAGE, PORTABLE_TAR_TOPDIR);
+  mkdirSync(top, { recursive: true });
+  try {
+    copyFileSync(exePath, path.join(top, "xresconv-gui"));
+    chmodSync(path.join(top, "xresconv-gui"), 0o755);
+    cpSync(path.join(layoutDir, "runtime"), path.join(top, "runtime"), { recursive: true });
+    cpSync(path.join(layoutDir, "app"), path.join(top, "app"), { recursive: true });
+    copyFileSync(
+      path.join(layoutDir, "runtime-manifest.json"),
+      path.join(top, "runtime-manifest.json"),
+    );
+    copyFileSync(path.join(ROOT, "packaging/linux/preflight.sh"), path.join(top, "preflight.sh"));
+    chmodSync(path.join(top, "preflight.sh"), 0o755);
+    tarStageTo(dest);
+  } finally {
+    rmSync(PORTABLE_TAR_STAGE, { recursive: true, force: true });
+  }
 }
 
 function git(args: string[]): string {
@@ -222,38 +306,58 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
     const signing = signingBundle(os);
     for (const key of Object.keys(signing))
       base.bundle[key] = { ...base.bundle[key], ...(signing[key] as object) };
-    const format = options.portable ? portableBundleTarget(target) : formatFor(target);
-    base.bundle.targets = [format];
-    const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
-    writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
-    const started = Date.now();
-    const result = spawnSync(
-      process.execPath,
-      [path.join(ROOT, "node_modules/@tauri-apps/cli/tauri.js"), "build", "--config", overlay],
-      { cwd: ROOT, stdio: "inherit", windowsHide: true, timeout: 45 * 60_000 },
-    );
-    if (result.error || result.status !== 0)
-      throw new Error(`tauri build failed (${result.error?.message ?? result.status})`);
-    const name = options.portable
-      ? portableArtifactName(target, version)
-      : artifactName(target, version);
-    const dest = path.join(output, name);
-    if (options.portable && os === "macos") {
-      // Tauri 的 "app" 目标产出 bundle/macos/<productName>.app 目录。ditto
-      // 保留符号链接/元数据并以 .app 为包根压缩；无签名身份环境时 bundler
-      // 跳过签名（v2.11.5 keychain()=None），portable 即未签名 .app。
-      const app = selectArtifact(path.join(ROOT, "target/release/bundle/macos"), ".app", started);
-      zipMacAppBundle(app, dest);
-    } else {
-      const source = selectArtifact(
-        path.join(ROOT, "target/release/bundle", format),
-        path.extname(name),
-        started,
-      );
-      cpSync(source, dest);
+    // portable 分支只产出 PortableFormat；installer 分支为 ArtifactFormat。
+    const formats: (PortableFormat | ArtifactFormat)[] = options.portable
+      ? portableFormats(target)
+      : [formatFor(target)];
+    let appimageSource: string | undefined;
+    for (const format of formats) {
+      const started = Date.now();
+      const name = options.portable
+        ? portableArtifactName(target, version, format as PortableFormat)
+        : artifactName(target, version);
+      const dest = path.join(output, name);
+      if (options.portable && format === "tarball") {
+        // Linux "解压即运行" tar.gz（用户 2026-09-27 增补）。两种来源：
+        // offline = 已产出的自含 AppImage 解包重压（复用 linuxdeploy 闭包，
+        // 用户侧免 FUSE 免安装）；bootstrap = 裸 exe（tauri build --no-bundle）
+        // + 发行布局平铺，运行时用系统 WebKitGTK（preflight.sh 探测/指引）。
+        if (variant === "offline") {
+          if (appimageSource === undefined)
+            throw new Error("offline tarball requires the appimage build in the same invocation");
+          tarPortableFromAppImage(appimageSource, dest);
+        } else {
+          runTauriBuild(["build", "--no-bundle"]);
+          const exe = path.join(ROOT, "target/release", "xresconv-gui");
+          if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
+          tarPortableBootstrapLayout(exe, layout, dest);
+        }
+      } else if (options.portable && format === "app.zip") {
+        // Tauri 的 "app" 目标产出 bundle/macos/<productName>.app 目录。ditto
+        // 保留符号链接/元数据并以 .app 为包根压缩；无签名身份环境时 bundler
+        // 跳过签名（v2.11.5 keychain()=None），portable 即未签名 .app。
+        base.bundle.targets = ["app"];
+        const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
+        writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
+        runTauriBuild(["build", "--config", overlay]);
+        const app = selectArtifact(path.join(ROOT, "target/release/bundle/macos"), ".app", started);
+        zipMacAppBundle(app, dest);
+      } else {
+        base.bundle.targets = [format];
+        const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
+        writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
+        runTauriBuild(["build", "--config", overlay]);
+        const source = selectArtifact(
+          path.join(ROOT, "target/release/bundle", format),
+          path.extname(name),
+          started,
+        );
+        cpSync(source, dest);
+        if (format === "appimage") appimageSource = source;
+      }
+      const digest = createHash("sha256").update(readFileSync(dest)).digest("hex");
+      writeFileSync(`${dest}.sha256`, `${digest}  ${name}\n`, "utf8");
+      console.log(`${digest}  ${name}`);
     }
-    const digest = createHash("sha256").update(readFileSync(dest)).digest("hex");
-    writeFileSync(`${dest}.sha256`, `${digest}  ${name}\n`, "utf8");
-    console.log(`${digest}  ${name}`);
   }
 }

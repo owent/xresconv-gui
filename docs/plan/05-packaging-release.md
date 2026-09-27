@@ -150,3 +150,15 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 - **工作流** `.github/workflows/portable-build.yml`：构建 → `scripts/verify-portable.ts` 逐产物验证（解包 → manifest 身份与本次构建/目标完全一致 → 全量逐文件 SHA-256 → 包内 Node `--version` 原生探针；Linux 另验 AppRun 与 WebKitGTK 自含闭包，macOS 另验 Info.plist 最低系统 13.5）→ 聚合 job 只做产物集合 + 边车哈希核验（CI-06 语义，无 release 写权限）。AppImage aarch64 由 tauri-bundler 按 `Arch::AArch64` 选取 `linuxdeploy-aarch64.AppImage`/`AppRun-aarch64`，bundler 自设 `APPIMAGE_EXTRACT_AND_RUN=1`，无需 FUSE；ARM 镜像需安装 `xdg-utils`（`bundleXdgOpen` 默认 true）。
 - **Linux 发行负载落位 = `/usr/share/xresconv-gui`（P5-11 定稿）**：linuxdeploy `deployDependenciesForExistingFiles` 会递归扫描 AppDir `usr/lib` 下全部 ELF 并 patchelf 改 rpath + strip，随包负载若经 `resources` 映射落位 `usr/lib/<productName>`，`koffi.node` 与 `runtime/node` 必被改写、manifest 逐文件哈希失配（CI/WSL 实证；`NO_STRIP=1` 只免 strip 不免 patchelf）。因此 Linux 三格式（deb/rpm/AppImage）经 `bundle.linux.{deb,rpm,appimage}.files` 把发行布局（runtime/app/runtime-manifest.json/preflight.sh）落位 `/usr/share/xresconv-gui`——不能落 `/opt`：AppImage 打包仅把 `data/usr/` 子树拷入 AppDir（tauri-bundler v2.11.5 `linuxdeploy.rs` 源码约束），`/usr/share` 是三格式统一、位于扫描盲区的唯一单跳落位，壳侧候选相应探测 `../share/<productName>`（`guardian.rs`；P5-05 的 `/usr/lib` 布局与"启动冒烟"结论由本节取代）。
 - **与本册合同的关系**：portable 验证只证明"构建过程 + 负载完整性 + 包内自定位"，不构成 I01–I14 安装验收，也不替代签名（P5-07）；manifest 的 `verificationReport.result` 保持 `fail`。若最终发行决定转向 portable-only（放弃安装器矩阵），须先修订本册与 targets.json 的 webview 策略语义再改 release.yml。
+
+### Linux"解压即运行"tar.gz（2026-09-27 增补，用户决策）
+
+用户增补指示：Linux 需要解压直接运行的包（不要 deb/AppImage/rpm 这类特殊格式）；系统 WebKit 尽量复用桌面发行版附带的；tar.gz 与 AppImage 并存。落地：
+
+- **两种运行时策略并存**（`portableFormats`）：
+  - `xresconv-gui-<version>-linux-<arch>-bootstrap.tar.gz`（≈49MB）——裸 exe + `runtime/`+`app/`+`runtime-manifest.json`+`preflight.sh` 平铺（exe 同级布局，壳候选第一优先级，平台无关代码路径）；运行时复用系统 WebKitGTK 4.1（≥ minimumWebview 2.38），缺库时 `preflight.sh` 给按发行版安装指引。验证含 ldd 探针（exe 必须解析到系统 webkit）与 preflight 就绪路径。
+  - `xresconv-gui-<version>-linux-<arch>-offline.tar.gz`（≈160MB）——自含 AppImage `--appimage-extract` 解包后重压（复用 linuxdeploy 闭包，不在脚本侧重造依赖收集）；解压后 `./xresconv-gui/AppRun`（或 `usr/bin/xresconv-gui`，路径自定位均命中 `../share/<productName>`）。
+  - `xresconv-gui-<version>-linux-<arch>-offline.AppImage` 保留并存。
+- **命名规则**：portable 产物一律不带 distro 段（发行版无关产物）；bootstrap tar.gz 的构建基线记录在包内 `manifest.distro`（构建于 ubuntu-22.04 最老基线行），文件名不携带。
+- **聚合范围**扩为精确 8 项（macOS app.zip ×2 + Linux bootstrap tar.gz ×2 + offline tar.gz ×2 + offline AppImage ×2）；`portableArtifactName` 对非法目标/格式组合 fail-closed。
+- **不做单包运行时自动切换**（复用系统 WebKit 否则用闭包）：动态链接无法在运行时干净地"优先系统、缺则回退闭包"（RUNPATH 先于默认路径解析），两个显式包比一个含运行时探测逻辑的包更稳。

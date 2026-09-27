@@ -49,13 +49,21 @@ function artifactBase(target: ReleaseTarget, version: string): string {
 }
 
 /** Portable（非安装器）交付形态（用户 2026-09-27 指示：无签名证书，发行验证
- * 仅需 Portable 包）。macOS portable = 未签名 .app（打包期 ditto 压缩为
- * .app.zip）；Linux offline AppImage 本身自含即 portable。Windows NSIS 与
- * Linux bootstrap deb/rpm 是安装器，无 portable 形态——Windows portable 的
- * manifest 语义（webview 策略）需要发行合同修订，不擅自发明。 */
-export function portableBundleTarget(target: ReleaseTarget): "app" | "appimage" {
-  if (target.os === "macos") return "app";
-  if (target.os === "linux" && target.variant === "offline") return "appimage";
+ * 仅需 Portable 包；2026-09-27 增补：Linux 需"解压即运行"的 tar.gz，两种运行
+ * 时策略都提供且与 AppImage 并存）。macOS portable = 未签名 .app（ditto 压缩
+ * .app.zip）；Linux bootstrap = 系统 WebKitGTK tar.gz（尽量复用发行版运行时，
+ * 对等 deb 的策略但免安装）；Linux offline = 自含 AppImage + 自含 tar.gz
+ * （同一 linuxdeploy 闭包，免 FUSE 的解压形态）。Windows NSIS 是安装器，无
+ * portable 形态——Windows portable 的 manifest 语义（webview 策略）需要发行
+ * 合同修订，不擅自发明。 */
+export type PortableFormat = "app.zip" | "appimage" | "tarball";
+
+export function portableFormats(target: ReleaseTarget): PortableFormat[] {
+  if (target.os === "macos") return ["app.zip"];
+  if (target.os === "linux") {
+    if (target.variant === "offline") return ["appimage", "tarball"];
+    if (target.variant === "bootstrap") return ["tarball"];
+  }
   throw new PackagingError(
     "NO_PORTABLE_FORMAT",
     `target ${target.os}/${target.variant} has no portable format`,
@@ -63,25 +71,46 @@ export function portableBundleTarget(target: ReleaseTarget): "app" | "appimage" 
   );
 }
 
-/** Portable 产物名：macOS 追加 `.app.zip`（.app 经 ditto 压缩）；Linux offline
- * 与安装器命名一致（AppImage 本身即 portable）。 */
-export function portableArtifactName(target: ReleaseTarget, version: string): string {
-  const bundle = portableBundleTarget(target);
-  const ext = bundle === "app" ? "app.zip" : FORMAT_EXTENSIONS[bundle];
-  return `${artifactBase(target, version)}.${ext}`;
+/** Portable 产物名：tar.gz 与 .app.zip 一律不带 distro 段——bootstrap tar.gz
+ * 是发行版无关产物（系统 WebKitGTK ≥ minimumWebview 即可），其构建基线
+ * （如 ubuntu-22.04）记录在包内 manifest 而非文件名。非法目标先过
+ * portableFormats 校验（fail-closed）。 */
+export function portableArtifactName(
+  target: ReleaseTarget,
+  version: string,
+  format: PortableFormat,
+): string {
+  if (!portableFormats(target).includes(format))
+    throw new PackagingError(
+      "NO_PORTABLE_FORMAT",
+      `format ${format} is not portable for target ${target.os}/${target.variant}`,
+      [`${target.os}/${target.variant}`, format],
+    );
+  const ext =
+    format === "tarball" ? "tar.gz" : format === "app.zip" ? "app.zip" : FORMAT_EXTENSIONS.appimage;
+  return `xresconv-gui-${version}-${target.os}-${target.arch}-${target.variant}.${ext}`;
 }
 
 /**
- * Portable 构建验证范围（portable-build.yml）：macOS x64/arm64 + Linux
- * x86_64/aarch64，一律取 offline 命名——macOS 两变体负载相同（targets.json
- * 仅 variant 字段不同），portable 验证以 offline 为准；Linux portable 只有
- * offline 自含形态。聚合按精确集合 fail-closed，不认额外/缺失产物。
+ * Portable 构建验证范围（portable-build.yml）：macOS x64/arm64（app.zip）+
+ * Linux x86_64/aarch64（bootstrap tar.gz + offline AppImage/tar.gz），共 8 项。
+ * macOS 两变体负载相同（targets.json 仅 variant 字段不同），portable 验证取
+ * offline 命名；Linux bootstrap tar.gz 不带 distro 段且 12 个 distro 行共享
+ * 同一产物（按名去重）。聚合按精确集合 fail-closed，不认额外/缺失产物。
  */
 export function portableArtifactNames(file: TargetsFile, version: string): string[] {
-  return file.targets
-    .filter((t) => (t.os === "macos" || t.os === "linux") && t.variant === "offline")
-    .map((t) => portableArtifactName(t, version))
-    .sort();
+  const names = new Set<string>();
+  for (const target of file.targets) {
+    if (target.os === "macos" && target.variant !== "offline") continue;
+    let formats: PortableFormat[];
+    try {
+      formats = portableFormats(target);
+    } catch {
+      continue;
+    }
+    for (const format of formats) names.add(portableArtifactName(target, version, format));
+  }
+  return [...names].sort();
 }
 
 function compareKeys(a: string, b: string): number {
