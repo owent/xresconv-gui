@@ -232,19 +232,23 @@ fn release_layout_paths(
     (node.is_file() && entry.is_file()).then_some((node, entry))
 }
 
-/// Tauri 在 Linux 的 resources 落位（deb/rpm：`/usr/lib/<productName>`；
-/// AppImage：`<AppDir>/usr/lib/<productName>`）。须与 tauri.conf.json 的
-/// productName 一致；本模块测试不得触碰 tauri 运行时类型（P4-02 约束），故用常量。
+/// Tauri deb/rpm/AppImage 的发行负载落位：`/usr/share/<productName>`（经
+/// `bundle.linux.{deb,rpm,appimage}.files` 映射）。不能放 `usr/lib/<productName>`
+/// ——linuxdeploy 会把 AppDir/usr/lib 下所有 ELF 递归 patchelf+strip，破坏
+/// manifest 逐文件哈希；也不能放 `/opt`——AppImage 打包仅拷贝 data/usr 子树。
+/// 须与 tauri.conf.json 的 productName 一致；本模块测试不得触碰 tauri 运行时
+/// 类型（P4-02 约束），故用常量。
 const LINUX_RESOURCE_DIR_NAME: &str = "xresconv-gui";
 
 /// exe 所在目录可用的安装根候选：exe 同级（Windows NSIS 与发行目录）、
 /// `../Resources`（macOS .app：Contents/MacOS → Contents/Resources）、
-/// `../lib/<productName>`（Linux deb/rpm 与 AppImage 的 Tauri resources 落位）。
+/// `../share/<productName>`（Linux deb/rpm 与 AppImage：exe 在 `<prefix>/usr/bin`，
+/// 负载在 `<prefix>/usr/share/<productName>`）。
 fn release_layout_candidates(exe_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut roots = vec![exe_dir.to_path_buf()];
     if let Some(parent) = exe_dir.parent() {
         roots.push(parent.join("Resources"));
-        roots.push(parent.join("lib").join(LINUX_RESOURCE_DIR_NAME));
+        roots.push(parent.join("share").join(LINUX_RESOURCE_DIR_NAME));
     }
     roots
 }
@@ -254,7 +258,7 @@ impl GuardianClient {
     /// `sink` 存在时事件帧直接转发（壳侧注入 tauri emit）；测试可传 None。
     pub fn start(sink: Option<EventSink>) -> ChannelResult<Self> {
         // 解析顺序：显式 env → 发布布局（Windows/Linux NSIS exe 同级；macOS
-        // ../Resources；Linux deb/rpm 与 AppImage ../lib/<product>）→ 开发态
+        // ../Resources；Linux deb/rpm 与 AppImage ../share/<product>）→ 开发态
         // 回退 → PATH node。
         let exe_dir = std::env::current_exe()
             .ok()
@@ -666,13 +670,13 @@ mod tests {
     fn release_layout_candidates_cover_linux_resource_dir() {
         let base = std::env::temp_dir().join("xresconv-release-linux-test");
         let bin_dir = base.join("usr").join("bin");
-        let lib_root = base
+        let share_root = base
             .join("usr")
-            .join("lib")
+            .join("share")
             .join(super::LINUX_RESOURCE_DIR_NAME);
         std::fs::create_dir_all(&bin_dir).unwrap();
-        let runtime = lib_root.join("runtime");
-        let app = lib_root.join("app").join("guardian");
+        let runtime = share_root.join("runtime");
+        let app = share_root.join("app").join("guardian");
         std::fs::create_dir_all(&runtime).unwrap();
         std::fs::create_dir_all(&app).unwrap();
         let node_name = if cfg!(windows) { "node.exe" } else { "node" };
@@ -681,9 +685,9 @@ mod tests {
         let resolved = super::release_layout_candidates(&bin_dir)
             .into_iter()
             .find_map(|root| super::release_layout_paths(&root))
-            .expect("Linux usr/lib layout detected");
+            .expect("Linux /usr/share layout detected");
         assert!(resolved.1.ends_with("service.mjs"));
-        assert!(resolved.0.starts_with(&lib_root));
+        assert!(resolved.0.starts_with(&share_root));
         let _ = std::fs::remove_dir_all(&base);
     }
 

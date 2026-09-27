@@ -127,8 +127,4 @@ export function matchClasses(ruleClasses: string[], itemClasses: string[]): bool
   return ruleClasses.some((x) => itemClasses.some((y) => x === y));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  process.stdout.write(`${JSON.stringify({ ok: true, pid: process.pid })}\n`);
-}
-
 export * from "./tree-model.ts";
