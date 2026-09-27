@@ -137,3 +137,16 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 `release.yml` 的 macOS x64/arm64 使用对应原生 runner；Linux 离线包仅在 Ubuntu 22.04 基线生成，避免两个 job 上传同名文件。聚合按完整 targets 矩阵检查唯一文件名、配对校验文件及实际 SHA-256。组装默认 `verificationReport.result=fail`，安装验收必须另行提供证据。
 
 现有工作流仍缺 Windows ARM、Linux ARM 及 Debian/Fedora 全部目标，聚合会拒绝不完整矩阵；本轮 Windows 双变体已实构；未触发 CI、执行安装/签名/公证或发布。Linux 预检参数/安装命令已修复，Linux shell 回归待 Linux CI，本机 Windows 不模拟通过。详情见 [审查记录](records/REVIEW-2026-09-27.md)。
+
+## Portable 构建验证（2026-09-27，P5-11）
+
+用户指示：无苹果开发者证书，各平台打包**仅需 Portable 包**，不需要安装包。据此落地跨平台构建流程验证，不改变上文的安装器矩阵合同（draft release 聚合继续 fail-closed 拒绝不完整矩阵）：
+
+- **Portable 形态定义**（`packages/packaging/src/matrix.ts`）：
+  - macOS = 未签名 `.app`（bundle target `app`；无签名身份时 tauri-bundler v2.11.5 `keychain()`=Ok(None)，跳过签名与公证），打包期 `ditto -c -k --sequesterRsrc --keepParent` 压缩为 `xresconv-gui-<version>-macos-<arch>-<variant>.app.zip`；
+  - Linux offline AppImage 本身自含即 portable，命名与安装器矩阵一致；
+  - Windows NSIS 与 Linux bootstrap deb/rpm 是安装器，**无 portable 形态**——Windows portable 的 manifest webview 语义需要另行修订本册合同与 targets.json，不擅自发明。
+- **验证范围**（`portableArtifactNames`，精确 4 项）：macOS x64/arm64 + Linux x86_64/aarch64，一律取 offline 命名（macOS 两变体负载相同，targets.json 仅 `variant` 字段不同；Linux portable 只有 offline 自含形态）。macOS x64 用 `macos-15-intel`、arm64 用 `macos-15` 原生 runner；Linux 双架构均在 Ubuntu 22.04 最老基线（x86_64 用 `ubuntu-22.04`、aarch64 用 `ubuntu-22.04-arm` 原生 runner，无交叉编译）。
+- **工作流** `.github/workflows/portable-build.yml`：构建 → `scripts/verify-portable.ts` 逐产物验证（解包 → manifest 身份与本次构建/目标完全一致 → 全量逐文件 SHA-256 → 包内 Node `--version` 原生探针；Linux 另验 AppRun 与 WebKitGTK 自含闭包，macOS 另验 Info.plist 最低系统 13.5）→ 聚合 job 只做产物集合 + 边车哈希核验（CI-06 语义，无 release 写权限）。AppImage aarch64 由 tauri-bundler 按 `Arch::AArch64` 选取 `linuxdeploy-aarch64.AppImage`/`AppRun-aarch64`，bundler 自设 `APPIMAGE_EXTRACT_AND_RUN=1`，无需 FUSE。
+- **Linux 发行布局自定位缺陷修复**（`src-tauri/src/guardian.rs`）：壳侧候选此前只有“exe 同级 + `../Resources`（macOS）”，而 deb/rpm 与 AppImage 的 Tauri resources 落位是 `usr/lib/<productName>`——P5-05/P5-06 的启动冒烟实际命中的是开发态回退（cwd 恰为仓库），属真实缺陷；现补 `../lib/<productName>` 候选并有 Rust 回归。
+- **与本册合同的关系**：portable 验证只证明“构建过程 + 负载完整性 + 包内自定位”，不构成 I01–I14 安装验收，也不替代签名（P5-07）；manifest 的 `verificationReport.result` 保持 `fail`。若最终发行决定转向 portable-only（放弃安装器矩阵），须先修订本册与 targets.json 的 webview 策略语义再改 release.yml。

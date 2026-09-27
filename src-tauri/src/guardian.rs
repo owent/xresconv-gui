@@ -666,7 +666,10 @@ mod tests {
     fn release_layout_candidates_cover_linux_resource_dir() {
         let base = std::env::temp_dir().join("xresconv-release-linux-test");
         let bin_dir = base.join("usr").join("bin");
-        let lib_root = base.join("usr").join("lib").join(super::LINUX_RESOURCE_DIR_NAME);
+        let lib_root = base
+            .join("usr")
+            .join("lib")
+            .join(super::LINUX_RESOURCE_DIR_NAME);
         std::fs::create_dir_all(&bin_dir).unwrap();
         let runtime = lib_root.join("runtime");
         let app = lib_root.join("app").join("guardian");

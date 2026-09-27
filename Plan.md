@@ -31,6 +31,8 @@ Hint:
 
 本轮进展（2026-09-27）：已完成包含 `4e6ebee` 至 `71e7ddb` 的审查、确认问题修复、公共打包逻辑精简及全组件 UI 更新；646 项 Node/前端、21 项三引擎浏览器、15 项 Rust 和 12 项 Windows 桌面验证通过，2 项 Linux shell 回归未在 Windows 执行。真实 JAR 八格式 30 文件一致，真实项目 28 任务成功。当前工作树的证据与未验收边界见 [本轮审查](docs/plan/records/REVIEW-2026-09-27.md)；上段 CI/安装包数字为历史证据。
 
+本轮进展（2026-09-27 第二批，P5-11）：按用户指示（无签名证书、仅需 Portable 包）落地跨平台 Portable 构建验证——新增 `portable-build.yml`（macOS x64/arm64 未签名 `.app.zip` + Linux x86_64/aarch64 自含 AppImage，Ubuntu 22.04 最老基线，原生 runner 无交叉编译；聚合 fail-closed 核验精确 4 项产物与 SHA-256）；打包 CLI 增加 `--portable` 形态与 `yarn verify:portable` 逐产物验证（解包→manifest 身份→全量逐文件 SHA-256→包内 Node 原生探针）。**顺带修复真实缺陷：Linux deb/rpm/AppImage 的发行布局自定位无候选命中（`usr/lib/<productName>`），此前 P5-05/06 启动冒烟实为开发态回退**，现补 `../lib/<productName>` 候选并有 Rust 回归。记录见 [P5-11](docs/plan/records/P5-11.md)；安装验收、签名与 G5 仍归 P5-07/P5-08/P5-10，不因构建验证视为完成。
+
 用户已确定的目标：
 
 1. 将保留的依赖、工具链及全部 GitHub Actions 升级到实施时最新稳定版本。
