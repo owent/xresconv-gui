@@ -2,8 +2,8 @@
  * runJavaBatch 真实 JAR 集成测试（P3-07）。
  *
  * 使用本机真实构件：
- * - JAR: D:/workspace/github/xresloader/xresloader/target/xresloader-2.23.7.jar
- * - 样本: D:/workspace/github/xresloader/xresloader/sample（cwd 基准，任务内相对路径）
+ * - JAR: XRESCONV_TEST_JAR 或 ../xresloader/target 中唯一 JAR
+ * - 样本: XRESCONV_TEST_SAMPLE 或 ../xresloader/sample（cwd 基准，任务内相对路径）
  * jar/样本缺失时整组 skip（在 docs/plan/records/P3-05.md 声明）。
  *
  * 用例 a-e 对应任务书；另含空批次、中止与截止路径。
@@ -16,12 +16,10 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { buildArgvFallbackCommand, encodeTaskLine } from "@xresconv/backend";
 import { afterAll, describe, expect, it } from "vitest";
+import { HAS_JAR, JAR, SAMPLE } from "../../../tests/fixtures/conversion/runtime.mts";
 import { AbortError, runJavaBatch } from "../src/java-runner.ts";
 import { HardDeadlineError } from "../src/run-with-deadline.ts";
 
-const JAR = "D:/workspace/github/xresloader/xresloader/target/xresloader-2.23.7.jar";
-const SAMPLE = "D:/workspace/github/xresloader/xresloader/sample";
-const HAS_JAR = existsSync(JAR) && existsSync(SAMPLE);
 const JAVA_ARGS = ["-Dfile.encoding=UTF-8"];
 const TEST_TIMEOUT = 180_000;
 

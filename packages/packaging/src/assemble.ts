@@ -66,6 +66,18 @@ const ROLE_BUNDLES = [
     destDir: "app/script-host",
     destName: "worker.mjs",
   },
+  {
+    workspace: "@xresconv/backend",
+    entry: "packages/backend/bin/matcher-worker.mjs",
+    destDir: "app/backend",
+    destName: "matcher-worker.mjs",
+  },
+  {
+    workspace: "@xresconv/backend",
+    entry: "packages/backend/src/service/log-sink-worker.ts",
+    destDir: "app/backend",
+    destName: "log-sink-worker.mjs",
+  },
 ] as const;
 
 /** dependencies 携带 workspace 协议的包目录（npm 种子推导来源）。 */
@@ -134,7 +146,7 @@ function sha256File(filePath: string): string {
 }
 
 function runNode(nodePath: string, args: string[], what: string): string {
-  const proc = spawnSync(nodePath, args, { encoding: "utf8" });
+  const proc = spawnSync(nodePath, args, { encoding: "utf8", timeout: 10_000, windowsHide: true });
   if (proc.error !== undefined || proc.status !== 0) {
     throw new PackagingError("NODE_ACQUISITION_FAILED", `cannot run ${what} with bundled Node`, [
       `path: ${nodePath}`,
@@ -161,6 +173,24 @@ function verifyNodeBinary(node: NodeAcquisition, target: ReleaseTarget): NodeFac
     );
   }
   const exactVersion = `${versionMatch[1]}.${versionMatch[2]}.${versionMatch[3]}`;
+  const platform = target.os === "windows" ? "win32" : target.os === "macos" ? "darwin" : "linux";
+  const arch = target.arch === "x86_64" ? "x64" : target.arch === "aarch64" ? "arm64" : target.arch;
+  const identity = runNode(
+    node.path,
+    ["-p", "process.platform + '/' + process.arch"],
+    "node platform/architecture probe",
+  );
+  if (
+    identity !== `${platform}/${arch}` ||
+    process.platform !== platform ||
+    process.arch !== arch
+  ) {
+    throw new PackagingError(
+      "NODE_ACQUISITION_FAILED",
+      "bundled Node platform/architecture must match the target and native build host",
+      [identity, target.targetTriple],
+    );
+  }
   if (versionMatch[1] !== target.nodeVersion) {
     throw new PackagingError(
       "NODE_ACQUISITION_FAILED",
@@ -227,14 +257,12 @@ export function glibcExclusion(target: ReleaseTarget): RegExp | null {
 }
 
 function copyDirFiltered(src: string, dest: string, exclude: RegExp | null): void {
-  if (exclude === null) {
-    copyDir(src, dest);
-    return;
-  }
   fs.cpSync(src, dest, {
     recursive: true,
-    verbatimSymlinks: false,
-    filter: (candidate: string) => !exclude.test(candidate),
+    dereference: true,
+    filter: (candidate: string) =>
+      !path.relative(src, candidate).split(path.sep).includes("node_modules") &&
+      !(exclude?.test(candidate) ?? false),
   });
 }
 
@@ -292,7 +320,7 @@ function resolvePackageDir(name: string, fromDir: string): string | null {
  * @koromix/koffi-linux-*）；required 依赖缺失抛 ASSEMBLY_FAILED——
  * 坏包/缺包不得静默漏进发行（xml-naming 教训，release-chain 冒烟捕获）。
  */
-function copyNpmClosure(
+export function copyNpmClosure(
   seeds: readonly string[],
   repoRoot: string,
   nodeModulesDest: string,
@@ -311,7 +339,7 @@ function copyNpmClosure(
   }));
   while (queue.length > 0) {
     const { name, fromDir, optional } = queue.shift() as QueueEntry;
-    if (copied.has(name) || isBuiltin(name)) {
+    if (isBuiltin(name)) {
       continue;
     }
     const dir = resolvePackageDir(name, fromDir);
@@ -324,6 +352,18 @@ function copyNpmClosure(
         `looked up from: ${fromDir}`,
       ]);
     }
+    const location = path
+      .relative(path.join(repoRoot, "node_modules"), dir)
+      .split(path.sep)
+      .join("/");
+    if (location.startsWith("../") || path.isAbsolute(location)) {
+      throw new PackagingError(
+        "ASSEMBLY_FAILED",
+        `package ${name} resolves outside repository node_modules`,
+        [dir],
+      );
+    }
+    if (copied.has(location)) continue;
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")) as {
       name: string;
       version?: string;
@@ -335,21 +375,21 @@ function copyNpmClosure(
     if (typeof manifest.version !== "string" || manifest.version.length === 0) {
       throw new PackagingError("ASSEMBLY_FAILED", `package ${name} carries no version`, [dir]);
     }
-    copied.set(name, {
+    copied.set(location, {
       name,
       version: manifest.version,
       license: licenseOf(manifest),
     });
-    copyDirFiltered(dir, path.join(nodeModulesDest, name), exclusion);
-    for (const dep of Object.keys(manifest.dependencies ?? {})) {
-      if (!copied.has(dep)) {
-        queue.push({ name: dep, fromDir: dir, optional: false });
-      }
-    }
-    for (const dep of Object.keys(manifest.optionalDependencies ?? {})) {
-      if (!copied.has(dep)) {
-        queue.push({ name: dep, fromDir: dir, optional: true });
-      }
+    copyDirFiltered(dir, path.join(nodeModulesDest, location), exclusion);
+    for (const dep of new Set([
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.optionalDependencies ?? {}),
+    ])) {
+      queue.push({
+        name: dep,
+        fromDir: dir,
+        optional: Object.hasOwn(manifest.optionalDependencies ?? {}, dep),
+      });
     }
   }
   return copied;
@@ -421,6 +461,11 @@ function walkFiles(root: string): string[] {
 
 /** npm 包名 = node_modules 下第一段（scoped 两段）。 */
 function packageKeyOf(relInNodeModules: string): string {
+  const nested = relInNodeModules.lastIndexOf("/node_modules/");
+  if (nested >= 0) {
+    const prefix = relInNodeModules.slice(0, nested + "/node_modules/".length);
+    return prefix + packageKeyOf(relInNodeModules.slice(prefix.length));
+  }
   const segments = relInNodeModules.split("/");
   const first = segments[0] as string;
   return first.startsWith("@") ? `${first}/${segments[1] as string}` : first;
@@ -529,7 +574,9 @@ export async function assembleRuntimeLayout(
   const nativeModules: NativeAddonModule[] = files
     .filter((file) => file.path.endsWith(".node"))
     .map((file) => ({
-      name: packageKeyOf(file.path.slice("app/node_modules/".length)),
+      name:
+        copied.get(packageKeyOf(file.path.slice("app/node_modules/".length)))?.name ??
+        packageKeyOf(file.path.slice("app/node_modules/".length)),
       path: file.path,
       sha256: file.sha256,
     }));

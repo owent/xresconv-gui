@@ -27,6 +27,7 @@ jobs:
   # CI-02a：Node 业务/契约质量（无 Rust 依赖——D6 解耦验证）
   quality-node:
     name: quality (node)
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       # actions/checkout v7.0.1
@@ -62,6 +63,7 @@ jobs:
   # 需要 node_modules——先装 Node 依赖（仅安装，不跑 JS 测试）。
   quality-shell:
     name: quality (shell)
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       # actions/checkout v7.0.1
@@ -101,8 +103,8 @@ jobs:
   # - windows-latest：runner 会话无交互桌面，WebView2 无法与 msedgedriver
   #   完成 DevToolsActivePort 握手（app 本体 guardian/backend 正常，诊断步
   #   实证）；权威 Windows 证据为本机交互会话（P4-09 记录 9/9）。
-  # - macos-latest：tauri-driver 启动即退且无 stderr（safaridriver 已 enable，
-  #   诊断步 /tmp/td.log 为空）；按用户决策 macOS 验收延后至 mac 实机/CI 平台。
+  # - macos-latest：当前外部 tauri-driver harness 不支持 macOS，显式失败；
+  #   需独立验证其他 provider；按用户决策延后至 mac 实机/CI 平台。
   # 两者 continue-on-error：结果如实展示，不阻塞流水线；恢复条件登记于
   # docs/plan/records/P5-09.md。
   desktop-e2e:
@@ -141,21 +143,17 @@ jobs:
         run: corepack yarn install --immutable
       - name: Install tauri-driver
         run: cargo install tauri-driver --locked
-      - name: Enable safaridriver (macOS)
-        # tauri-driver 在 macOS 用系统 safaridriver；未启用时启动即退
-        # （官方要求一次性 `safaridriver --enable`，CI 实测定位）。
-        if: runner.os == 'macOS'
-        run: sudo safaridriver --enable
       - name: Locate msedgedriver (Windows)
         if: runner.os == 'Windows'
         run: |
           $runtime = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}').pv
           Write-Host "WebView2 runtime: $runtime"
           $url = "https://msedgedriver.azureedge.net/$runtime/edgedriver_win64.zip"
-          try { Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile edgedriver.zip } catch { $url = "https://registry.npmmirror.com/-/binary/edgedriver/$runtime/edgedriver_win64.zip"; Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile edgedriver.zip }
-          Expand-Archive edgedriver.zip -DestinationPath build/tools
+          New-Item -ItemType Directory -Force build/tools | Out-Null
+          try { Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 30 -OutFile build/tools/edgedriver.zip } catch { $url = "https://registry.npmmirror.com/-/binary/edgedriver/$runtime/edgedriver_win64.zip"; Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 30 -OutFile build/tools/edgedriver.zip }
+          Expand-Archive build/tools/edgedriver.zip -DestinationPath build/tools
           & .\build\tools\msedgedriver.exe --version
-          "MSEDGEDRIVER_PATH=$pwd\build\tools\msedgedriver.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "MSEDGEDRIVER_PATH=$pwd\build\tools\msedgedriver.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         shell: pwsh
       - name: Desktop E2E
         run: corepack yarn test:desktop
@@ -174,16 +172,6 @@ jobs:
           Receive-Job $job
           Stop-Job $job; Remove-Job $job -Force
         shell: pwsh
-      - name: Diagnose tauri-driver (macOS)
-        # tauri-driver 启动即退排查：捕获其 stderr（macOS 无 timeout 命令，
-        # 用后台进程 + sleep + kill）。非致命。
-        if: runner.os == 'macOS' && failure()
-        run: |
-          tauri-driver > /tmp/td.log 2>&1 &
-          TPID=$!
-          sleep 3
-          kill $TPID 2>/dev/null || true
-          head -20 /tmp/td.log
       # actions/upload-artifact v7.0.1（失败证据：日志/截图/退出码）
       - name: Upload E2E failure evidence
         if: failure()
@@ -191,6 +179,7 @@ jobs:
         with:
           name: e2e-evidence-${{ matrix.os }}
           path: |
-            apps/desktop/test-results
+            build/browser-test-results
+            build/desktop-test-results
             build/e2e-*.log
           if-no-files-found: ignore

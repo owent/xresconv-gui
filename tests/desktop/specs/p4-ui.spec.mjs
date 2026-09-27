@@ -20,10 +20,11 @@ withEmptyState("P4 UI panels in the real webview", () => {
     await status.waitForExist({ timeout: 15_000 });
     const text = await status.getText();
     assert.match(text, /未加载配置/);
-    for (const name of ["开始转换", "取消", "重置", "预览"]) {
+    for (const name of ["开始转换", "取消", "预览"]) {
       const button = await $(`button=${name}`);
       assert.strictEqual(await button.isEnabled(), false, `${name} 应禁用`);
     }
+    assert.strictEqual(await (await $("button=重置")).isExisting(), false);
   });
 
   it("renders the log panel toolbar and window info", async () => {
@@ -35,7 +36,7 @@ withEmptyState("P4 UI panels in the real webview", () => {
     await expectDisplayed('button=导出日志');
     const info = await $('[data-testid="log-window-info"]');
     await info.waitForExist({ timeout: 15_000 });
-    assert.match(await info.getText(), /完整日志见磁盘/);
+    assert.match(await info.getText(), /当前窗口.*导出包含当前筛选结果/);
   });
 
   it("typing the log text filter keeps the empty log state", async () => {

@@ -99,14 +99,14 @@ describe("RunControls 预览（P4-04b，UI04）", () => {
     mockedInvoke.mockReset();
   });
 
-  it("未加载配置时预览禁用；开始/取消/重置保持禁用（P4-06）", () => {
+  it("未加载配置时预览、开始、取消均禁用（P4-06）", () => {
     render(
       <>
         <RunControls />
         <LogPanel />
       </>,
     );
-    for (const name of ["预览", "开始转换", "取消", "重置"]) {
+    for (const name of ["预览", "开始转换", "取消"]) {
       expect(screen.getByRole("button", { name })).toHaveProperty("disabled", true);
     }
     expect(screen.getByRole("status", { name: "运行状态" }).textContent).toContain("未加载配置");
@@ -138,12 +138,10 @@ describe("RunControls 预览（P4-04b，UI04）", () => {
     expect(useSessionStore.getState().preview.status).toBe("ok");
   });
 
-  it("真实重复发射（同条目同类型/目录/重命名）以 warning 写入运行日志", async () => {
+  it("同条目生成重复转换任务时以 warning 写入可操作的运行日志", async () => {
     await loadFixture();
     const result = makePreviewResult(2);
-    result.conflicts = [
-      { outputDir: "same-out", rename: "/(?i)\\.bin$/.lua/", items: ["one", "one"] },
-    ];
+    result.conflicts = [{ outputDir: "same-out", rename: "/(?i)\\.bin$/.lua/", items: ["one"] }];
     routeRpc({ preview: () => result });
     render(
       <>
@@ -157,7 +155,8 @@ describe("RunControls 预览（P4-04b，UI04）", () => {
 
     const text = await waitFor(async () => {
       const t = await logText();
-      expect(t).toContain("重复输出");
+      expect(t).toContain("重复转换任务：条目 one");
+      expect(t).toContain("请检查输出矩阵规则");
       return t;
     });
     expect(text).toContain("same-out");

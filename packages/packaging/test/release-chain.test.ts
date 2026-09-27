@@ -24,6 +24,7 @@ import os from "node:os";
 import path from "node:path";
 import { encodeFrame, FrameDecoder } from "@xresconv/ipc";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { installStagedProbe } from "../../../tests/fixtures/staged-modules.mts";
 import { assembleRuntimeLayout } from "../src/assemble.ts";
 import type { ReleaseTarget } from "../src/types.ts";
 import { pickTarget, SAMPLE_COMMIT } from "./fixtures.ts";
@@ -86,7 +87,14 @@ beforeAll(async () => {
   // 与 chmod 跟随目标 OS——跨平台组装需目标平台 node_modules，CI 各 OS 本平台跑）。
   const osOfPlatform =
     process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : "linux";
-  const archOfPlatform = osOfPlatform === "linux" ? "x86_64" : "x64";
+  const archOfPlatform =
+    process.arch === "arm64"
+      ? osOfPlatform === "linux"
+        ? "aarch64"
+        : "arm64"
+      : osOfPlatform === "linux"
+        ? "x86_64"
+        : "x64";
   const target: ReleaseTarget = pickTarget(
     (t) => t.os === osOfPlatform && t.arch === archOfPlatform && t.variant === "bootstrap",
   );
@@ -106,6 +114,8 @@ beforeAll(async () => {
     verificationReport: { result: "pass", reportPath: "docs/plan/records/P5-02.md" },
   });
 
+  installStagedProbe(path.join(installDir, "app", "node_modules"));
+
   // 用户项目在安装树之外：裸包名必须靠发行锚点解析（BD-S1 锚定目录无
   // node_modules 上溯链到安装树）。
   const userProjectDir = path.join(tmpBase, "用户 项目");
@@ -122,11 +132,11 @@ beforeAll(async () => {
     <item name="alpha"><scheme name="DataSource">a.xlsx|s1|1,1</scheme></item>
   </list>
   <gui>
-    <script name="zip"><![CDATA[var AdmZip = require("adm-zip");
+    <script name="zip"><![CDATA[var deps = require("xresconv-staged-probe"); var AdmZip = deps["adm-zip"];
 var zip = new AdmZip();
 zip.addFile("m.txt", require("node:buffer").Buffer.from("离线", "utf8"));
 var back = new AdmZip(zip.toBuffer());
-log_info("ZIP=" + back.getEntry("m.txt").getData().toString("utf8") + "|KOFFI=" + typeof require("koffi").load);
+log_info("ZIP=" + back.getEntry("m.txt").getData().toString("utf8") + "|KOFFI=" + typeof deps.koffi.load);
 resolve();]]></script>
   </gui>
 </root>
@@ -137,7 +147,14 @@ resolve();]]></script>
   // 按钮定义在选择器 JSON（动作链 script:<name> 引用配置内 <script>，P4-05a 模型）。
   fs.writeFileSync(
     path.join(userProjectDir, "custom-selectors.json"),
-    `${JSON.stringify([{ name: "压缩探针", action: ["script:zip"] }], null, 2)}\n`,
+    `${JSON.stringify(
+      [
+        { name: "压缩探针", action: ["script:zip"] },
+        { name: "匹配探针", by_sheets: [{ file: "glob:*.xlsx" }] },
+      ],
+      null,
+      2,
+    )}\n`,
     "utf8",
   );
 
@@ -209,6 +226,8 @@ class StagedGuardianClient {
     this.child = spawn(f.nodeExe, [f.guardianEntry], {
       stdio: ["pipe", "pipe", "pipe"],
       env: scrubbedEnv(f),
+      cwd: f.userProjectDir,
+      windowsHide: true,
     });
     const decoder = new FrameDecoder(
       (value) => this.dispatch(value as TestEnvelope),
@@ -376,10 +395,18 @@ describe("release chain smoke（P5-02，PK07 本机部分）", () => {
       );
       const entry = marker.payload.entry as { message: string };
       expect(entry.message).toBe("ZIP=离线|KOFFI=function");
+      const matched = await client.rpc("invokeCustomButton", { name: "匹配探针" });
+      expect(matched.ok, JSON.stringify(matched.error)).toBe(true);
+      expect((matched.result as { ok: boolean }).ok).toBe(true);
+      const snap = await client.rpc("getSnapshot", {});
+      expect((snap.result as { selectedItems: unknown[] }).selectedItems).toHaveLength(1);
     } finally {
       const exitCode = await client.shutdown();
       // 有界收尾：shutdown 后整树自清，退出码 0（P2-09 合同）。
       expect(exitCode).toBe(0);
     }
+    expect(fs.readFileSync(path.join(f.userProjectDir, "xresconv-gui.info.log"), "utf8")).toContain(
+      "ZIP=离线|KOFFI=function",
+    );
   });
 });

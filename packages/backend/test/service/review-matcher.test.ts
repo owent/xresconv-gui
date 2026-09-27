@@ -1,5 +1,40 @@
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { MatcherService } from "../../src/service/matcher-service.ts";
+import { ConversionSession } from "../../src/service/session.ts";
+import { fixture, startPool, TEST_TIMEOUT_MS } from "./helpers.ts";
+
+it(
+  "a selector matching an old configuration cannot select replacement items",
+  async () => {
+    const pool = await startPool();
+    const matcher = new MatcherService();
+    const entered = Promise.withResolvers<void>();
+    const release = Promise.withResolvers<void>();
+    vi.spyOn(matcher, "start").mockImplementation(async () => {
+      entered.resolve();
+      await release.promise;
+    });
+    vi.spyOn(matcher, "matchBatch").mockImplementation(async (_rule, inputs) =>
+      inputs.map(() => true),
+    );
+    const session = new ConversionSession({ pool, matcherFactory: () => matcher });
+    try {
+      await session.loadConfig(fixture("custom-button.xml"));
+      await session.setCustomSelectors([fixture("custom-selectors-single.json")]);
+      const oldRequest = session.invokeCustomButton("单对象");
+      await entered.promise;
+      await session.loadConfig(fixture("custom-button.xml"));
+      release.resolve();
+      await expect(oldRequest).rejects.toThrow(/configuration.*changed/i);
+      expect(session.getSelectedItems()).toHaveLength(0);
+    } finally {
+      release.resolve();
+      await session.dispose();
+      await pool.shutdown();
+    }
+  },
+  TEST_TIMEOUT_MS,
+);
 
 it("all matcher startup callers wait for readiness", async () => {
   const service = new MatcherService();

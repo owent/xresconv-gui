@@ -122,8 +122,18 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 
 执行顺序：工具链 → 质量 → 原生应用/平台包 → 安装验收 → 汇总。安装依赖解析任务可独立缓存，但 cache key 包含 distro/arch/仓库快照。测试 feature 与 production 使用不同构建产物路径，避免 E2E 插件进入发布包。
 
-必须修正的现有流程问题：setup-node npm cache 与 Yarn 不匹配；全局不固定 Yarn；各矩阵 job 同时上传 release；仅凭最后一条 PowerShell 命令掩盖前面失败；`overwrite: true` 覆盖发行文件。修正时保留 draft、LFS 和正式触发语义，调整处写明原因。
+已落实的流程约束：不用 setup-node npm cache，Yarn 随 packageManager 固定；只有聚合 job 写 draft release；失败不得被最后一条命令掩盖；不覆盖已有发行。保留 LFS 与正式触发语义。
 
 若 GitHub hosted runner 无目标 OS/架构或无法提供干净安装状态，可使用受控测试机/VM 导入证据；没有资源就是对应发布 gate 阻塞，不自动减少矩阵。运行应用 E2E 的版本、签名包版本及 SHA 必须能关联，不能拿另一构建的测试报告代替。
 
 签名后不得再 strip/压缩修改可执行文件；以签名后的最终安装介质计算发行 hash 和大小。为降低体积启用 LTO/去调试符号时保留单独符号产物，并测试崩溃定位，不使用未经验证的可执行压缩器绕过系统签名。
+
+## 本轮发行修订（2026-09-27）
+
+三个平台入口复用 `packages/packaging/src/package-cli.ts`：原生 OS/架构和 Linux 发行版必须匹配目标；tag 必须与 Tauri 版本相同。每个变体分别组装，`--skip-assemble` 仅允许单变体且逐项验证 manifest 身份、文件大小与哈希。定位产物按目标格式和本次构建时间，拒绝旧文件、零个或多个候选。
+
+组装包括 backend 的 matcher/log-sink 独立 worker；生产日志默认接入内置 log4js 配置。npm 闭包保留嵌套目录和各版本的传递依赖。staged 探针检查模块的真实解析路径，禁止测试意外使用仓库祖先目录的依赖。SPDX 包按名称和版本区分，包含 Node 版本和必填字段。
+
+`release.yml` 的 macOS x64/arm64 使用对应原生 runner；Linux 离线包仅在 Ubuntu 22.04 基线生成，避免两个 job 上传同名文件。聚合按完整 targets 矩阵检查唯一文件名、配对校验文件及实际 SHA-256。组装默认 `verificationReport.result=fail`，安装验收必须另行提供证据。
+
+现有工作流仍缺 Windows ARM、Linux ARM 及 Debian/Fedora 全部目标，聚合会拒绝不完整矩阵；本轮 Windows 双变体已实构；未触发 CI、执行安装/签名/公证或发布。Linux 预检参数/安装命令已修复，Linux shell 回归待 Linux CI，本机 Windows 不模拟通过。详情见 [审查记录](records/REVIEW-2026-09-27.md)。

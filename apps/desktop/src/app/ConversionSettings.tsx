@@ -4,6 +4,7 @@ import type { SettingsFields } from "../adapters/backend";
 import { pickXmlConfig } from "../adapters/tauri";
 import { DisplaySettingsDialog } from "./DisplaySettingsDialog";
 import { DraftField } from "./DraftField";
+import { Icon } from "./Icon";
 import { ItemDetails } from "./ItemDetails";
 import { OutputMatrixEditor } from "./OutputMatrixEditor";
 import { useSessionStore } from "./session-store";
@@ -96,19 +97,27 @@ export function ConversionSettings() {
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="config-file-bar">
-        <Button className="btn-primary" onPress={() => void pickConfig()}>
+        <Button
+          className="btn-primary"
+          onPress={() => void pickConfig()}
+          isDisabled={BUSY_STATES.has(runState)}
+        >
+          <Icon name="file" />
           转换列表文件
         </Button>
         <input
           className="config-file-display"
           aria-label="配置文件路径"
           data-testid="picked-path"
-          disabled
-          placeholder="尚未载入任何文件，需要载入清单列表的xml文件(比如: convert_list.xml)"
+          placeholder="打开 XML 转换清单，开始工作…"
+          title={configPath ?? "选择 xresconv XML 配置文件"}
           value={configPath ?? ""}
           readOnly
         />
-        <Button onPress={() => void reloadConfig()} isDisabled={configPath === null}>
+        <Button
+          onPress={() => void reloadConfig()}
+          isDisabled={configPath === null || BUSY_STATES.has(runState)}
+        >
           重载配置
         </Button>
         <label className="select-field select-field--inline compact">
@@ -141,10 +150,10 @@ export function ConversionSettings() {
           详情…
         </Button>
         <Button className="btn-accent" onPress={() => setSettingsOpen(true)}>
-          ⚙ 显示设置
+          <Icon name="settings" />
+          显示设置
         </Button>
       </div>
-      {effective === null && <p className="empty-state">加载配置后可编辑转换参数。</p>}
 
       <ModalOverlay
         className="confirm-overlay detail-overlay"
@@ -261,7 +270,7 @@ export function ConversionSettings() {
               </section>
             </div>
             <div className="detail-footer">
-              <span className="settings-hint">字段修改在失焦/回车时生效（直写后端覆盖值）。</span>
+              <span className="settings-hint">修改后按回车或移开焦点即可应用。</span>
               <Button className="btn-primary" onPress={() => setDetailOpen(false)}>
                 关闭
               </Button>

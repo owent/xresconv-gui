@@ -1,7 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { App } from "../src/App";
+import { DisplaySettingsDialog } from "../src/app/DisplaySettingsDialog";
+import {
+  rememberLoadedConfig,
+  resetDisplaySettings,
+  useDisplaySettings,
+} from "../src/app/display-settings";
 import { resetEnvironmentDiagnostics } from "../src/app/environment-diagnostics";
 import { resetSessionStore } from "../src/app/session-store";
 
@@ -66,7 +73,79 @@ describe("display settings bootstrap (auto-load retry)", () => {
     vi.clearAllMocks();
     resetSessionStore();
     resetEnvironmentDiagnostics();
+    resetDisplaySettings();
     document.documentElement.removeAttribute("data-theme");
+  });
+
+  it("loads CLI input on first launch without a settings file", async () => {
+    mockedInvoke.mockImplementation(async (cmd, args) => {
+      if (cmd === "read_display_settings") return null;
+      if (cmd === "get_cli_matches") return { input: { value: "first.xml" } };
+      if (cmd === "backend_rpc" && args?.method === "loadConfig") return SNAPSHOT;
+      return null;
+    });
+    renderHook(() => useDisplaySettings());
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith(
+        "backend_rpc",
+        expect.objectContaining({ method: "loadConfig", params: { path: "first.xml" } }),
+      ),
+    );
+  });
+
+  it("commits a complete font size on blur without persisting intermediate invalid values", async () => {
+    mockedInvoke.mockResolvedValue(null);
+    render(<DisplaySettingsDialog open onClose={() => {}} />);
+    const user = userEvent.setup();
+    const size = screen.getByRole("spinbutton", { name: "左侧转换列表字号(px)" });
+    await user.type(size, "24");
+    expect(
+      mockedInvoke.mock.calls.filter(([cmd]) => cmd === "write_display_settings"),
+    ).toHaveLength(0);
+    await user.tab();
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith(
+        "write_display_settings",
+        expect.objectContaining({
+          fonts: expect.objectContaining({ tree: { family: null, size: 24 } }),
+        }),
+      ),
+    );
+  });
+
+  it("serializes preference writes and preserves fonts when theme/path changes", async () => {
+    let disk: Record<string, unknown> = {
+      theme: "light",
+      lastConfigFile: null,
+      fonts: { tree: { family: "Sarasa", size: 18 } },
+    };
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let writes = 0;
+    mockedInvoke.mockImplementation(async (cmd, args) => {
+      if (cmd === "read_display_settings") return structuredClone(disk);
+      if (cmd === "get_cli_matches") return {};
+      if (cmd === "write_display_settings") {
+        if (++writes === 1) await gate;
+        disk = structuredClone(args ?? {});
+      }
+      return null;
+    });
+    const { result } = renderHook(() => useDisplaySettings());
+    await waitFor(() => expect(result.current.fonts.tree.family).toBe("Sarasa"));
+    act(() => result.current.setTheme("dark"));
+    await waitFor(() => expect(writes).toBe(1));
+    act(() => rememberLoadedConfig("new.xml"));
+    release();
+    await waitFor(() =>
+      expect(disk).toMatchObject({
+        theme: "dark",
+        lastConfigFile: "new.xml",
+        fonts: { tree: { family: "Sarasa", size: 18 } },
+      }),
+    );
   });
 
   it("swallows transient BACKEND_NOT_READY during auto-load and retries to success", async () => {

@@ -15,7 +15,7 @@
  *   取整夹取 [1,16]），不进 overrides；
  * - preview {}：当前选择 + 当前覆盖构建转换计划预览（P4-04a；未加载 → INVALID_STATE；
  *   计划构建错误按其 code 透传，如 XRESLOADER_NOT_FOUND），返回任务列表与
- *   (outputDir, rename) 分组的输出冲突（UI04）；
+ *   同一条目、同 (type, outputDir, rename) 的重复转换任务（UI04）；
  * - run {}：异步启动一次转换（缺省用会话持有的 overrides），立即返回 {runSeq}，
  *   进度/结果经事件流（state_change / log / run_end）上报；
  * - cancel {} / reset {}：取消当前运行 / 业务级重置（EX03 语义在会话层）；
@@ -98,7 +98,7 @@ export interface PreviewTask {
   display: string;
 }
 
-/** preview 的输出冲突（同 (outputDir, rename) 分组的 >1 任务；items 为 item 名）。 */
+/** preview 的重复转换任务（同条目、同 type/outputDir/rename 的多个任务；items 为条目名）。 */
 export interface PreviewConflict {
   outputDir: string;
   rename: string;
@@ -150,7 +150,7 @@ export interface BackendRpcAppOptions {
   /** 选择器匹配的隔离 matcher 工厂（P4-05a）；缺省真实 MatcherService（懒创建）。 */
   matcherFactory?: () => MatcherService;
   /** log4js 落盘配置路径（F10/F11 --log-configure；缺省用内置默认配置）。 */
-  log4jsConfigurePath?: string;
+  log4jsConfigurePath?: string | null;
 }
 
 /** 弹框 token 推导与 pool 的注册表键一致（P2-06：payload.token，缺省回退 env.id）。 */
@@ -288,7 +288,12 @@ export class BackendRpcApp {
       ...(options.matcherFactory === undefined ? {} : { matcherFactory: options.matcherFactory }),
       ...(options.log4jsConfigurePath === undefined
         ? {}
-        : { log4js: { configurePath: options.log4jsConfigurePath } }),
+        : {
+            log4js:
+              options.log4jsConfigurePath === null
+                ? {}
+                : { configurePath: options.log4jsConfigurePath },
+          }),
       onDialogRequest: (env, respond) => this.handleDialogRequest(env, respond),
       onDialogInvalidate: (env, reason) => this.handleDialogInvalidate(env, reason),
     });
@@ -507,10 +512,10 @@ export class BackendRpcApp {
       throw new RpcError("CONFIG_ERROR", formatUnknownError(err));
     }
     // 输出冲突（UI04；2026-09-26 四轮修正）：真实冲突 = 同一条目以相同
-    // (type, outputDir, rename) 被重复发射（输出文件必相同）。不同条目共享
+    // (type, outputDir, rename) 生成多个转换任务（输出文件必相同）。不同条目共享
     // 目录/重命名规则是正常形态——最终文件名由 xresloader 从各条目 scheme 的
     // OutputFile 取（SchemeConf.getOutputFile），GUI 无法跨条目判重，只报告
-    // 可证明的重复发射（此前按 (outputDir, rename) 分组>1 误报一切多条目配置）。
+    // 可证明的重复转换任务（此前按 (outputDir, rename) 分组>1 误报一切多条目配置）。
     const groups = new Map<string, PreviewConflict & { count: number }>();
     for (const task of plan.tasks) {
       const outputDir = task.outputDir ?? "";

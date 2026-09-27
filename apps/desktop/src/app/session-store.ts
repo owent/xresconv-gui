@@ -4,6 +4,7 @@ import {
   type BackendSnapshot,
   backendRpc,
   type DialogPayloadLike,
+  type EffectiveSettingsLike,
   type GetLogsResult,
   type GuardianDeadPayload,
   getBackendSnapshot,
@@ -24,7 +25,11 @@ import {
 import { exportTextFile, pickSavePath } from "../adapters/tauri";
 import { writeClipboardText } from "./clipboard";
 import { rememberLoadedConfig } from "./display-settings";
-import { isRetryableStartupError, STARTUP_RETRY_INTERVAL_MS } from "./startup-retry";
+import {
+  isRetryableStartupError,
+  STARTUP_RETRY_INTERVAL_MS,
+  STARTUP_RETRY_TIMEOUT_MS,
+} from "./startup-retry";
 
 /**
  * 会话 store（docs/plan/04-ui.md §状态分层）：后端快照缓存 + 事件水位 + UI 状态。
@@ -181,10 +186,9 @@ interface SessionData {
   pendingDialogs: PendingDialog[];
   /** P4-06：run RPC 在途（双击防护）。 */
   runStarting: boolean;
+  settingsPending: number;
   /** P4-06：已请求取消、等待后端清理（终态事件清除；EX03 重复取消幂等）。 */
   cancelRequested: boolean;
-  /** P4-06：reset RPC 在途。 */
-  resetting: boolean;
   /** 最近一次运行终态记录（P4-06，UI06）；新 run 成功启动时清除。 */
   lastRun: RunRecord | null;
   /** 终态 state_change 的 previous；由同一次运行的 run_end 消费。 */
@@ -204,7 +208,9 @@ interface SessionActions {
    * 替换 snapshot.settings（受控回写）；失败写 lastError。并行多次提交以请求
    * 序号防乱序覆盖（后端合并语义，最后一次响应即全量）。
    */
-  updateSettings: (fields: SettingsFields) => Promise<boolean>;
+  updateSettings: (
+    fields: SettingsFields | ((current: EffectiveSettingsLike) => SettingsFields),
+  ) => Promise<boolean>;
   /** 预览（P4-04b，UI04）：在途 loading；错误（含 XRESLOADER_NOT_FOUND）进 error。 */
   runPreview: () => Promise<boolean>;
   /**
@@ -214,8 +220,6 @@ interface SessionActions {
   startRun: () => Promise<boolean>;
   /** 取消当前运行（P4-06，EX03）：置 cancelRequested 直到终态事件（重复取消幂等）。 */
   cancelRun: () => Promise<boolean>;
-  /** 业务重置（P4-06，EX03）：有活动运行先取消等清理；完成后重同步快照。 */
-  resetSession: () => Promise<boolean>;
   /** 初始拉取日志窗口（P4-07）：getLogs 最新页；幂等（initialized 闸）。 */
   initLogs: () => Promise<void>;
   /** 加载更早日志（P4-07）：beforeSeq 向后分页并前插；无更早置 noMoreOlder。 */
@@ -234,7 +238,7 @@ interface SessionActions {
   /** 事件 hook 开关（P4-05b，F09）：成功就地改写快照 config.gui；失败写 lastError。 */
   setHookEnabled: (group: HookGroup, index: number, enabled: boolean) => Promise<boolean>;
   /** 设置/重读自定义选择器文件（P4-05b）：成功后重同步快照（default_selected 已改树）。 */
-  setCustomSelectors: (files: string[]) => Promise<boolean>;
+  setCustomSelectors: (files: string[], startup?: boolean) => Promise<boolean>;
   /** 自定义按钮点击（P4-05b）：按钮可改树/设置，成功后重同步快照；{ok:false} 写 lastError。 */
   invokeCustomButton: (name: string) => Promise<boolean>;
   /**
@@ -316,8 +320,8 @@ const initialPreview = (): PreviewState => ({ status: "idle", result: null, erro
 
 /** 日志显示面重置（2026-09-26 四轮：加载配置/开始转换后同首次启动）。
  *  保留 seq 水位（旧事件不灌回）与容量；initialized=true 防止重拉历史。 */
-const resetLogWindow = (logs: LogWindowState): LogWindowState => ({
-  entries: [],
+const resetLogWindow = (logs: LogWindowState, afterId: number): LogWindowState => ({
+  entries: logs.entries.filter((entry) => entry.localId > afterId),
   initialized: true,
   backendDroppedCount: 0,
   localDroppedCount: 0,
@@ -365,8 +369,8 @@ const initialData: SessionData = {
   preview: initialPreview(),
   pendingDialogs: [],
   runStarting: false,
+  settingsPending: 0,
   cancelRequested: false,
-  resetting: false,
   lastRun: null,
   pendingEndPhase: null,
   logs: {
@@ -386,6 +390,7 @@ let sessionEpoch = 0;
 let snapshotRequest = 0;
 let settingsRequest = 0;
 let previewRequest = 0;
+let logWindowEpoch = 0;
 let loadingConfig = false;
 /** 日志条目本地稳定键计数器（backend seq 缺失的直发诊断用）。 */
 let logLocalSeq = 0;
@@ -396,6 +401,8 @@ const MAX_LOG_INIT_RETRIES = 50;
 export const useSessionStore = create<SessionStore>()((set, get) => {
   /** 选择 ops 串行链：任一环节失败不断链（错误已写入 lastError）。 */
   let selectionChain: Promise<void> = Promise.resolve();
+  let matrixChain: Promise<void> = Promise.resolve();
+  let matrixEpoch = sessionEpoch;
 
   const applySelectionOps = (ops: Record<string, unknown>[]): Promise<void> => {
     const epoch = sessionEpoch;
@@ -458,7 +465,12 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
     return selectionChain;
   };
 
-  const storeSnapshot = (snapshot: BackendSnapshot, resetUi: boolean): void => {
+  const storeSnapshot = (
+    snapshot: BackendSnapshot,
+    resetUi: boolean,
+    logCutoff = logLocalSeq,
+  ): void => {
+    if (resetUi) logWindowEpoch++;
     set((state) => {
       let focusedKey = state.focusedKey;
       // 重同步保留既有 UI 状态；聚焦节点可能已不存在，校验后清空。
@@ -489,7 +501,9 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
               // 2026-09-26 四轮：加载新配置即重置运行日志显示面（同首次启动）——
               // 清空窗口、不再重拉历史（initialized=true），保留 seq 水位防旧
               // 事件灌回；后续新会话日志经事件流继续追加。
-              logs: resetLogWindow(state.logs),
+              logs: resetLogWindow(state.logs, logCutoff),
+              lastRun: null,
+              pendingEndPhase: null,
             }
           : {}),
       };
@@ -505,12 +519,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         return false;
       }
       const epoch = ++sessionEpoch;
+      set({ settingsPending: 0 });
       snapshotRequest++;
       loadingConfig = true;
+      const logCutoff = logLocalSeq;
       try {
         const snapshot = await backendRpc<BackendSnapshot>("loadConfig", { path });
         if (epoch !== sessionEpoch) return false;
-        storeSnapshot(snapshot, true);
+        storeSnapshot(snapshot, true, logCutoff);
         // 显示设置：记住上次转换列表（下次启动自动加载；无桥接时静默跳过）。
         void rememberLoadedConfig(path);
         return true;
@@ -529,12 +545,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         return false;
       }
       const epoch = ++sessionEpoch;
+      set({ settingsPending: 0 });
       snapshotRequest++;
       loadingConfig = true;
+      const logCutoff = logLocalSeq;
       try {
         const snapshot = await backendRpc<BackendSnapshot>("reload");
         if (epoch !== sessionEpoch) return false;
-        storeSnapshot(snapshot, true);
+        storeSnapshot(snapshot, true, logCutoff);
         return true;
       } catch (error) {
         if (epoch === sessionEpoch)
@@ -561,27 +579,54 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       }
     },
 
-    updateSettings: async (fields) => {
+    updateSettings: async (input) => {
       if (loadingConfig) return false;
       const epoch = sessionEpoch;
-      const request = ++settingsRequest;
+      set((state) => ({ settingsPending: state.settingsPending + 1 }));
+      let release: (() => void) | undefined;
+      let previous = Promise.resolve();
+      // 矩阵是整数组写入，延迟到上一笔完成后再按最新值生成，避免相邻字段互相覆盖。
+      if (typeof input === "function") {
+        if (matrixEpoch !== epoch) {
+          matrixEpoch = epoch;
+          matrixChain = Promise.resolve();
+        }
+        previous = matrixChain;
+        matrixChain = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      let request = settingsRequest;
       try {
+        if (typeof input === "function") await previous;
+        if (epoch !== sessionEpoch || loadingConfig) return false;
+        const current = get().snapshot?.settings.effective;
+        if (typeof input === "function" && !current) return false;
+        const fields =
+          typeof input === "function" ? input(current as EffectiveSettingsLike) : input;
+        request = ++settingsRequest;
+        snapshotRequest++;
         const settings = await backendRpc<SettingsViewLike>("updateSettings", { fields });
         if (epoch !== sessionEpoch || request !== settingsRequest) return false;
         set((state) => {
           if (state.snapshot === null) return {};
           return { snapshot: { ...state.snapshot, settings }, lastError: null };
         });
+        if (fields.matrix !== undefined) await get().refreshSnapshot();
         return true;
       } catch (error) {
         if (epoch === sessionEpoch && request === settingsRequest)
           set({ lastError: describeError(error) });
         return false;
+      } finally {
+        release?.();
+        if (epoch === sessionEpoch)
+          set((state) => ({ settingsPending: Math.max(0, state.settingsPending - 1) }));
       }
     },
 
     runPreview: async () => {
-      if (loadingConfig) return false;
+      if (loadingConfig || get().settingsPending > 0) return false;
       const epoch = sessionEpoch;
       const request = ++previewRequest;
       set({ preview: { status: "loading", result: null, error: null } });
@@ -599,19 +644,20 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
     },
 
     startRun: async () => {
-      if (loadingConfig || get().runStarting) return false;
+      if (loadingConfig || get().runStarting || get().settingsPending > 0) return false;
       const epoch = sessionEpoch;
+      const logCutoff = logLocalSeq;
       set({ runStarting: true });
       try {
-        await backendRpc<{ runSeq: number }>("run");
+        const { runSeq } = await backendRpc<{ runSeq: number }>("run");
         if (epoch !== sessionEpoch) return false;
         // 新运行开始：上次终态记录与取消标记失效（run_end 只针对当前运行）；
         // 运行日志显示面重置（2026-09-26 四轮：每次开始转换从干净日志追加）。
+        logWindowEpoch++;
         set((state) => ({
-          lastRun: null,
-          pendingEndPhase: null,
+          lastRun: state.lastRun?.runSeq === runSeq ? state.lastRun : null,
           cancelRequested: false,
-          logs: resetLogWindow(state.logs),
+          logs: resetLogWindow(state.logs, logCutoff),
         }));
         // 状态权威同步（runConversion 首个 await 前已迁移 before_hooks）。
         await get().refreshSnapshot();
@@ -638,30 +684,13 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       }
     },
 
-    resetSession: async () => {
-      if (loadingConfig || get().resetting) return false;
-      const epoch = sessionEpoch;
-      set({ resetting: true });
-      try {
-        await backendRpc<{ cancelledRun: boolean }>("reset");
-        if (epoch !== sessionEpoch) return false;
-        set({ cancelRequested: false });
-        await get().refreshSnapshot();
-        return true;
-      } catch (error) {
-        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
-        return false;
-      } finally {
-        if (epoch === sessionEpoch) set({ resetting: false });
-      }
-    },
-
     initLogs: async () => {
       if (get().logs.initialized) return;
       const epoch = sessionEpoch;
+      const logEpoch = logWindowEpoch;
       try {
         const result = await backendRpc<GetLogsResult>("getLogs", { limit: LOG_PAGE_SIZE });
-        if (epoch !== sessionEpoch) return;
+        if (epoch !== sessionEpoch || logEpoch !== logWindowEpoch) return;
         const fetched = (Array.isArray(result?.entries) ? result.entries : [])
           .map(normalizeLogEntry)
           .filter((entry): entry is LogEntryLike => entry !== null);
@@ -682,7 +711,10 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
           return {
             logs: {
               ...state.logs,
-              entries: merged,
+              entries: merged.slice(-state.logs.windowCapacity),
+              localDroppedCount:
+                state.logs.localDroppedCount +
+                Math.max(0, merged.length - state.logs.windowCapacity),
               initialized: true,
               backendDroppedCount:
                 typeof result?.droppedCount === "number" ? result.droppedCount : 0,
@@ -695,6 +727,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         });
       } catch (error) {
         const message = describeError(error);
+        if (epoch !== sessionEpoch || logEpoch !== logWindowEpoch) return;
         // 启动瞬态错误（backend 仍在 starting）：静默重试，不置 initialized、
         // 不写 lastError——否则首个 BACKEND_NOT_READY 会作为持久告警卡在树上
         // 且日志永远拉不出来（2026-09-26 用户反馈的启动报错来源之一）。
@@ -705,7 +738,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         ) {
           logInitRetries++;
           setTimeout(() => {
-            void get().initLogs();
+            if (epoch === sessionEpoch && logEpoch === logWindowEpoch) void get().initLogs();
           }, STARTUP_RETRY_INTERVAL_MS);
           return;
         }
@@ -725,13 +758,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       const firstSeq = logs.entries.find((entry) => entry.seq !== undefined)?.seq;
       if (firstSeq === undefined) return;
       const epoch = sessionEpoch;
+      const logEpoch = logWindowEpoch;
       set((state) => ({ logs: { ...state.logs, loadingOlder: true } }));
       try {
         const result = await backendRpc<GetLogsResult>("getLogs", {
           limit: LOG_PAGE_SIZE,
           beforeSeq: firstSeq,
         });
-        if (epoch !== sessionEpoch) return;
+        if (epoch !== sessionEpoch || logEpoch !== logWindowEpoch) return;
         const fetched = (Array.isArray(result?.entries) ? result.entries : [])
           .map(normalizeLogEntry)
           .filter((entry): entry is LogEntryLike => entry !== null);
@@ -757,7 +791,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
           },
         }));
       } catch (error) {
-        if (epoch === sessionEpoch) {
+        if (epoch === sessionEpoch && logEpoch === logWindowEpoch) {
           set((state) => ({ logs: { ...state.logs, loadingOlder: false } }));
           set({ lastError: describeError(error) });
         }
@@ -788,10 +822,10 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         return false;
       }
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "");
-      const path = await pickSavePath(`xresconv-gui-logs-${stamp}.log`);
-      if (path === null) return false; // 用户取消，非错误
       const epoch = sessionEpoch;
       try {
+        const path = await pickSavePath(`xresconv-gui-logs-${stamp}.log`);
+        if (path === null) return false;
         await exportTextFile(path, `${filtered.map((entry) => entry.text).join("\n")}\n`);
         return true;
       } catch (error) {
@@ -864,14 +898,29 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       return true;
     },
 
-    setCustomSelectors: async (files) => {
-      if (loadingConfig) return false;
+    setCustomSelectors: async (files, startup = false) => {
       const epoch = sessionEpoch;
-      try {
-        await backendRpc("setCustomSelectors", { files });
-      } catch (error) {
-        if (epoch === sessionEpoch) set({ lastError: describeError(error) });
-        return false;
+      const deadline = Date.now() + STARTUP_RETRY_TIMEOUT_MS;
+      for (;;) {
+        if (epoch !== sessionEpoch) return false;
+        let error = "BACKEND_NOT_READY: configuration is loading";
+        if (!loadingConfig) {
+          try {
+            await backendRpc("setCustomSelectors", { files });
+            break;
+          } catch (cause) {
+            error = describeError(cause);
+          }
+        }
+        if (
+          !startup ||
+          !isRetryableStartupError(error) ||
+          Date.now() + STARTUP_RETRY_INTERVAL_MS > deadline
+        ) {
+          if (epoch === sessionEpoch) set({ lastError: error });
+          return false;
+        }
+        await new Promise((resolve) => setTimeout(resolve, STARTUP_RETRY_INTERVAL_MS));
       }
       if (epoch !== sessionEpoch) return false;
       // default_selected 可能已改树；视图也随快照回来。
@@ -978,6 +1027,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
             summary?: unknown;
           };
           if (payload?.type === "state_change") {
+            snapshotRequest++;
             next.lastStateChange = { state: payload.state, previous: payload.previous };
             if (state.snapshot !== null && typeof payload.state === "string") {
               next.snapshot = { ...state.snapshot, state: payload.state };
@@ -985,7 +1035,11 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
             if (typeof payload.state === "string" && RUN_TERMINAL_STATES.has(payload.state)) {
               // 记录终态来源阶段（同一次运行的 run_end 消费）；清理标记无论
               // run_end 是否到达都不能卡住（EX03：终态只发布一次）。
-              next.pendingEndPhase = typeof payload.previous === "string" ? payload.previous : null;
+              next.pendingEndPhase = ["before_hooks", "converting", "after_hooks"].includes(
+                payload.previous ?? "",
+              )
+                ? (payload.previous ?? null)
+                : null;
               next.cancelRequested = false;
             }
           }
@@ -1061,12 +1115,16 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         connection: "degraded",
         lastError: `后端进程已退出${payload.reason ? `：${payload.reason}` : ""}`,
         runStarting: false,
+        settingsPending: 0,
         cancelRequested: false,
-        resetting: false,
         // 新一代 backend 的 seq 从 1 重新开始：复位游标与初始化标记，
         // 避免旧 maxSeq 误杀新一代事件；既有条目保留可见（历史）。
+        pendingDialogs: [],
+        preview: initialPreview(),
+        lastRun: null,
         logs: {
           ...state.logs,
+          entries: state.logs.entries.map(({ seq: _seq, ...entry }) => entry),
           initialized: false,
           maxSeq: -1,
           loadingOlder: false,
@@ -1090,7 +1148,6 @@ export function resetSessionStore(): void {
     pendingDialogs: [],
     runStarting: false,
     cancelRequested: false,
-    resetting: false,
     lastRun: null,
     pendingEndPhase: null,
     logs: { ...initialData.logs },

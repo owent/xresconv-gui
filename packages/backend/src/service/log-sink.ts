@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createProcessScope, type ProcessScope } from "@xresconv/guardian";
 import { encodeFrame, FrameDecoder, writeFrame } from "@xresconv/ipc";
@@ -18,7 +18,10 @@ const DEFAULT_CONFIG = {
   },
   categories: { default: { appenders: ["app", "errors"], level: "DEBUG" } },
 } as const;
-const WORKER = fileURLToPath(new URL("./log-sink-worker.ts", import.meta.url));
+const BUNDLED_WORKER = fileURLToPath(new URL("./log-sink-worker.mjs", import.meta.url));
+const WORKER = existsSync(BUNDLED_WORKER)
+  ? BUNDLED_WORKER
+  : fileURLToPath(new URL("./log-sink-worker.ts", import.meta.url));
 const MAX_PENDING = 128;
 
 /** Each sink owns an isolated process, so configurations and shutdowns cannot affect another session. */

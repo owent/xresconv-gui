@@ -22,15 +22,13 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { buildArgvFallbackCommand, encodeTaskLine, tokenizeStdinLine } from "@xresconv/backend";
-import { runJavaBatch, runWithDeadline } from "@xresconv/guardian";
+import { resolveJavaExecutable, runJavaBatch, runWithDeadline } from "@xresconv/guardian";
+import { JAR, SAMPLE as SAMPLE_DIR } from "../fixtures/conversion/runtime.mts";
 
-const JAR = "D:/workspace/github/xresloader/xresloader/target/xresloader-2.23.7.jar";
-const SAMPLE_DIR = "D:/workspace/github/xresloader/xresloader/sample";
 const XLSX = "资源转换示例.xlsx";
 const JAVA_ARGS = ["-Dfile.encoding=UTF-8"];
 const PER_PROCESS_DEADLINE_MS = 180_000;
@@ -137,7 +135,7 @@ function hashTree(dir, base, normalize) {
 
 async function javaVersion() {
   try {
-    const { stderr } = await execFileAsync("java", ["-version"]);
+    const { stderr } = await execFileAsync(resolveJavaExecutable().command, ["-version"], { timeout: 8000, windowsHide: true });
     return stderr.trim().split("\n")[0] ?? "unknown";
   } catch {
     return "unknown";
@@ -153,8 +151,9 @@ async function main() {
   }
 
   const startedAt = new Date().toISOString();
-  const outA = mkdtempSync(path.join(tmpdir(), "xresconv-g3-A-"));
-  const outB = mkdtempSync(path.join(tmpdir(), "xresconv-g3-B-"));
+  mkdirSync(REPORT_DIR, { recursive: true });
+  const outA = mkdtempSync(path.join(REPORT_DIR, "A-"));
+  const outB = mkdtempSync(path.join(REPORT_DIR, "B-"));
   const report = {
     startedAt,
     jar: JAR,
@@ -187,7 +186,7 @@ async function main() {
     const resultsB = [];
     for (const task of TASKS) {
       const argv = tokenizeStdinLine(task.line.replaceAll("{OUT}", outB));
-      const res = await runWithDeadline("java", {
+      const res = await runWithDeadline(resolveJavaExecutable().command, {
         args: buildArgvFallbackCommand(JAVA_ARGS, JAR, argv),
         cwd: SAMPLE_DIR,
         deadlineMs: PER_PROCESS_DEADLINE_MS,

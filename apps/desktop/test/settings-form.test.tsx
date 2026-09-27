@@ -296,7 +296,10 @@ describe("ConversionSettings（P4-04b，UI04）", () => {
     const detail = screen.getByRole("button", { name: "详情…" }) as HTMLButtonElement;
     expect(detail.disabled).toBe(true);
     expect(screen.getByLabelText("并发数")).toHaveProperty("disabled", true);
-    expect(screen.getByText("加载配置后可编辑转换参数。")).toBeTruthy();
+    expect(screen.getByLabelText("配置文件路径")).toHaveProperty(
+      "placeholder",
+      "打开 XML 转换清单，开始工作…",
+    );
     expect(screen.queryByRole("dialog", { name: "详细配置" })).toBeNull();
   });
 });

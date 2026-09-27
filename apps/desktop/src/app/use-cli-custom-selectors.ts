@@ -47,7 +47,7 @@ export function useCliCustomSelectors(): void {
         if (cancelled || files.length === 0 || wired) return;
         wired = true;
         // 失败时 store.lastError 已可见，这里无需额外处理。
-        await useSessionStore.getState().setCustomSelectors(files);
+        await useSessionStore.getState().setCustomSelectors(files, true);
       })
       .catch((error: unknown) => {
         if (!cancelled) {

@@ -205,12 +205,12 @@ export class ConversionSession {
       this.treeState = tree;
       // 表单随配置重填：上次配置的 overrides 不带入新配置（P4-04a）。
       this.overrides = {};
-      this.transition("ready");
       // P4-05a：已设置自定义选择器时，每次成功加载后重放 default_selected
       // （main.js:1888-1892 show_conv_tree 末尾 force=true 执行一次）。
       if (this.customSelectors !== null) {
         await this.applyDefaultSelected();
       }
+      this.transition("ready");
       return config;
     } catch (err) {
       void this.pipeline.error(formatUnknownError(err), "CONFIG");
@@ -491,10 +491,12 @@ export class ConversionSession {
   /** default_selected 重放（force=true，main.js:826-828/1888-1892）；逐选择器隔离失败。 */
   private async applyDefaultSelected(): Promise<void> {
     const selectors = this.customSelectors;
+    const config = this.config;
     if (selectors === null || this.treeState === null || this.config === null) {
       return;
     }
     for (const entry of selectors.entries) {
+      if (this.disposed || config !== this.config || selectors !== this.customSelectors) return;
       if (!entry.ok || entry.def.default_selected !== true) {
         continue;
       }
@@ -513,10 +515,12 @@ export class ConversionSession {
   /** 选择器匹配（隔离 matcher 求值，BD-M4 fail-closed 语义在 SelectionRuleService）。 */
   private async matchSelector(def: CustomSelectorDef): Promise<TreeItem[]> {
     const config = this.config;
+    const selectors = this.customSelectors;
+    const generation = this.generation;
     if (config === null) {
       return [];
     }
-    return resolveSelectorItemsIsolated(
+    const matched = await resolveSelectorItemsIsolated(
       await this.getReadyMatcher(),
       def,
       flattenTreeItems(config.tree),
@@ -526,6 +530,15 @@ export class ConversionSession {
         },
       },
     );
+    if (
+      this.disposed ||
+      config !== this.config ||
+      selectors !== this.customSelectors ||
+      generation !== this.generation
+    ) {
+      throw new Error("configuration or run changed during selector matching");
+    }
+    return matched;
   }
 
   /**
@@ -621,6 +634,9 @@ export class ConversionSession {
       return formatUnknownError(err);
     }
     // BD-S3：所有 outcome 都应用 ops（settle 前已产生的部分修改可见）。
+    if (this.disposed || config !== this.config || selectors !== this.customSelectors) {
+      return "configuration changed during button script";
+    }
     if (result.ops !== undefined) {
       this.applyScriptOps(result.ops);
     }
@@ -648,11 +664,14 @@ export class ConversionSession {
     }
     const def = entry.def;
     const actions = def.action ?? [];
+    const config = this.config;
     if (actions.length === 0) {
       await this.runSelectorToggle(def);
       return { ok: true };
     }
     for (const raw of actions) {
+      if (this.disposed || config !== this.config)
+        return { ok: false, error: "configuration changed during button action" };
       const failure = await this.runButtonAction(def, raw);
       if (failure !== null) {
         void this.pipeline.error(failure, "CUSTOM SELECTOR");

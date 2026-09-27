@@ -1,13 +1,11 @@
 import assert from "node:assert";
-import path from "node:path";
-import { existsSync, writeFileSync, rmSync } from "node:fs";
 
 /**
  * 2026-09-26 用户反馈验证：树形条目可勾选/反选、树撑满左列、文字省略、
  * 页面内容显示正常。配置经 --input 注入（CLI 参数 → loadConfig），
  * 勾选经真实 WebView 点击 → applyOps RPC → 快照回写。
  */
-// 需要 XRESCONV_E2E_INPUT 注入配置（本地验证链路）；CI 常规运行无输入时跳过。
+// run.mjs 默认第二轮注入测试 XML；也可用 XRESCONV_E2E_INPUT 指定可信配置。
 const describeLoaded = process.env.XRESCONV_E2E_INPUT ? describe : describe.skip;
 
 describeLoaded("tree selection and layout with a loaded config", () => {
@@ -73,7 +71,7 @@ describeLoaded("tree selection and layout with a loaded config", () => {
     const text = await status.getText();
     assert.match(text, /状态|已完成|就绪/, `run state=${text}`);
 
-    for (const name of ["开始转换", "重置", "全部选中"]) {
+    for (const name of ["开始转换", "全部选中"]) {
       const button = await $(`button=${name}`);
       assert.ok(await button.isDisplayed(), `${name} should be visible`);
     }

@@ -113,6 +113,46 @@ describe("OutputMatrixEditor（P4-04b，UI04）", () => {
     mockedInvoke.mockReset();
   });
 
+  it("preserves both field edits while the first matrix request is delayed", async () => {
+    const snapshot = makeSnapshot(
+      makeEffective({
+        matrix: [
+          { type: "bin", tags: ["server"], classes: [] },
+          { type: "json", tags: [], classes: [] },
+        ],
+      }),
+    );
+    await loadFixture(snapshot);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let requests = 0;
+    const update = answerUpdateSettings(snapshot);
+    routeRpc({
+      updateSettings: async (params) => {
+        if (++requests === 1) await gate;
+        return structuredClone(update(params));
+      },
+      getSnapshot: () => structuredClone(snapshot),
+    });
+    render(<OutputMatrixEditor />);
+    const user = userEvent.setup();
+    const rule = within(screen.getByLabelText("输出规则 1"));
+    await user.type(rule.getByLabelText("重命名（正则）"), "/a/b/");
+    await user.tab();
+    await user.type(rule.getByLabelText("输出目录（output_dir）"), "new-output");
+    await user.tab();
+    release();
+    await waitFor(() => expect(updateSettingsFields()).toHaveLength(2));
+    await waitFor(() =>
+      expect(snapshot.settings.effective?.matrix[0]).toMatchObject({
+        rename: "/a/b/",
+        outputDir: "new-output",
+      }),
+    );
+  });
+
   it("单类型模式：格式/重命名/输出目录编辑分别提交", async () => {
     const snapshot = makeSnapshot();
     await loadFixture(snapshot);

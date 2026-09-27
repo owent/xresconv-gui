@@ -18,7 +18,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
-import { createRequire, isBuiltin } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +25,8 @@ import type { Envelope, ScriptInvoke, ScriptResult } from "@xresconv/contracts";
 import { encodeFrame, FrameDecoder } from "@xresconv/ipc";
 import { build } from "esbuild";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { installStagedProbe } from "../../../tests/fixtures/staged-modules.mts";
+import { copyNpmClosure } from "../../packaging/src/assemble.ts";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const WAIT_MS = 15_000;
@@ -47,73 +48,6 @@ let layout: StageLayout | null = null;
 
 function copyDir(src: string, dest: string): void {
   fs.cpSync(src, dest, { recursive: true, verbatimSymlinks: false });
-}
-
-/** 递归闭包：从种子包出发按 package.json dependencies/optionalDependencies 复制。 */
-function copyNpmClosure(seeds: string[], nodeModulesDest: string): string[] {
-  const rootReq = createRequire(path.join(REPO_ROOT, "package.json"));
-  const parentReqs = new Map<string, NodeJS.Require>();
-  const copied = new Set<string>();
-  const queue = [...seeds];
-  for (const seed of seeds) {
-    parentReqs.set(seed, rootReq);
-  }
-  const pkgDirOf = (entry: string): string | null => {
-    let dir = path.dirname(entry);
-    for (;;) {
-      const pj = path.join(dir, "package.json");
-      if (fs.existsSync(pj)) {
-        try {
-          const parsed = JSON.parse(fs.readFileSync(pj, "utf8")) as { name?: string };
-          if (typeof parsed.name === "string") {
-            return dir;
-          }
-        } catch {
-          // 继续向上找
-        }
-      }
-      const parent = path.dirname(dir);
-      if (parent === dir) {
-        return null;
-      }
-      dir = parent;
-    }
-  };
-  while (queue.length > 0) {
-    const name = queue.shift() as string;
-    if (copied.has(name) || isBuiltin(name)) {
-      continue;
-    }
-    const req = parentReqs.get(name) ?? rootReq;
-    let resolved: string;
-    try {
-      resolved = req.resolve(name);
-    } catch {
-      // 平台特定 optionalDependencies（如 @koromix/koffi-linux-*）缺失属正常。
-      continue;
-    }
-    const dir = pkgDirOf(resolved);
-    if (dir === null) {
-      throw new Error(`cannot locate package dir for ${name} (resolved: ${resolved})`);
-    }
-    copied.add(name);
-    copyDir(dir, path.join(nodeModulesDest, name));
-    const pkg = JSON.parse(fs.readFileSync(path.join(dir, "package.json"), "utf8")) as {
-      dependencies?: Record<string, string>;
-      optionalDependencies?: Record<string, string>;
-    };
-    const subReq = createRequire(path.join(dir, "xresconv-closure-anchor.cjs"));
-    for (const dep of [
-      ...Object.keys(pkg.dependencies ?? {}),
-      ...Object.keys(pkg.optionalDependencies ?? {}),
-    ]) {
-      if (!copied.has(dep)) {
-        parentReqs.set(dep, subReq);
-        queue.push(dep);
-      }
-    }
-  }
-  return [...copied];
 }
 
 /**
@@ -204,8 +138,11 @@ beforeAll(async () => {
   // 用户脚本可见的 npm 包（SC04 清单）+ 打包保持 external 的生产依赖闭包。
   copyNpmClosure(
     ["adm-zip", "compressing", "koffi", "ajv", "log4js", "minimatch"],
+    REPO_ROOT,
     nodeModulesDest,
+    null,
   );
+  installStagedProbe(nodeModulesDest);
 
   // 用户项目在安装树之外（裸包名必须靠回退锚点解析）。
   const userDir = path.join(tmpBase, "用户 项目");
@@ -456,8 +393,9 @@ describe("release layout offline module loading (P2-10)", () => {
           source: [
             'var pathMod = require("node:path");',
             'var helper = require("./helper.js");',
-            'var AdmZip = require("adm-zip");',
-            'var koffi = require("koffi");',
+            'var deps = require("xresconv-staged-probe");',
+            'var AdmZip = deps["adm-zip"];',
+            "var koffi = deps.koffi;",
             'var stream = require("node:stream");',
             'var BufferCtor = require("node:buffer").Buffer;',
             "function collect() {",
@@ -474,14 +412,14 @@ describe("release layout offline module loading (P2-10)", () => {
             "var pack = collect();",
             "pipeTo(",
             '  stream.Readable.from([BufferCtor.from(payload, "utf8")]),',
-            '  new (require("compressing").gzip.FileStream)(),',
+            "  new (deps.compressing.gzip.FileStream)(),",
             "  pack.sink",
             ")",
             "  .then(function () {",
             "    var back = collect();",
             "    return pipeTo(",
             "      stream.Readable.from([pack.join()]),",
-            '      new (require("compressing").gzip.UncompressStream)(),',
+            "      new (deps.compressing.gzip.UncompressStream)(),",
             "      back.sink",
             "    ).then(function () {",
             '      if (back.join().toString("utf8") !== payload) { throw new Error("gzip mismatch"); }',
@@ -538,8 +476,8 @@ describe("release layout offline module loading (P2-10)", () => {
         const invoke = makeInvoke(l, {
           source: [
             "try {",
-            '  require("adm-zip");',
-            '  reject(new Error("unexpectedly resolved adm-zip without fallback anchors"));',
+            '  require("xresconv-staged-probe");',
+            '  reject(new Error("unexpectedly resolved staged probe without fallback anchors"));',
             "} catch (err) {",
             '  log_notice("code=" + String(err && err.code));',
             "  resolve();",
@@ -547,12 +485,13 @@ describe("release layout offline module loading (P2-10)", () => {
           ].join("\n"),
         });
         client.invoke(invoke);
+        // 若裸包意外解析成功，直接报告脚本失败，不等待根本不会出现的日志。
+        expect((await client.completeOf(invoke.invocation_id)).outcome).toBe("resolved");
         const log = await client.waitFor(
           (env) => env.kind === "log" && env.payload.invocation_id === invoke.invocation_id,
           "negative-control log",
         );
         expect(log.payload.message).toBe("code=MODULE_NOT_FOUND");
-        expect((await client.completeOf(invoke.invocation_id)).outcome).toBe("resolved");
       } finally {
         await client.close();
       }

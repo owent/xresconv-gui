@@ -307,12 +307,11 @@ describe("ConversionTree (P4-03)", () => {
     render(<ConversionTree />);
     const user = userEvent.setup();
 
-    // 双击= 标题 click×2(两次切换,互相抵消) + onDoubleClick(一次切换) →
-    // 净效果为切换一次;ops 为奇数个 select_node。
+    // 原实现发三次 RPC；同一个双击手势只应提交一次选择。
     await user.dblClick(screen.getByText("beta"));
     await waitFor(() => {
       const payloads = applyOpsPayloads(invoke);
-      expect(payloads.length % 2).toBe(1);
+      expect(payloads).toHaveLength(1);
       expect(payloads[0]).toEqual([{ v: 1, op: "select_node", key: 2 }]);
     });
   });

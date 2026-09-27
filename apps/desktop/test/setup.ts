@@ -16,9 +16,9 @@ class ResizeObserverShim {
   observe(target: Element): void {
     const size = {
       width: 1024,
-      height: 768,
+      height: target.hasAttribute("data-index") ? 24 : 768,
       inlineSize: 1024,
-      blockSize: 768,
+      blockSize: target.hasAttribute("data-index") ? 24 : 768,
     };
     // virtual-core 优先读 borderBoxSize（缺省回退 offsetHeight=0），
     // 两个口径都给足；字段经 as 收敛，不逐字段实现 ResizeObserverEntry。

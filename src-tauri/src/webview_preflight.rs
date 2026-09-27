@@ -36,6 +36,14 @@ fn webview2_acceptable(version: Option<&str>) -> bool {
     }
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
+fn installed_version(machine: Option<String>, user: Option<String>) -> Option<String> {
+    [machine, user]
+        .into_iter()
+        .flatten()
+        .max_by_key(|version| webview2_major(version).unwrap_or_default())
+}
+
 /// 读取已安装 WebView2 运行时版本（per-machine 或 per-user 任一）。
 #[cfg(windows)]
 fn webview2_runtime_version() -> Option<String> {
@@ -45,7 +53,7 @@ fn webview2_runtime_version() -> Option<String> {
     let user = windows_registry::CURRENT_USER
         .open(WEBVIEW2_CLIENT_KEY_USER)
         .and_then(|key| key.get_string("pv"));
-    machine.ok().or(user.ok())
+    installed_version(machine.ok(), user.ok())
 }
 
 /// 原生错误消息框（无 WebView 依赖的 win32 MessageBox）。
@@ -89,7 +97,15 @@ pub fn ensure_webview2_or_exit() {
 
 #[cfg(test)]
 mod tests {
-    use super::{MINIMUM_WEBVIEW2_MAJOR, webview2_acceptable, webview2_major};
+    use super::{MINIMUM_WEBVIEW2_MAJOR, installed_version, webview2_acceptable, webview2_major};
+
+    #[test]
+    fn stale_machine_registration_does_not_hide_supported_user_runtime() {
+        for machine in ["", "0.0.0.0", "119.0.0.0"] {
+            let version = installed_version(Some(machine.into()), Some("153.0.0.0".into()));
+            assert!(webview2_acceptable(version.as_deref()));
+        }
+    }
 
     #[test]
     fn major_parses_first_component() {

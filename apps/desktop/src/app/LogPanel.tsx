@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "react-aria-components";
 import { parseAnsi } from "./ansi";
+import { Icon } from "./Icon";
 import {
   filterLogEntries,
   type LogLevelFilter,
@@ -38,7 +39,9 @@ function AnsiText({ message }: { message: string }) {
           <span
             key={segment.key}
             style={{
-              ...(color === undefined ? {} : { color }),
+              ...(color === undefined
+                ? {}
+                : { color: background === undefined ? `var(--ansi-${color}, ${color})` : color }),
               ...(background === undefined ? {} : { backgroundColor: background }),
               ...(bold ? { fontWeight: "bold" } : {}),
               ...(underline ? { textDecoration: "underline" } : {}),
@@ -97,6 +100,7 @@ export function LogPanel() {
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: filtered.length,
+    getItemKey: (index) => filtered[index]?.localId ?? index,
     getScrollElement: () => parentRef.current,
     // 滚动模式：单行不折行，固定行高；换行模式：初始按两行估算，行元素经
     // measureElement 按实际折行数动态测高（2026-09-26 四轮：固定估算高度会
@@ -108,13 +112,19 @@ export function LogPanel() {
     initialRect: { width: 800, height: LOG_VIEWPORT_MIN_HEIGHT + 140 },
   });
   const pinnedRef = useRef(true);
+  const lastId = filtered.at(-1)?.localId;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: wrap changes invalidate cached measurements even when the virtualizer instance is unchanged
+  useEffect(() => {
+    virtualizer.measure();
+  }, [wrap, virtualizer]);
 
   // 追尾：钉住底部时新日志自动滚到底（用户上滚查看历史则不打扰）。
   useEffect(() => {
-    if (pinnedRef.current && filtered.length > 0) {
+    if (pinnedRef.current && lastId !== undefined) {
       virtualizer.scrollToIndex(filtered.length - 1, { align: "end" });
     }
-  }, [filtered.length, virtualizer]);
+  }, [filtered.length, lastId, virtualizer]);
 
   const firstSeq = entries.find((entry) => entry.seq !== undefined)?.seq;
   const canLoadOlder =
@@ -131,7 +141,10 @@ export function LogPanel() {
   return (
     <section className="panel log-panel" aria-label="运行日志">
       <div className="log-toolbar">
-        <span className="log-title">运行日志</span>
+        <h2 className="log-title">
+          <Icon name="log" />
+          运行日志
+        </h2>
         <label className="log-filter-label">
           级别
           <select
@@ -174,7 +187,7 @@ export function LogPanel() {
       <p className="log-window-info" data-testid="log-window-info">
         {logs.localDroppedCount > 0 && <>窗口已淘汰最老 {logs.localDroppedCount} 条；</>}
         {logs.backendDroppedCount > 0 && <>后端队列已丢弃 {logs.backendDroppedCount} 条；</>}
-        完整日志见磁盘
+        当前窗口 {entries.length} 条 · 导出包含当前筛选结果
       </p>
       {canLoadOlder && (
         <div className="log-load-older">
@@ -205,7 +218,7 @@ export function LogPanel() {
               return (
                 <div
                   key={entry?.localId ?? item.index}
-                  ref={wrap ? virtualizer.measureElement : undefined}
+                  ref={virtualizer.measureElement}
                   data-index={item.index}
                   className="log-row-wrapper"
                   style={{

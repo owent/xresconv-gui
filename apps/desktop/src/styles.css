@@ -1,1208 +1,1037 @@
 @import "./styles/tokens.css";
 
-/*
- * 全局 border-box（2026-09-26 四轮）：此前缺省 content-box，显式 width:100%
- * 的面板/输入框会把 padding+border 挤出容器——左树面板因此超出网格轨道
- * 26px 与右栏重叠 14px、设置弹窗字体输入与字号输入重叠 10px、树底溢出视口。
- */
+/* React Aria replaces default classes when a custom className is supplied. */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
-
 html,
 body,
 #root {
   height: 100%;
 }
-
 body {
   margin: 0;
   font-family: var(--font-global-family);
   font-size: var(--font-global-size);
+  line-height: 1.5;
   color: var(--color-text);
   background: var(--color-bg);
 }
-
-/* 界面控件区（表单/按钮/工具栏）字体 */
+button,
 input,
 select,
-button,
-.toolbar,
-.config-file-bar,
-.run-buttons,
-.form-grid {
+textarea {
   font-family: var(--font-ui-family);
   font-size: var(--font-ui-size);
 }
-
-/* 2026-09-26：表单控件统一现代化（输入/选择/搜索） */
-input[type="text"],
-input[type="search"],
-input[type="number"],
-input:not([type]),
-select,
-textarea,
-.react-aria-TextField .react-aria-Input {
-  font: inherit;
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border-strong);
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  min-height: 2.25em;
+  padding: 0.45em 0.8em;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-1);
-  padding: var(--space-1) var(--space-2);
+  font-weight: 550;
+  color: var(--color-text);
+  background: var(--color-panel-bg);
+  cursor: pointer;
   transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
-  min-width: 0;
+    background var(--transition-fast),
+    border-color var(--transition-fast);
 }
-
-input:hover,
-select:hover,
-textarea:hover {
+button:hover,
+button[data-hovered] {
+  background: var(--color-panel-bg-hover);
+  border-color: var(--color-border-strong);
+}
+button[data-pressed] {
+  background: var(--color-accent-soft);
+}
+button.btn-primary {
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
   border-color: var(--color-accent);
 }
-
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
+button.btn-primary:hover,
+button.btn-primary[data-hovered] {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+button.btn-accent {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: transparent;
+}
+button.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+}
+button.btn-ghost:hover {
+  background: var(--color-panel-bg-hover);
+}
+button:disabled,
+button[data-disabled] {
+  color: var(--color-disabled-ink);
+  background: var(--color-bg-inset);
+  border-color: transparent;
+  cursor: not-allowed;
+}
+:where(button, input, select, textarea, summary):focus-visible,
+button[data-focus-visible],
+.theme-option[data-focus-visible] {
   outline: 2px solid var(--color-focus-ring);
-  outline-offset: 1px;
+  outline-offset: 3px;
 }
-
-input[type="checkbox"] {
-  accent-color: var(--color-accent);
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2.25em;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  padding: 0.45em 0.65em;
+  color: var(--color-text);
+  background: var(--color-panel-bg);
+  line-height: 1.5;
 }
-
-/* 骨架布局（对照旧版 card-group；2026-09-26 三轮改版移除顶部状态条，
-   调试信息进运行日志）：左树 ｜ 右参数+日志+按钮 */
-.app-shell {
-  display: grid;
-  grid-template-areas: "tree right";
-  grid-template-rows: minmax(0, 1fr);
-  grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
-  gap: var(--space-3);
-  box-sizing: border-box;
-  height: 100dvh;
-  padding: var(--space-3);
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
 }
-
+input:disabled,
+select:disabled,
+textarea:disabled {
+  color: var(--color-disabled-ink);
+  background: var(--color-bg-inset);
+}
+textarea {
+  resize: vertical;
+}
+.icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex: none;
+}
 .panel {
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2);
   background: var(--color-panel-bg);
-  padding: var(--space-3);
   box-shadow: var(--shadow-1);
 }
-
 .panel-title {
-  margin: 0 0 var(--space-2);
+  margin: 0;
   font-size: var(--font-size-lg);
+  font-weight: 650;
+  letter-spacing: -0.015em;
 }
-
 .empty-state {
+  margin: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
+/* Two independent scroll regions between the configuration toolbar and run footer. */
+.app-shell {
+  display: grid;
+  grid-template-areas: "header header" "tree right" "run run";
+  grid-template-columns: minmax(17rem, 28%) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 1rem;
+  height: 100dvh;
+  min-height: 30rem;
+  padding: 1.25rem;
+}
+.workspace-header {
+  grid-area: header;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
+  min-width: 0;
+}
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex: none;
+}
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  border-radius: 0.8rem;
+  box-shadow: var(--shadow-2);
+}
+.brand-mark .icon {
+  width: 1.55rem;
+  height: 1.55rem;
+}
+.app-brand h1 {
+  margin: 0;
+  font: 700 1.1rem / 1.25 var(--font-family-base);
+  letter-spacing: -0.04em;
+}
+.brand-suffix {
+  font-weight: 400;
+  color: var(--color-text-muted);
+  margin-left: 0.3em;
+}
+.app-brand p {
+  margin: 0.2rem 0 0;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.06em;
+}
+.conversion-settings {
+  flex: 1 1 48rem;
+  padding: 0.7rem;
+}
+.config-file-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.config-file-display {
+  flex: 1 1 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-log-family);
+}
+.config-file-bar .config-file-display {
+  background: var(--color-panel-bg-hover);
+  border-color: transparent;
+}
+.right-panel {
+  grid-area: right;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: 0.75rem;
+}
+.custom-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  max-height: 25vh;
+  overflow: auto;
+}
+.custom-action-bar .panel-title {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+.custom-btn-group,
+.matrix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Tree rows are measured so custom fonts remain usable. */
 .conversion-tree {
   grid-area: tree;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  min-width: 0;
+  overflow: hidden;
   font-family: var(--font-tree-family);
   font-size: var(--font-tree-size);
-  /* 2026-09-26：树框尽量撑满左列（grid 列宽即面板宽）。 */
-  width: 100%;
-  height: 100%;
 }
-
+.tree-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-ui-family);
+  font-size: var(--font-ui-size);
+}
+.tree-tools-heading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.65rem;
+}
+.tree-tools-heading .panel-title {
+  flex: none;
+  white-space: nowrap;
+}
+.tree-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: 0.4rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  background: var(--color-panel-bg-hover);
+  color: var(--color-text-muted);
+}
+.tree-search:focus-within {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.tree-search input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding-left: 0;
+  outline: none;
+}
+.tree-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+.tree-actions button {
+  padding: 0.4em 0.15em;
+  font-size: 0.8em;
+  white-space: nowrap;
+  border-color: transparent;
+  background: var(--color-panel-bg-hover);
+}
 .tree-keyboard-scope {
   flex: 1;
   min-height: 0;
   display: flex;
-  flex-direction: column;
+  padding: 0.5rem;
 }
-
 .conversion-tree-view {
   flex: 1;
+  min-width: 0;
   min-height: 6rem;
-  outline: none;
-  /* 纵向滚动按需；横向永不滚动（标题省略号，行宽=容器宽）——纵向滚动条
-   * 出现/消失时虚拟行宽度不会随之重排，overflow-x:auto 会残留假横向滚动条
-   * （2026-09-27 用户反馈：全部收起后出现未溢出的横向滚动条）。 */
   overflow-y: auto;
   overflow-x: hidden;
-}
-
-/* 树条目（RAC TreeItem 自定义 className 会替换默认 react-aria-TreeItem 类，
- * 全部选择器直击 .tree-node）。层级缩进由渲染层传入的 level 内联
- * paddingLeft 实现（虚拟化树 DOM 平铺，实测无嵌套，CSS 后代选择器不可用）。
- * 分类行加粗与叶子区分层级语义（2026-09-26 四轮）。 */
-.tree-node {
   outline: none;
-  border-radius: var(--radius-1);
-  padding: 1px var(--space-1);
 }
-
+.tree-node {
+  padding: 0.35em 0.4em;
+  border-radius: 0.4rem;
+  outline: none;
+  cursor: pointer;
+}
 .tree-node[data-focused] {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px var(--color-focus-ring);
 }
-
 .tree-node[data-hovered] {
-  background: var(--color-bg);
+  background: var(--color-panel-bg-hover);
 }
-
-.tree-node-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.tree-node:has(.tree-checkbox[data-selected]) {
+  background: var(--color-accent-soft);
 }
-
-.tree-node--folder .tree-node-title {
-  font-weight: 600;
-}
-
 .tree-node-row {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  min-width: 0;
+  gap: 0.4em;
 }
-
-.tree-chevron {
-  border: none;
-  background: none;
-  padding: 0 var(--space-1);
-  font: inherit;
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.tree-chevron-spacer {
-  display: inline-block;
-  width: 1.25rem;
-}
-
-.tree-node-hint {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.tree-error {
-  color: var(--color-danger);
-  font-size: var(--font-size-sm);
-  margin: 0 0 var(--space-2);
-}
-
-.tree-search-count {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.tree-placeholder {
-  min-height: 8rem;
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius-1);
-}
-
-/* 右栏（对照旧版 info_list_panel）：参数区 → 大日志(flex:1) → 按钮组 → 自定义按钮 */
-.right-panel {
-  grid-area: right;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-height: 0;
-}
-
-/* 参数区首行：文件选择/重载/详细配置开关/并发数（旧版 conv_details_options_panel 首行） */
-.config-file-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.config-file-display {
-  flex: 1 1 12rem;
-  min-width: 8rem;
+.tree-node-title {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font: inherit;
-  font-family: var(--font-log-family);
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  padding: var(--space-1) var(--space-2);
+  white-space: nowrap;
+  line-height: 1.5;
 }
-
-.select-field.compact {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--font-size-sm);
-  flex-direction: row;
+.tree-node--folder .tree-node-title {
+  font-weight: 650;
 }
-
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-2);
-}
-
-/* 次要面板折叠（details/summary；布局反馈 2026-09-25） */
-details.collapsible > summary {
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-details.collapsible > summary::before {
-  content: "▸";
+button.tree-chevron {
+  width: 1.2em;
+  height: 1.5em;
+  min-height: 0;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--color-text-muted);
-  font-size: 0.8em;
-  transition: transform 0.1s ease-in;
+  font: inherit;
 }
-
-details.collapsible[open] > summary::before {
-  transform: rotate(90deg);
+.tree-chevron-spacer {
+  width: 1.2em;
+  flex: none;
 }
-
-details.collapsible > summary::-webkit-details-marker {
+.tree-node-hint {
+  font-size: 0.7em;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+.tree-search-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.tree-error {
+  margin: 0.65rem;
+  padding: 0.7rem;
+  border-radius: var(--radius-1);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font: var(--font-size-sm) / 1.5 var(--font-ui-family);
+  overflow-wrap: anywhere;
+  max-height: 9rem;
+  overflow: auto;
+}
+.tree-placeholder {
   display: none;
 }
-
-details.collapsible > *:not(summary) {
-  margin-top: var(--space-2);
+.conversion-tree > .empty-state {
+  margin: auto;
+  padding: 2rem 1.4rem;
+  text-align: center;
+  max-width: 19rem;
 }
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: var(--space-2);
+.hook-controls {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0.9rem 1rem;
+  max-height: 35%;
+  overflow: auto;
+  font: var(--font-ui-size) / 1.5 var(--font-ui-family);
 }
-
-.select-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.react-aria-TextField {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-/*
- * 按钮体系（2026-09-26 四轮重写）：RAC 传自定义 className 会“替换”默认
- * react-aria-Button 类（与复选框同坑），凡带 .btn-* 变体的按钮都没拿到
- * 基类样式——主操作按钮自二轮起实际是浏览器原生灰。全站按钮均为 RAC
- * <Button>，故基样式落在 button 元素级、变体直击 .btn-* 类，不再依赖
- * react-aria-Button 类名同时存在。
- */
-button {
-  font: inherit;
-  font-weight: 500;
-  color: var(--color-text);
-  background: var(--color-panel-bg);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-1);
-  padding: var(--space-1) var(--space-3);
-  cursor: pointer;
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
-}
-
-button[data-hovered] {
-  background: var(--color-panel-bg-hover);
-  border-color: var(--color-accent);
-}
-
-button[data-pressed] {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent);
-}
-
-button[data-focus-visible] {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 1px;
-}
-
-button.btn-primary {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: var(--color-accent-contrast);
-}
-
-button.btn-primary[data-hovered] {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
-}
-
-button.btn-primary[data-pressed] {
-  background: var(--color-accent-hover);
-}
-
-button.btn-success {
-  background: var(--color-success);
-  border-color: var(--color-success);
-  color: var(--color-success-ink);
-}
-
-button.btn-success[data-hovered] {
-  filter: brightness(1.1);
-}
-
-button.btn-accent {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-button.btn-accent[data-hovered] {
-  background: var(--color-accent);
-  color: var(--color-accent-contrast);
-}
-
-button.btn-ghost {
-  border-color: transparent;
-  background: transparent;
-}
-
-button.btn-ghost[data-hovered] {
-  background: var(--color-accent-soft);
-  border-color: transparent;
-}
-
-[data-disabled] {
-  opacity: 0.55;
-}
-
-/* 禁用按钮不用透明度（axe color-contrast 会按合成色判定不足 4.5:1）：
- * 正常不透明 + 柔和配色区分可用性。 */
-button[data-disabled] {
-  color: var(--color-disabled-ink);
-  background: var(--color-bg-inset);
-  border-color: var(--color-border);
-  cursor: not-allowed;
-  opacity: 1;
-}
-
-.hook-list,
-.format-list,
-.run-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-  margin: 0 0 var(--space-2);
-  padding: 0;
-  border: none;
-}
-
-.format-list legend,
-.run-buttons legend {
+.hook-controls .panel-title {
   font-size: var(--font-size-sm);
+}
+.hook-group {
+  margin-top: 0.65rem;
+}
+.hook-group-title {
+  margin: 0 0 0.4rem;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
-
-/*
- * RAC Checkbox 可视化（2026-09-26 修复“看不到复选框”）：
- * react-aria-components 1.x 把原生 input 包进 VisuallyHidden（绝对定位、不可见、
- * 不可点），且传入自定义 className 会“替换”默认 react-aria-Checkbox 类——所以
- * 可见方框必须是真实子元素 .checkbox-mark（树与事件开关都渲染它），状态取自
- * label 上的 data-selected / data-indeterminate / data-disabled 画对勾/横杠。
- */
+.hook-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+}
 .react-aria-Checkbox,
 .tree-checkbox {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 0.5em;
   cursor: pointer;
-}
-
-.checkbox-mark {
-  position: relative;
   flex: none;
-  width: 1rem;
-  height: 1rem;
-  box-sizing: border-box;
+}
+.checkbox-mark {
+  display: grid;
+  place-items: center;
+  width: 1.05em;
+  height: 1.05em;
+  flex: none;
   border: 1.5px solid var(--color-border-strong);
-  border-radius: 4px;
-  background: var(--color-bg);
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
+  border-radius: 0.25em;
+  background: var(--color-panel-bg);
 }
-
-.react-aria-Checkbox[data-hovered] .checkbox-mark,
-.tree-checkbox[data-hovered] .checkbox-mark,
-.react-aria-Checkbox[data-focus-visible] .checkbox-mark,
-.tree-checkbox[data-focus-visible] .checkbox-mark {
-  border-color: var(--color-accent);
-}
-
-.react-aria-Checkbox[data-selected] .checkbox-mark,
-.tree-checkbox[data-selected] .checkbox-mark,
-.react-aria-Checkbox[data-indeterminate] .checkbox-mark,
-.tree-checkbox[data-indeterminate] .checkbox-mark {
+[data-selected] > .checkbox-mark,
+[data-indeterminate] > .checkbox-mark {
   background: var(--color-accent);
   border-color: var(--color-accent);
 }
-
-.react-aria-Checkbox[data-selected] .checkbox-mark::after,
-.tree-checkbox[data-selected] .checkbox-mark::after {
+.checkbox-mark::after {
+  color: var(--color-accent-ink);
+  font: 700 0.85em / 1 var(--font-family-base);
+}
+[data-selected] > .checkbox-mark::after {
   content: "✓";
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--color-accent-ink);
 }
-
-.react-aria-Checkbox[data-indeterminate] .checkbox-mark::after,
-.tree-checkbox[data-indeterminate] .checkbox-mark::after {
+[data-indeterminate] > .checkbox-mark::after {
   content: "–";
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--color-accent-ink);
 }
-
-.react-aria-Checkbox[data-disabled],
-.tree-checkbox[data-disabled] {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.react-aria-Checkbox[data-focus-visible],
-.tree-checkbox[data-focus-visible] {
+[data-focus-visible] > .checkbox-mark {
   outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-  border-radius: var(--radius-1);
+  outline-offset: 3px;
 }
-
-/* 树行内的复选框：无文本子节点，仅方框参与行高。 */
-.tree-checkbox {
-  gap: 0;
-}
-
-.run-controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.run-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-
-/* 按钮一行（legend 视觉隐藏）；“开始转换”/“重置”主操作（特殊色+加大）
- * 推到行尾，“开始转换”固定最右（2026-09-26 四轮）。 */
-.run-button-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-button.btn-run {
-  padding: var(--space-2) var(--space-5);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-/* 行尾主操作组：重置与开始转换相邻靠右。 */
-.run-button-row .btn-run {
-  margin-left: auto;
-}
-
-.run-button-row .btn-run + .btn-run {
-  margin-left: 0;
-}
-
-.run-summary {
-  margin: 0;
+.tree-checkbox[data-disabled],
+.react-aria-Checkbox[data-disabled] {
+  cursor: not-allowed;
   color: var(--color-text-muted);
 }
-
-/* P4-06：运行终态结果（UI06：区分实际阶段与已发生副作用） */
-.run-result {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  margin: 0;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
+[data-disabled] > .checkbox-mark {
+  background: var(--color-bg-inset);
 }
 
-.run-result--ok {
-  color: var(--color-success);
-}
-
-.run-result--error {
-  color: var(--color-danger);
-}
-
-.run-result--info {
-  color: var(--color-warning);
-}
-
+/* Dynamic measurement handles newlines, ANSI spans, wrapping and font changes. */
 .log-panel {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 10rem;
+  flex: 1;
+  min-height: 12rem;
   overflow: hidden;
 }
-
-.log-list {
-  flex: 1;
-  overflow: auto;
-  font-family: var(--font-log-family);
-  font-size: var(--font-log-size);
-}
-
-/* 「运行日志」标题样式（2026-09-26 四轮：加粗加大，但不换行、与工具栏同排）。 */
-.log-title {
-  font-weight: 700;
-  font-size: var(--font-size-lg);
-  color: var(--color-text);
-  margin-right: var(--space-2);
-  white-space: nowrap;
-}
-
-/* P4-07：日志工具栏 / 有界窗口信息 / 虚拟行 / 语义级别色 */
 .log-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) var(--space-2);
-  margin-bottom: var(--space-1);
+  gap: 0.5rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--color-border);
 }
-
+.log-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 auto 0 0;
+  font-weight: 650;
+  font-size: var(--font-size-lg);
+  white-space: nowrap;
+}
+.log-title .icon {
+  color: var(--color-accent);
+}
+.log-toolbar button {
+  font-size: var(--font-size-sm);
+  padding: 0.4em 0.65em;
+}
+.log-toolbar > input {
+  flex: 1 1 8rem;
+  max-width: 14rem;
+}
 .log-filter-label {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 0.4rem;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-
-.log-count {
+.log-count,
+.log-copy-hint {
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
 }
-
 .log-copy-hint {
   color: var(--color-success);
-  font-size: var(--font-size-sm);
 }
-
 .log-window-info {
-  margin: 0 0 var(--space-1);
+  margin: 0;
+  padding: 0.45rem 1rem;
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  background: var(--color-panel-bg-hover);
 }
-
 .log-load-older {
-  margin-bottom: var(--space-1);
+  padding: 0.4rem 1rem;
 }
-
-/*
- * 日志行（2026-09-26 四轮）：默认横向滚动模式——单行不折行（pre），行内容
- * 超宽时撑出 .log-list 的横向滚动条（此前 pre-wrap 会折行，滚动条永远不出现；
- * wrapper 不得裁剪溢出）。换行模式由 --wrap 覆盖，行高交给 measureElement。
- */
-.log-row-wrapper {
-  height: 22px;
+.log-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.5rem 0.85rem;
+  font-family: var(--font-log-family);
+  font-size: var(--font-log-size);
 }
-
+.log-list > .empty-state {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  min-height: 8rem;
+  font-family: var(--font-ui-family);
+}
 .log-row {
-  display: flex;
-  gap: var(--space-1);
-  white-space: pre;
-  line-height: 22px;
+  display: block;
   width: max-content;
   min-width: 100%;
+  padding: 0.1em 0.4em;
+  white-space: pre;
+  line-height: 1.65;
+  border-left: 2px solid transparent;
 }
-
 .log-module {
-  flex: none;
+  margin-right: 0.65em;
   color: var(--color-text-muted);
 }
-
 .log-level--notice {
   color: var(--color-accent);
 }
-
 .log-level--warning {
   color: var(--color-warning);
+  border-left-color: var(--color-warning);
 }
-
 .log-level--error {
   color: var(--color-danger);
+  border-left-color: var(--color-danger);
+  background: var(--color-danger-soft);
 }
-
-/* 2026-09-26 现代化改版新增 */
-
-/* 紧凑运行状态行：实底状态色章（2026-09-26 对比度强化：暗色下也醒目）+ 结果同行 */
-.run-summary--inline {
+.log-list--wrap .log-row {
+  width: 100%;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.run-controls {
+  grid-area: run;
+  padding: 0.8rem 1rem;
+}
+.run-buttons {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+}
+.run-button-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: var(--font-size-sm);
+  justify-content: flex-end;
+  gap: 0.5rem;
+  order: 2;
+  flex: none;
+  margin-left: auto;
 }
-
-.state-chip {
-  display: inline-flex;
+.run-summary {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-pill);
-  font-weight: 600;
-  line-height: 1.7;
-  white-space: nowrap;
-}
-
-.state-chip--muted {
-  background: var(--color-bg-inset);
-  color: var(--color-text);
-  box-shadow: inset 0 0 0 1px var(--color-border-strong);
-}
-
-.state-chip--info {
-  background: var(--color-accent);
-  color: var(--color-accent-ink);
-}
-
-.state-chip--success {
-  background: var(--color-success);
-  color: var(--color-success-ink);
-}
-
-.state-chip--danger {
-  background: var(--color-danger);
-  color: var(--color-danger-ink);
-}
-
-.state-chip--warning {
-  background: var(--color-warning);
-  color: var(--color-warning-ink);
-}
-
-.run-result {
+  gap: 0.5rem 0.8rem;
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-
+.run-result {
+  overflow-wrap: anywhere;
+}
 .run-result--ok {
   color: var(--color-success);
 }
-
 .run-result--error {
   color: var(--color-danger);
 }
-
 .run-result--info {
   color: var(--color-text-muted);
 }
-
-.react-aria-Popover {
-  background: var(--color-panel-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  box-shadow: var(--shadow-2);
-  min-width: 14rem;
-  max-height: 16rem;
-  overflow: auto;
-  z-index: var(--z-tooltip);
+button.btn-run {
+  min-width: 9rem;
+  padding: 0.6em 1.2em;
+  font-weight: 650;
 }
-
-.react-aria-ListBoxItem {
-  padding: var(--space-1) var(--space-2);
-  cursor: pointer;
-  border-radius: var(--radius-1);
-}
-
-.react-aria-ListBoxItem[data-hovered],
-.react-aria-ListBoxItem[data-focused] {
-  background: var(--color-accent-soft);
-}
-
-.react-aria-ListBoxItem[data-selected] {
-  font-weight: 600;
-}
-
-/* 详情弹窗（详细配置/显示设置共用 confirm-modal 骨架）：
-   2026-09-26 四轮——更宽（展示更多内容）、分区标题、长字段通栏等宽、
-   短字段标签+控件同行紧凑、底部固定操作行。 */
-.detail-modal {
-  width: min(72rem, 94vw);
-  max-height: 86vh;
-}
-
-.detail-overlay {
-  align-items: start;
-  padding-top: 5vh;
-}
-
-.detail-title {
-  margin: 0 0 var(--space-3);
-  font-size: var(--font-size-lg);
-}
-
-.detail-config {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  max-height: calc(86vh - 8rem);
-  overflow: auto;
-  padding-right: var(--space-1);
-}
-
-.detail-section-title {
-  margin: 0 0 var(--space-2);
-  padding-bottom: var(--space-1);
-  border-bottom: 1px solid var(--color-border);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: var(--space-3);
-}
-
-/* 短字段行（数据版本/协议类型/输出类型）：标签与控件同行紧凑排布。 */
-.detail-grid--row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-/* 等宽机器值（路径/正则/多值列表）与通栏字段 */
-.settings-field--wide {
-  grid-column: 1 / -1;
-}
-
-/* 行内字段：标签定宽、控件弹性填充 */
-.settings-field--inline {
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.settings-field--inline > label,
-.select-field--inline > span {
-  flex: none;
-  white-space: nowrap;
-}
-
-.settings-field--inline .react-aria-Input,
-.select-field--inline select {
-  flex: 1 1 auto;
-  width: auto;
-  min-width: 6rem;
-}
-
-.select-field--inline {
-  flex-direction: row;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.settings-field--mono .react-aria-Input,
-.settings-field--mono input,
-.settings-field--mono .react-aria-TextArea {
-  font-family: var(--font-log-family);
-  font-size: var(--font-size-sm);
-}
-
-.detail-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
-}
-
-/* 详情内的既有折叠面板（条目详情/输出矩阵）不再自带面板描边（外层已有分区） */
-.detail-section--flat .panel {
-  border: none;
-  box-shadow: none;
-  padding: 0;
-  background: transparent;
-}
-
-/* 日志换行模式：折行 + 行高交给 measureElement（虚拟器动态测高，不再固定
- * 估算值——固定值会让长行溢出行框互相重叠）。 */
-.log-list--wrap .log-row {
-  white-space: pre-wrap;
-  word-break: break-all;
-  width: 100%;
-  min-width: 0;
-  height: auto;
-  min-height: 22px;
-}
-
-.log-list--wrap .log-row-wrapper {
-  height: auto;
-  min-height: 22px;
-}
-
-/* 2026-09-26 三轮改版：显示设置弹窗（原状态条内样式已随组件移除）；
-   四轮加宽给字体候选输入留空间。 */
-.settings-modal {
-  width: min(48rem, 94vw);
-}
-
-.settings-title {
-  margin: 0 0 var(--space-3);
-  font-size: var(--font-size-lg);
-}
-
-.settings-section {
-  margin: 0 0 var(--space-3);
-}
-
-.settings-section-title {
-  margin: 0 0 var(--space-2);
-  padding-bottom: var(--space-1);
-  border-bottom: 1px solid var(--color-border);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-text-muted);
-}
-
-.settings-hint {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.settings-last-file {
-  margin: 0;
-  font-family: var(--font-log-family);
-  font-size: var(--font-size-sm);
-  word-break: break-all;
-}
-
-/*
- * 主题分段单选（2026-09-26 修复“看不到单选控件”）：RAC Radio 的原生 input
- * 同样被 VisuallyHidden——圆点指示器由 ::before 画，选中态取 data-selected。
- */
-.theme-choice {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.theme-option {
-  position: relative;
+.state-chip {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-border-strong);
+  gap: 0.5em;
+  padding: 0.25em 0.7em;
   border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.theme-option::before {
-  content: "";
-  flex: none;
-  width: 0.875rem;
-  height: 0.875rem;
-  box-sizing: border-box;
-  border: 1.5px solid var(--color-border-strong);
-  border-radius: 50%;
-  background: var(--color-bg);
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.theme-option[data-hovered],
-.theme-option[data-focus-visible] {
-  border-color: var(--color-accent);
-}
-
-.theme-option[data-selected] {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent);
-}
-
-.theme-option[data-selected]::before {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  /* 内圈留白形成实心圆点 */
-  box-shadow: inset 0 0 0 2.5px var(--color-panel-bg);
-}
-
-.theme-option[data-disabled] {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.theme-option[data-focus-visible] {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
-/* 字体分区行（带表头网格，列宽与行一致；2026-09-26 四轮：弹性列宽 +
- * 窄窗折行，杜绝输入框互相重叠/溢出）。 */
-.font-grid-head,
-.font-row {
-  display: grid;
-  grid-template-columns: minmax(5rem, auto) minmax(10rem, 1fr) minmax(4.5rem, max-content);
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.font-grid-head {
-  margin-bottom: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.font-settings {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.font-row-label {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
+  font-weight: 600;
   white-space: nowrap;
+  background: var(--color-bg-inset);
+  color: var(--color-disabled-ink);
+}
+.state-chip::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.state-chip--info {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+.state-chip--success {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+.state-chip--danger {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+.state-chip--warning {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
-.font-family-input {
-  width: 100%;
-}
-
-.font-size-input {
-  width: 100%;
-}
-
-/* P4-04b：转换参数表单 / 输出矩阵 / 预览 / 本地确认对话框 */
-
-.react-aria-TextField .react-aria-TextArea {
-  font: inherit;
-  color: inherit;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  padding: var(--space-1) var(--space-2);
-  resize: vertical;
-  /* 布局反馈 2026-09-25：多值字段两行起步（可纵向拉伸），压低表单整体高度。 */
-  min-height: 2.4rem;
-  font-family: var(--font-log-family);
-  font-size: var(--font-size-sm);
-}
-
-.matrix-rules {
-  margin: 0 0 var(--space-2);
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.matrix-rule {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  padding: var(--space-2);
-}
-
-.matrix-rule-remove {
-  margin-top: var(--space-2);
-}
-
-.matrix-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-/* 预览结果/冲突自 2026-09-26 四轮起只写入运行日志（RunControls 不再有内联结果区）。 */
-
+/* Specific dialog widths never inherit an unrelated narrow max-width. */
 .confirm-overlay {
   position: fixed;
   inset: 0;
   z-index: var(--z-dialog);
-  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 1.25rem;
+  background: rgb(10 18 32 / 0.48);
+  overflow: auto;
 }
-
 .confirm-modal {
+  width: 28rem;
+  max-width: 100%;
+  max-height: calc(100dvh - 2.5rem);
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  padding: 1.5rem;
   background: var(--color-panel-bg);
   color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-2);
-  padding: var(--space-4);
-  max-width: 26rem;
+  box-shadow: var(--shadow-dialog);
 }
-
+.confirm-modal.detail-modal {
+  width: 66rem;
+}
+.confirm-modal.settings-modal {
+  width: 48rem;
+}
 .confirm-dialog:focus {
   outline: none;
 }
-
-.confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
+.confirm-dialog h2 {
+  margin: 0 0 1.2rem;
+  font-size: 1.2rem;
+  letter-spacing: -0.025em;
 }
-
-/* ---- P4-05b 转换事件开关与自定义按钮 ---- */
-
-.hook-group {
-  margin-bottom: var(--space-2);
-}
-
-.hook-group-title {
-  margin: 0 0 var(--space-1);
+.confirm-dialog h3 {
+  margin: 0 0 0.75rem;
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 650;
   color: var(--color-text-muted);
 }
-
-.custom-btn-group {
+.detail-config {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-height: calc(100dvh - 14rem);
+  overflow: auto;
+  padding: 0.2rem 0.4rem 0.2rem 0.1rem;
+}
+.detail-section,
+.settings-section {
+  min-width: 0;
+}
+.detail-section + .detail-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: 1.2rem;
+}
+.detail-grid,
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem 1rem;
+}
+.detail-grid--row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 0.8rem;
+}
+.settings-field,
+.select-field,
+.react-aria-TextField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.settings-field > label,
+.select-field > span,
+.react-aria-TextField > label {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.settings-field--wide {
+  grid-column: 1 / -1;
+}
+.settings-field input,
+.settings-field textarea,
+.react-aria-TextField input {
+  width: 100%;
+}
+.settings-field--mono input,
+.settings-field--mono textarea {
+  font-family: var(--font-log-family);
+  font-size: var(--font-size-sm);
+}
+.select-field.compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+.detail-footer,
+.confirm-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+.settings-hint {
+  margin: 0.5rem 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.detail-section--flat .panel {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+details.collapsible > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  cursor: pointer;
+  list-style: none;
+}
+details.collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+details.collapsible > summary::before {
+  content: "›";
+  color: var(--color-text-muted);
+  font-size: 1.2em;
+  transition: transform var(--transition-fast);
+}
+details.collapsible[open] > summary::before {
+  transform: rotate(90deg);
+}
+details.collapsible > *:not(summary) {
+  margin-top: 0.8rem;
+}
+.matrix-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  list-style: none;
+  padding: 0;
+}
+.matrix-rule {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  padding: 1rem;
+  background: var(--color-panel-bg-hover);
+}
+.matrix-rule-remove {
+  margin-top: 0.8rem;
+  color: var(--color-danger);
+}
+.settings-section {
+  margin-bottom: 1.4rem;
+}
+.theme-choice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+.theme-option::before {
+  content: "";
+  width: 1em;
+  height: 1em;
+  flex: none;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-panel-bg);
+}
+.theme-option[data-selected] {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+.theme-option[data-selected]::before {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  box-shadow: inset 0 0 0 3px var(--color-panel-bg);
+}
+.font-grid-head,
+.font-row {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr) 5.5rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+.font-grid-head {
+  margin-bottom: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.font-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.font-row-label {
+  font-size: var(--font-size-sm);
+}
+.font-row input {
+  width: 100%;
+}
+.settings-last-file {
+  padding: 0.7rem;
+  background: var(--color-panel-bg-hover);
+  border-radius: var(--radius-1);
+  margin: 0;
+  font-family: var(--font-log-family);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+.dialog-host {
+  display: contents;
+}
+.script-dialog-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-/* 旧版 bootstrap 按钮样式语义（main.js:718-736 词表）映射到本地 tokens：
-   outline-* 描边、实色填充；info→accent、light→border、dark→text。 */
+/* Preserve XML/custom selector button colors. */
 .custom-btn--outline-primary,
 .custom-btn--outline-info {
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
-
+.custom-btn--outline-success {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+.custom-btn--outline-danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+.custom-btn--outline-warning {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
 .custom-btn--outline-secondary,
 .custom-btn--outline-light {
   border-color: var(--color-text-muted);
   color: var(--color-text-muted);
 }
-
-.custom-btn--outline-success {
-  border-color: var(--color-success);
-  color: var(--color-success);
-}
-
-.custom-btn--outline-danger {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.custom-btn--outline-warning {
-  border-color: var(--color-warning);
-  color: var(--color-warning);
-}
-
 .custom-btn--outline-dark {
   border-color: var(--color-text);
   color: var(--color-text);
 }
-
 .custom-btn--primary,
 .custom-btn--info {
   background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: var(--color-accent-contrast);
+  color: var(--color-accent-ink);
 }
-
+.custom-btn--success {
+  background: var(--color-success);
+  color: var(--color-success-ink);
+}
+.custom-btn--danger {
+  background: var(--color-danger);
+  color: var(--color-danger-ink);
+}
+.custom-btn--warning {
+  background: var(--color-warning);
+  color: var(--color-warning-ink);
+}
+.custom-btn--dark {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
 .custom-btn--secondary,
 .custom-btn--light {
-  background: var(--color-bg);
-  border-color: var(--color-border);
+  background: var(--color-bg-inset);
+}
+.custom-btn:not(:disabled):hover {
+  background: var(--color-panel-bg-hover);
   color: var(--color-text);
 }
 
-.custom-btn--success {
-  background: var(--color-success);
-  border-color: var(--color-success);
-  color: var(--color-accent-contrast);
+@media (max-width: 1100px) {
+  .app-shell {
+    padding: 0.8rem;
+    gap: 0.75rem;
+    grid-template-columns: minmax(16rem, 32%) minmax(0, 1fr);
+  }
+  .workspace-header {
+    gap: 0.75rem;
+  }
+  .app-brand {
+    display: none;
+  }
+  .run-buttons {
+    flex-wrap: wrap;
+  }
+  .run-summary {
+    flex: 1 1 15rem;
+  }
 }
-
-.custom-btn--danger {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: var(--color-accent-contrast);
+@media (max-width: 720px) {
+  .app-shell {
+    height: auto;
+    min-height: 100dvh;
+    grid-template-areas: "header" "tree" "right" "run";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 24rem minmax(20rem, 55vh) auto;
+  }
+  .config-file-display {
+    flex-basis: calc(100% - 11rem);
+  }
+  .run-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .run-summary {
+    flex: none;
+  }
+  .run-button-row {
+    margin-left: 0;
+  }
+  .detail-grid,
+  .form-grid,
+  .detail-grid--row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .confirm-overlay {
+    padding: 0.65rem;
+  }
+  .confirm-modal {
+    padding: 1rem;
+    max-height: calc(100dvh - 1.3rem);
+  }
+  .font-grid-head,
+  .font-row {
+    grid-template-columns: 5rem minmax(0, 1fr) 4.5rem;
+    gap: 0.4rem;
+  }
+  .theme-option {
+    padding: 0.6rem 0.4rem;
+    gap: 0.4rem;
+  }
 }
-
-.custom-btn--warning {
-  background: var(--color-warning);
-  border-color: var(--color-warning);
-  color: var(--color-accent-contrast);
-}
-
-.custom-btn--dark {
-  background: var(--color-text);
-  border-color: var(--color-text);
-  color: var(--color-bg);
-}
-
-/* 弹框宿主：display contents——宿主 div 不生成盒，不占 grid 布局
- * （此前作为 .app-shell 的第三个隐式 grid 项占据一行，左右底部留白虚高）。
- * 弹框本身是 fixed 定位 overlay，不受影响。 */
-.dialog-host {
-  display: contents;
-}
-
-.script-dialog-content {
-  white-space: pre-wrap;
-  word-break: break-word;
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0s;
+  }
 }

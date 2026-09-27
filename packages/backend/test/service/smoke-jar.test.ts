@@ -2,8 +2,8 @@
  * 真实 JAR 冒烟（P3-08 全链：loadConfig → runConversion → 真实 runJavaBatch → 产物校验）。
  *
  * 使用本机真实构件（与 guardian java-runner 测试同路径，P3-05 记录）：
- * - JAR: D:/workspace/github/xresloader/xresloader/target/xresloader-2.23.7.jar
- * - 样本: D:/workspace/github/xresloader/xresloader/sample（work_dir 基准）
+ * - JAR: XRESCONV_TEST_JAR 或 ../xresloader/target 中唯一 JAR
+ * - 样本: XRESCONV_TEST_SAMPLE 或 ../xresloader/sample（work_dir 基准）
  * 构件缺失时整组 skip。
  */
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -11,13 +11,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ScriptWorkerPool } from "@xresconv/guardian";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { HAS_JAR, JAR, SAMPLE } from "../../../../tests/fixtures/conversion/runtime.mts";
 import { flattenTreeItems } from "../../src/domain/selection.ts";
 import { ConversionSession } from "../../src/service/session.ts";
 import { startPool } from "./helpers.ts";
 
-const JAR = "D:/workspace/github/xresloader/xresloader/target/xresloader-2.23.7.jar";
-const SAMPLE = "D:/workspace/github/xresloader/xresloader/sample";
-const HAS_JAR = existsSync(JAR) && existsSync(SAMPLE);
 const SMOKE_TIMEOUT_MS = 180_000;
 
 const tmpRoots: string[] = [];

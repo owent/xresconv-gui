@@ -165,7 +165,7 @@ it("does not merge distinct preview conflict tuples containing spaces", async ()
     await app.handleRpc("applyOps", {
       ops: [{ op: "select_all", v: app.snapshot().tree?.version }],
     });
-    // 2026-09-26 四轮修正后冲突=同条目被同 (type,outputDir,rename) 重复发射：
+    // 2026-09-26 四轮修正后冲突=同条目生成多个相同 (type,outputDir,rename) 的转换任务：
     // 两组重复规则（键含空格）各产生一个冲突组，键编码不得把它们合并成一个。
     await app.handleRpc("updateSettings", {
       fields: {

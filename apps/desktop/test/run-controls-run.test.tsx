@@ -104,16 +104,16 @@ describe("RunControls 运行控制门禁（P4-06）", () => {
     mockedInvoke.mockReset();
   });
 
-  it("ready：预览/开始/重置可用（重置对齐 backend 无状态门禁），取消禁用", async () => {
+  it("ready：预览和开始可用，取消禁用，旧版重置入口不显示", async () => {
     await loadFixture();
     render(<RunControls />);
     expect(buttonEnabled("预览")).toBe(true);
     expect(buttonEnabled("开始转换")).toBe(true);
     expect(buttonEnabled("取消")).toBe(false);
-    expect(buttonEnabled("重置")).toBe(true);
+    expect(screen.queryByRole("button", { name: "重置" })).toBeNull();
   });
 
-  it("运行中（before_hooks/converting/after_hooks）：取消/重置可用，开始/预览禁用", async () => {
+  it("运行中（before_hooks/converting/after_hooks）：取消可用，开始/预览禁用", async () => {
     await loadFixture();
     render(<RunControls />);
     for (const state of ["before_hooks", "converting", "after_hooks"]) {
@@ -124,13 +124,12 @@ describe("RunControls 运行控制门禁（P4-06）", () => {
         );
       });
       await waitFor(() => expect(buttonEnabled("取消")).toBe(true));
-      expect(buttonEnabled("重置")).toBe(true);
       expect(buttonEnabled("开始转换")).toBe(false);
       expect(buttonEnabled("预览")).toBe(false);
     }
   });
 
-  it("终态（failed/succeeded/cancelled）：开始/预览/重置可用，取消禁用", async () => {
+  it("终态（failed/succeeded/cancelled）：开始/预览可用，取消禁用", async () => {
     await loadFixture();
     render(<RunControls />);
     for (const state of ["failed", "succeeded", "cancelled"]) {
@@ -142,7 +141,6 @@ describe("RunControls 运行控制门禁（P4-06）", () => {
       });
       await waitFor(() => expect(buttonEnabled("开始转换")).toBe(true));
       expect(buttonEnabled("取消")).toBe(false);
-      expect(buttonEnabled("重置")).toBe(true);
       expect(buttonEnabled("预览")).toBe(true);
     }
   });
@@ -160,12 +158,11 @@ describe("RunControls 运行控制门禁（P4-06）", () => {
     });
     await waitFor(() => expect(buttonEnabled("开始转换")).toBe(false));
     expect(buttonEnabled("取消")).toBe(false);
-    expect(buttonEnabled("重置")).toBe(false);
     expect(buttonEnabled("预览")).toBe(false);
   });
 });
 
-describe("RunControls 开始/取消/重置 RPC 流程（P4-06，EX03 前端侧）", () => {
+describe("RunControls 开始/取消 RPC 流程（P4-06，EX03 前端侧）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
@@ -257,29 +254,6 @@ describe("RunControls 开始/取消/重置 RPC 流程（P4-06，EX03 前端侧�
       expect(screen.getByRole("status", { name: "运行状态" }).textContent).not.toContain("取消中"),
     );
     expect(useSessionStore.getState().cancelRequested).toBe(false);
-  });
-
-  it("重置：reset RPC 后重同步快照；在途禁用", async () => {
-    await loadFixture(makeSnapshot("failed", 3));
-    let release: (value: { cancelledRun: boolean }) => void = () => {};
-    routeRpc({
-      reset: () =>
-        new Promise<{ cancelledRun: boolean }>((done) => {
-          release = done;
-        }),
-      getSnapshot: () => makeSnapshot("ready", 3),
-    });
-    render(<RunControls />);
-    const user = userEvent.setup();
-
-    await user.click(screen.getByRole("button", { name: "重置" }));
-    expect(mockedInvoke).toHaveBeenCalledWith("backend_rpc", { method: "reset", params: {} });
-    await waitFor(() => expect(useSessionStore.getState().resetting).toBe(true));
-    expect(buttonEnabled("重置")).toBe(false);
-
-    release({ cancelledRun: false });
-    await waitFor(() => expect(useSessionStore.getState().snapshot?.state).toBe("ready"));
-    expect(useSessionStore.getState().resetting).toBe(false);
   });
 });
 
@@ -471,7 +445,6 @@ describe("store 运行语义（P4-06）", () => {
     const state = useSessionStore.getState();
     expect(state.runStarting).toBe(false);
     expect(state.cancelRequested).toBe(false);
-    expect(state.resetting).toBe(false);
     expect(state.connection).toBe("degraded");
   });
 });

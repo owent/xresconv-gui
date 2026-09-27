@@ -9,6 +9,7 @@
  * 不引入新的事实来源；签名证据字段由受控发行环境后补（P5-07 全量属彼处）。
  */
 
+import { createHash } from "node:crypto";
 import type { ManifestFile, RuntimeManifest } from "./types.ts";
 
 /** SPDX 2.3 JSON 的最小可用子集（_creationInfo/documentNamespace 必填）。 */
@@ -27,20 +28,24 @@ export interface SpdxPackage {
   SPDXID: string;
   name: string;
   versionInfo?: string;
-  downloadLocation?: string;
+  downloadLocation: string;
+  filesAnalyzed: false;
+  licenseDeclared: string;
+  copyrightText: string;
   licenseConcluded: string;
   checksums?: { algorithm: "SHA256"; checksumValue: string }[];
 }
 
 function spdxId(raw: string): string {
-  // SPDXID 允许 [a-zA-Z0-9.-]；其余字符折叠为 '-'。
-  return `SPDXRef-Package-${raw.replaceAll(/[^a-zA-Z0-9.-]+/g, "-")}`;
+  // 无损编码：不同 scoped 名称/版本不能在字符折叠后变成同一个 ID。
+  return `SPDXRef-Package-${Buffer.from(raw).toString("hex")}`;
 }
 
 /** 聚合 files[] 的 origin → 包清单（npm 按 name@version 聚合）。 */
 export function packageInventory(files: readonly ManifestFile[]): Map<
   string,
   {
+    name: string;
     version: string;
     license: string;
     sha256s: string[];
@@ -50,26 +55,38 @@ export function packageInventory(files: readonly ManifestFile[]): Map<
 > {
   const out = new Map<
     string,
-    { version: string; license: string; sha256s: string[]; totalSize: number; fileCount: number }
+    {
+      name: string;
+      version: string;
+      license: string;
+      sha256s: string[];
+      totalSize: number;
+      fileCount: number;
+    }
   >();
   for (const file of files) {
     let key: string;
+    let name: string;
     let version = "";
     if (file.origin.startsWith("npm:")) {
       const tagged = file.origin.slice("npm:".length);
       const at = tagged.lastIndexOf("@");
-      key = at > 0 ? tagged.slice(0, at) : tagged;
+      key = file.origin;
+      name = at > 0 ? tagged.slice(0, at) : tagged;
       version = at > 0 ? tagged.slice(at + 1) : "";
     } else if (file.origin === "node-dist") {
       key = "node";
+      name = key;
     } else {
       key = "xresconv-gui";
+      name = key;
     }
     let entry = out.get(key);
     if (entry === undefined) {
-      entry = { version, license: file.license, sha256s: [], totalSize: 0, fileCount: 0 };
+      entry = { name, version, license: file.license, sha256s: [], totalSize: 0, fileCount: 0 };
       out.set(key, entry);
     }
+    if (entry.license !== file.license) entry.license = "NOASSERTION";
     entry.sha256s.push(file.sha256);
     entry.totalSize += file.size;
     entry.fileCount += 1;
@@ -88,20 +105,29 @@ export function buildSpdx(manifest: RuntimeManifest, createdIso: string): SpdxDo
     name: app,
     versionInfo: manifest.appVersion,
     licenseConcluded: "MIT",
+    licenseDeclared: "MIT",
+    downloadLocation: "NOASSERTION",
+    filesAnalyzed: false,
+    copyrightText: "NOASSERTION",
   });
-  for (const [name, entry] of [...inventory.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
-    if (name === app) continue;
+  for (const [key, entry] of [...inventory.entries()].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    if (key === app) continue;
     packages.push({
-      SPDXID: spdxId(name),
-      name,
-      versionInfo: entry.version || undefined,
+      SPDXID: spdxId(key),
+      name: entry.name,
+      versionInfo: key === "node" ? manifest.nodeVersion : entry.version || undefined,
+      downloadLocation: "NOASSERTION",
+      filesAnalyzed: false,
+      licenseDeclared:
+        entry.license === "UNSPECIFIED" || entry.license === "" ? "NOASSERTION" : entry.license,
+      copyrightText: "NOASSERTION",
       licenseConcluded:
         entry.license === "UNSPECIFIED" || entry.license === "" ? "NOASSERTION" : entry.license,
       // 聚合包级校验和：文件级清单在 manifest.files（引用，不复制膨胀）。
     });
     relationships.push({
       spdxElementId: spdxId(app),
-      relatedSpdxElement: spdxId(name),
+      relatedSpdxElement: spdxId(key),
       relationshipType: "DEPENDS_ON",
     });
   }
@@ -110,7 +136,7 @@ export function buildSpdx(manifest: RuntimeManifest, createdIso: string): SpdxDo
     dataLicense: "CC0-1.0",
     SPDXID: "SPDXRef-DOCUMENT",
     name: `${app}-${manifest.appVersion}-${manifest.os}-${manifest.arch}-${manifest.variant}`,
-    documentNamespace: `https://github.com/xresloader/xresconv-gui/spdx/${manifest.appVersion}/${manifest.sourceCommit}/${manifest.os}-${manifest.arch}-${manifest.variant}`,
+    documentNamespace: `https://github.com/xresloader/xresconv-gui/spdx/${manifest.appVersion}/${createHash("sha256").update(JSON.stringify({ manifest, createdIso })).digest("hex")}`,
     creationInfo: {
       created: createdIso,
       creators: ["Organization: xresloader", "Tool: xresconv-gui-packaging"],

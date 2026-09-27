@@ -96,35 +96,40 @@ function toPrefs(
 }
 
 /** 合并写盘（保留未变更字段）；无桥接（浏览器预览）时静默跳过。 */
-async function persist(patch: {
+let writes: Promise<void> = Promise.resolve();
+
+function persist(patch: {
   theme?: ThemeMode;
   lastConfigFile?: string | null;
   fonts?: FontsConfig;
 }): Promise<void> {
-  try {
-    const current = await readDisplaySettings();
-    const fontsValue = patch.fonts
-      ? Object.fromEntries(
-          Object.entries(patch.fonts).map(([area, prefs]) => [
-            area,
-            {
-              family: prefs.family === "" ? null : prefs.family,
-              size: prefs.size,
-            },
-          ]),
-        )
-      : undefined;
-    await writeDisplaySettings({
-      theme: patch.theme ?? current?.theme ?? null,
-      lastConfigFile:
-        patch.lastConfigFile !== undefined
-          ? patch.lastConfigFile
-          : (current?.lastConfigFile ?? null),
-      fonts: fontsValue as DisplaySettings["fonts"],
+  writes = writes
+    .then(async () => {
+      const current = await readDisplaySettings();
+      const fontsValue = patch.fonts
+        ? Object.fromEntries(
+            Object.entries(patch.fonts).map(([area, prefs]) => [
+              area,
+              {
+                family: prefs.family === "" ? null : prefs.family,
+                size: prefs.size,
+              },
+            ]),
+          )
+        : undefined;
+      await writeDisplaySettings({
+        theme: patch.theme ?? current?.theme ?? null,
+        lastConfigFile:
+          patch.lastConfigFile !== undefined
+            ? patch.lastConfigFile
+            : (current?.lastConfigFile ?? null),
+        fonts: (fontsValue ?? current?.fonts ?? null) as DisplaySettings["fonts"],
+      });
+    })
+    .catch((error: unknown) => {
+      console.error("display settings persist failed", error);
     });
-  } catch (error) {
-    console.error("display settings persist failed", error);
-  }
+  return writes;
 }
 
 /* ---- 模块级 store ---- */
@@ -212,20 +217,26 @@ async function resolveAutoLoadTarget(fallback: string | null): Promise<string | 
 
 let bootstrapStarted = false;
 
+/** 测试隔离：恢复启动状态，已挂载的订阅由 React cleanup 释放。 */
+export function resetDisplaySettings(): void {
+  bootstrapStarted = false;
+  state = DEFAULT_SETTINGS;
+  writes = Promise.resolve();
+}
+
 function bootstrap(): void {
   if (bootstrapStarted) return;
   bootstrapStarted = true;
   readDisplaySettings()
     .then(async (loaded) => {
-      if (loaded === null) return;
       state = {
-        theme: (loaded.theme ?? "system") as ThemeMode,
-        lastConfigFile: loaded.lastConfigFile ?? null,
+        theme: loaded?.theme ?? "system",
+        lastConfigFile: loaded?.lastConfigFile ?? null,
         fonts: {
-          global: toPrefs(loaded.fonts?.global),
-          ui: toPrefs(loaded.fonts?.ui),
-          tree: toPrefs(loaded.fonts?.tree),
-          log: toPrefs(loaded.fonts?.log),
+          global: toPrefs(loaded?.fonts?.global),
+          ui: toPrefs(loaded?.fonts?.ui),
+          tree: toPrefs(loaded?.fonts?.tree),
+          log: toPrefs(loaded?.fonts?.log),
         },
       };
       applyTheme(state.theme);

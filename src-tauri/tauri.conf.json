@@ -4,9 +4,9 @@
   "version": "3.0.0-dev.0",
   "identifier": "com.xresloader.xresconv-gui",
   "build": {
-    "beforeDevCommand": "yarn workspace @xresconv/desktop dev",
+    "beforeDevCommand": "corepack yarn workspace @xresconv/desktop dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "yarn workspace @xresconv/desktop build",
+    "beforeBuildCommand": "corepack yarn workspace @xresconv/desktop build",
     "frontendDist": "../apps/desktop/dist"
   },
   "app": {

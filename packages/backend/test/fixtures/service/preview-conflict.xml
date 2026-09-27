@@ -4,7 +4,7 @@
     <work_dir>.</work_dir>
     <xresloader_path>preview-conflict.xml</xresloader_path>
     <!-- 两条同 type/目录/重命名的规则（tag 不同）：tag="a b" 的条目被两条同时
-         命中 → 同一条目重复发射 → 真实冲突；仅 tag="a" 的条目只命中一条 → 正常。 -->
+         命中 → 同一条目生成重复任务 → 真实冲突；仅 tag="a" 的条目只命中一条 → 正常。 -->
     <output_type output_dir="same-out" rename="/(?i)\.bin$/.lua/" tag="a">lua</output_type>
     <output_type output_dir="same-out" rename="/(?i)\.bin$/.lua/" tag="b">lua</output_type>
   </global>

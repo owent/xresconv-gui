@@ -168,10 +168,10 @@ describe("LogPanel 日志窗口（P4-07，UI07）", () => {
     render(<LogPanel />);
     await waitFor(() => expect(logRow_texts().length).toBe(2));
 
-    // ANSI 段落：固定色表（darkred）经 style 呈现，文本完整保留。
+    // ANSI 段落：固定色表经主题令牌呈现，文本完整保留。
     const colored = screen.getByText("红字");
     expect(colored).toHaveProperty("tagName", "SPAN");
-    expect((colored as HTMLElement).style.color).toBe("darkred");
+    expect((colored as HTMLElement).style.color).toBe("var(--ansi-darkred, darkred)");
     const bold = screen.getByText("粗下划");
     expect((bold as HTMLElement).style.fontWeight).not.toBe("");
 
@@ -268,7 +268,8 @@ describe("LogPanel 日志窗口（P4-07，UI07）", () => {
     );
     routeRpc({ getLogs: () => ({ entries, droppedCount: 0, capacity: 10000 }) });
     render(<LogPanel />);
-    await waitFor(() => expect(useSessionStore.getState().logs.entries.length).toBe(3000));
+    await waitFor(() => expect(useSessionStore.getState().logs.entries.length).toBe(2000));
+    expect(useSessionStore.getState().logs.localDroppedCount).toBe(1000);
     await waitFor(() => {
       const rows = [...document.querySelectorAll<HTMLElement>(".log-row")];
       expect(rows.length).toBeGreaterThan(0);

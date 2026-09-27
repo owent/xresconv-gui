@@ -55,6 +55,14 @@
   --z-tooltip: 1100;
 
   --transition-fast: 120ms ease;
+  --ansi-black: var(--color-text);
+  --ansi-darkred: var(--color-danger);
+  --ansi-darkgreen: var(--color-success);
+  --ansi-brown: var(--color-warning);
+  --ansi-darkblue: var(--color-accent);
+  --ansi-purple: var(--color-accent);
+  --ansi-darkcyan: var(--color-accent);
+  --ansi-gray: var(--color-text-muted);
 
   /* light（默认；[data-theme="light"] 显式锁定同值） */
   --color-bg: #eef1f6;
@@ -72,7 +80,7 @@
   --color-accent-contrast: #ffffff;
   /* 禁用控件文本（bg-inset 上 ≥4.5:1；普通 muted 在浅底不足） */
   --color-disabled-ink: #4a5568;
-  --color-danger: #c93a3a;
+  --color-danger: #b42318;
   --color-danger-soft: #fdeaea;
   --color-warning: #9a6700;
   --color-warning-soft: #fff3d6;

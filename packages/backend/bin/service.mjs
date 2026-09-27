@@ -99,10 +99,10 @@ const log4jsConfigurePath =
   typeof process.env.XRESCONV_LOG_CONFIGURE === "string" &&
   process.env.XRESCONV_LOG_CONFIGURE.length > 0
     ? process.env.XRESCONV_LOG_CONFIGURE
-    : undefined;
+    : null;
 const app = new BackendRpcApp({
   pool: new ScriptWorkerPool({ workerEnv }),
-  ...(log4jsConfigurePath === undefined ? {} : { log4jsConfigurePath }),
+  log4jsConfigurePath,
 });
 // 事件面：log/state_change/dialog_*/run_end/diagnostic → kind "event"（P4-02）。
 app.onEvent((event) => {

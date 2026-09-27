@@ -130,11 +130,12 @@ export function OutputMatrixEditor() {
   const effective = settings?.effective ?? null;
   const disabled = effective === null || BUSY_STATES.has(runState);
   const matrix = effective?.matrix ?? [];
+  const pending = useSessionStore((state) => state.settingsPending > 0);
   const matrixMode = isMatrixModeLocal(matrix);
   const renamePresets = renamePresetsOf(matrix);
 
-  const submitMatrix = (next: OutputMatrixRuleLike[]) => {
-    void updateSettings({ matrix: next });
+  const submitMatrix = (edit: (current: EffectiveSettingsLike) => OutputMatrixRuleLike[]) => {
+    void updateSettings((current) => ({ matrix: edit(current) }));
   };
 
   return (
@@ -188,8 +189,10 @@ export function OutputMatrixEditor() {
                   disabled={disabled}
                   allowUnset
                   onCommit={(value) =>
-                    submitMatrix(
-                      matrix.map((entry, i) => (i === index ? { ...entry, type: value } : entry)),
+                    submitMatrix((current) =>
+                      current.matrix.map((entry, i) =>
+                        i === index ? { ...entry, type: value } : entry,
+                      ),
                     )
                   }
                 />
@@ -201,8 +204,10 @@ export function OutputMatrixEditor() {
                   datalistId={RENAME_DATALIST_ID}
                   placeholder="/\.bin$/.lua/"
                   onCommit={(value) =>
-                    submitMatrix(
-                      matrix.map((entry, i) => (i === index ? { ...entry, rename: value } : entry)),
+                    submitMatrix((current) =>
+                      current.matrix.map((entry, i) =>
+                        i === index ? { ...entry, rename: value } : entry,
+                      ),
                     )
                   }
                 />
@@ -213,8 +218,8 @@ export function OutputMatrixEditor() {
                   mono
                   spanFull
                   onCommit={(value) =>
-                    submitMatrix(
-                      matrix.map((entry, i) =>
+                    submitMatrix((current) =>
+                      current.matrix.map((entry, i) =>
                         i === index ? { ...entry, outputDir: value } : entry,
                       ),
                     )
@@ -225,8 +230,8 @@ export function OutputMatrixEditor() {
                   value={rule.tags.join(" ")}
                   disabled={disabled}
                   onCommit={(value) =>
-                    submitMatrix(
-                      matrix.map((entry, i) =>
+                    submitMatrix((current) =>
+                      current.matrix.map((entry, i) =>
                         i === index ? { ...entry, tags: splitWords(value) } : entry,
                       ),
                     )
@@ -237,8 +242,8 @@ export function OutputMatrixEditor() {
                   value={rule.classes.join(" ")}
                   disabled={disabled}
                   onCommit={(value) =>
-                    submitMatrix(
-                      matrix.map((entry, i) =>
+                    submitMatrix((current) =>
+                      current.matrix.map((entry, i) =>
                         i === index ? { ...entry, classes: splitWords(value) } : entry,
                       ),
                     )
@@ -247,8 +252,10 @@ export function OutputMatrixEditor() {
               </div>
               <Button
                 className="matrix-rule-remove"
-                isDisabled={disabled}
-                onPress={() => submitMatrix(matrix.filter((_, i) => i !== index))}
+                isDisabled={disabled || pending}
+                onPress={() =>
+                  submitMatrix((current) => current.matrix.filter((_, i) => i !== index))
+                }
               >
                 删除规则 {index + 1}
               </Button>
@@ -258,18 +265,20 @@ export function OutputMatrixEditor() {
       )}
       <div className="matrix-actions">
         <Button
-          isDisabled={disabled || effective === null}
+          isDisabled={disabled || pending || effective === null}
           onPress={() => {
             if (effective === null) return;
-            submitMatrix(
-              matrixMode ? [...matrix, { tags: [], classes: [] }] : initialMatrix(effective),
+            submitMatrix((current) =>
+              isMatrixModeLocal(current.matrix)
+                ? [...current.matrix, { tags: [], classes: [] }]
+                : initialMatrix(current),
             );
           }}
         >
           添加输出规则
         </Button>
         {matrix.length > 0 && (
-          <Button isDisabled={disabled} onPress={() => submitMatrix([])}>
+          <Button isDisabled={disabled || pending} onPress={() => submitMatrix(() => [])}>
             清空矩阵
           </Button>
         )}

@@ -38,22 +38,21 @@
 - 常用命令：
   - 开发运行：`yarn dev:desktop`（tauri dev，前端热更新）
   - 构建壳：`yarn build:desktop`
-- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → tauri 双配置 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
+- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → tauri 双配置 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
 
 ## 目录结构
 
 - `apps/desktop/`、`packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`、`src-tauri/`、`tests/`：新架构骨架（D6，P1 已验收本机范围，见 `docs/plan/records/`）
 
 - `docs/`：文档截图、图标、自定义选择器示例 `custom-selector.json`
-- `.github/workflows/`：CI（build.yml 三平台构建并上传 release；release.yml；stale.yml）
+- `.github/workflows/`：CI（ci.yml 质量与桌面测试；release.yml 构建与 draft 聚合；stale.yml）
 - `.agents/skills/`：跨工具 Agent Skills（索引见 `.agents/skills/README.md`）
 - `docs/ai/`：来源索引、工具清单等 AI 维护资料
 
 ## 非显而易见的约束
 
-- 用户自定义脚本（事件 `set_name` / `on_before_convert` / `on_after_convert` / `script` / `on_append_log`）在渲染进程沙箱中执行，未捕获异常会导致 GUI 白屏——这是已知限制，修改相关代码时不得破坏 `resolve()`/`reject()` 的约定（见 README“已知问题”）。
+- 用户自定义脚本在独立 Node worker 中执行，可信脚本可访问本地模块与进程；故障隔离不等于防恶意沙箱。保持 `resolve()`/`reject()` 和弹框回调约定，不向脚本提供 DOM/jQuery/Electron。详见 `docs/plan/02-contracts-script-host.md`。
 - GUI 与文件编码统一 UTF-8；Windows 默认 GBK，文件名建议全英文（见 README“注意事项”）。
-- 渲染进程里部分 npm 库不会自动挂到全局，需手动 `window.jQuery = require(...)`（见 README“关于加载和调试”）。
 - src-tauri 中被 `#[cfg(test)]` 测试引用的模块不得触碰 tauri/wry 运行时类型（如 `AppHandle`/`Emitter`）：测试 exe 无 SxS manifest，经 Drop glue 保留 wry 对话框代码会导入 comctl32 v6 专有符号，进程加载即 0xc0000139。事件出口用注入闭包（P4-02 `EventSink`，诊断工具 `build/tools/check-imports.mjs`）。
 
 ## 任务分流

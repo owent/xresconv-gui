@@ -24,13 +24,15 @@ REQUIRED_LIBS="libwebkit2gtk-4.1.so.0 libjavascriptcoregtk-4.1.so.0 libgtk-3.so.
 DO_INSTALL=0
 QUIET=0
 APP_BIN=""
-APP_ARGS=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --install) DO_INSTALL=1 ;;
     --quiet) QUIET=1 ;;
-    --) shift; APP_BIN="${1:-}"; shift; APP_ARGS="$@"; break ;;
+    --)
+      shift
+      [ $# -gt 0 ] || { printf '%s\n' 'preflight: -- requires an application path' >&2; exit 5; }
+      APP_BIN="$1"; shift; break ;;
     -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
     *) echo "preflight: unknown argument: $1 (usage: $0 [--install] [--quiet] [-- <app-bin> [args…]])" >&2; exit 5 ;;
   esac
@@ -72,7 +74,7 @@ done
 if [ -z "$missing" ]; then
   log "preflight: WebKitGTK/GTK 运行时就绪（${PRETTY_NAME:-Linux}）"
   if [ -n "$APP_BIN" ]; then
-    exec "$APP_BIN" $APP_ARGS
+    exec "$APP_BIN" "$@"
     die "无法启动 $APP_BIN" 4
   fi
   exit 0
@@ -104,8 +106,13 @@ fi
 
 if [ "$DO_INSTALL" = "1" ]; then
   log "preflight: 调用系统包管理器安装（不改源、不关签名校验）…"
-  # shellcheck disable=SC2086
-  if $INSTALL_CMD; then
+  install_dependencies() {
+    case "$distro_family" in
+      debian) sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-0 libgtk-3-0 ;;
+      fedora) sudo dnf install -y webkit2gtk4.1 gtk3 ;;
+    esac
+  }
+  if install_dependencies; then
     # 复检（安装后必须再次验证，不把安装器退出码当成功）。
     still=""
     for lib in $REQUIRED_LIBS; do
@@ -116,7 +123,7 @@ if [ "$DO_INSTALL" = "1" ]; then
     fi
     log "preflight: 安装完成，运行时就绪"
     if [ -n "$APP_BIN" ]; then
-      exec "$APP_BIN" $APP_ARGS
+      exec "$APP_BIN" "$@"
       die "无法启动 $APP_BIN" 4
     fi
     exit 0

@@ -1,11 +1,6 @@
 import { Button } from "react-aria-components";
-import {
-  RUN_ACTIVE_STATES,
-  RUN_TERMINAL_STATES,
-  type RunStateLike,
-  type TreeNodeKey,
-} from "../adapters/backend";
-import { collectFolderKeys } from "./ConversionTree";
+import { RUN_ACTIVE_STATES, RUN_TERMINAL_STATES, type RunStateLike } from "../adapters/backend";
+import { Icon } from "./Icon";
 import { type RunRecord, useSessionStore } from "./session-store";
 
 /** 预览任务写入运行日志的上限（有界输出；超出仅给总数）。 */
@@ -110,54 +105,38 @@ function describeRun(run: RunRecord): { tone: "ok" | "error" | "info"; lines: st
 }
 
 /**
- * 运行控制与摘要（F08）：按钮组对照旧版顺序（全部选中/全部取消/全部展开/
- * 全部收起/预览/取消），“开始转换”与“重置”为主操作（特殊色、加大）且
- * “开始转换”固定最右（2026-09-26 四轮）。
+ * 运行控制与摘要（F08）：预览、取消和开始转换；开始转换固定最右。
  * 预览结果只写入运行日志（本地证据行），不再占独立结果区。
- * 开始/取消门禁由后端状态机决定；重置对齐 backend 语义——任意已加载状态可调
- * （活动运行先取消等回收；ready 下为幂等清理。此前前端比后端更严，导致按钮
- * 在常见 ready 状态长期灰置）。
+ * 开始/取消门禁由后端状态机决定。
  */
 export function RunControls() {
   const snapshot = useSessionStore((state) => state.snapshot);
   const preview = useSessionStore((state) => state.preview);
   const runPreview = useSessionStore((state) => state.runPreview);
   const runStarting = useSessionStore((state) => state.runStarting);
+  const settingsPending = useSessionStore((state) => state.settingsPending > 0);
   const cancelRequested = useSessionStore((state) => state.cancelRequested);
-  const resetting = useSessionStore((state) => state.resetting);
   const lastRun = useSessionStore((state) => state.lastRun);
   const startRun = useSessionStore((state) => state.startRun);
   const cancelRun = useSessionStore((state) => state.cancelRun);
-  const resetSession = useSessionStore((state) => state.resetSession);
-  const selectAll = useSessionStore((state) => state.selectAll);
   const appendLocalLog = useSessionStore((state) => state.appendLocalLog);
-  const selectNone = useSessionStore((state) => state.selectNone);
-  const setExpandedKeys = useSessionStore((state) => state.setExpandedKeys);
 
   const state = (snapshot?.state ?? null) as RunStateLike | null;
   const terminal = state !== null && RUN_TERMINAL_STATES.has(state);
   const active = state !== null && RUN_ACTIVE_STATES.has(state);
   const hasConfig = snapshot?.config != null;
-  const canPreview = hasConfig && !BUSY_STATES.has(state ?? "") && preview.status !== "loading";
-  const canStart = hasConfig && (state === "ready" || terminal) && !runStarting;
+  const canPreview =
+    hasConfig && !BUSY_STATES.has(state ?? "") && preview.status !== "loading" && !settingsPending;
+  const canStart = hasConfig && (state === "ready" || terminal) && !runStarting && !settingsPending;
   const canCancel = active;
-  // backend session.reset 无状态门禁（终态重新武装；ready 下幂等清理）。
-  // 仅 loading（配置加载中转态）禁用。
-  const canReset = hasConfig && state !== "loading" && !resetting;
-  const treeOpsDisabled = !hasConfig;
   const stateText = state === null ? "未加载配置" : (STATE_LABELS[state] ?? state);
 
   const runResult = lastRun === null ? null : describeRun(lastRun);
 
-  const expandAll = () => {
-    const keys = new Set<TreeNodeKey>();
-    collectFolderKeys(snapshot?.tree?.nodes ?? [], keys);
-    setExpandedKeys(keys);
-  };
-
   const onPreview = () => {
-    void runPreview().then(() => {
+    void runPreview().then((ok) => {
       const preview = useSessionStore.getState().preview;
+      if (!ok && preview.status !== "error") return;
       if (preview.result === null) {
         // 预览失败也只进日志（2026-09-26 四轮：结果统一输出到运行日志框）。
         const message = preview.error ?? "预览失败";
@@ -180,9 +159,9 @@ export function RunControls() {
       );
       for (const conflict of result.conflicts) {
         appendLocalLog(
-          `预览发现重复输出：${conflict.items.join("、")} 以相同类型/目录/重命名被重复发射（输出目录 ${
+          `预览发现重复转换任务：条目 ${conflict.items.join("、")} 按相同的输出类型、目录和重命名规则生成了多个任务（输出目录 ${
             conflict.outputDir || "（默认）"
-          } / 重命名 ${conflict.rename || "（无）"}）`,
+          }；重命名 ${conflict.rename || "（无）"}）。请检查输出矩阵规则。`,
           "warning",
         );
       }
@@ -204,18 +183,6 @@ export function RunControls() {
       <fieldset className="run-buttons">
         <legend className="visually-hidden">运行控制</legend>
         <div className="run-button-row">
-          <Button isDisabled={treeOpsDisabled} onPress={() => void selectAll()}>
-            全部选中
-          </Button>
-          <Button isDisabled={treeOpsDisabled} onPress={() => void selectNone()}>
-            全部取消
-          </Button>
-          <Button isDisabled={treeOpsDisabled} onPress={expandAll}>
-            全部展开
-          </Button>
-          <Button isDisabled={treeOpsDisabled} onPress={() => setExpandedKeys(new Set())}>
-            全部收起
-          </Button>
           <Button isDisabled={!canPreview} onPress={onPreview}>
             预览
           </Button>
@@ -223,17 +190,11 @@ export function RunControls() {
             取消
           </Button>
           <Button
-            className="btn-success btn-run"
-            isDisabled={!canReset}
-            onPress={() => void resetSession()}
-          >
-            重置
-          </Button>
-          <Button
             className="btn-primary btn-run btn-run--primary"
             isDisabled={!canStart}
             onPress={() => void startRun()}
           >
+            <Icon name="play" />
             开始转换
           </Button>
         </div>

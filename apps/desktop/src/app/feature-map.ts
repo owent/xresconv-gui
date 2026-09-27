@@ -91,10 +91,9 @@ export const FEATURE_MAP: readonly FeatureMapping[] = [
   },
   {
     id: "F08",
-    summary: "并发转换、日志输出、运行结果、重置",
+    summary: "并发转换、日志输出、运行结果与取消",
     regions: ["RunControls", "LogPanel"],
-    legacySource:
-      "src/index.html #conv_list_btn_start_conv/#conv_list_btn_reload/#conv_list_run_log_panel",
+    legacySource: "src/index.html #conv_list_btn_start_conv/#conv_list_run_log_panel",
     status: "skeleton",
   },
   {

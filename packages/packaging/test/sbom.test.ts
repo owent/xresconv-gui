@@ -48,6 +48,27 @@ function manifest(files: ManifestFile[]): RuntimeManifest {
 }
 
 describe("packageInventory / buildSpdx（P5-07 SBOM 部分）", () => {
+  it("preserves nested versions, distinct package IDs and required package metadata", () => {
+    const input = manifest([
+      file({ path: "a", origin: "npm:pkg@1.0.0" }),
+      file({ path: "b", origin: "npm:pkg@2.0.0" }),
+      file({ path: "c", origin: "npm:@scope/pkg@1.0.0" }),
+      file({ path: "d", origin: "npm:-scope-pkg@1.0.0" }),
+      file({ path: "runtime/node.exe", origin: "node-dist" }),
+    ]);
+    const doc = buildSpdx(input, "2026-09-27T00:00:00Z");
+    expect(doc.packages.filter((pkg) => pkg.name === "pkg").map((pkg) => pkg.versionInfo)).toEqual([
+      "1.0.0",
+      "2.0.0",
+    ]);
+    expect(new Set(doc.packages.map((pkg) => pkg.SPDXID)).size).toBe(doc.packages.length);
+    expect(doc.packages.find((pkg) => pkg.name === "node")?.versionInfo).toBe(input.nodeVersion);
+    for (const pkg of doc.packages)
+      expect(pkg).toMatchObject({ downloadLocation: "NOASSERTION", filesAnalyzed: false });
+    expect(
+      buildSpdx({ ...input, distro: "ubuntu-24.04" }, "2026-09-27T00:00:00Z").documentNamespace,
+    ).not.toBe(doc.documentNamespace);
+  });
   it("origin 聚合：npm 按 name@version、node-dist 单包、build 归应用", () => {
     const inventory = packageInventory([
       file({ path: "app/backend/service.mjs", origin: "build:packages/backend" }),
@@ -55,7 +76,7 @@ describe("packageInventory / buildSpdx（P5-07 SBOM 部分）", () => {
       file({ path: "app/node_modules/adm-zip/util.js", origin: "npm:adm-zip@0.6.1", size: 50 }),
       file({ path: "runtime/node.exe", origin: "node-dist", size: 9000 }),
     ]);
-    expect(inventory.get("adm-zip")).toMatchObject({
+    expect(inventory.get("npm:adm-zip@0.6.1")).toMatchObject({
       version: "0.6.1",
       fileCount: 2,
       totalSize: 150,

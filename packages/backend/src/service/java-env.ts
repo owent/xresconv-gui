@@ -12,8 +12,9 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import path from "node:path";
+import { createProcessScope, type JavaExecutable, resolveJavaExecutable } from "@xresconv/guardian";
+
+export { type JavaExecutable, resolveJavaExecutable } from "@xresconv/guardian";
 
 /** 旧版 dep_msg 的推荐发行版（main.js:2464-2474，链接保留）。 */
 export const JAVA_DOWNLOAD_HINTS: readonly { name: string; url: string }[] = [
@@ -23,34 +24,6 @@ export const JAVA_DOWNLOAD_HINTS: readonly { name: string; url: string }[] = [
   { name: "Zulu", url: "https://www.azul.com/downloads/zulu-community/" },
   { name: "OpenJDK", url: "https://developers.redhat.com/products/openjdk/download" },
 ];
-
-/** java 可执行文件解析结果。 */
-export interface JavaExecutable {
-  /** 绝对/相对可执行路径或 "java"（PATH 查找）。 */
-  command: string;
-  /** 来源：explicit(XRESCONV_JAVA) / java-home(JAVA_HOME) / path(PATH)。 */
-  source: "explicit" | "java-home" | "path";
-}
-
-/**
- * 解析 java 可执行文件：XRESCONV_JAVA → JAVA_HOME/bin/java(.exe) → PATH。
- * 显式/JAVA_HOME 路径存在性不在此校验（spawn 失败会如实报错，不猜测）。
- */
-export function resolveJavaExecutable(): JavaExecutable {
-  const explicit = process.env.XRESCONV_JAVA;
-  if (typeof explicit === "string" && explicit.length > 0) {
-    return { command: explicit, source: "explicit" };
-  }
-  const javaHome = process.env.JAVA_HOME;
-  if (typeof javaHome === "string" && javaHome.length > 0) {
-    const binary = process.platform === "win32" ? "java.exe" : "java";
-    const candidate = path.join(javaHome, "bin", binary);
-    if (existsSync(candidate)) {
-      return { command: candidate, source: "java-home" };
-    }
-  }
-  return { command: "java", source: "path" };
-}
 
 /** checkJava 结果（UI 展示 + 转换前诊断）。 */
 export interface JavaCheckResult {
@@ -70,64 +43,77 @@ export interface JavaCheckResult {
 const CHECK_TIMEOUT_MS = 8000;
 
 /** 运行 `java -version` 并按旧版规则判定（有界超时；不经 shell）。 */
-export function checkJavaEnvironment(): Promise<JavaCheckResult> {
+export async function checkJavaEnvironment(): Promise<JavaCheckResult> {
   const executable = resolveJavaExecutable();
-  return new Promise((resolve) => {
-    let child: ReturnType<typeof spawn>;
-    try {
-      child = spawn(executable.command, ["-version"], {
-        stdio: ["ignore", "pipe", "pipe"],
-        windowsHide: true,
-      });
-    } catch (err) {
-      resolve({
-        ok: false,
-        versionText: "",
-        versions: [],
-        bit64: false,
-        executable,
-        problem: `无法启动 ${executable.command}: ${String(err)}`,
-      });
-      return;
-    }
-    let text = "";
-    let settled = false;
-    let timer: NodeJS.Timeout | undefined;
-    const settle = (problem: string | null): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      const versions: number[] = [...(text.match(/\d+/g) ?? [])].map(Number);
-      const bit64 = /64-bit/i.test(text) || /64-Bit/i.test(text);
-      const versionOk = versions.length >= 2 && ((versions[0] ?? 0) > 1 || (versions[1] ?? 0) >= 8);
-      let verdict = problem;
-      if (problem === null && versions.length < 2) {
-        verdict = "查询不到 java 版本号";
-      } else if (problem === null && !versionOk) {
-        verdict = "java 版本过老（需要 64 位的 JRE 或 JDK 8 或以上）";
-      } else if (problem === null && !bit64) {
-        verdict = "检测到 32 位 java（需要 64 位的 JRE 或 JDK 8 或以上）";
+  const scope = createProcessScope({ name: "java-environment-check" });
+  try {
+    return await new Promise<JavaCheckResult>((resolve) => {
+      let child: ReturnType<typeof spawn>;
+      try {
+        child = spawn(
+          executable.command,
+          ["-version"],
+          scope.decorateSpawnOptions({
+            stdio: ["ignore", "pipe", "pipe"],
+            windowsHide: true,
+          }),
+        );
+        scope.register(child);
+      } catch (err) {
+        resolve({
+          ok: false,
+          versionText: "",
+          versions: [],
+          bit64: false,
+          executable,
+          problem: `无法启动 ${executable.command}: ${String(err)}`,
+        });
+        return;
       }
-      resolve({
-        ok: problem === null && versionOk && bit64,
-        versionText: text.trim(),
-        versions,
-        bit64,
-        executable,
-        problem: verdict,
+      let text = "";
+      let settled = false;
+      let timer: NodeJS.Timeout | undefined;
+      const settle = (problem: string | null): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const version = /^(?:openjdk|java) (?:version )?"?(\d+(?:[._]\d+)*)/im.exec(text)?.[1];
+        const versions = version?.split(/[._]/).map(Number) ?? [];
+        const bit64 = /64-bit/i.test(text);
+        const versionOk = (versions[0] ?? 0) >= 8 || (versions[0] === 1 && (versions[1] ?? 0) >= 8);
+        let verdict = problem;
+        if (problem === null && versions.length === 0) {
+          verdict = "查询不到 java 版本号";
+        } else if (problem === null && !versionOk) {
+          verdict = "java 版本过老（需要 64 位的 JRE 或 JDK 8 或以上）";
+        } else if (problem === null && !bit64) {
+          verdict = "检测到 32 位 java（需要 64 位的 JRE 或 JDK 8 或以上）";
+        }
+        resolve({
+          ok: problem === null && versionOk && bit64,
+          versionText: text.trim(),
+          versions,
+          bit64,
+          executable,
+          problem: verdict,
+        });
+      };
+      timer = setTimeout(() => {
+        settle(`java -version 超时（${CHECK_TIMEOUT_MS}ms）`);
+      }, CHECK_TIMEOUT_MS);
+      child.stdout?.on("data", (chunk: Buffer) => {
+        text += chunk.toString("utf8").slice(0, Math.max(0, 65536 - text.length));
       });
-    };
-    timer = setTimeout(() => {
-      child.kill();
-      settle(`java -version 超时（${CHECK_TIMEOUT_MS}ms）`);
-    }, CHECK_TIMEOUT_MS);
-    child.stdout?.on("data", (chunk: Buffer) => {
-      text += chunk.toString("utf8");
+      child.stderr?.on("data", (chunk: Buffer) => {
+        text += chunk.toString("utf8").slice(0, Math.max(0, 65536 - text.length));
+      });
+      child.on("error", (err: Error) => settle(`检测不到 java（${err.message}）`));
+      child.on("close", (code, signal) =>
+        settle(code === 0 ? null : `java -version 退出异常（${signal ?? code}）`),
+      );
     });
-    child.stderr?.on("data", (chunk: Buffer) => {
-      text += chunk.toString("utf8");
-    });
-    child.on("error", (err: Error) => settle(`检测不到 java（${err.message}）`));
-    child.on("close", () => settle(null));
-  });
+  } finally {
+    await scope.terminate(0);
+    await scope.dispose();
+  }
 }

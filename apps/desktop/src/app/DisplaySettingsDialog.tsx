@@ -61,11 +61,7 @@ async function enumerateFonts(): Promise<string[]> {
   return FALLBACK_FONTS;
 }
 
-/**
- * 显示设置弹窗（2026-09-26 三轮改版）：从状态条迁入“⚙ 显示设置”按钮旁的
- * 独立弹窗；主题三态为分段单选（RAC Radio 的原生 input 视觉隐藏，圆点指示
- * 器由 CSS 绘制——此前无样式导致“看不到任何控件”）。
- */
+/** 主题即时生效；字体在完成编辑后统一校验并持久化。 */
 export function DisplaySettingsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { theme, lastConfigFile, fonts, setTheme, setFontPrefs } = useDisplaySettings();
   const [fontNames, setFontNames] = useState<string[]>(FALLBACK_FONTS);
@@ -152,7 +148,7 @@ export function DisplaySettingsDialog({ open, onClose }: { open: boolean; onClos
   );
 }
 
-/** 单区字体行：family 输入 + datalist 候选（输入即时过滤）+ 字号。 */
+/** 单区字体行；保留未完成的输入，避免逐字符提交非法字号或改变输入区布局。 */
 function FontRow({
   label,
   fontNames,
@@ -165,8 +161,20 @@ function FontRow({
   onChange: (prefs: FontPrefs) => void;
 }) {
   const listId = `font-candidates-${label}`;
-  const commitFamily = (value: string) => {
-    onChange({ ...prefs, family: value.trim() });
+  const [family, setFamily] = useState(prefs.family);
+  const [size, setSize] = useState(String(prefs.size ?? ""));
+  useEffect(() => {
+    setFamily(prefs.family);
+    setSize(String(prefs.size ?? ""));
+  }, [prefs]);
+  const commit = () => {
+    const next = {
+      family: family.trim(),
+      size: size === "" ? null : Math.min(48, Math.max(6, Number(size))),
+    };
+    setFamily(next.family);
+    setSize(String(next.size ?? ""));
+    if (next.family !== prefs.family || next.size !== prefs.size) onChange(next);
   };
   return (
     <div className="font-row">
@@ -175,10 +183,13 @@ function FontRow({
         className="font-family-input"
         aria-label={`${label}字体`}
         list={listId}
-        value={prefs.family}
+        value={family}
         placeholder="（默认）"
-        onChange={(event) => onChange({ ...prefs, family: event.target.value })}
-        onBlur={(event) => commitFamily(event.currentTarget.value)}
+        onChange={(event) => setFamily(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
       />
       <datalist id={listId}>
         {fontNames.map((name) => (
@@ -192,18 +203,12 @@ function FontRow({
         min={6}
         max={48}
         step={0.5}
-        value={prefs.size ?? ""}
+        value={size}
         placeholder="默认"
-        onChange={(event) => {
-          const raw = event.target.value;
-          onChange({ ...prefs, size: raw === "" ? null : Number(raw) });
-        }}
-        onBlur={(event) => {
-          const raw = event.currentTarget.value;
-          if (raw !== "") {
-            const size = Math.min(48, Math.max(6, Number(raw)));
-            if (String(size) !== raw) onChange({ ...prefs, size });
-          }
+        onChange={(event) => setSize(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
         }}
       />
     </div>

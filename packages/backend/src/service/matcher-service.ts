@@ -19,6 +19,7 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createProcessScope, type ProcessScope } from "@xresconv/guardian";
 import { FrameDecoder, writeFrame } from "@xresconv/ipc";
@@ -76,6 +77,8 @@ interface WorkerSlot {
 }
 
 function defaultWorkerEntry(): string {
+  const bundled = fileURLToPath(new URL("./matcher-worker.mjs", import.meta.url));
+  if (existsSync(bundled)) return bundled;
   return fileURLToPath(new URL("../../bin/matcher-worker.mjs", import.meta.url));
 }
 

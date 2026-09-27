@@ -12,6 +12,8 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "../../tests/browser",
   timeout: 60_000,
+  globalTimeout: 600_000,
+  outputDir: "../../build/browser-test-results",
   expect: { timeout: 10_000 },
   fullyParallel: true,
   reporter: [["list"]],
@@ -36,7 +38,7 @@ export default defineConfig({
     // 显式绑 127.0.0.1：本机 localhost 仅解析 IPv6 时 127.0.0.1 探测会失败。
     command: "corepack yarn preview --host 127.0.0.1 --port 4173 --strictPort",
     url: "http://127.0.0.1:4173",
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 60_000,
   },
 });

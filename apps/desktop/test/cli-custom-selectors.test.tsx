@@ -11,6 +11,7 @@ import { render, waitFor } from "@testing-library/react";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { resetSessionStore, useSessionStore } from "../src/app/session-store";
+import { isRetryableStartupError } from "../src/app/startup-retry";
 import {
   collectCustomSelectorFiles,
   resetCliCustomSelectorsWiring,
@@ -102,19 +103,42 @@ describe("useCliCustomSelectors（P4-05b）", () => {
     expect(useSessionStore.getState().lastError).toBeNull();
   });
 
-  it("setCustomSelectors 失败 → lastError 可见", async () => {
+  it("setCustomSelectors 业务失败 → lastError 可见", async () => {
     mockedInvoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
       if (cmd === "get_cli_matches") {
         return Promise.resolve({ "custom-selector": { value: "missing.json" } });
       }
       if (cmd === "backend_rpc" && args?.method === "setCustomSelectors") {
-        return Promise.reject("BACKEND_NOT_READY: no ready backend");
+        return Promise.reject("INVALID_PARAMS: invalid selectors");
       }
       return Promise.reject(new Error(`unexpected command: ${cmd}`));
     });
     render(<Probe />);
-    await waitFor(() =>
-      expect(useSessionStore.getState().lastError).toContain("BACKEND_NOT_READY"),
-    );
+    await waitFor(() => expect(useSessionStore.getState().lastError).toContain("INVALID_PARAMS"));
   });
+
+  it("retries a definitely unexecuted startup selector request once the backend is ready", async () => {
+    let attempts = 0;
+    mockedInvoke.mockImplementation(async (cmd, args) => {
+      if (cmd === "get_cli_matches") return { "custom-selector": { value: "s.json" } };
+      if (args?.method === "setCustomSelectors") {
+        if (++attempts === 1) throw "BACKEND_NOT_READY: still starting";
+        return { selectors: [] };
+      }
+      return { state: "idle", runSeq: 0, config: null, tree: null, selectedItems: [] };
+    });
+    render(
+      <StrictMode>
+        <Probe />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(attempts).toBe(2), { timeout: 2000 });
+    expect(useSessionStore.getState().lastError).toBeNull();
+  });
+});
+
+it("never replays a timed out mutation or mistakes a business path for startup failure", () => {
+  expect(isRetryableStartupError("BACKEND_TIMEOUT: reply lost")).toBe(false);
+  expect(isRetryableStartupError("CONFIG_ERROR: guardian/channel.xml missing")).toBe(false);
+  expect(isRetryableStartupError("guardian protocol violation: BACKEND_NOT_READY")).toBe(true);
 });

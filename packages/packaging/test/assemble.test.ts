@@ -80,7 +80,14 @@ beforeAll(() => {
   // targets.json 的 os/arch 词表：windows/macos 用 x64，linux 用 x86_64。
   const osOfPlatform =
     process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : "linux";
-  const archOfPlatform = osOfPlatform === "linux" ? "x86_64" : "x64";
+  const archOfPlatform =
+    process.arch === "arm64"
+      ? osOfPlatform === "linux"
+        ? "aarch64"
+        : "arm64"
+      : osOfPlatform === "linux"
+        ? "x86_64"
+        : "x64";
   target = pickTarget(
     (t) => t.os === osOfPlatform && t.arch === archOfPlatform && t.variant === "bootstrap",
   );
@@ -257,4 +264,25 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
     fs.writeFileSync(path.join(dirty, "stale.txt"), "stale", "utf8");
     await expectAsyncFailure(() => assembleTo(dirty), "ASSEMBLY_FAILED");
   });
+
+  it(
+    "rejects a bundled Node binary from another architecture",
+    async () => {
+      const otherArch = pickTarget(
+        (t) => t.os === target.os && t.variant === target.variant && t.arch !== target.arch,
+      );
+      await expect(
+        assembleRuntimeLayout({
+          target: otherArch,
+          outDir: path.join(tmpBase, "wrong-arch"),
+          node: { path: process.execPath, source: "local-test-copy" },
+          appVersion: "3.0.0-dev.0",
+          sourceCommit: SAMPLE_COMMIT,
+          repositorySnapshot: { repository: REPO_URL, dirty: false },
+          verificationReport: VERIFICATION_REPORT,
+        }),
+      ).rejects.toThrow(/platform|architecture/);
+    },
+    TEST_TIMEOUT_MS,
+  );
 });

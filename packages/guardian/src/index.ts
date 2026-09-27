@@ -6,6 +6,7 @@ export type {
   BackendSupervisorStats,
 } from "./backend-supervisor.ts";
 export { BackendRequestError, BackendSupervisor } from "./backend-supervisor.ts";
+export { type JavaExecutable, resolveJavaExecutable } from "./java-executable.ts";
 export type { JavaBatchOptions, JavaBatchResult } from "./java-runner.ts";
 export { AbortError, runJavaBatch } from "./java-runner.ts";
 export type {

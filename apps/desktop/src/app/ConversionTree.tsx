@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Key } from "react-aria-components";
 import {
   Button,
@@ -92,12 +92,6 @@ function TreeNodeRow({ node, level }: { node: TreeNodeSnap; level: number }) {
       hasChildItems={node.children.length > 0}
       className={node.children.length > 0 ? "tree-node tree-node--folder" : "tree-node"}
       style={{ paddingLeft: `calc(var(--space-1) + ${String(level * TREE_LEVEL_INDENT_PX)}px)` }}
-      onDoubleClick={(event) => {
-        // 双击切换（旧版行为）；落在复选框/展开按钮上的双击由各自控件处理。
-        if ((event.target as HTMLElement).closest("input, button") === null) {
-          void store().toggleNode(node.key);
-        }
-      }}
     >
       <TreeItemContent>
         {({ isExpanded }) => (
@@ -126,22 +120,7 @@ function TreeNodeRow({ node, level }: { node: TreeNodeSnap; level: number }) {
                   否则 label 零尺寸不可点击）。 */}
               <span className="checkbox-mark" aria-hidden="true" />
             </Checkbox>
-            {/* biome-ignore lint/a11y/useKeyWithClickEvents: 键盘切换由行级 Space 处理（scope keydown） */}
-            {/* biome-ignore lint/a11y/useSemanticElements: RAC TreeItem 内不嵌套 button（破坏树角色），标题 role=button 标记位 */}
-            <span
-              className="tree-node-title"
-              title={node.tooltip}
-              role="button"
-              tabIndex={-1}
-              onClick={() => {
-                // 旧版点行即切换（fancytree checkbox 模式）；标题点击=切换勾选。
-                // role=button 仅为可访问性标记（键盘切换由行级 Space 处理，
-                // tabIndex=-1 不进 Tab 序）。
-                if (!node.unselectable) {
-                  void store().toggleNode(node.key);
-                }
-              }}
-            >
+            <span className="tree-node-title" title={node.tooltip}>
               {node.title}
             </span>
             {node.unselectable ? <span className="tree-node-hint">不可勾选</span> : null}
@@ -158,6 +137,7 @@ function TreeNodeRow({ node, level }: { node: TreeNodeSnap; level: number }) {
 }
 
 export function ConversionTree() {
+  const [rowHeight, setRowHeight] = useState(TREE_ROW_HEIGHT);
   const tree = useSessionStore((state) => state.snapshot?.tree ?? null);
   const lastError = useSessionStore((state) => state.lastError);
   const searchTerm = useSessionStore((state) => state.searchTerm);
@@ -194,6 +174,22 @@ export function ConversionTree() {
   // 焦点跟踪与 Space 切换：RAC filterDOMProps 不透传 onFocus/onKeyDown，
   // 故在 wrapper 上挂原生监听（focusin 捕获焦点落行；keydown 拦 Space）。
   const scopeRef = useRef<HTMLDivElement>(null);
+  const hasTree = tree !== null;
+  useEffect(() => {
+    if (!hasTree) return;
+    const scope = scopeRef.current;
+    if (scope === null) return;
+    const measure = () => {
+      const size = Number.parseFloat(getComputedStyle(scope).fontSize);
+      setRowHeight(
+        Number.isFinite(size) ? Math.max(TREE_ROW_HEIGHT, Math.ceil(size * 2.2)) : TREE_ROW_HEIGHT,
+      );
+    };
+    measure();
+    const observer = new MutationObserver(measure);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    return () => observer.disconnect();
+  }, [hasTree]);
   useEffect(() => {
     const scope = scopeRef.current;
     if (scope === null) {
@@ -220,11 +216,28 @@ export function ConversionTree() {
         void useSessionStore.getState().toggleNode(key);
       }
     };
+    const onClick = (event: MouseEvent) => {
+      const target = event.target;
+      // A double click is one selection gesture. Controls handle their own clicks.
+      if (
+        !(target instanceof HTMLElement) ||
+        event.detail > 1 ||
+        target.closest("label, input, button")
+      )
+        return;
+      const key = keyFromTarget(target);
+      if (key !== null) {
+        useSessionStore.getState().setFocusedKey(key);
+        void useSessionStore.getState().toggleNode(key);
+      }
+    };
     scope.addEventListener("focusin", onFocusIn);
     scope.addEventListener("keydown", onKeyDown);
+    scope.addEventListener("click", onClick);
     return () => {
       scope.removeEventListener("focusin", onFocusIn);
       scope.removeEventListener("keydown", onKeyDown);
+      scope.removeEventListener("click", onClick);
     };
   });
 
@@ -237,7 +250,6 @@ export function ConversionTree() {
 
   return (
     <aside className="panel conversion-tree" aria-label="转换列表">
-      <h2 className="panel-title">转换列表</h2>
       <TreeToolbar hitCount={searching && filtered !== null ? filtered.hits : null} />
       {lastError !== null ? (
         <p role="alert" className="tree-error">
@@ -251,11 +263,7 @@ export function ConversionTree() {
         </>
       ) : (
         <div ref={scopeRef} className="tree-keyboard-scope">
-          <Virtualizer
-            layout={ListLayout}
-            layoutOptions={{ rowHeight: TREE_ROW_HEIGHT }}
-            shouldObserveItemSize
-          >
+          <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight }} shouldObserveItemSize>
             <Tree
               aria-label="转换条目"
               className="conversion-tree-view"

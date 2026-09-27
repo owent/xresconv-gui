@@ -78,19 +78,11 @@ export function CustomActionBar() {
   return (
     <section className="panel custom-action-bar" aria-label="自定义按钮">
       <h2 className="panel-title">自定义按钮</h2>
-      {buttons.length > 0 ? (
-        <div className="custom-btn-group">
-          {buttons.map((view) => (
-            <CustomButton key={view.name} view={view} />
-          ))}
-        </div>
-      ) : (
-        <p className="empty-state">
-          {customSelectors === null
-            ? "未配置自定义选择器（启动参数 --custom-selector/--custom-button）。"
-            : "自定义选择器文件中没有可用条目（错误条目见日志）。"}
-        </p>
-      )}
+      <div className="custom-btn-group">
+        {buttons.map((view) => (
+          <CustomButton key={view.name} view={view} />
+        ))}
+      </div>
     </section>
   );
 }

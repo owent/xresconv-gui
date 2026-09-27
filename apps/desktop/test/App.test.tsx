@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { App } from "../src/App";
+import { resetDisplaySettings } from "../src/app/display-settings";
 import { resetEnvironmentDiagnostics } from "../src/app/environment-diagnostics";
 import { resetSessionStore } from "../src/app/session-store";
 
@@ -79,7 +80,7 @@ function defaultInvokeImpl(cmd: string, args?: unknown): Promise<unknown> {
     return Promise.resolve({ name: "xresconv-gui", version: "3.0.0-dev.0", protocol_version: 1 });
   }
   if (cmd === "get_cli_matches") {
-    return Promise.resolve({ input: { value: "tests/fixtures/config/basic.xml" } });
+    return Promise.resolve({ "log-configure": { value: "log4js.json" } });
   }
   if (cmd === "get_backend_health") {
     return Promise.resolve({
@@ -91,7 +92,7 @@ function defaultInvokeImpl(cmd: string, args?: unknown): Promise<unknown> {
     });
   }
   if (cmd === "read_display_settings") {
-    // null：不触发自动加载链（display-settings 引导读到 null 即止）。
+    // 首次启动，无 --input 时保持空会话。
     return Promise.resolve(null);
   }
   if (cmd === "write_display_settings") {
@@ -122,6 +123,7 @@ describe("App shell (P4-01)", () => {
     vi.clearAllMocks();
     resetSessionStore();
     resetEnvironmentDiagnostics();
+    resetDisplaySettings();
     mockedInvoke.mockImplementation(defaultInvokeImpl);
     mockedOpen.mockResolvedValue(null);
   });
@@ -129,29 +131,29 @@ describe("App shell (P4-01)", () => {
   it("renders every UI region with its accessible name", async () => {
     await renderAndSettle();
 
-    // 顶部环境状态条已移除（调试信息进运行日志；2026-09-26 用户反馈）。
-    expect(screen.queryByRole("banner")).toBeNull();
+    expect(screen.getByText("配置转换工作台")).toBeTruthy();
     expect(screen.getByRole("button", { name: "转换列表文件" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "重载配置" })).toBeTruthy();
 
     // 左侧转换树与工具栏（ConversionTree / TreeToolbar）
     expect(screen.getByRole("complementary", { name: "转换列表" })).toBeTruthy();
     expect(screen.getByRole("toolbar", { name: "转换树工具栏" })).toBeTruthy();
-    expect(screen.getByRole("tree", { name: "转换条目" })).toBeTruthy();
+    expect(screen.getByRole("tree", { name: "转换条目", hidden: true })).toBeTruthy();
     expect(screen.getByPlaceholderText("搜索转换条目…")).toBeTruthy();
 
     // 右侧主区（ConversionSettings：文件行+详情/显示设置按钮同排）
     expect(screen.getByRole("main")).toBeTruthy();
     expect(screen.getByRole("form", { name: "转换参数" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "详情…" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "⚙ 显示设置" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "显示设置" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "并发数" })).toBeTruthy();
     // 自适应（2026-09-26）：无选择器定义时自定义按钮区不渲染。
     expect(screen.queryByRole("region", { name: "自定义按钮" })).toBeNull();
 
     // 底部运行控制与日志（RunControls / RunSummary / LogPanel / DialogHost）
     expect(screen.getByRole("group", { name: "运行控制" })).toBeTruthy();
-    for (const name of ["预览", "开始转换", "取消", "重置"]) {
+    expect(screen.queryByRole("button", { name: "重置" })).toBeNull();
+    for (const name of ["预览", "开始转换", "取消"]) {
       expect(screen.getByRole("button", { name })).toHaveProperty("disabled", true);
     }
     expect(screen.getByRole("status", { name: "运行状态" }).textContent).toContain("未加载配置");
@@ -171,7 +173,7 @@ describe("App shell (P4-01)", () => {
 
   it("lists CLI args returned by the shell in the run log", async () => {
     const log = await renderAndSettle();
-    expect(log.textContent ?? "").toContain("tests/fixtures/config/basic.xml");
+    expect(log.textContent ?? "").toContain("log4js.json");
   });
 
   it("keeps the empty config state when the file picker is cancelled", async () => {
@@ -243,7 +245,7 @@ describe("App shell (P4-01)", () => {
   it("opens the display settings dialog from the config bar with visible theme radios", async () => {
     await renderAndSettle();
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "⚙ 显示设置" }));
+    await user.click(screen.getByRole("button", { name: "显示设置" }));
     const dialog = await screen.findByRole("dialog", { name: "显示设置" });
     const radios = within(dialog).getAllByRole("radio");
     expect(radios.length).toBe(3);

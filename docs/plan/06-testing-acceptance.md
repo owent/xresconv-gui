@@ -2,7 +2,7 @@
 
 [执行索引](README.md) · [上一册](05-packaging-release.md) · [下一册](07-cutover.md)
 
-本册把主计划 C01–C15、R01–R12、I01–I14 展开为可执行场景。**P0 旧版基线已有 [阶段记录](records/README.md)；CF/SC/EX 用例已随 P2/P3 任务记录执行（Windows 本机），UI/PK 用例与三平台执行待 P4–P6，不继承旧 Rust 骨架的通过状态。** 测试 ID 是固定引用，不以预估总用例数作为覆盖证明。
+本册把主计划 C01–C15、R01–R12、I01–I14 展开为可执行场景。**历史证据见 [阶段记录](records/README.md)，当前复验见 [2026-09-27 审查](records/REVIEW-2026-09-27.md)。Windows 模块/桌面与三引擎浏览器验证不等于跨平台安装验收。** 测试 ID 是固定引用，不以预估总用例数作为覆盖证明。
 
 ## 测试目录与夹具
 
@@ -92,7 +92,7 @@ SC11 在 Windows/macOS/Linux 分别执行，guardian 死亡后的树清理由独
 | --- | --- | --- | --- |
 | EX01 | 特殊参数逐项编码并喂真实 parser/固定 JAR；同时测试 argv fallback | 原值可还原；无法表示的参数预先阻塞；无 shell 注入或静默截断 | F06、C03/C06 |
 | EX02 | fake-converter 各输出模式；并发 1/4/16、少于 worker 的任务数、空任务；slow stdin/提前关闭 | 每任务只提交一次；无输出也能完成；日志块数量不改变任务数；批次失败不冒充精确条目失败数 | F08、R06/R09 |
-| EX03 | 在 before/转换/after/收尾阶段取消、重置、关闭；同请求重投；强杀宿主 | 终态只发布一次，before 失败不启动 Java，取消后无迟到污染，无误杀无关进程 | F08、R04/R06/R07/R10 |
+| EX03 | 在 before/转换/after/收尾阶段取消、调用后端 reset RPC、关闭；同请求重投；强杀宿主 | 终态只发布一次，before 失败不启动 Java，取消后无迟到污染，无误杀无关进程 | F08、R04/R06/R07/R10 |
 | EX04 | UTF-8 拆包、ANSI、log4js appender/轮转/flush、磁盘满/只读/慢日志服务 | 内容及错误可查，UI 有界，完整日志或明确失败；取消不会无限等待日志 | F10、C12/C13、R05/R09 |
 | EX05 | 同一真实 JDK/JAR/表格/proto，旧新分别跑全部原格式与矩阵 | 文件集合/路径/业务内容一致；只归一化预先声明的时间等非业务字段 | F06/F07/F08、C07/C15 |
 
@@ -154,7 +154,7 @@ P0 固定参考硬件/VM、数据、压缩算法和架构。候选门槛沿用�
 
 性能步骤：预热与冷启动分开 → 同负载重复测量 → 保存各次原值 → 计算分布/中位数/p95 → 标明失败/异常样本及原因。冷启动至少 10 次，交互每类至少 100 次作为初始采样计划；实际稳定性不足时增加样本并说明，不只删掉慢样本。
 
-泄漏循环包括加载→选择→转换→取消或完成→重置；分别检查 GUI/WebView、Node backend、Node guardian、worker/helper、Java 的进程数、句柄和内存稳定态，并报告整个进程树总量，避免只看 GUI 而遗漏多 Node 进程成本。UI 日志保留窗口造成的正常增长与孤儿订阅增长分别解释。故障进入终态需在配置截止时间加已验证清理宽限内完成。
+泄漏循环包括加载→选择→转换→取消或完成→再次转换；另测后端 reset RPC。分别检查 GUI/WebView、Node backend、Node guardian、worker/helper、Java 的进程数、句柄和内存稳定态，并报告整个进程树总量，避免只看 GUI 而遗漏多 Node 进程成本。UI 日志保留窗口造成的正常增长与孤儿订阅增长分别解释。故障进入终态需在配置截止时间加已验证清理宽限内完成。
 
 报告至少包含以下内容；本次不生成虚假的成功报告：
 
@@ -181,3 +181,13 @@ cleanupResult / retryHistory / unsupportedCases / verdict
 | P6-04 | G5 | 全目标安装/签名/离线/升级与卸载 | 必需变体齐全、报告绑定最终介质 hash |
 | P6-05 | P6-02 至 P6-04 | 大小、启动、交互和吞吐测量 | 达标或明确阻塞，未删除功能/平台换取体积 |
 | P6-06 | P6-05 | 汇总 G6 验收与剩余问题 | 无阻断缺陷、无未说明的能力删除，方可进入 P7 |
+
+## 当前自动化入口补充（2026-09-27）
+
+- 单元/契约入口保持 `corepack yarn test:unit` / `test:contracts`；本轮外层限时运行器及日志索引见审查记录。
+- `test:browser` 使用本次生产构建启动独占 preview，整体上限 10 分钟，结果写入 `build/browser-test-results/`。工作区测试覆盖详情、输出矩阵、事件、弹框、主题、大字号、窄窗口和 axe。
+- `test:desktop` 显式启动已安装的 tauri-driver / 原生 WebDriver，不隐式下载或附加测试插件。构建上限 30 分钟、驱动就绪 15 秒、每轮测试 5 分钟、连接 15 秒且不重试；结束回收所属进程树。
+- 桌面默认依次验证空会话、`tests/fixtures/config/tree-items.xml` 的首次 CLI 加载。测试前备份 exe 旁显示设置，每轮重置，最终恢复原字节；`XRESCONV_E2E_INPUT` 可覆盖加载文件，`XRESCONV_E2E_SKIP_BUILD=1` 只用于已确认匹配源码的本地二进制。
+- Edge WebDriver 的应用参数使用 `--input=路径`，不能拆成两个数组元素；浏览器标志应放 `webviewOptions.additionalBrowserArguments`。失败截图和 CLI/页面诊断保存在 `build/desktop-test-results/`。
+- 真实转换使用 `tests/fixtures/conversion/runtime.mts` 解析 JAR/样本；缺失时显式跳过，多个 JAR 不猜测版本。配置方法和实跑命令见 [转换测试说明](../../tests/fixtures/conversion/README.md)。
+- Linux preflight 回归仅在 Linux 执行，mock sudo/ldconfig 后验证参数保真、分步安装与复检；不会安装系统包。Windows 跳过这两项必须保留在结果中。
