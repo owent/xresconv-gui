@@ -1,20 +1,20 @@
 name: portable-build
 
 # 跨平台 portable 构建验证（用户 2026-09-27 指示：无签名证书，各平台打包
-# 仅需 Portable 包，不需要安装包；同日增补：Linux 需"解压即运行"的 tar.gz，
-# 两种运行时策略都提供且与 AppImage 并存）。范围（packaging/matrix.ts
-# portableArtifactNames 精确 8 项，fail-closed）：
+# 仅需 Portable 包，不需要安装包；2026-09-28 调整：Windows=zip、Linux=tar.zst
+# 进入正式 Release，压缩格式统一 zstd；Linux 两种运行时策略都与 AppImage
+# 并存）。范围（packaging/matrix.ts portableArtifactNames 精确 8 项，
+# fail-closed）：
 #   macOS x64/arm64 offline → 未签名 .app（ditto 压缩 .app.zip；无签名身份
 #   环境时 tauri-bundler 跳过签名/公证，tauri-cli v2.11.5 keychain()=None）；
-#   Linux x86_64/aarch64 offline → 自含 AppImage + 同内容自含 tar.gz（P5-06
+#   Linux x86_64/aarch64 offline → 自含 AppImage + 同内容自含 tar.zst（P5-06
 #   路线，仅在 Ubuntu 22.04 最老基线构建；linuxdeploy aarch64 由 tauri-bundler
 #   按目标架构选取，bundler 自带 APPIMAGE_EXTRACT_AND_RUN=1，无需 FUSE）；
-#   Linux x86_64/aarch64 bootstrap → 系统 WebKitGTK tar.gz（尽量复用发行版
+#   Linux x86_64/aarch64 bootstrap → 系统 WebKitGTK tar.zst（尽量复用发行版
 #   运行时，解压平铺布局，preflight.sh 探测/指引；构建基线记录在包内
-#   manifest.distro，文件名不带 distro）。
+#   manifest，文件名不带 distro——产物发行版无关）。
 # macOS 两变体（bootstrap/offline）负载相同（targets.json 仅 variant 字段
-# 不同），portable 验证取 offline 命名；Windows portable 的 manifest 语义
-# 待发行合同修订，本工作流不擅自覆盖。不签名、不写 release：聚合 job 只做
+# 不同），portable 验证取 offline 命名。不签名、不写 release：聚合 job 只做
 # 产物集合 + SHA-256 边车核验（CI-06 语义，无发布权限）。
 
 on:
@@ -107,7 +107,7 @@ jobs:
       - name: Install Linux WebKitGTK build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev xdg-utils
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev xdg-utils zstd
       - name: Enable Corepack Yarn (pinned by packageManager)
         run: corepack enable
       - name: Install (immutable)
@@ -120,14 +120,14 @@ jobs:
         with:
           workspaces: src-tauri
           key: portable-linux-${{ matrix.arch }}
-      - name: Build self-contained AppImage + offline tar.gz
+      - name: Build self-contained AppImage + offline tar.zst
         run: corepack yarn package:linux --portable --variant=offline --distro=ubuntu-22.04
-      - name: Build system-WebKitGTK bootstrap tar.gz
+      - name: Build system-WebKitGTK bootstrap tar.zst
         run: corepack yarn package:linux --portable --variant=bootstrap --distro=ubuntu-22.04
       - name: Verify artifacts (extract, manifest identity, per-file SHA-256, bundled node, runtime strategy)
         run: |
-          node --experimental-strip-types scripts/verify-portable.ts --os=linux --arch=${{ matrix.arch }} --variant=offline --distro=ubuntu-22.04
-          node --experimental-strip-types scripts/verify-portable.ts --os=linux --arch=${{ matrix.arch }} --variant=bootstrap --distro=ubuntu-22.04
+          node --experimental-strip-types scripts/verify-portable.ts --os=linux --arch=${{ matrix.arch }} --variant=offline
+          node --experimental-strip-types scripts/verify-portable.ts --os=linux --arch=${{ matrix.arch }} --variant=bootstrap
       # actions/upload-artifact v7.0.1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -136,10 +136,10 @@ jobs:
           path: |
             build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-offline.AppImage
             build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-offline.AppImage.sha256
-            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-offline.tar.gz
-            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-offline.tar.gz.sha256
-            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-bootstrap.tar.gz
-            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-bootstrap.tar.gz.sha256
+            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-offline.tar.zst
+            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-offline.tar.zst.sha256
+            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-bootstrap.tar.zst
+            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-bootstrap.tar.zst.sha256
 
   # CI-06 语义（无 release 写权限）：portable 范围的精确产物集合 + 边车哈希。
   # 集合 = packaging/matrix.ts portableArtifactNames，缺失/多余/改名一律失败。

@@ -3,9 +3,10 @@
  * Node 二进制可在当前宿主原生运行（架构正确性的直接证据）。聚合口径 =
  * portableArtifactNames 精确集合（fail-closed）。
  *
- * Linux 两种 tar.gz（用户 2026-09-27 增补）：offline = AppImage 同内容解包树
- * （自含 WebKitGTK 闭包）；bootstrap = exe+布局平铺（运行时用系统 WebKitGTK，
- * 宿主须已具备——ldd 与 preflight.sh 探针在这里充当运行时策略的证据）。 */
+ * Linux 两种 tar.zst（2026-09-28 用户决策 zstd 压缩）：offline = AppImage
+ * 同内容解包树（自含 WebKitGTK 闭包）；bootstrap = exe+布局平铺（运行时用
+ * 系统 WebKitGTK，宿主须已具备——ldd 与 preflight.sh 探针在这里充当运行时
+ * 策略的证据）。 */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -32,26 +33,17 @@ export interface PortableExpectation {
   variant: TargetVariant;
   version: string;
   commit: string;
-  distro?: string;
 }
 
 export function resolvePortableTarget(
   os: "macos" | "linux",
   arch: string,
   variant: TargetVariant,
-  distro?: string,
 ): ReleaseTarget {
   const target = loadTargets().targets.find(
-    (t) =>
-      t.os === os &&
-      t.arch === arch &&
-      t.variant === variant &&
-      (variant === "offline" || t.distro === distro),
+    (t) => t.os === os && t.arch === arch && t.variant === variant,
   );
-  if (!target)
-    throw new Error(
-      `no declared portable target for ${os}/${arch}/${variant}${distro === undefined ? "" : `/${distro}`}`,
-    );
+  if (!target) throw new Error(`no declared portable target for ${os}/${arch}/${variant}`);
   return target;
 }
 
@@ -89,12 +81,10 @@ export function verifyLayoutIdentity(
     ["webviewStrategy", target.webviewStrategy],
     ["minimumWebview", target.minimumWebview],
     ["osVersionRange", target.osVersionRange],
-    ["distro", target.distro ?? null],
     ["appVersion", expected.version],
     ["sourceCommit", expected.commit],
   ] as const) {
-    // manifest 的可选字段（如 distro）缺省为 undefined，与 null 归一后比较。
-    if ((manifest[key] ?? null) !== want) throw new Error(`layout identity mismatch: ${key}`);
+    if (manifest[key] !== want) throw new Error(`layout identity mismatch: ${key}`);
   }
 }
 
@@ -156,7 +146,7 @@ function verifyLinuxExtras(squashRoot: string): void {
     throw new Error("self-contained package does not bundle WebKitGTK 4.1");
 }
 
-/** bootstrap tar.gz 专属：平铺布局（无 AppDir/usr 树）、系统 WebKitGTK 运行时
+/** bootstrap tar.zst 专属：平铺布局（无 AppDir/usr 树）、系统 WebKitGTK 运行时
  * （ldd 必须解析到 webkit4.1——这就是"尽量复用发行版运行时"的直接证据）、
  * preflight.sh 可执行且就绪路径通过。 */
 function verifyBootstrapExtras(topDir: string): void {
@@ -209,8 +199,8 @@ function extractAppImage(appImagePath: string, destDir: string): string {
   return path.join(destDir, "squashfs-root");
 }
 
-function extractTarGz(tarPath: string, destDir: string): string {
-  const result = spawnSync("tar", ["-xzf", tarPath, "-C", destDir], {
+function extractTarZst(tarPath: string, destDir: string): string {
+  const result = spawnSync("tar", ["--zstd", "-xf", tarPath, "-C", destDir], {
     timeout: EXTRACT_TIMEOUT_MS,
     windowsHide: true,
   });
@@ -239,18 +229,13 @@ async function verifySidecar(file: string, name: string): Promise<void> {
 }
 
 /** 单目标全部 portable 形态验证：构建 job 内调用（同 job 内执行位完好，无需
- * 经过 artifact 中转）。Linux offline 一次验证 AppImage 与 tar.gz 两种产物。 */
+ * 经过 artifact 中转）。Linux offline 一次验证 AppImage 与 tar.zst 两种产物。 */
 export async function verifyPortableArtifacts(
   distDir: string,
   expected: PortableExpectation,
   workDir: string,
 ): Promise<string[]> {
-  const target = resolvePortableTarget(
-    expected.os,
-    expected.arch,
-    expected.variant,
-    expected.distro,
-  );
+  const target = resolvePortableTarget(expected.os, expected.arch, expected.variant);
   const verified: string[] = [];
   rmSync(workDir, { recursive: true, force: true });
   mkdirSync(workDir, { recursive: true });
@@ -267,7 +252,7 @@ export async function verifyPortableArtifacts(
           ? extractMacZip(file, formatDir)
           : format === "appimage"
             ? extractAppImage(file, formatDir)
-            : extractTarGz(file, formatDir);
+            : extractTarZst(file, formatDir);
       const layoutRoot = findLayoutRoot(extracted);
       const manifest = validateRuntimeManifest(
         JSON.parse(readFileSync(path.join(layoutRoot, "runtime-manifest.json"), "utf8")),
@@ -276,7 +261,7 @@ export async function verifyPortableArtifacts(
       verifyLayoutPayload(layoutRoot, manifest);
       const nodeVersion = verifyBundledNode(layoutRoot, manifest);
       if (expected.os === "macos") readInfoPlistVersion(extracted, manifest);
-      else if (format === "tarball" && expected.variant === "bootstrap")
+      else if (format === "tar.zst" && expected.variant === "bootstrap")
         verifyBootstrapExtras(extracted);
       else verifyLinuxExtras(extracted);
       console.log(

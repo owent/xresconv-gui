@@ -3,81 +3,52 @@ import { PackagingError } from "../src/errors.ts";
 import {
   artifactName,
   formatFor,
-  type PortableFormat,
   portableArtifactName,
   portableArtifactNames,
   portableFormats,
+  releaseArtifacts,
 } from "../src/matrix.ts";
+import type { PortableFormat } from "../src/types.ts";
 import { pickTarget, realTargetsFile } from "./fixtures.ts";
 
 const VERSION = "3.0.0-dev.0";
 
-describe("artifactName (locked pattern xresconv-gui-<version>-<os>-<distro?>-<arch>-<variant>.<ext>)", () => {
-  it("names representative real targets", () => {
-    const cases: Array<[Parameters<typeof pickTarget>[0], string]> = [
-      [
-        (t) => t.os === "windows" && t.arch === "x64" && t.variant === "bootstrap",
-        "xresconv-gui-3.0.0-dev.0-windows-x64-bootstrap.exe",
-      ],
-      [
-        (t) => t.os === "windows" && t.arch === "arm64" && t.variant === "offline",
-        "xresconv-gui-3.0.0-dev.0-windows-arm64-offline.exe",
-      ],
-      [
-        (t) => t.os === "macos" && t.arch === "x64" && t.variant === "bootstrap",
-        "xresconv-gui-3.0.0-dev.0-macos-x64-bootstrap.dmg",
-      ],
-      [
-        (t) => t.os === "macos" && t.arch === "arm64" && t.variant === "offline",
-        "xresconv-gui-3.0.0-dev.0-macos-arm64-offline.dmg",
-      ],
-      [
-        (t) => t.distro === "ubuntu-24.04" && t.arch === "x86_64",
-        "xresconv-gui-3.0.0-dev.0-linux-ubuntu-24.04-x86_64-bootstrap.deb",
-      ],
-      [
-        (t) => t.distro === "debian-12" && t.arch === "aarch64",
-        "xresconv-gui-3.0.0-dev.0-linux-debian-12-aarch64-bootstrap.deb",
-      ],
-      [
-        (t) => t.distro === "fedora-44" && t.arch === "x86_64",
-        "xresconv-gui-3.0.0-dev.0-linux-fedora-44-x86_64-bootstrap.rpm",
-      ],
-      [
-        (t) => t.os === "linux" && t.variant === "offline" && t.arch === "x86_64",
-        "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.AppImage",
-      ],
-      [
-        (t) => t.os === "linux" && t.variant === "offline" && t.arch === "aarch64",
-        "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.AppImage",
-      ],
-    ];
-    for (const [pred, expected] of cases) {
-      expect(artifactName(pickTarget(pred), VERSION)).toBe(expected);
-    }
+describe("artifactName (installer naming; macOS dmg only since the 2026-09-28 portable decision)", () => {
+  it("names the macOS dmg targets", () => {
+    expect(
+      artifactName(
+        pickTarget((t) => t.os === "macos" && t.arch === "x64"),
+        VERSION,
+      ),
+    ).toBe("xresconv-gui-3.0.0-dev.0-macos-x64-bootstrap.dmg");
+    expect(
+      artifactName(
+        pickTarget((t) => t.os === "macos" && t.arch === "arm64"),
+        VERSION,
+      ),
+    ).toBe("xresconv-gui-3.0.0-dev.0-macos-arm64-bootstrap.dmg");
   });
 
-  it("maps format and extension by os/variant (NSIS exe, DMG, DEB, RPM, AppImage)", () => {
-    expect(formatFor(pickTarget((t) => t.os === "windows"))).toBe("nsis");
-    expect(formatFor(pickTarget((t) => t.os === "macos"))).toBe("dmg");
-    expect(formatFor(pickTarget((t) => t.distro === "ubuntu-22.04"))).toBe("deb");
-    expect(formatFor(pickTarget((t) => t.distro === "debian-13"))).toBe("deb");
-    expect(formatFor(pickTarget((t) => t.distro === "fedora-43"))).toBe("rpm");
-    expect(formatFor(pickTarget((t) => t.os === "linux" && t.variant === "offline"))).toBe(
-      "appimage",
+  it("windows/linux targets have no installer format (portable archives only)", () => {
+    expect(() => formatFor(pickTarget((t) => t.os === "windows"))).toThrow(/no installer format/);
+    expect(() =>
+      formatFor(pickTarget((t) => t.os === "linux" && t.variant === "bootstrap")),
+    ).toThrow(/no installer format/);
+    expect(() => formatFor(pickTarget((t) => t.os === "linux" && t.variant === "offline"))).toThrow(
+      /no installer format/,
     );
   });
 
   it("accepts release and prerelease versions", () => {
-    const target = pickTarget((t) => t.os === "windows");
-    expect(artifactName(target, "3.0.0")).toBe("xresconv-gui-3.0.0-windows-x64-bootstrap.exe");
+    const target = pickTarget((t) => t.os === "macos");
+    expect(artifactName(target, "3.0.0")).toBe("xresconv-gui-3.0.0-macos-x64-bootstrap.dmg");
     expect(artifactName(target, "3.0.0-rc.1")).toContain("-3.0.0-rc.1-");
   });
 
   it.each(["", "1.2", "v3.0.0", "../3.0.0", "3.0.0/x", "3.0.0 beta", "3.0.0-beta_1"])(
     "rejects invalid or unsafe version %j",
     (version) => {
-      const target = pickTarget((t) => t.os === "windows");
+      const target = pickTarget((t) => t.os === "macos");
       try {
         artifactName(target, version);
       } catch (error) {
@@ -88,22 +59,10 @@ describe("artifactName (locked pattern xresconv-gui-<version>-<os>-<distro?>-<ar
       throw new Error(`expected INVALID_VERSION for ${version}`);
     },
   );
-
-  it("every real target yields a unique, whitespace-free, pattern-conforming name", () => {
-    const file = realTargetsFile();
-    const pattern =
-      /^xresconv-gui-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?-(?:windows|macos|linux)-(?:[a-z0-9-]+(?:\.[0-9a-z-]+)?-)?(?:x64|arm64|x86_64|aarch64)-(?:bootstrap|offline)\.[A-Za-z0-9]+$/;
-    const names = file.targets.map((t) => artifactName(t, VERSION));
-    for (const name of names) {
-      expect(name).toMatch(pattern);
-      expect(name).not.toMatch(/\s/);
-    }
-    expect(new Set(names).size).toBe(names.length);
-  });
 });
 
-describe("portable artifact naming (macOS .app.zip / Linux tar.gz + AppImage)", () => {
-  it("derives portable names from the same locked base name, distro-free", () => {
+describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst + AppImage)", () => {
+  it("derives portable names from the locked distro-free base name", () => {
     const cases: Array<[Parameters<typeof pickTarget>[0], PortableFormat, string]> = [
       [
         (t) => t.os === "macos" && t.arch === "x64" && t.variant === "offline",
@@ -116,14 +75,24 @@ describe("portable artifact naming (macOS .app.zip / Linux tar.gz + AppImage)", 
         "xresconv-gui-3.0.0-dev.0-macos-arm64-offline.app.zip",
       ],
       [
-        (t) => t.distro === "ubuntu-22.04" && t.arch === "x86_64",
-        "tarball",
-        "xresconv-gui-3.0.0-dev.0-linux-x86_64-bootstrap.tar.gz",
+        (t) => t.os === "windows" && t.arch === "x64",
+        "zip",
+        "xresconv-gui-3.0.0-dev.0-windows-x64-bootstrap.zip",
+      ],
+      [
+        (t) => t.os === "windows" && t.arch === "arm64",
+        "zip",
+        "xresconv-gui-3.0.0-dev.0-windows-arm64-bootstrap.zip",
+      ],
+      [
+        (t) => t.os === "linux" && t.variant === "bootstrap" && t.arch === "x86_64",
+        "tar.zst",
+        "xresconv-gui-3.0.0-dev.0-linux-x86_64-bootstrap.tar.zst",
       ],
       [
         (t) => t.os === "linux" && t.variant === "offline" && t.arch === "x86_64",
-        "tarball",
-        "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.tar.gz",
+        "tar.zst",
+        "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.tar.zst",
       ],
       [
         (t) => t.os === "linux" && t.variant === "offline" && t.arch === "x86_64",
@@ -132,8 +101,8 @@ describe("portable artifact naming (macOS .app.zip / Linux tar.gz + AppImage)", 
       ],
       [
         (t) => t.os === "linux" && t.variant === "offline" && t.arch === "aarch64",
-        "tarball",
-        "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.tar.gz",
+        "tar.zst",
+        "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.tar.zst",
       ],
     ];
     for (const [pred, format, expected] of cases) {
@@ -141,29 +110,21 @@ describe("portable artifact naming (macOS .app.zip / Linux tar.gz + AppImage)", 
     }
   });
 
-  it("maps portable formats per os/variant and rejects installer-only targets", () => {
+  it("maps portable formats per os/variant (windows zip; linux offline appimage+tar.zst)", () => {
+    expect(portableFormats(pickTarget((t) => t.os === "windows"))).toEqual(["zip"]);
     expect(portableFormats(pickTarget((t) => t.os === "macos"))).toEqual(["app.zip"]);
     expect(portableFormats(pickTarget((t) => t.os === "linux" && t.variant === "offline"))).toEqual(
-      ["appimage", "tarball"],
+      ["appimage", "tar.zst"],
     );
     expect(
       portableFormats(pickTarget((t) => t.os === "linux" && t.variant === "bootstrap")),
-    ).toEqual(["tarball"]);
-    expect(() => portableFormats(pickTarget((t) => t.os === "windows"))).toThrow(
-      /no portable format/,
-    );
-    expect(() =>
-      portableArtifactName(
-        pickTarget((t) => t.os === "windows"),
-        VERSION,
-        "tarball",
-      ),
-    ).toThrow(/no portable format/);
+    ).toEqual(["tar.zst"]);
   });
 
   it("rejects a portable format that does not belong to the target (fail-closed per format)", () => {
     const linuxOffline = pickTarget((t) => t.os === "linux" && t.variant === "offline");
     const macos = pickTarget((t) => t.os === "macos");
+    const windows = pickTarget((t) => t.os === "windows");
     const linuxBootstrap = pickTarget((t) => t.os === "linux" && t.variant === "bootstrap");
     expect(() => portableArtifactName(linuxOffline, VERSION, "app.zip")).toThrow(
       /is not portable for target/,
@@ -171,10 +132,13 @@ describe("portable artifact naming (macOS .app.zip / Linux tar.gz + AppImage)", 
     expect(() => portableArtifactName(macos, VERSION, "appimage")).toThrow(
       /is not portable for target/,
     );
-    expect(() => portableArtifactName(macos, VERSION, "tarball")).toThrow(
+    expect(() => portableArtifactName(macos, VERSION, "tar.zst")).toThrow(
       /is not portable for target/,
     );
     expect(() => portableArtifactName(linuxBootstrap, VERSION, "appimage")).toThrow(
+      /is not portable for target/,
+    );
+    expect(() => portableArtifactName(windows, VERSION, "appimage")).toThrow(
       /is not portable for target/,
     );
   });
@@ -184,7 +148,7 @@ describe("portable artifact naming (macOS .app.zip / Linux tar.gz + AppImage)", 
     (version) => {
       const target = pickTarget((t) => t.os === "linux" && t.variant === "offline");
       try {
-        portableArtifactName(target, version, "tarball");
+        portableArtifactName(target, version, "tar.zst");
       } catch (error) {
         expect(error).toBeInstanceOf(PackagingError);
         expect((error as PackagingError).code).toBe("INVALID_VERSION");
@@ -194,16 +158,28 @@ describe("portable artifact naming (macOS .app.zip / Linux tar.gz + AppImage)", 
     },
   );
 
-  it("pins the portable verification scope (8 artifacts: macOS app.zip + Linux bootstrap/offline tar.gz + offline AppImage)", () => {
+  it("pins the portable verification scope (8 artifacts: macOS app.zip + Linux bootstrap/offline tar.zst + offline AppImage)", () => {
     expect(portableArtifactNames(realTargetsFile(), VERSION)).toEqual([
-      "xresconv-gui-3.0.0-dev.0-linux-aarch64-bootstrap.tar.gz",
+      "xresconv-gui-3.0.0-dev.0-linux-aarch64-bootstrap.tar.zst",
       "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.AppImage",
-      "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.tar.gz",
-      "xresconv-gui-3.0.0-dev.0-linux-x86_64-bootstrap.tar.gz",
+      "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.tar.zst",
+      "xresconv-gui-3.0.0-dev.0-linux-x86_64-bootstrap.tar.zst",
       "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.AppImage",
-      "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.tar.gz",
+      "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.tar.zst",
       "xresconv-gui-3.0.0-dev.0-macos-arm64-offline.app.zip",
       "xresconv-gui-3.0.0-dev.0-macos-x64-offline.app.zip",
     ]);
+  });
+
+  it("every real target yields unique, whitespace-free release artifact names", () => {
+    const file = realTargetsFile();
+    const pattern =
+      /^xresconv-gui-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?-(?:windows|macos|linux)-(?:x64|arm64|x86_64|aarch64)-(?:bootstrap|offline)\.(?:zip|app\.zip|AppImage|tar\.zst|dmg)$/;
+    const names = file.targets.flatMap((t) => releaseArtifacts(t, VERSION).map((a) => a.name));
+    for (const name of names) {
+      expect(name).toMatch(pattern);
+      expect(name).not.toMatch(/\s/);
+    }
+    expect(new Set(names).size).toBe(names.length);
   });
 });

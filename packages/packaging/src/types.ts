@@ -3,16 +3,10 @@ export type TargetVariant = "bootstrap" | "offline";
 export type DesktopArch = "x64" | "arm64";
 export type LinuxArch = "x86_64" | "aarch64";
 export type TargetArch = DesktopArch | LinuxArch;
-export type LinuxDistro =
-  | "ubuntu-22.04"
-  | "ubuntu-24.04"
-  | "debian-12"
-  | "debian-13"
-  | "fedora-43"
-  | "fedora-44";
+/** Linux 构建基线（最老支持发行版；产物本身发行版无关，见 05 册）。 */
+export type LinuxDistro = "ubuntu-22.04";
 export type WebviewStrategy =
-  | "webview2-embed-bootstrapper"
-  | "webview2-offline-installer"
+  | "webview2-evergreen"
   | "system-only"
   | "webkitgtk-system"
   | "webkitgtk-bundled";
@@ -21,7 +15,6 @@ export type WebviewStrategy =
 export interface ReleaseTarget {
   os: TargetOs;
   osVersionRange: string;
-  distro?: LinuxDistro;
   arch: TargetArch;
   variant: TargetVariant;
   targetTriple: string;
@@ -36,9 +29,16 @@ export interface TargetsFile {
   targets: ReleaseTarget[];
 }
 
-export type ArtifactFormat = "nsis" | "dmg" | "deb" | "rpm" | "appimage";
+/** Installer formats still in the release matrix; Windows/Linux ship portable
+ * archives only (user decision 2026-09-28), so macOS DMG is the sole one. */
+export type ArtifactFormat = "dmg";
 
-/** One row of the release matrix consumed by the CI aggregate job (CI-06). */
+/** Portable（非安装器）交付形态：Windows zip、macOS .app.zip、Linux offline
+ * 自含 AppImage 与 tar.zst、Linux bootstrap 系统 WebKitGTK tar.zst。 */
+export type PortableFormat = "zip" | "app.zip" | "appimage" | "tar.zst";
+
+/** One row of the release matrix consumed by the CI aggregate job (CI-06);
+ * one row per shipped artifact (a target with two artifacts yields two rows). */
 export interface MatrixArtifact {
   name: string;
   sha256Name: string;
@@ -49,7 +49,7 @@ export interface MatrixArtifact {
   variant: TargetVariant;
   targetTriple: string;
   webviewStrategy: WebviewStrategy;
-  format: ArtifactFormat;
+  format: ArtifactFormat | PortableFormat;
 }
 
 export type RuntimePayload =
@@ -63,7 +63,6 @@ export type RuntimePayload =
   | "native-addons"
   | "resources"
   | "webview2-bootstrapper"
-  | "webview2-offline-installer"
   | "linux-selfcontained-runtime";
 
 export interface NodeHash {

@@ -603,7 +603,6 @@ export async function assembleRuntimeLayout(
     targetTriple: target.targetTriple,
     os: target.os,
     osVersionRange: target.osVersionRange,
-    ...(target.distro !== undefined ? { distro: target.distro } : {}),
     arch: target.arch,
     variant: target.variant,
     webviewStrategy: target.webviewStrategy,

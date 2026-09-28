@@ -2,7 +2,7 @@
 /** Portable 产物验证入口（portable-build.yml 使用；本机也可复跑）。
  *
  * 单目标：--os=macos|linux --arch=x64|arm64|aarch64 [--variant=offline|bootstrap]
- *         [--distro=ubuntu-22.04]（linux bootstrap 必填：定位构建基线目标行）
+ *         （Linux 归档发行版无关，无需 distro）
  * 聚合：  --aggregate（build/release-artifacts 全集合 + SHA-256 边车）
  */
 import { readFileSync } from "node:fs";
@@ -23,7 +23,6 @@ const { values } = parseArgs({
     os: { type: "string" },
     arch: { type: "string" },
     variant: { type: "string", default: "offline" },
-    distro: { type: "string" },
     aggregate: { type: "boolean", default: false },
   },
 });
@@ -43,8 +42,6 @@ if (values.aggregate) {
   if (values.variant !== "offline" && values.variant !== "bootstrap")
     throw new Error("--variant must be offline or bootstrap");
   if (!values.arch) throw new Error("--arch is required");
-  if (values.os === "linux" && values.variant === "bootstrap" && !values.distro)
-    throw new Error("--distro is required for the linux bootstrap tarball (build baseline)");
   const verified = await verifyPortableArtifacts(
     path.join(ROOT, "build/dist"),
     {
@@ -53,7 +50,6 @@ if (values.aggregate) {
       variant: values.variant,
       version,
       commit: gitHead(),
-      ...(values.distro === undefined ? {} : { distro: values.distro }),
     },
     path.join(ROOT, "build/portable-verify"),
   );

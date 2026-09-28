@@ -7,7 +7,6 @@ import {
   DESKTOP_ARCHES,
   FORBIDDEN_ARCHES,
   LINUX_ARCHES,
-  LINUX_DISTROS,
   TARGET_OSES,
   TARGET_VARIANTS,
   targetKey,
@@ -68,9 +67,6 @@ function checkDomains(target: ReleaseTarget): void {
   if (!knownArches.includes(target.arch)) {
     fail("UNKNOWN_TARGET", target, `unknown arch "${target.arch}"`);
   }
-  if (target.distro !== undefined && !LINUX_DISTROS.includes(target.distro)) {
-    fail("UNKNOWN_TARGET", target, `unknown distro "${target.distro}" (D2 set)`);
-  }
   if (!WEBVIEW_STRATEGIES.includes(target.webviewStrategy)) {
     fail("UNKNOWN_TARGET", target, `unknown webviewStrategy "${target.webviewStrategy}"`);
   }
@@ -90,9 +86,6 @@ function checkCoherence(target: ReleaseTarget): void {
       if (!(DESKTOP_ARCHES as readonly string[]).includes(target.arch)) {
         fail("INCOHERENT_TARGET", target, `${target.os} arch must be x64 or arm64`);
       }
-      if (target.distro !== undefined) {
-        fail("INCOHERENT_TARGET", target, `${target.os} targets must not carry a distro`);
-      }
       break;
     }
     case "linux": {
@@ -104,12 +97,12 @@ function checkCoherence(target: ReleaseTarget): void {
   }
   switch (target.os) {
     case "windows": {
-      const want =
-        target.variant === "bootstrap"
-          ? "webview2-embed-bootstrapper"
-          : "webview2-offline-installer";
-      if (target.webviewStrategy !== want) {
-        fail("INCOHERENT_TARGET", target, `windows ${target.variant} requires ${want}`);
+      if (target.webviewStrategy !== "webview2-evergreen") {
+        fail(
+          "INCOHERENT_TARGET",
+          target,
+          "windows requires webview2-evergreen (system Evergreen runtime; zip form)",
+        );
       }
       if (typeof target.minimumWebview !== "string" || target.minimumWebview.length === 0) {
         fail("INCOHERENT_TARGET", target, "windows targets must declare a WebView2 floor");
@@ -127,23 +120,11 @@ function checkCoherence(target: ReleaseTarget): void {
     }
     case "linux": {
       if (target.variant === "bootstrap") {
-        if (target.distro === undefined) {
-          fail("INCOHERENT_TARGET", target, "linux bootstrap targets require a distro");
-        }
         if (target.webviewStrategy !== "webkitgtk-system") {
-          fail("INCOHERENT_TARGET", target, "linux bootstrap uses the distro WebKitGTK");
+          fail("INCOHERENT_TARGET", target, "linux bootstrap uses the system WebKitGTK");
         }
-      } else {
-        if (target.distro !== undefined) {
-          fail(
-            "INCOHERENT_TARGET",
-            target,
-            "linux offline is one self-contained package per arch (no distro)",
-          );
-        }
-        if (target.webviewStrategy !== "webkitgtk-bundled") {
-          fail("INCOHERENT_TARGET", target, "linux offline bundles WebKitGTK/GTK");
-        }
+      } else if (target.webviewStrategy !== "webkitgtk-bundled") {
+        fail("INCOHERENT_TARGET", target, "linux offline bundles WebKitGTK/GTK");
       }
       break;
     }

@@ -293,8 +293,8 @@ corepack yarn test:shell    # Tauri 壳单元测试
 ## 打包和发布
 
 ```bash
-corepack yarn package:windows   # Windows x64 双变体（bootstrap/offline NSIS）
-corepack yarn package:linux     # Linux 当前发行版双变体（deb/rpm + AppImage；在 Linux/WSL 运行）
+corepack yarn package:windows   # Windows x64 解压即用 zip（含 WebView2 bootstrapper；Windows 运行）
+corepack yarn package:linux     # Linux tar.zst 双变体（bootstrap/offline + offline AppImage；Linux 运行）
 corepack yarn package:macos     # macOS 双变体 DMG（须在 mac 主机运行）
 ```
 

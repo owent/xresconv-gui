@@ -22,7 +22,7 @@ function manifest(files: ManifestFile[]): RuntimeManifest {
     osVersionRange: ">=10.0.17763",
     arch: "x64",
     variant: "bootstrap",
-    webviewStrategy: "webview2-embed-bootstrapper",
+    webviewStrategy: "webview2-evergreen",
     minimumWebview: "120.0.0",
     runtimePayloads: [],
     nodeVersion: "24.21.0",
@@ -66,7 +66,7 @@ describe("packageInventory / buildSpdx（P5-07 SBOM 部分）", () => {
     for (const pkg of doc.packages)
       expect(pkg).toMatchObject({ downloadLocation: "NOASSERTION", filesAnalyzed: false });
     expect(
-      buildSpdx({ ...input, distro: "ubuntu-24.04" }, "2026-09-27T00:00:00Z").documentNamespace,
+      buildSpdx({ ...input, variant: "offline" }, "2026-09-27T00:00:00Z").documentNamespace,
     ).not.toBe(doc.documentNamespace);
   });
   it("origin 聚合：npm 按 name@version、node-dist 单包、build 归应用", () => {

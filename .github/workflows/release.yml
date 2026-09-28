@@ -1,9 +1,12 @@
 name: release
 
-# 新架构发行（P5 CI-04/CI-06）：仅 v3 标签触发；矩阵构建两变体（不签名——
-# 签名/公证在受控发行环境后补，P5-07）；汇总 job 是唯一写 release 的入口，
-# 校验产物名集合与本次构建目标子集（verify 步骤的 --target 列表）完全相等
-# 后创建 draft（不 overwrite，不自动发布）。
+# 新架构发行（P5 CI-04/CI-06 + 2026-09-28 portable 归档决策）：仅 v3 标签触发。
+# Windows = 解压即双击 zip（无安装器）；Linux = 发行版无关 tar.zst（bootstrap
+# 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
+# ——两者与 --portable 与否无关；macOS 保持 dmg 双变体（不签名——签名/公证
+# 在受控发行环境后补，P5-07）。汇总 job 是唯一写 release 的入口，校验产物
+# 名集合与本次构建目标子集（verify 步骤的 --target 列表）完全相等后创建
+# draft（不 overwrite，不自动发布）。
 # 旧 v2.x 标签不再触发（D1：旧架构 2.6.0 为终点版本）。
 
 on:
@@ -26,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [bootstrap, offline]
+        variant: [bootstrap]
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -40,29 +43,24 @@ jobs:
       - run: corepack yarn install --immutable
       - run: corepack yarn package:windows --variant=${{ matrix.variant }}
       # actions/upload-artifact v7.0.1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@043fb46d1a93c77aae65e6e7c1c64a875d1fc6a0a
         with:
           if-no-files-found: error
           name: artifacts-windows-x64-${{ matrix.variant }}
           path: |
-            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.exe
-            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.exe.sha256
+            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.zip
+            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.zip.sha256
 
   build-linux:
     name: build linux ${{ matrix.distro }} x86_64
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          # runner 代号即构建基线；debian/fedora 基线镜像随 CI-05 落实后切换
-          # container 构建（05 册：用最老合适基线构建）。
-          - distro: ubuntu-24.04
-            runner: ubuntu-24.04
-            variant: bootstrap
+          # 最老支持基线（glibc 2.35 地板）单点构建；tar.zst/AppImage 均发行版无关
           - distro: ubuntu-22.04
-            runner: ubuntu-22.04
             variant: all
     steps:
       # actions/checkout v7.0.1
@@ -75,18 +73,19 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       - run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev zstd
       - run: corepack enable
       - run: corepack yarn install --immutable
       - run: corepack yarn package:linux --variant=${{ matrix.variant }} --distro=${{ matrix.distro }}
       # actions/upload-artifact v7.0.1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@043fb46d1a93c77aae65e6e7c1c64a875d1fc6a0a
         with:
           if-no-files-found: error
           name: artifacts-linux-${{ matrix.distro }}-x86_64
           path: |
-            build/dist/xresconv-gui-*-linux-${{ matrix.distro }}-x86_64-*.deb*
+            build/dist/xresconv-gui-*-linux-x86_64-bootstrap.tar.zst*
             build/dist/xresconv-gui-*-linux-x86_64-offline.AppImage*
+            build/dist/xresconv-gui-*-linux-x86_64-offline.tar.zst*
 
   build-macos:
     name: build macos ${{ matrix.arch }} (${{ matrix.variant }})
@@ -117,7 +116,7 @@ jobs:
       - run: corepack yarn package:macos --variant=${{ matrix.variant }} --arch=${{ matrix.arch }}
 
       # actions/upload-artifact v7.0.1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@043fb46d1a93c77aae65e6e7c1c64a875d1fc6a0a
         with:
           if-no-files-found: error
           name: artifacts-macos-${{ matrix.arch }}-${{ matrix.variant }}
@@ -150,16 +149,14 @@ jobs:
       - name: Verify artifact set equals expected matrix
         # --target 列表 = 本次 CI 实际构建的目标（targetKey 格式，见
         # packaging/src/matrix.ts selectMatrix）；必须与上方三个 build job 的
-        # matrix 同步维护。剩余基线目标（windows/linux arm64、debian/fedora）
-        # 待 CI-05 container/交叉构建落实后加入。未传 --target 时按全量矩阵
-        # 校验（本地预检语义）。
+        # matrix 同步维护。剩余基线目标（windows/linux arm64）待原生/交叉
+        # 构建通道落实后加入。未传 --target 时按全量矩阵校验（本地预检语义）。
         run: >
           node scripts/verify-release.ts
-          --target=windows/-/x64/bootstrap --target=windows/-/x64/offline
+          --target=windows/-/x64/bootstrap
           --target=macos/-/x64/bootstrap --target=macos/-/x64/offline
           --target=macos/-/arm64/bootstrap --target=macos/-/arm64/offline
-          --target=linux/ubuntu-22.04/x86_64/bootstrap --target=linux/-/x86_64/offline
-          --target=linux/ubuntu-24.04/x86_64/bootstrap
+          --target=linux/-/x86_64/bootstrap --target=linux/-/x86_64/offline
         env:
           RELEASE_VERSION: ${{ github.ref_name }}
       - name: Create draft release (no overwrite)

@@ -19,11 +19,10 @@ function expectManifestError(manifest: unknown, code: PackagingError["code"]): P
 describe("runtime-manifest schema (artifact side)", () => {
   it("accepts well-formed manifests for windows/macos/linux targets", () => {
     const targets = [
-      pickTarget((t) => t.os === "windows" && t.variant === "bootstrap"),
-      pickTarget((t) => t.os === "windows" && t.variant === "offline"),
+      pickTarget((t) => t.os === "windows" && t.arch === "x64"),
+      pickTarget((t) => t.os === "windows" && t.arch === "arm64"),
       pickTarget((t) => t.os === "macos" && t.arch === "arm64"),
-      pickTarget((t) => t.distro === "ubuntu-22.04" && t.arch === "x86_64"),
-      pickTarget((t) => t.distro === "fedora-43"),
+      pickTarget((t) => t.os === "linux" && t.variant === "bootstrap"),
       pickTarget((t) => t.os === "linux" && t.variant === "offline"),
     ];
     for (const target of targets) {
@@ -50,17 +49,10 @@ describe("runtime-manifest schema (artifact side)", () => {
     expectManifestError({ ...base, appVersion: "3.0" }, "SCHEMA_VIOLATION");
   });
 
-  it("rejects unknown properties and distro on non-linux-bootstrap manifests", () => {
+  it("rejects unknown properties (distro is gone from the manifest contract)", () => {
     const base = sampleManifest(pickTarget((t) => t.os === "windows"));
     expectManifestError({ ...base, surprise: true }, "SCHEMA_VIOLATION");
-    expectManifestError({ ...base, distro: "debian-12" }, "SCHEMA_VIOLATION");
-  });
-
-  it("rejects linux bootstrap manifests without distro", () => {
-    const base = sampleManifest(pickTarget((t) => t.distro === "debian-13"));
-    const withoutDistro: Record<string, unknown> = { ...base };
-    delete withoutDistro.distro;
-    expectManifestError(withoutDistro, "SCHEMA_VIOLATION");
+    expectManifestError({ ...base, distro: "ubuntu-22.04" }, "SCHEMA_VIOLATION");
   });
 });
 
@@ -119,7 +111,7 @@ describe("manifest hygiene lint (PK01: no dev-machine paths, no secrets)", () =>
   });
 
   it("accepts clean manifests and plain system paths", () => {
-    const manifest = sampleManifest(pickTarget((t) => t.distro === "ubuntu-24.04"));
+    const manifest = sampleManifest(pickTarget((t) => t.os === "linux"));
     expect(lintManifest(manifest)).toEqual([]);
     expect(lintManifest({ note: "/usr/lib/x86_64-linux-gnu/libwebkit2gtk-4.1.so" })).toEqual([]);
   });

@@ -23,17 +23,11 @@ it("resolves real portable targets (macOS offline + Linux bootstrap/offline)", (
   expect(resolvePortableTarget("linux", "aarch64", "offline").targetTriple).toBe(
     "aarch64-unknown-linux-gnu",
   );
-  expect(
-    resolvePortableTarget("linux", "x86_64", "bootstrap", "ubuntu-22.04").webviewStrategy,
-  ).toBe("webkitgtk-system");
+  expect(resolvePortableTarget("linux", "x86_64", "bootstrap").webviewStrategy).toBe(
+    "webkitgtk-system",
+  );
   expect(() => resolvePortableTarget("linux", "mips64", "offline")).toThrow(
     /no declared portable target/,
-  );
-  expect(() => resolvePortableTarget("linux", "x86_64", "bootstrap")).toThrow(
-    /no declared portable target/,
-  );
-  expect(() => resolvePortableTarget("linux", "x86_64", "bootstrap", "arch-1")).toThrow(
-    /no declared portable target.*arch-1/,
   );
 });
 
@@ -82,8 +76,10 @@ it("verifies layout identity strictly against the target and current build", () 
   );
 });
 
-it("verifies layout identity on the distro axis for linux bootstrap targets", () => {
-  const target = pickTarget((t) => t.distro === "ubuntu-22.04" && t.arch === "x86_64");
+it("verifies layout identity on the webview strategy axis for linux bootstrap targets", () => {
+  const target = pickTarget(
+    (t) => t.os === "linux" && t.arch === "x86_64" && t.variant === "bootstrap",
+  );
   const manifest = sampleManifest(target);
   const expected = {
     os: "linux",
@@ -91,19 +87,11 @@ it("verifies layout identity on the distro axis for linux bootstrap targets", ()
     variant: "bootstrap",
     version: manifest.appVersion,
     commit: manifest.sourceCommit,
-    distro: "ubuntu-22.04",
   } as const;
-  expect(manifest.distro).toBe("ubuntu-22.04");
   expect(() => verifyLayoutIdentity(manifest, expected, target)).not.toThrow();
-
-  const noDistro = { ...manifest };
-  delete noDistro.distro;
-  expect(() => verifyLayoutIdentity(noDistro, expected, target)).toThrow(
-    /identity mismatch: distro/,
-  );
   expect(() =>
-    verifyLayoutIdentity({ ...manifest, distro: "debian-12" }, expected, target),
-  ).toThrow(/identity mismatch: distro/);
+    verifyLayoutIdentity({ ...manifest, webviewStrategy: "webkitgtk-bundled" }, expected, target),
+  ).toThrow(/identity mismatch: webviewStrategy/);
 });
 
 it("verifies every payload file byte-for-byte and rejects tampering", () => {

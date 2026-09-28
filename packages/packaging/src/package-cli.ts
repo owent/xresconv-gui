@@ -18,15 +18,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { assembleRuntimeLayout } from "./assemble.ts";
+import { LINUX_BUILD_BASELINE } from "./baseline.ts";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
-import {
-  artifactName,
-  formatFor,
-  type PortableFormat,
-  portableArtifactName,
-  portableFormats,
-} from "./matrix.ts";
-import type { ArtifactFormat, ReleaseTarget, RuntimeManifest, TargetOs } from "./types.ts";
+import { artifactName, portableArtifactName, portableFormats } from "./matrix.ts";
+import type { PortableFormat, ReleaseTarget, RuntimeManifest, TargetOs } from "./types.ts";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -63,8 +58,7 @@ export function detectDistro(text: string): string {
   const id = field("ID");
   const version = field("VERSION_ID");
   if (id === "ubuntu") return `${id}-${version}`;
-  if (id === "debian" || id === "fedora") return `${id}-${version.split(".")[0]}`;
-  throw new Error(`unsupported distro ${id}/${version}`);
+  throw new Error(`unsupported build host ${id}/${version} (baseline is ${LINUX_BUILD_BASELINE})`);
 }
 
 /** Reuse never changes a manifest identity or silently trusts edited payloads. */
@@ -80,7 +74,6 @@ export function verifyReusableLayout(
   for (const key of [
     "os",
     "arch",
-    "distro",
     "variant",
     "targetTriple",
     "webviewStrategy",
@@ -139,22 +132,93 @@ function runTauriBuild(args: string[]): void {
     throw new Error(`tauri build failed (${result.error?.message ?? result.status})`);
 }
 
-/** tar.gz 固定顶层目录名（= productName），解压后 `./xresconv-gui/` 即应用根。 */
+/** Portable 归档固定顶层目录名（= productName），解压后 `./xresconv-gui/`
+ * 即应用根（Windows zip 与 Linux tar.zst 一致）。 */
 const PORTABLE_TAR_TOPDIR = "xresconv-gui";
 const PORTABLE_TAR_STAGE = path.join(ROOT, "build/portable-tar");
+const PORTABLE_ZIP_STAGE = path.join(ROOT, "build/portable-zip");
 
 function tarStageTo(dest: string): void {
-  const result = spawnSync("tar", ["-czf", dest, "-C", PORTABLE_TAR_STAGE, PORTABLE_TAR_TOPDIR], {
-    stdio: "inherit",
-    timeout: 10 * 60_000,
-    windowsHide: true,
-  });
+  // 用户 2026-09-28 决策：Linux 归档一律 zstd 压缩（tar.zst）。GNU tar 经
+  // --zstd 调用 PATH 上的 zstd（CI Linux apt 安装；本机/官方镜像均内置）。
+  const result = spawnSync(
+    "tar",
+    ["--zstd", "-cf", dest, "-C", PORTABLE_TAR_STAGE, PORTABLE_TAR_TOPDIR],
+    {
+      stdio: "inherit",
+      timeout: 10 * 60_000,
+      windowsHide: true,
+    },
+  );
   if (result.error || result.status !== 0)
     throw new Error(`tar failed (${result.error?.message ?? result.status})`);
 }
 
+/** Windows portable zip：解压后进入 xresconv-gui/ 直接双击 xresconv-gui.exe。
+ * 用户 2026-09-28 决策：不创建安装包；WebView2 用系统 Evergreen 运行时，包内
+ * 附官方 bootstrapper（MicrosoftEdgeWebview2Setup.exe）作为修复通道，壳预检
+ * 缺失时弹窗指引。仅 windows 宿主可达（nativeArch 已保证）。 */
+export function zipPortableWindowsLayout(
+  exePath: string,
+  layoutDir: string,
+  bootstrapperPath: string,
+  dest: string,
+): void {
+  rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
+  const top = path.join(PORTABLE_ZIP_STAGE, PORTABLE_TAR_TOPDIR);
+  mkdirSync(top, { recursive: true });
+  try {
+    copyFileSync(exePath, path.join(top, "xresconv-gui.exe"));
+    // tauri/wry 的 WebView2 loader：--no-bundle 时由 cargo 构建产物携带。
+    const loader = path.join(path.dirname(exePath), "WebView2Loader.dll");
+    if (existsSync(loader)) copyFileSync(loader, path.join(top, "WebView2Loader.dll"));
+    cpSync(path.join(layoutDir, "runtime"), path.join(top, "runtime"), { recursive: true });
+    cpSync(path.join(layoutDir, "app"), path.join(top, "app"), { recursive: true });
+    copyFileSync(
+      path.join(layoutDir, "runtime-manifest.json"),
+      path.join(top, "runtime-manifest.json"),
+    );
+    copyFileSync(bootstrapperPath, path.join(top, "MicrosoftEdgeWebview2Setup.exe"));
+    const result = spawnSync(
+      "pwsh",
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        `Compress-Archive -LiteralPath '${path.join(PORTABLE_ZIP_STAGE, PORTABLE_TAR_TOPDIR)}' -DestinationPath '${dest}' -Force`,
+      ],
+      { stdio: "inherit", timeout: 10 * 60_000, windowsHide: true },
+    );
+    if (result.error || result.status !== 0)
+      throw new Error(`Compress-Archive failed (${result.error?.message ?? result.status})`);
+  } finally {
+    rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
+  }
+}
+
+/** WebView2 Evergreen bootstrapper 官方稳定短链（微软文档引用）；zip 内
+ * sidecar 的唯一来源。下载后缓存到 build/，MZ 头 + 体积下限防半截文件。 */
+const WEBVIEW2_BOOTSTRAPPER_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";
+const WEBVIEW2_BOOTSTRAPPER_CACHE = path.join(ROOT, "build/webview2-bootstrapper");
+
+async function ensureWebView2Bootstrapper(): Promise<string> {
+  const dest = path.join(WEBVIEW2_BOOTSTRAPPER_CACHE, "MicrosoftEdgeWebview2Setup.exe");
+  const plausible = (buf: Buffer) => buf.length > 1_000_000 && buf[0] === 0x4d && buf[1] === 0x5a;
+  if (existsSync(dest) && plausible(readFileSync(dest))) return dest;
+  mkdirSync(WEBVIEW2_BOOTSTRAPPER_CACHE, { recursive: true });
+  const response = await fetch(WEBVIEW2_BOOTSTRAPPER_URL, { redirect: "follow" });
+  if (!response.ok)
+    throw new Error(`webview2 bootstrapper download failed: HTTP ${response.status}`);
+  const payload = Buffer.from(await response.arrayBuffer());
+  if (!plausible(payload))
+    throw new Error("webview2 bootstrapper payload is not a Windows executable");
+  writeFileSync(dest, payload);
+  return dest;
+}
+
 /** Linux offline portable：已产出的自含 AppImage `--appimage-extract`（免 FUSE，
- * 内容与 AppImage 逐字节一致）后重压为 tar.gz——复用 linuxdeploy 闭包，不在
+ * 内容与 AppImage 逐字节一致）后重压为 tar.zst——复用 linuxdeploy 闭包，不在
  * 脚本侧重造依赖收集。仅 linux 宿主可达。 */
 export function tarPortableFromAppImage(appImagePath: string, dest: string): void {
   rmSync(PORTABLE_TAR_STAGE, { recursive: true, force: true });
@@ -244,9 +308,13 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
   const arch = nativeArch(os);
   if (options.arch !== undefined && options.arch !== arch)
     throw new Error("--arch must match the native host architecture");
+  // Linux 归档发行版无关，但必须在最老支持基线上构建（glibc 地板）；宿主探测
+  // 与期望基线（--distro，默认 ubuntu-22.04）不一致即 fail-closed。
   const distro = os === "linux" ? detectDistro(readFileSync("/etc/os-release", "utf8")) : undefined;
-  if (options.distro !== undefined && options.distro !== distro)
-    throw new Error("--distro must match the native build baseline");
+  const expectedDistro =
+    distro === undefined ? undefined : (options.distro ?? LINUX_BUILD_BASELINE);
+  if (distro !== undefined && distro !== expectedDistro)
+    throw new Error(`linux archives must be built on ${expectedDistro}, host is ${distro}`);
   const version = (
     JSON.parse(readFileSync(path.join(ROOT, "src-tauri/tauri.conf.json"), "utf8")) as {
       version: string;
@@ -261,8 +329,6 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
   const variants = options.variant === "all" ? ["bootstrap", "offline"] : [options.variant];
   if (options["skip-assemble"] && variants.length > 1)
     throw new Error("--skip-assemble requires one explicit --variant");
-  if (options.portable && variants.length > 1)
-    throw new Error("--portable requires one explicit --variant");
   const targets = loadTargets().targets;
   const commit = git(["rev-parse", "HEAD"]);
   const layout = path.join(ROOT, "build/release-layout");
@@ -270,15 +336,10 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
   const overlays = path.join(ROOT, "build/package-config");
   mkdirSync(output, { recursive: true });
   mkdirSync(overlays, { recursive: true });
+  let bootstrapper: string | undefined;
   for (const variant of variants) {
-    const target = targets.find(
-      (t) =>
-        t.os === os &&
-        t.arch === arch &&
-        t.variant === variant &&
-        (os !== "linux" || variant === "offline" || t.distro === distro),
-    );
-    if (!target) throw new Error(`no declared target for ${os}/${distro ?? ""}/${arch}/${variant}`);
+    const target = targets.find((t) => t.os === os && t.arch === arch && t.variant === variant);
+    if (!target) throw new Error(`no declared target for ${os}/${arch}/${variant}`);
     if (options["skip-assemble"]) verifyReusableLayout(layout, target, version, commit);
     else {
       // This fixed, repo-owned directory contains only generated staging data.
@@ -306,25 +367,34 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
     const signing = signingBundle(os);
     for (const key of Object.keys(signing))
       base.bundle[key] = { ...base.bundle[key], ...(signing[key] as object) };
-    // portable 分支只产出 PortableFormat；installer 分支为 ArtifactFormat。
-    const formats: (PortableFormat | ArtifactFormat)[] = options.portable
-      ? portableFormats(target)
-      : [formatFor(target)];
+    // macOS release 产物是 dmg 安装器（--portable 时为未签名 .app.zip，供
+    // portable 管线）；Windows/Linux 一律 portable 归档（用户 2026-09-28
+    // 决策：Windows zip 解压即双击、Linux tar.zst 解压即运行 + offline
+    // AppImage 并存），与是否传 --portable 无关。
+    const formats: Array<PortableFormat | "dmg-installer"> =
+      os === "windows"
+        ? ["zip"]
+        : os === "linux"
+          ? portableFormats(target)
+          : options.portable
+            ? ["app.zip"]
+            : ["dmg-installer"];
     let appimageSource: string | undefined;
     for (const format of formats) {
       const started = Date.now();
-      const name = options.portable
-        ? portableArtifactName(target, version, format as PortableFormat)
-        : artifactName(target, version);
+      const name =
+        format === "dmg-installer"
+          ? artifactName(target, version)
+          : portableArtifactName(target, version, format);
       const dest = path.join(output, name);
-      if (options.portable && format === "tarball") {
-        // Linux "解压即运行" tar.gz（用户 2026-09-27 增补）。两种来源：
-        // offline = 已产出的自含 AppImage 解包重压（复用 linuxdeploy 闭包，
-        // 用户侧免 FUSE 免安装）；bootstrap = 裸 exe（tauri build --no-bundle）
-        // + 发行布局平铺，运行时用系统 WebKitGTK（preflight.sh 探测/指引）。
+      if (format === "tar.zst") {
+        // Linux "解压即运行" tar.zst。两种来源：offline = 已产出的自含 AppImage
+        // 解包重压（复用 linuxdeploy 闭包，用户侧免 FUSE 免安装）；bootstrap =
+        // 裸 exe（tauri build --no-bundle）+ 发行布局平铺，运行时用系统
+        // WebKitGTK（preflight.sh 探测/指引）。
         if (variant === "offline") {
           if (appimageSource === undefined)
-            throw new Error("offline tarball requires the appimage build in the same invocation");
+            throw new Error("offline tar.zst requires the appimage build in the same invocation");
           tarPortableFromAppImage(appimageSource, dest);
         } else {
           runTauriBuild(["build", "--no-bundle"]);
@@ -332,7 +402,26 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
           if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
           tarPortableBootstrapLayout(exe, layout, dest);
         }
-      } else if (options.portable && format === "app.zip") {
+      } else if (format === "zip") {
+        // Windows "解压即双击" zip：裸 exe + 发行布局 + WebView2 bootstrapper。
+        runTauriBuild(["build", "--no-bundle"]);
+        const exe = path.join(ROOT, "target/release", "xresconv-gui.exe");
+        if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
+        if (bootstrapper === undefined) bootstrapper = await ensureWebView2Bootstrapper();
+        zipPortableWindowsLayout(exe, layout, bootstrapper, dest);
+      } else if (format === "appimage") {
+        base.bundle.targets = ["appimage"];
+        const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
+        writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
+        runTauriBuild(["build", "--config", overlay]);
+        const source = selectArtifact(
+          path.join(ROOT, "target/release/bundle", "appimage"),
+          ".AppImage",
+          started,
+        );
+        cpSync(source, dest);
+        appimageSource = source;
+      } else if (format === "app.zip") {
         // Tauri 的 "app" 目标产出 bundle/macos/<productName>.app 目录。ditto
         // 保留符号链接/元数据并以 .app 为包根压缩；无签名身份环境时 bundler
         // 跳过签名（v2.11.5 keychain()=None），portable 即未签名 .app。
@@ -343,17 +432,17 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
         const app = selectArtifact(path.join(ROOT, "target/release/bundle/macos"), ".app", started);
         zipMacAppBundle(app, dest);
       } else {
-        base.bundle.targets = [format];
+        // macOS dmg 安装器（macos 非 --portable 的唯一产物）。
+        base.bundle.targets = ["dmg"];
         const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
         writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
         runTauriBuild(["build", "--config", overlay]);
         const source = selectArtifact(
-          path.join(ROOT, "target/release/bundle", format),
-          path.extname(name),
+          path.join(ROOT, "target/release/bundle", "dmg"),
+          ".dmg",
           started,
         );
         cpSync(source, dest);
-        if (format === "appimage") appimageSource = source;
       }
       const digest = createHash("sha256").update(readFileSync(dest)).digest("hex");
       writeFileSync(`${dest}.sha256`, `${digest}  ${name}\n`, "utf8");

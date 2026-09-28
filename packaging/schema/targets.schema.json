@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "packaging-targets",
   "title": "PackagingTargets",
-  "description": "Release build-input matrix (build side, P5-01). One entry per shipped artifact of xresconv-gui. Scope is frozen by decisions D1/D2 (docs/plan/records/P0-06.md): 64-bit only (no ia32/x86/armv7l); Linux first wave = Ubuntu 22.04/24.04, Debian 12/13, Fedora 43/44 (latest two formal releases as of 2026-09-24, per endoflife.date/fedora). This file holds build-time identity/policy only; fields that can only be filled at build time (appVersion, sourceCommit, hashes, files, signingEvidence, buildToolchain, repositorySnapshot, verificationReport) live in the artifact-side runtime-manifest.json (schema packaging-runtime-manifest). Semantic rules (duplicates, baseline set equality, per-os strategy coherence) are enforced by @xresconv/packaging on top of this structural schema.",
+  "description": "Release build-input matrix (build side, P5-01). One entry per release target of xresconv-gui; a target may ship several artifacts (see @xresconv/packaging matrix). Scope frozen by decisions D1 (64-bit only, docs/plan/records/P0-06.md) and the 2026-09-28 portable-archive decision: Windows ships a zip (no installer; WebView2 Evergreen plus an in-archive bootstrapper sidecar), Linux ships distro-independent tar.zst archives (offline also as AppImage; no deb/rpm), macOS keeps the dmg installer. This file holds build-time identity/policy only; fields that can only be filled at build time (appVersion, sourceCommit, hashes, files, signingEvidence, buildToolchain, repositorySnapshot, verificationReport) live in the artifact-side runtime-manifest.json (schema packaging-runtime-manifest). Semantic rules (duplicates, baseline set equality, per-os strategy coherence) are enforced by @xresconv/packaging on top of this structural schema.",
   "type": "object",
   "required": ["schemaVersion", "targets"],
   "additionalProperties": false,
@@ -20,14 +20,10 @@
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/target" },
-      "description": "Explicit enumeration of every release target; CI aggregate jobs compare the built artifact set against this list for exact set equality (no globbing)."
+      "description": "Explicit enumeration of every release target; CI aggregate jobs compare the built artifact set against the names derived from this list for exact set equality (no globbing)."
     }
   },
   "$defs": {
-    "linuxDistro": {
-      "enum": ["ubuntu-22.04", "ubuntu-24.04", "debian-12", "debian-13", "fedora-43", "fedora-44"],
-      "description": "Linux distribution series (D2 set). Required for linux/bootstrap targets; forbidden elsewhere (linux offline is one self-contained package per arch covering all D2 distros; windows/macos carry no distro)."
-    },
     "target": {
       "type": "object",
       "required": [
@@ -49,16 +45,15 @@
         "osVersionRange": {
           "type": "string",
           "minLength": 1,
-          "description": "Supported OS version range for this target. windows: Windows build range (>=10.0.17763 = Windows 10 1809, WebView2-capable floor; calibrated in P5-03). macos: macOS version range (>=13.5 per D5 candidate, re-checked at P5-04). linux bootstrap: the exact distro series the artifact is built and verified on (mirrors distro). linux offline self-contained: the oldest supported baseline of the D2 set (>=22.04, i.e. Ubuntu 22.04 / glibc 2.35 floor)."
+          "description": "Supported OS version range for this target. windows: Windows build range (>=10.0.17763 = Windows 10 1809, WebView2-capable floor; calibrated in P5-03). macos: macOS version range (>=13.5 per D5). linux: the oldest supported baseline of the D2 set (>=22.04, i.e. Ubuntu 22.04 / glibc 2.35 floor); artifacts are distro-independent, the value only pins the build/verify baseline."
         },
-        "distro": { "$ref": "#/$defs/linuxDistro" },
         "arch": {
           "enum": ["x64", "arm64", "x86_64", "aarch64"],
           "description": "Machine architecture. windows/macos use Node-style names (x64, arm64); linux uses triple-style names (x86_64, aarch64) - narrowed per os by the conditional rules below. 32-bit values (ia32, x86, armv7l) are deliberately absent (D1)."
         },
         "variant": {
           "enum": ["bootstrap", "offline"],
-          "description": "bootstrap: runtime prerequisites acquired online at install (WebView2 embedBootstrapper / distro package manager). offline: prerequisites carried in the package (WebView2 offlineInstaller / self-contained Linux bundle)."
+          "description": "bootstrap: runtime prerequisites come from the system (Windows WebView2 Evergreen with an in-archive bootstrapper sidecar for repair; Linux system WebKitGTK). offline: prerequisites carried in the package (self-contained Linux bundle). Windows offline (bundling the WebView2 Fixed Version runtime) is intentionally absent until a CI-automatable acquisition channel exists (2026-09-28)."
         },
         "targetTriple": {
           "type": "string",
@@ -66,14 +61,8 @@
           "description": "Rust target triple of the Tauri shell build for this target."
         },
         "webviewStrategy": {
-          "enum": [
-            "webview2-embed-bootstrapper",
-            "webview2-offline-installer",
-            "system-only",
-            "webkitgtk-system",
-            "webkitgtk-bundled"
-          ],
-          "description": "WebView provisioning strategy; the os/variant-coherent value is enforced semantically by @xresconv/packaging. windows: WebView2 via NSIS embedBootstrapper (bootstrap) or offlineInstaller (offline) per tauri.windows.*.conf.json overlays. macos: system-only (WKWebView ships with the OS, D5; no standalone webview installer). linux bootstrap: webkitgtk-system (WebKitGTK 4.1 from the distro). linux offline: webkitgtk-bundled (WebKitGTK/GTK and transitive deps carried in the self-contained package; P5-06 prototype, fallback = per-distro dependency closure)."
+          "enum": ["webview2-evergreen", "system-only", "webkitgtk-system", "webkitgtk-bundled"],
+          "description": "WebView provisioning strategy; the os/variant-coherent value is enforced semantically by @xresconv/packaging. windows: webview2-evergreen (system Evergreen runtime expected, shell preflights it and guides to the in-archive bootstrapper when missing). macos: system-only (WKWebView ships with the OS, D5). linux bootstrap: webkitgtk-system (WebKitGTK 4.1 from the distro, preflight.sh guides). linux offline: webkitgtk-bundled (WebKitGTK/GTK and transitive deps carried in the self-contained package)."
         },
         "minimumWebview": {
           "type": ["string", "null"],
@@ -86,19 +75,6 @@
         }
       },
       "allOf": [
-        {
-          "if": {
-            "properties": { "os": { "const": "linux" }, "variant": { "const": "bootstrap" } },
-            "required": ["os", "variant"]
-          },
-          "then": {
-            "required": ["distro"],
-            "properties": { "distro": { "$ref": "#/$defs/linuxDistro" } }
-          },
-          "else": {
-            "properties": { "distro": false }
-          }
-        },
         {
           "if": {
             "properties": { "os": { "const": "linux" } },

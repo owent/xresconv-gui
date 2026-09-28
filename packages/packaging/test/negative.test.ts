@@ -29,10 +29,10 @@ describe("PK01 negative paths", () => {
 
   it("missing target (baseline set not covered) fails and names the gap", () => {
     const targets = cloneTargets().filter(
-      (t) => !(t.os === "linux" && t.distro === "fedora-44" && t.arch === "aarch64"),
+      (t) => !(t.os === "linux" && t.variant === "offline" && t.arch === "aarch64"),
     );
     const error = expectFailure(() => validateTargets(asData(targets)), "MISSING_TARGET");
-    expect(error.details).toContain("linux/fedora-44/aarch64/bootstrap");
+    expect(error.details).toContain("linux/-/aarch64/offline");
   });
 
   it("unknown os fails at the schema gate", () => {
@@ -51,18 +51,14 @@ describe("PK01 negative paths", () => {
     expect(error.message).toContain("freebsd");
   });
 
-  it("unknown distro fails at the schema gate and the semantic gate", () => {
+  it("any distro key fails at the schema gate (distro is not a target field)", () => {
     const base = pickTarget((t) => t.os === "linux" && t.variant === "bootstrap");
     const bad = { ...base, distro: "arch" };
-    expectFailure(
+    const error = expectFailure(
       () => validateTargets(asData([bad as unknown as ReleaseTarget])),
       "SCHEMA_VIOLATION",
     );
-    const error = expectFailure(
-      () => validateTargetSemantics([bad as unknown as ReleaseTarget]),
-      "UNKNOWN_TARGET",
-    );
-    expect(error.message).toContain("arch");
+    expect(error.message).toContain("additional properties");
   });
 
   it("unknown arch fails the semantic gate", () => {
@@ -91,11 +87,11 @@ describe("PK01 negative paths", () => {
     expect(() => validateTargets(asData(targets))).not.toThrow();
   });
 
-  it("windows bootstrap with the offline WebView2 strategy fails coherence", () => {
-    const base = pickTarget((t) => t.os === "windows" && t.variant === "bootstrap");
-    const bad: ReleaseTarget = { ...base, webviewStrategy: "webview2-offline-installer" };
+  it("windows with the legacy installer WebView2 strategy fails coherence", () => {
+    const base = pickTarget((t) => t.os === "windows");
+    const bad: ReleaseTarget = { ...base, webviewStrategy: "webkitgtk-bundled" };
     const error = expectFailure(() => validateTargets(asData([bad])), "INCOHERENT_TARGET");
-    expect(error.message).toContain("webview2-embed-bootstrapper");
+    expect(error.message).toContain("webview2-evergreen");
   });
 
   it("macOS with a webview version floor fails coherence (gate is osVersionRange, D5)", () => {
@@ -104,16 +100,8 @@ describe("PK01 negative paths", () => {
     expectFailure(() => validateTargets(asData([bad])), "INCOHERENT_TARGET");
   });
 
-  it("linux bootstrap without a distro fails", () => {
+  it("linux carrying a distro fails (artifacts are distro-independent)", () => {
     const base = pickTarget((t) => t.os === "linux" && t.variant === "bootstrap");
-    const bad = { ...base };
-    delete bad.distro;
-    expectFailure(() => validateTargets(asData([bad])), "SCHEMA_VIOLATION");
-    expectFailure(() => validateTargetSemantics([bad]), "INCOHERENT_TARGET");
-  });
-
-  it("linux offline carrying a distro fails", () => {
-    const base = pickTarget((t) => t.os === "linux" && t.variant === "offline");
     const bad = { ...base, distro: "ubuntu-22.04" };
     expectFailure(
       () => validateTargets(asData([bad as unknown as ReleaseTarget])),

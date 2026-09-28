@@ -75,9 +75,6 @@ export function sampleManifest(target: ReleaseTarget): RuntimeManifest {
       testedAt: "2026-09-24T00:00:00Z",
     },
   };
-  if (target.distro !== undefined) {
-    manifest.distro = target.distro;
-  }
   return manifest;
 }
 

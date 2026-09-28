@@ -162,3 +162,24 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 - **命名规则**：portable 产物一律不带 distro 段（发行版无关产物）；bootstrap tar.gz 的构建基线记录在包内 `manifest.distro`（构建于 ubuntu-22.04 最老基线行），文件名不携带。
 - **聚合范围**扩为精确 8 项（macOS app.zip ×2 + Linux bootstrap tar.gz ×2 + offline tar.gz ×2 + offline AppImage ×2）；`portableArtifactName` 对非法目标/格式组合 fail-closed。
 - **不做单包运行时自动切换**（复用系统 WebKit 否则用闭包）：动态链接无法在运行时干净地"优先系统、缺则回退闭包"（RUNPATH 先于默认路径解析），两个显式包比一个含运行时探测逻辑的包更稳。
+
+## Release portable 归档定稿（2026-09-28，用户决策；取代上两节的发行形态）
+
+用户决策：Release 打包上传内容调整为——**Linux 不再输出 deb/rpm 等发行版专属包，一律 tar.zst（zstd 压缩）解压即运行；Windows 不创建安装包，一律 zip 解压后直接双击运行**（允许打包所需资源文件）。macOS 维持 DMG。本节为当前权威合同；上文"Portable 构建验证（P5-11）"与"Linux 解压即运行 tar.gz"两节中与之冲突的表述（tar.gz 压缩格式、"安装器矩阵 fail-closed"、"Windows 无 portable 形态"）由本节取代。
+
+### targets.json 与矩阵（22 → 10 行，一行一产物）
+
+- **Windows**：仅 `bootstrap` 变体 ×2 架构，`webviewStrategy=webview2-evergreen`（依赖系统 Evergreen 运行时）。offline 变体（捆绑 WebView2 Fixed Version 运行时）**暂缓**：Fixed Version 官方仅提供门户手动下载（无稳定可编程 URL），无法 CI 自动化获取；待出现可自动化通道再评审加回。产物 `xresconv-gui-<version>-windows-<arch>-bootstrap.zip`。
+- **Linux**：`bootstrap`/`offline` ×2 架构共 4 行，**全部无 distro 字段**（产物发行版无关）；构建基线收敛为 Ubuntu 22.04 最老基线（`LINUX_BUILD_BASELINE`，`package-cli` 校验宿主一致，glibc 2.35 地板）。产物：bootstrap `…bootstrap.tar.zst`、offline `…offline.AppImage` + `…offline.tar.zst`（AppImage 并存为 2026-09-27 既有决策）。
+- **macOS**：x64/arm64 × bootstrap/offline 4 行不变，产物仍为 DMG 安装器（`formatFor` 仅存 dmg；windows/linux 调用 throw `NO_INSTALLER_FORMAT`）。
+- `buildMatrix` 改为一行一**产物**（linux offline 一行 target 出两行产物）；manifest schema 删除 `distro` 字段、`webviewStrategy` 枚举更新、`webview2-offline-installer` payload 移除。
+
+### Windows zip 内容与 WebView2 策略
+
+zip 顶层目录 `xresconv-gui/`：`xresconv-gui.exe`（`tauri build --no-bundle` 裸产物）+ `WebView2Loader.dll`（cargo 产物携带时）+ `runtime/`+`app/`+`runtime-manifest.json`（发行布局）+ `MicrosoftEdgeWebview2Setup.exe`（官方 Evergreen bootstrapper sidecar，`go.microsoft.com/fwlink/p/?LinkId=2124703` 稳定短链，构建期下载缓存至 `build/webview2-bootstrapper/`，MZ 头+体积下限校验）。压缩用 `pwsh Compress-Archive`（Windows 宿主必达，与 macOS ditto/Linux tar 同层级的平台原生工具）。运行时策略：系统已装 Evergreen（Win10 1809+/Win11 绝大多数）直接双击；未装/过旧时壳 `webview_preflight`（P5-03 注册表探测）弹原生提示指引运行包内 bootstrapper，退出码 2。Fixed Version 相邻目录不被 WebView2 loader 自动发现（需显式 `browserExecutableFolder`/`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`），这是 offline 暂缓的技术依据之一。
+
+### 压缩格式与 CI
+
+- Linux 归档统一 `tar --zstd`（GNU tar 调 PATH 上 zstd；CI `apt-get install zstd`，本机 Git Bash zstd 1.5.7 实测通过）；产物扩展名 `.tar.zst`。
+- `release.yml`：Windows job（x64 bootstrap）→ zip；Linux job 收敛单 ubuntu-22.04（`--variant=all` 产 3 产物）；macOS 不变；aggregate `verify-release.ts --target` 7 键 → 8 产物 + 8 边车。`--portable` 标志仅对 macOS 生效（app.zip portable 管线），Windows/Linux 产物与该标志无关。
+- `portable-build.yml`：Linux 产物改 tar.zst、去 `--distro` 传参（入口保留作期望基线校验）；聚合 8 项集合不变（仅 tar.gz→tar.zst）。

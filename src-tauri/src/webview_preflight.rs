@@ -1,9 +1,10 @@
 //! Windows WebView2 运行时原生预检（P5-03，PK02：先检查后 GUI）。
 //!
-//! NSIS 的 bootstrap/offline 变体在安装期负责准备 WebView2；本预检覆盖
-//! “安装后运行时被移除/损坏”与直接裸跑 exe 的情形——在任何 WebView 创建
-//! 之前用注册表探测（EdgeUpdate Client 官方固定 GUID），缺失或过旧时弹
-//! 原生消息框并带可行动诊断退出，不白屏、不依赖创建 WebView 后再报错。
+//! Windows 发行形态是解压即用的 zip（2026-09-28 用户决策，无安装器）：
+//! 运行时用系统 Evergreen WebView2，包内附带官方 bootstrapper 作为修复
+//! 通道。本预检在任何 WebView 创建之前用注册表探测（EdgeUpdate Client
+//! 官方固定 GUID），缺失或过旧时弹原生消息框并带可行动诊断退出，不白屏、
+//! 不依赖创建 WebView 后再报错。
 //!
 //! 本模块只依赖 windows-registry/windows-sys（无 tauri/wry 类型），
 //! `#[cfg(test)]` 引用安全（测试 exe 无 SxS manifest 的 0xc0000139 约束）。
@@ -63,11 +64,11 @@ fn show_missing_dialog() {
     let text = windows_sys::core::w!(
         "未检测到可用的 Microsoft Edge WebView2 运行时（或版本过旧）。\n\
          \n\
-         请重新运行本应用的安装程序（安装器会自动准备运行时），\
-         或从微软官网安装 Evergreen 运行时：\n\
+         请先运行解压目录下附带的 MicrosoftEdgeWebview2Setup.exe 安装运行时，\
+         再重新启动本应用；或从微软官网安装 Evergreen 运行时：\n\
          https://developer.microsoft.com/microsoft-edge/webview2/\n\
          \n\
-         详见安装目录下 runtime-manifest.json 与应用日志。"
+         详见解压目录下 runtime-manifest.json 与应用日志。"
     );
     let caption = windows_sys::core::w!("xresconv-gui：缺少 WebView2 运行时");
     unsafe {
