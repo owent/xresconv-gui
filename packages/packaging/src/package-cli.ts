@@ -165,30 +165,44 @@ export interface WindowsZipExtras {
   fixedRuntimeDir?: string;
 }
 
+/** 组装 Windows portable 顶层目录（zip 与 tar.zst 共用）：exe + wry 的
+ * WebView2Loader.dll + 发行布局（runtime/app/manifest）+ WebView2 附件
+ * （bootstrap 附 bootstrapper sidecar；offline 内嵌 fixed runtime）。返回
+ * PORTABLE_ZIP_STAGE，调用方负责压缩后清理。 */
+function stageWindowsPortableTop(
+  exePath: string,
+  layoutDir: string,
+  extras: WindowsZipExtras,
+): void {
+  rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
+  const top = path.join(PORTABLE_ZIP_STAGE, PORTABLE_TAR_TOPDIR);
+  mkdirSync(top, { recursive: true });
+  copyFileSync(exePath, path.join(top, "xresconv-gui.exe"));
+  // tauri/wry 的 WebView2 loader：--no-bundle 时由 cargo 构建产物携带。
+  const loader = path.join(path.dirname(exePath), "WebView2Loader.dll");
+  if (existsSync(loader)) copyFileSync(loader, path.join(top, "WebView2Loader.dll"));
+  cpSync(path.join(layoutDir, "runtime"), path.join(top, "runtime"), { recursive: true });
+  cpSync(path.join(layoutDir, "app"), path.join(top, "app"), { recursive: true });
+  copyFileSync(
+    path.join(layoutDir, "runtime-manifest.json"),
+    path.join(top, "runtime-manifest.json"),
+  );
+  if (extras.bootstrapper)
+    copyFileSync(extras.bootstrapper, path.join(top, "MicrosoftEdgeWebview2Setup.exe"));
+  if (extras.fixedRuntimeDir)
+    cpSync(extras.fixedRuntimeDir, path.join(top, "webview2-runtime"), { recursive: true });
+}
+
+/** Windows bootstrap zip（42MiB 级，双击解压）：Compress-Archive（DEFLATE）
+ * 对小负载够用，且保留全 Windows 版本原生双击解压。 */
 export function zipPortableWindowsLayout(
   exePath: string,
   layoutDir: string,
   dest: string,
   extras: WindowsZipExtras = {},
 ): void {
-  rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
-  const top = path.join(PORTABLE_ZIP_STAGE, PORTABLE_TAR_TOPDIR);
-  mkdirSync(top, { recursive: true });
+  stageWindowsPortableTop(exePath, layoutDir, extras);
   try {
-    copyFileSync(exePath, path.join(top, "xresconv-gui.exe"));
-    // tauri/wry 的 WebView2 loader：--no-bundle 时由 cargo 构建产物携带。
-    const loader = path.join(path.dirname(exePath), "WebView2Loader.dll");
-    if (existsSync(loader)) copyFileSync(loader, path.join(top, "WebView2Loader.dll"));
-    cpSync(path.join(layoutDir, "runtime"), path.join(top, "runtime"), { recursive: true });
-    cpSync(path.join(layoutDir, "app"), path.join(top, "app"), { recursive: true });
-    copyFileSync(
-      path.join(layoutDir, "runtime-manifest.json"),
-      path.join(top, "runtime-manifest.json"),
-    );
-    if (extras.bootstrapper)
-      copyFileSync(extras.bootstrapper, path.join(top, "MicrosoftEdgeWebview2Setup.exe"));
-    if (extras.fixedRuntimeDir)
-      cpSync(extras.fixedRuntimeDir, path.join(top, "webview2-runtime"), { recursive: true });
     const result = spawnSync(
       "pwsh",
       [
@@ -202,6 +216,59 @@ export function zipPortableWindowsLayout(
     );
     if (result.error || result.status !== 0)
       throw new Error(`Compress-Archive failed (${result.error?.message ?? result.status})`);
+  } finally {
+    rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
+  }
+}
+
+/** Windows offline tar.zst（内嵌 ~668MiB Fixed Version 运行时）：DEFLATE zip
+ * 对已压缩的 WebView2 二进制收益低（344MiB）；改用 zstd L19 后 260MiB
+ * （−24.5%），多线程 ~49s（2026-09-28 本机实测，见 source-index）。用 Windows
+ * 内置 `tar`（bsdtar/libarchive，含 zstd）压缩，无需额外二进制。用户侧同样用
+ * 内置 `tar --zstd -xf` 解压，离线场景零依赖。
+ *
+ * bsdtar 对未知 `--options` 是致命错误（非忽略，本机实证 exit 1）；libarchive
+ * <3.6 无 `zstd:threads`。故先试全核多线程（静默捕获，避免退回成功时污染
+ * 日志），不支持则退回单线程 L19（~284s，产物一致）。 */
+export function tarZstPortableWindowsLayout(
+  exePath: string,
+  layoutDir: string,
+  dest: string,
+  extras: WindowsZipExtras = {},
+): void {
+  stageWindowsPortableTop(exePath, layoutDir, extras);
+  // Windows 宿主的 tar 可能是 MSYS GNU tar 或 System32 bsdtar：盘符冒号会被
+  // GNU tar 当作远程主机语法（叠加 MSYS 反斜杠转义，本机实证 broken pipe），
+  // 统一传正斜杠路径并加 --force-local（两实现的公共子集）。
+  const posix = (value: string) => value.replaceAll("\\", "/");
+  const base = [
+    "--force-local",
+    "-cf",
+    posix(dest),
+    "-C",
+    posix(PORTABLE_ZIP_STAGE),
+    PORTABLE_TAR_TOPDIR,
+  ];
+  try {
+    // 级别/线程控制走外部 zstd 过滤程序（--use-compress-program 是 GNU tar 与
+    // bsdtar 的公共子集；bsdtar 3.8.8 的 --zstd 不接受级别、--options 不存在，
+    // 本机实测）。PATH 无 zstd 时回退 tar 内置压缩器（默认级别，零依赖）。
+    const multithreaded = spawnSync(
+      "tar",
+      ["--use-compress-program", "zstd -19 -T0", ...base],
+      { encoding: "utf8", timeout: 15 * 60_000, windowsHide: true },
+    );
+    if (multithreaded.status !== 0) {
+      const fallback = spawnSync("tar", ["--zstd", ...base], {
+        stdio: "inherit",
+        timeout: 20 * 60_000,
+        windowsHide: true,
+      });
+      if (fallback.error || fallback.status !== 0)
+        throw new Error(
+          `tar --zstd failed (${fallback.error?.message ?? fallback.status})`,
+        );
+    }
   } finally {
     rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
   }
@@ -299,7 +366,7 @@ export async function ensureWebView2FixedRuntime(arch: "x64" | "arm64"): Promise
   // expand.exe（System32 内置）是官方文档指定的 cab 解压方式；-F:* 展开全部
   // 文件。必须绝对路径调用：Git Bash 环境的 /usr/bin/expand（tab 转空格工具）
   // 会遮蔽 PATH 查找（本机实证 exit 1）。
-  const systemExpand = path.join(process.env.SystemRoot ?? "C:\Windows", "System32", "expand.exe");
+  const systemExpand = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "expand.exe");
   const result = spawnSync(systemExpand, [cab, "-F:*", extractRoot], {
     stdio: "inherit",
     timeout: 10 * 60_000,
@@ -465,16 +532,15 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
       base.bundle[key] = { ...base.bundle[key], ...(signing[key] as object) };
     // macOS release 产物是 dmg 安装器（--portable 时为未签名 .app.zip，供
     // portable 管线）；Windows/Linux 一律 portable 归档（用户 2026-09-28
-    // 决策：Windows zip 解压即双击、Linux tar.zst 解压即运行 + offline
-    // AppImage 并存），与是否传 --portable 无关。
+    // 决策）：Windows bootstrap zip 解压即双击、offline tar.zst（zstd 压缩，
+    // 体积优化）；Linux tar.zst 解压即运行 + offline AppImage 并存。与是否
+    // 传 --portable 无关。
     const formats: Array<PortableFormat | "dmg-installer"> =
-      os === "windows"
-        ? ["zip"]
-        : os === "linux"
-          ? portableFormats(target)
-          : options.portable
-            ? ["app.zip"]
-            : ["dmg-installer"];
+      os === "windows" || os === "linux"
+        ? portableFormats(target)
+        : options.portable
+          ? ["app.zip"]
+          : ["dmg-installer"];
     let appimageSource: string | undefined;
     for (const format of formats) {
       const started = Date.now();
@@ -484,35 +550,39 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
           : portableArtifactName(target, version, format);
       const dest = path.join(output, name);
       if (format === "tar.zst") {
-        // Linux "解压即运行" tar.zst。两种来源：offline = 已产出的自含 AppImage
-        // 解包重压（复用 linuxdeploy 闭包，用户侧免 FUSE 免安装）；bootstrap =
-        // 裸 exe（tauri build --no-bundle）+ 发行布局平铺，运行时用系统
-        // WebKitGTK（preflight.sh 探测/指引）。
-        if (variant === "offline") {
+        if (os === "windows") {
+          // Windows offline "解压即用" tar.zst：裸 exe + 发行布局 + 内嵌 Fixed
+          // Version 运行时（webview2-runtime/，壳启动时指向它，完全离线）。
+          // zstd L19 多线程压缩，用 Windows 内置 tar 解压，离线场景零依赖。
+          runTauriBuild(["build", "--no-bundle"]);
+          const exe = path.join(ROOT, "target/release", "xresconv-gui.exe");
+          if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
+          if (fixedRuntime === undefined)
+            fixedRuntime = await ensureWebView2FixedRuntime(arch === "x64" ? "x64" : "arm64");
+          tarZstPortableWindowsLayout(exe, layout, dest, { fixedRuntimeDir: fixedRuntime });
+        } else if (variant === "offline") {
+          // Linux "解压即运行" tar.zst：已产出的自含 AppImage 解包重压（复用
+          // linuxdeploy 闭包，用户侧免 FUSE 免安装）。
           if (appimageSource === undefined)
             throw new Error("offline tar.zst requires the appimage build in the same invocation");
           tarPortableFromAppImage(appimageSource, dest);
         } else {
+          // Linux bootstrap：裸 exe（tauri build --no-bundle）+ 发行布局平铺，
+          // 运行时用系统 WebKitGTK（preflight.sh 探测/指引）。
           runTauriBuild(["build", "--no-bundle"]);
           const exe = path.join(ROOT, "target/release", "xresconv-gui");
           if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
           tarPortableBootstrapLayout(exe, layout, dest);
         }
       } else if (format === "zip") {
-        // Windows "解压即双击" zip：裸 exe + 发行布局。bootstrap 附官方
-        // bootstrapper sidecar（Evergreen 修复通道）；offline 内嵌 Fixed
-        // Version 运行时（webview2-runtime/，壳启动时指向它，完全离线）。
+        // Windows bootstrap "解压即双击" zip：裸 exe + 发行布局 + 官方
+        // bootstrapper sidecar（Evergreen 修复通道）。offline 已改用 tar.zst
+        // （zstd 压缩，体积优化，见 tarZstPortableWindowsLayout）。
         runTauriBuild(["build", "--no-bundle"]);
         const exe = path.join(ROOT, "target/release", "xresconv-gui.exe");
         if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
-        if (variant === "offline") {
-          if (fixedRuntime === undefined)
-            fixedRuntime = await ensureWebView2FixedRuntime(arch === "x64" ? "x64" : "arm64");
-          zipPortableWindowsLayout(exe, layout, dest, { fixedRuntimeDir: fixedRuntime });
-        } else {
-          if (bootstrapper === undefined) bootstrapper = await ensureWebView2Bootstrapper();
-          zipPortableWindowsLayout(exe, layout, dest, { bootstrapper });
-        }
+        if (bootstrapper === undefined) bootstrapper = await ensureWebView2Bootstrapper();
+        zipPortableWindowsLayout(exe, layout, dest, { bootstrapper });
       } else if (format === "appimage") {
         base.bundle.targets = ["appimage"];
         const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);

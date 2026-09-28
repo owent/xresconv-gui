@@ -29,6 +29,31 @@
 
 点击[此处](https://github.com/xresloader/xresconv-gui/releases)并根据需要下载对应系统的包，直接执行里面的二进制即可。
 
+每个系统/架构都提供 **bootstrap** 和 **offline** 两种变体，文件名中以
+`-bootstrap` / `-offline` 区分（如 `xresconv-gui-<版本>-windows-x64-bootstrap.zip`、
+`xresconv-gui-<版本>-windows-x64-offline.tar.zst`）。两者应用功能完全相同，
+区别仅在于对系统 WebView 运行时的准备方式：
+
+| 变体 | 体积 | WebView 运行时 | 适用场景 |
+| --- | --- | --- | --- |
+| **bootstrap**（在线引导） | 较小 | 复用系统已有运行时；缺失时联网引导安装（Windows 附带官方 WebView2 安装器，Linux 经系统包管理器安装 WebKitGTK，macOS 引导升级系统） | 有网络、系统通常已自带运行时的常规环境 |
+| **offline**（离线自含） | 较大 | 包内自带完整运行时（Windows 内嵌 WebView2 Fixed Version，Linux 内嵌 WebKitGTK 闭包），开箱即用、全程不联网 | 内网/隔离环境，或无法联网、系统缺少运行时的机器 |
+
+> 归档格式：Windows bootstrap 与 macOS 为双击即可打开的 `.zip` / `.dmg`；
+> Windows offline 与 Linux 为 `.tar.zst`（zstd 压缩，体积更小），用 Windows
+> 内置的 `tar -xf 文件.tar.zst`、7-Zip 或 Windows 11 资源管理器即可解压，
+> 离线机器无需额外联网下载工具。
+
+使用建议：
+
++ **大多数用户优先选 bootstrap**：体积小，现代 Windows 10/11 通常已预装
+  WebView2、主流 Linux 桌面自带 WebKitGTK、macOS 使用系统 WKWebView，一般可直接运行。
++ 目标机器 **无法联网**、位于隔离内网，或明确缺少对应运行时时选 **offline**，
+  避免首次启动因缺少运行时而卡在联网引导步骤。
++ **macOS** 两种变体都只使用系统自带的 WKWebView（无独立可安装的 WebView 运行时）：
+  bootstrap 在系统过旧时引导升级 macOS，offline 可在受支持系统（macOS 13.5+）上
+  完全离线运行；低于最低版本的系统无法通过安装包补齐运行时，需先升级 macOS。
+
 ### 启动参数
 
 + `--input <文件名>` : 指定初始的转表清单文件。
@@ -293,7 +318,7 @@ corepack yarn test:shell    # Tauri 壳单元测试
 ## 打包和发布
 
 ```bash
-corepack yarn package:windows   # Windows x64 解压即用 zip（含 WebView2 bootstrapper；Windows 运行）
+corepack yarn package:windows   # Windows x64：bootstrap zip + offline tar.zst（zstd 压缩；Windows 运行）
 corepack yarn package:linux     # Linux tar.zst 双变体（bootstrap/offline + offline AppImage；Linux 运行）
 corepack yarn package:macos     # macOS 双变体 DMG（须在 mac 主机运行）
 ```

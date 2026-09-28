@@ -169,7 +169,7 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 
 ### targets.json 与矩阵（22 → 10 行，一行一产物）
 
-- **Windows**：`bootstrap`（`webview2-evergreen`，依赖系统 Evergreen 运行时）与 `offline`（`webview2-fixed-runtime`，捆绑 Fixed Version 运行时）双变体 ×2 架构（同日增补落地，见下节）。产物 `xresconv-gui-<version>-windows-<arch>-{bootstrap,offline}.zip`。
+- **Windows**：`bootstrap`（`webview2-evergreen`，依赖系统 Evergreen 运行时）与 `offline`（`webview2-fixed-runtime`，捆绑 Fixed Version 运行时）双变体 ×2 架构（同日增补落地，见下节）。产物 `xresconv-gui-<version>-windows-<arch>-bootstrap.zip` 与 `-offline.tar.zst`（offline 压缩优化见「Windows offline 压缩优化」节）。
 - **Linux**：`bootstrap`/`offline` ×2 架构共 4 行，**全部无 distro 字段**（产物发行版无关）；构建基线收敛为 Ubuntu 22.04 最老基线（`LINUX_BUILD_BASELINE`，`package-cli` 校验宿主一致，glibc 2.35 地板）。产物：bootstrap `…bootstrap.tar.zst`、offline `…offline.AppImage` + `…offline.tar.zst`（AppImage 并存为 2026-09-27 既有决策）。
 - **macOS**：x64/arm64 × bootstrap/offline 4 行不变，产物仍为 DMG 安装器（`formatFor` 仅存 dmg；windows/linux 调用 throw `NO_INSTALLER_FORMAT`）。
 - `buildMatrix` 改为一行一**产物**（linux offline 一行 target 出两行产物）；manifest schema 删除 `distro` 字段、`webviewStrategy` 枚举更新、`webview2-offline-installer` payload 移除。
@@ -178,14 +178,29 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 
 调研结论（来源索引同日条目）：Fixed Version 无官方下载 API（WebView2Feedback#3372），但官方下载页 HTML **静态内嵌**最新两大版本 × 三架构的 cab 直链（curl 实证，无需 JS 渲染）——`parseFixedRuntimeLinks` 抓页解析（/ 转义还原、同架构取最高版本），页面结构变化即解析失败 → 构建 fail-closed。cab（x64 ≈294MB）下载缓存 `build/webview2-fixedruntime/`（MSCF 魔数 + 体积下限校验），`expand -F:*` 解压（官方指定方式），zip 内固定目录 `webview2-runtime/`（去版本号）。备选方案（Evergreen Standalone Installer 附加资产 / 自仓缓存）因"需先安装才可运行"或"版本冻结需人工滚动"被否。
 
-运行时链路：壳预检发现 exe 旁 `webview2-runtime/msedgewebview2.exe` → `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 指向该目录（loader env var 优先级最高、提权宿主下也生效——wry#1782；相邻目录不被 loader 自动发现）→ 幂等补 Win10 Fixed≥120 要求的 AppContainer 读执行 ACL（S-1-15-2-2 / S-1-15-2-1，官方 icacls 等价的 DACL 实现；失败仅告警不阻塞，Win11 无此要求）→ 跳过注册表预检（版本由打包合同保证 ≥120）。固定 runtime 不自动更新，安全补丁随发行滚动（offline 语义固有代价，官方文档明示）。
+运行时链路（2026-09-28 追问修订：**系统优先、包内兜底**）：壳预检先查系统 Evergreen 注册表——可用（≥ minimumWebview）则直接用系统 runtime（与其他 WebView2 应用共享磁盘/内存、自动安全更新，多数 Win10/11 机器路径）；缺失/过旧且包内有 `webview2-runtime/msedgewebview2.exe` 时才 `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 指向该目录（loader env var 优先级最高、提权宿主下也生效——wry#1782；相邻目录不被 loader 自动发现）并幂等补 Win10 Fixed≥120 要求的 AppContainer 读执行 ACL（S-1-15-2-2 / S-1-15-2-1，官方 icacls 等价的 DACL 实现；失败仅告警不阻塞，Win11 无此要求）。体积敏感用户可删 `webview2-runtime/` 把 offline zip 降级为 bootstrap 语义。决策发生在 WebView 创建之前（进程级 loader 参数），可干净二选一——05 册否决 Linux"单包运行时自动切换"的 RUNPATH（链接期嵌入）理由不适用于 Windows。固定 runtime 不自动更新，安全补丁随发行滚动（兜底路径固有代价，官方文档明示）；决策表见 `src-tauri/src/webview_preflight.rs` 测试。
 
-### Windows zip 内容与 WebView2 策略
+### Windows 归档内容与 WebView2 策略
 
-zip 顶层目录 `xresconv-gui/`：`xresconv-gui.exe`（`tauri build --no-bundle` 裸产物）+ `WebView2Loader.dll`（cargo 产物携带时）+ `runtime/`+`app/`+`runtime-manifest.json`（发行布局）+ `MicrosoftEdgeWebview2Setup.exe`（官方 Evergreen bootstrapper sidecar，`go.microsoft.com/fwlink/p/?LinkId=2124703` 稳定短链，构建期下载缓存至 `build/webview2-bootstrapper/`，MZ 头+体积下限校验）。压缩用 `pwsh Compress-Archive`（Windows 宿主必达，与 macOS ditto/Linux tar 同层级的平台原生工具）。运行时策略：系统已装 Evergreen（Win10 1809+/Win11 绝大多数）直接双击；未装/过旧时壳 `webview_preflight`（P5-03 注册表探测）弹原生提示指引运行包内 bootstrapper，退出码 2。Fixed Version 相邻目录不被 WebView2 loader 自动发现（需显式 `browserExecutableFolder`/`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`），这是 offline 暂缓的技术依据之一。
+zip 顶层目录 `xresconv-gui/`：`xresconv-gui.exe`（`tauri build --no-bundle` 裸产物）+ `WebView2Loader.dll`（cargo 产物携带时）+ `runtime/`+`app/`+`runtime-manifest.json`（发行布局）+ `MicrosoftEdgeWebview2Setup.exe`（官方 Evergreen bootstrapper sidecar，`go.microsoft.com/fwlink/p/?LinkId=2124703` 稳定短链，构建期下载缓存至 `build/webview2-bootstrapper/`，MZ 头+体积下限校验）。bootstrap 压缩用 `pwsh Compress-Archive`（DEFLATE，双击解压，Windows 宿主必达）；offline 内嵌 Fixed Version 运行时（`webview2-runtime/`）改用 `tar --zstd` 压缩为 tar.zst（见下「Windows offline 压缩优化」节）。运行时策略：系统已装 Evergreen（Win10 1809+/Win11 绝大多数）直接双击；未装/过旧时壳 `webview_preflight`（P5-03 注册表探测）弹原生提示指引运行包内 bootstrapper，退出码 2。offline 布局壳预检指向包内固定 runtime，完全离线。
+
+### Windows offline 压缩优化：zip → tar.zst（2026-09-28 同日增补，用户授权调研决策）
+
+问题：offline 内嵌 Fixed Version 运行时（解压 ~668MiB，其中 Locales ~128MiB），`Compress-Archive` 的 DEFLATE 对已压缩的 WebView2 二进制收益低，成品 344MiB 过大。
+
+调研（本机实测，语料 = 真实发行布局 + Fixed Version 运行时共 767MiB，见 source-index 同日条目）：
+
+| 方法 | 体积 | 耗时 | vs DEFLATE zip |
+| --- | --- | --- | --- |
+| DEFLATE（Compress-Archive，原方案） | 344MiB | — | 基线 |
+| tar.zst（zstd L19，多线程） | 260MiB | ~49s | −24.5% |
+| tar.zst（zstd L22 ultra --long） | 245MiB | ~284s | −28.8% |
+| .7z（LZMA2 -mx9） | 231MiB | ~103s | −33.0% |
+
+决策：**offline 改用 tar.zst（zstd L19 多线程）**。选 tar.zst 而非 .7z 的关键理由——Windows 自带 `tar`（bsdtar/libarchive 含 zstd），离线/隔离机器用内置 `tar --zstd -xf` 即可解压，无需安装第三方工具；且与 Linux 归档一致。L19 而非 L22 是速度/体积权衡（多约 5.8× 耗时仅省 6%）。bootstrap（~42MiB）保持 zip 双击解压（DEFLATE 对小负载够用，全 Windows 版本原生双击）。压缩命令用 Windows 内置 `tar --options zstd:compression-level=19,zstd:threads=0 --zstd`（`threads=0` 用满全核，无需额外二进制；本机端到端实测 262.6MiB / 57s，解压结构核验通过）。`tarZstPortableWindowsLayout` 与 `zipPortableWindowsLayout` 共用 `stageWindowsPortableTop` 组装顶层目录。
 
 ### 压缩格式与 CI
 
-- Linux 归档统一 `tar --zstd`（GNU tar 调 PATH 上 zstd；CI `apt-get install zstd`，本机 Git Bash zstd 1.5.7 实测通过）；产物扩展名 `.tar.zst`。
-- `release.yml`：Windows job（x64 bootstrap）→ zip；Linux job 收敛单 ubuntu-22.04（`--variant=all` 产 3 产物）；macOS 不变；aggregate `verify-release.ts --target` 7 键 → 8 产物 + 8 边车。`--portable` 标志仅对 macOS 生效（app.zip portable 管线），Windows/Linux 产物与该标志无关。
+- Linux 归档统一 `tar --zstd`（GNU tar 调 PATH 上 zstd；CI `apt-get install zstd`，本机 Git Bash zstd 1.5.7 实测通过）；产物扩展名 `.tar.zst`。Windows offline 用内置 bsdtar `tar --zstd`（libarchive 含 zstd，`--options` 设 L19+全核），同扩展名。
+- `release.yml`：Windows job（x64 bootstrap→zip、offline→tar.zst）；Linux job 收敛单 ubuntu-22.04（`--variant=all` 产 3 产物）；macOS 不变；aggregate `verify-release.ts --target` 8 键 → 9 产物 + 9 边车。`--portable` 标志仅对 macOS 生效（app.zip portable 管线），Windows/Linux 产物与该标志无关。
 - `portable-build.yml`：Linux 产物改 tar.zst、去 `--distro` 传参（入口保留作期望基线校验）；聚合 8 项集合不变（仅 tar.gz→tar.zst）。

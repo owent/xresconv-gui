@@ -85,6 +85,11 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
         "xresconv-gui-3.0.0-dev.0-windows-arm64-bootstrap.zip",
       ],
       [
+        (t) => t.os === "windows" && t.arch === "x64" && t.variant === "offline",
+        "tar.zst",
+        "xresconv-gui-3.0.0-dev.0-windows-x64-offline.tar.zst",
+      ],
+      [
         (t) => t.os === "linux" && t.variant === "bootstrap" && t.arch === "x86_64",
         "tar.zst",
         "xresconv-gui-3.0.0-dev.0-linux-x86_64-bootstrap.tar.zst",
@@ -110,8 +115,13 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
     }
   });
 
-  it("maps portable formats per os/variant (windows zip; linux offline appimage+tar.zst)", () => {
-    expect(portableFormats(pickTarget((t) => t.os === "windows"))).toEqual(["zip"]);
+  it("maps portable formats per os/variant (windows bootstrap zip / offline tar.zst; linux offline appimage+tar.zst)", () => {
+    expect(
+      portableFormats(pickTarget((t) => t.os === "windows" && t.variant === "bootstrap")),
+    ).toEqual(["zip"]);
+    expect(
+      portableFormats(pickTarget((t) => t.os === "windows" && t.variant === "offline")),
+    ).toEqual(["tar.zst"]);
     expect(portableFormats(pickTarget((t) => t.os === "macos"))).toEqual(["app.zip"]);
     expect(portableFormats(pickTarget((t) => t.os === "linux" && t.variant === "offline"))).toEqual(
       ["appimage", "tar.zst"],
@@ -124,7 +134,8 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
   it("rejects a portable format that does not belong to the target (fail-closed per format)", () => {
     const linuxOffline = pickTarget((t) => t.os === "linux" && t.variant === "offline");
     const macos = pickTarget((t) => t.os === "macos");
-    const windows = pickTarget((t) => t.os === "windows");
+    const windowsBootstrap = pickTarget((t) => t.os === "windows" && t.variant === "bootstrap");
+    const windowsOffline = pickTarget((t) => t.os === "windows" && t.variant === "offline");
     const linuxBootstrap = pickTarget((t) => t.os === "linux" && t.variant === "bootstrap");
     expect(() => portableArtifactName(linuxOffline, VERSION, "app.zip")).toThrow(
       /is not portable for target/,
@@ -138,7 +149,14 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
     expect(() => portableArtifactName(linuxBootstrap, VERSION, "appimage")).toThrow(
       /is not portable for target/,
     );
-    expect(() => portableArtifactName(windows, VERSION, "appimage")).toThrow(
+    // windows bootstrap 只出 zip、offline 只出 tar.zst——交叉/无关格式 fail-closed
+    expect(() => portableArtifactName(windowsBootstrap, VERSION, "appimage")).toThrow(
+      /is not portable for target/,
+    );
+    expect(() => portableArtifactName(windowsBootstrap, VERSION, "tar.zst")).toThrow(
+      /is not portable for target/,
+    );
+    expect(() => portableArtifactName(windowsOffline, VERSION, "zip")).toThrow(
       /is not portable for target/,
     );
   });

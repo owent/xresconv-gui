@@ -1,8 +1,9 @@
 name: release
 
 # 新架构发行（P5 CI-04/CI-06 + 2026-09-28 portable 归档决策）：仅 v3 标签触发。
-# Windows = 解压即双击 zip（bootstrap/offline；offline 内嵌 Fixed Version 运行
-# 时完全离线，无安装器）；Linux = 发行版无关 tar.zst（bootstrap
+# Windows = 解压即用归档（bootstrap zip 双击解压 + 系统 Evergreen；offline
+# tar.zst 内嵌 Fixed Version 运行时完全离线，zstd 压缩体积优化，用内置 tar
+# 解压，无安装器）；Linux = 发行版无关 tar.zst（bootstrap
 # 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
 # ——两者与 --portable 与否无关；macOS 保持 dmg 双变体（不签名——签名/公证
 # 在受控发行环境后补，P5-07）。汇总 job 是唯一写 release 的入口，校验产物
@@ -51,9 +52,14 @@ jobs:
         with:
           if-no-files-found: error
           name: artifacts-windows-x64-${{ matrix.variant }}
+          # bootstrap=zip（双击解压）；offline=tar.zst（zstd 压缩，体积优化）。
+          # 两组 glob 各匹配对应变体的单一产物，另一组匹配空——upload-artifact
+          # 仅当合并集合为空才 error，故混合 glob 对两变体均成立。
           path: |
             build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.zip
             build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.zip.sha256
+            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.tar.zst
+            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.tar.zst.sha256
 
   build-linux:
     name: build linux ${{ matrix.distro }} x86_64

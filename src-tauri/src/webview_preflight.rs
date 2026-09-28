@@ -67,23 +67,32 @@ fn webview2_runtime_version() -> Option<String> {
     installed_version(machine.ok(), user.ok())
 }
 
-/// 预检决策（纯函数，注入探测）：包内固定 runtime 优先——offline zip 解压
-/// 即用、无需任何系统状态；否则按 Evergreen 注册表预检。
+/// 预检决策（纯函数，可测）。offline 包的用户决策（2026-09-28 追问修订）：
+/// **系统 Evergreen 优先，缺失/过旧时才启用包内固定 runtime**——多数机器
+/// 与其他 WebView2 应用共享系统 runtime（自动安全更新、共享磁盘/内存），
+/// 仅无 WebView2 的机器走包内兜底；体积敏感用户可删 webview2-runtime/ 目录
+/// 当 bootstrap 用。Windows 的运行时选择发生在 WebView 创建之前（进程级
+/// loader 参数），可干净决策——05 册否决 Linux"单包自动切换"的 RUNPATH
+/// 理由不适用于此。
 #[cfg_attr(not(windows), allow(dead_code))]
 enum WebView2Plan {
-    /// exe 旁存在 webview2-runtime/msedgewebview2.exe：指向它运行。
+    /// 系统 Evergreen 可用（或包内无 runtime 且系统可用）：不设任何覆盖，
+    /// loader 默认走已安装运行时。
+    UseSystemEvergreen,
+    /// 系统不可用但包内有 webview2-runtime/：指向它运行。
     UseFixedRuntime,
-    /// 常规 bootstrap 语义：检查系统 Evergreen。
-    UseEvergreen,
+    /// 系统不可用且包内无 runtime（bootstrap 语义）：弹诊断退出。
+    FatalMissing,
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
-fn webview2_plan(exe_dir: &Path, probe: &dyn Fn(&Path) -> bool) -> WebView2Plan {
-    let runtime_entry = exe_dir.join(FIXED_RUNTIME_DIR).join("msedgewebview2.exe");
-    if probe(&runtime_entry) {
+fn webview2_plan(fixed_runtime_present: bool, system_version: Option<&str>) -> WebView2Plan {
+    if webview2_acceptable(system_version) {
+        WebView2Plan::UseSystemEvergreen
+    } else if fixed_runtime_present {
         WebView2Plan::UseFixedRuntime
     } else {
-        WebView2Plan::UseEvergreen
+        WebView2Plan::FatalMissing
     }
 }
 
@@ -219,9 +228,16 @@ pub fn ensure_webview2_or_exit() {
         let exe_dir = std::env::current_exe()
             .ok()
             .and_then(|exe| exe.parent().map(Path::to_path_buf));
-        match exe_dir {
-            Some(dir) if matches!(webview2_plan(&dir, &|p| p.is_file()), WebView2Plan::UseFixedRuntime) => {
-                let runtime = dir.join(FIXED_RUNTIME_DIR);
+        let fixed_present = exe_dir
+            .as_deref()
+            .is_some_and(|dir| dir.join(FIXED_RUNTIME_DIR).join("msedgewebview2.exe").is_file());
+        let version = webview2_runtime_version();
+        match webview2_plan(fixed_present, version.as_deref()) {
+            WebView2Plan::UseSystemEvergreen => {}
+            WebView2Plan::UseFixedRuntime => {
+                let runtime = exe_dir
+                    .expect("fixed runtime implies exe dir")
+                    .join(FIXED_RUNTIME_DIR);
                 // loader 按 env var 定位固定 runtime（相对 exe 的路径需绝对化；
                 // env var 优先级高于注册表与 API 参数，提权宿主下也生效）。
                 // 启动单线程阶段设置，无并发读环境变量的竞态。
@@ -230,16 +246,13 @@ pub fn ensure_webview2_or_exit() {
                 }
                 grant_appcontainer_rx(&runtime);
             }
-            _ => {
-                let version = webview2_runtime_version();
-                if !webview2_acceptable(version.as_deref()) {
-                    eprintln!(
-                        "webview2 preflight failed: {:?} (minimum major {MINIMUM_WEBVIEW2_MAJOR})",
-                        version.as_deref().unwrap_or("<not installed>")
-                    );
-                    show_missing_dialog();
-                    std::process::exit(2);
-                }
+            WebView2Plan::FatalMissing => {
+                eprintln!(
+                    "webview2 preflight failed: {:?} (minimum major {MINIMUM_WEBVIEW2_MAJOR})",
+                    version.as_deref().unwrap_or("<not installed>")
+                );
+                show_missing_dialog();
+                std::process::exit(2);
             }
         }
     }
@@ -253,9 +266,8 @@ pub fn ensure_webview2_or_exit() {
 mod tests {
     use super::{
         installed_version, webview2_acceptable, webview2_major, webview2_plan, WebView2Plan,
-        FIXED_RUNTIME_DIR,
+        MINIMUM_WEBVIEW2_MAJOR,
     };
-    use std::path::{Path, PathBuf};
 
     #[test]
     fn stale_machine_registration_does_not_hide_supported_user_runtime() {
@@ -277,28 +289,34 @@ mod tests {
     fn acceptable_requires_present_and_recent_enough() {
         assert!(webview2_acceptable(Some("153.0.4234.48")));
         assert!(webview2_acceptable(Some(&format!(
-            "{MINIMUM_WEBVIEW2_MAJOR}.0.2210.0",
-            MINIMUM_WEBVIEW2_MAJOR = super::MINIMUM_WEBVIEW2_MAJOR
+            "{MINIMUM_WEBVIEW2_MAJOR}.0.2210.0"
         ))));
         assert!(!webview2_acceptable(Some("119.0.2151.44")));
         assert!(!webview2_acceptable(Some("garbage")));
         assert!(!webview2_acceptable(None));
     }
 
+    /// offline 包运行时优先级决策表（2026-09-28 追问修订）：系统 Evergreen
+    /// 优先，仅缺失/过旧时回退包内固定 runtime；bootstrap 无兜底则致命退出。
     #[test]
-    fn plan_prefers_bundled_fixed_runtime_when_present() {
-        let with_runtime = PathBuf::from("somewhere");
-        let probe_hit = |p: &Path| {
-            p.ends_with(format!("{FIXED_RUNTIME_DIR}/msedgewebview2.exe").as_str())
-        };
+    fn plan_prefers_system_evergreen_and_falls_back_to_bundled_runtime() {
+        use WebView2Plan::{FatalMissing, UseFixedRuntime, UseSystemEvergreen};
+        // 系统可用：即使包内带 runtime 也用系统（省内存/自动更新）。
         assert!(matches!(
-            webview2_plan(&with_runtime, &probe_hit),
-            WebView2Plan::UseFixedRuntime
+            webview2_plan(true, Some("153.0.4234.48")),
+            UseSystemEvergreen
         ));
-        let probe_miss = |_: &Path| false;
         assert!(matches!(
-            webview2_plan(&with_runtime, &probe_miss),
-            WebView2Plan::UseEvergreen
+            webview2_plan(false, Some("153.0.4234.48")),
+            UseSystemEvergreen
         ));
+        // 系统过旧（<120 floor）：有兜底用兜底，无兜底致命。
+        assert!(matches!(webview2_plan(true, Some("119.9.9.9")), UseFixedRuntime));
+        assert!(matches!(webview2_plan(false, Some("119.9.9.9")), FatalMissing));
+        // 系统缺失：同上。
+        assert!(matches!(webview2_plan(true, None), UseFixedRuntime));
+        assert!(matches!(webview2_plan(false, None), FatalMissing));
+        // 系统版本串损坏按缺失处理。
+        assert!(matches!(webview2_plan(true, Some("garbage")), UseFixedRuntime));
     }
 }
