@@ -2,7 +2,8 @@ name: release
 
 # 新架构发行（P5 CI-04/CI-06）：仅 v3 标签触发；矩阵构建两变体（不签名——
 # 签名/公证在受控发行环境后补，P5-07）；汇总 job 是唯一写 release 的入口，
-# 校验产物名集合与预期矩阵完全相等后创建 draft（不 overwrite，不自动发布）。
+# 校验产物名集合与本次构建目标子集（verify 步骤的 --target 列表）完全相等
+# 后创建 draft（不 overwrite，不自动发布）。
 # 旧 v2.x 标签不再触发（D1：旧架构 2.6.0 为终点版本）。
 
 on:
@@ -147,7 +148,18 @@ jobs:
         with:
           path: build/release-artifacts
       - name: Verify artifact set equals expected matrix
-        run: node scripts/verify-release.ts
+        # --target 列表 = 本次 CI 实际构建的目标（targetKey 格式，见
+        # packaging/src/matrix.ts selectMatrix）；必须与上方三个 build job 的
+        # matrix 同步维护。剩余基线目标（windows/linux arm64、debian/fedora）
+        # 待 CI-05 container/交叉构建落实后加入。未传 --target 时按全量矩阵
+        # 校验（本地预检语义）。
+        run: >
+          node scripts/verify-release.ts
+          --target=windows/-/x64/bootstrap --target=windows/-/x64/offline
+          --target=macos/-/x64/bootstrap --target=macos/-/x64/offline
+          --target=macos/-/arm64/bootstrap --target=macos/-/arm64/offline
+          --target=linux/ubuntu-22.04/x86_64/bootstrap --target=linux/-/x86_64/offline
+          --target=linux/ubuntu-24.04/x86_64/bootstrap
         env:
           RELEASE_VERSION: ${{ github.ref_name }}
       - name: Create draft release (no overwrite)

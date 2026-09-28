@@ -163,3 +163,33 @@ export function buildMatrix(file: TargetsFile, version: string): MatrixArtifact[
   }
   return artifacts;
 }
+
+/**
+ * The subset of the full matrix a release CI run actually builds (CI-06
+ * transitional state: release.yml covers the native-runner targets; the
+ * remaining baseline rows await the CI-05 container/cross builds). Keys are
+ * targetKey strings, passed one per --target flag by scripts/verify-release.ts
+ * and kept in sync with the build-job matrices in release.yml. Fails closed on
+ * unknown keys (typo guard), duplicates, and an empty list (a vacuous verify).
+ */
+export function selectMatrix(
+  artifacts: readonly MatrixArtifact[],
+  keys: readonly string[],
+): MatrixArtifact[] {
+  if (keys.length === 0)
+    throw new PackagingError("MISSING_TARGET", "no target keys given to select from the matrix");
+  const byKey = new Map(artifacts.map((row) => [targetKey(row), row]));
+  const seen = new Set<string>();
+  for (const key of keys) {
+    if (seen.has(key))
+      throw new PackagingError("DUPLICATE_TARGET", `duplicate target key "${key}"`, [key]);
+    seen.add(key);
+    if (!byKey.has(key))
+      throw new PackagingError(
+        "UNKNOWN_TARGET",
+        `target key "${key}" is not in the full matrix`,
+        [key],
+      );
+  }
+  return keys.map((key) => byKey.get(key) as MatrixArtifact);
+}
