@@ -98,15 +98,17 @@ jobs:
           corepack yarn check:shell
           corepack yarn test:shell
 
-  # CI-03：桌面 E2E（真实 WebView；平台矩阵）。Linux（xvfb+WebKitGTK）与
-  # 本机 Windows 交互会话已实证；两项环境限制如实登记（2026-09-25）：
-  # - windows-latest：runner 会话无交互桌面，WebView2 无法与 msedgedriver
-  #   完成 DevToolsActivePort 握手（app 本体 guardian/backend 正常，诊断步
-  #   实证）；权威 Windows 证据为本机交互会话（P4-09 记录 9/9）。
-  # - macos-latest：当前外部 tauri-driver harness 不支持 macOS，显式失败；
-  #   需独立验证其他 provider；按用户决策延后至 mac 实机/CI 平台。
-  # 两者 continue-on-error：结果如实展示，不阻塞流水线；恢复条件登记于
-  # docs/plan/records/P5-09.md。
+  # CI-03：桌面 E2E（真实 WebView；平台矩阵）。Linux（xvfb+WebKitGTK）已实证。
+  # Windows 根因与解法（2026-09-28 修订，取代 2026-09-25 的"Session 0 无桌面"
+  # 误诊）：GitHub windows runner 的 job 进程提权运行，WebView2 Runtime 150+
+  # 在提权宿主中忽略 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS（msedgedriver 正是
+  # 经它注入 --remote-debugging-port）→ DevToolsActivePort 文件永不出现
+  #（wry#1782 / MicrosoftEdge/WebView2Feedback#5645，官方 test-api-e2e 同因
+  # 采用 gsudo 降为 medium integrity 运行）。app 本体 guardian/backend 一直
+  # 正常也由此解释。
+  # macOS 不在本矩阵：tauri-driver 无 darwin WKWebView WebDriver（上游官方
+  # test-api-e2e 以 CrabNebula 商业服务绕道，本仓库不引入）；按用户决策延后
+  # 至 mac 实机验收（P5-09，tests/desktop/run.mjs 对 darwin fail-closed）。
   desktop-e2e:
     name: desktop e2e (${{ matrix.os }})
     needs: [quality-node, quality-shell]
@@ -115,14 +117,9 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            gui-allowed: false
           - os: ubuntu-latest
-            gui-allowed: true
-          - os: macos-latest
-            gui-allowed: false
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
-    continue-on-error: ${{ matrix.gui-allowed == false }}
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -148,19 +145,27 @@ jobs:
         run: |
           $runtime = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}').pv
           Write-Host "WebView2 runtime: $runtime"
-          $url = "https://msedgedriver.azureedge.net/$runtime/edgedriver_win64.zip"
+          $url = "https://msedgedriver.microsoft.com/$runtime/edgedriver_win64.zip"
           New-Item -ItemType Directory -Force build/tools | Out-Null
-          try { Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 30 -OutFile build/tools/edgedriver.zip } catch { $url = "https://registry.npmmirror.com/-/binary/edgedriver/$runtime/edgedriver_win64.zip"; Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 30 -OutFile build/tools/edgedriver.zip }
+          try { Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 30 -OutFile build/tools/edgedriver.zip } catch { $url = "https://msedgedriver.azureedge.net/$runtime/edgedriver_win64.zip"; try { Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 30 -OutFile build/tools/edgedriver.zip } catch { $url = "https://registry.npmmirror.com/-/binary/edgedriver/$runtime/edgedriver_win64.zip"; Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 30 -OutFile build/tools/edgedriver.zip } }
           Expand-Archive build/tools/edgedriver.zip -DestinationPath build/tools
           & .\build\tools\msedgedriver.exe --version
           "MSEDGEDRIVER_PATH=$pwd\build\tools\msedgedriver.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
         shell: pwsh
-      - name: Desktop E2E
-        run: corepack yarn test:desktop
-        # Linux 无显示服务器：xvfb-run 提供虚拟 X（wdio tauri-service 需要真实窗口）。
-        if: runner.os != 'Linux'
+      - name: Desktop E2E (Windows, medium integrity)
+        # 提权宿主会让 WebView2 忽略 msedgedriver 注入的调试参数（见 job 头
+        # 注释）。gsudo 以 medium integrity 运行整套测试（node/tauri-driver/
+        # msedgedriver/app 全链随之降权）；icacls 放开工作区让降权进程可写
+        # build/target（tauri 官方 test-api-e2e 同款步骤）。
+        if: runner.os == 'Windows'
+        run: |
+          winget install gerardog.gsudo --accept-source-agreements --accept-package-agreements
+          icacls "$env:GITHUB_WORKSPACE" /grant "Everyone:(OI)(CI)F"
+          sudo --integrity Medium corepack yarn test:desktop
+        shell: pwsh
       - name: Desktop E2E (xvfb)
         if: runner.os == 'Linux'
+        # Linux 无显示服务器：xvfb-run 提供虚拟 X（wdio tauri-service 需要真实窗口）。
         run: xvfb-run -a corepack yarn test:desktop
       - name: Diagnose app launch (Windows)
         # DevToolsActivePort 排查：直接运行 debug exe 8s 捕获自身输出
