@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "2.6.0",
+  "version": "3.0.0-dev.0",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI (Tauri 2 薄壳 + Node.js 业务内核)",
   "packageManager": "yarn@4.18.0",

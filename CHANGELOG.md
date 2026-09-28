@@ -1,6 +1,13 @@
 更新记录
 ==========
 
+3.0.0-dev.0
+------
+
+1. 架构重写：以 Tauri 2 薄壳 + 系统 WebView + 独立 Node.js 业务内核替代旧 Electron 架构，支持 Windows / Linux / macOS（64 位）。
+2. 发行包提供 bootstrap / offline 变体，Linux 额外提供解压即运行的 tar.gz。
+3. 首个 3.0 开发预发布版本，仅供测试。
+
 2.6.0
 ------
 
