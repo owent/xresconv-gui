@@ -262,23 +262,27 @@ export function tarZstPortableWindowsLayout(
   try {
     // 级别/线程控制走外部 zstd 过滤程序（--use-compress-program 是 GNU tar 与
     // bsdtar 的公共子集；bsdtar 3.8.8 的 --zstd 不接受级别、--options 不存在，
-    // 本机实测）。PATH 无 zstd 时回退 tar 内置压缩器（默认级别，零依赖）。
+    // 本机实测）。zstd 不可用时**抛错而非静默回退**：内置压缩器是默认级别，
+    // offline 产物会从 ~262MiB 劣化到 ~329MiB（run 36428739745 实证），静默
+    // 劣化比失败更糟。Git Bash 与 GitHub Windows 镜像均预装 zstd（C:\tools\zstd）。
+    const zstd = spawnSync("zstd", ["--version"], {
+      encoding: "utf8",
+      timeout: 10_000,
+      windowsHide: true,
+    });
+    if (zstd.error || zstd.status !== 0)
+      throw new Error(
+        `external zstd is required for the offline tar.zst (zstd -19 -T0); install zstd or use CI (${zstd.error?.message ?? zstd.stderr?.trim() ?? "not found in PATH"})`,
+      );
     const multithreaded = spawnSync(
       "tar",
       ["--use-compress-program", "zstd -19 -T0", ...base],
       { encoding: "utf8", timeout: 15 * 60_000, windowsHide: true },
     );
-    if (multithreaded.status !== 0) {
-      const fallback = spawnSync("tar", ["--zstd", ...base], {
-        stdio: "inherit",
-        timeout: 20 * 60_000,
-        windowsHide: true,
-      });
-      if (fallback.error || fallback.status !== 0)
-        throw new Error(
-          `tar --zstd failed (${fallback.error?.message ?? fallback.status})`,
-        );
-    }
+    if (multithreaded.status !== 0)
+      throw new Error(
+        `tar zstd -19 -T0 failed (${multithreaded.status}): ${multithreaded.stderr?.trim()}`,
+      );
   } finally {
     rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
   }

@@ -45,6 +45,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable
+      - name: Ensure zstd (offline tar.zst uses zstd -19 -T0; runner image ships it under C:	ools\zstd)
+        if: matrix.variant == 'offline'
+        shell: pwsh
+        run: |
+          try { zstd --version } catch { choco install zstandard -y --no-progress; zstd --version }
       - run: corepack yarn install --immutable
       - run: corepack yarn package:windows --variant=${{ matrix.variant }}
       # actions/upload-artifact v7.0.1
