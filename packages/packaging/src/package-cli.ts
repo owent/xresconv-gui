@@ -237,12 +237,22 @@ export function tarZstPortableWindowsLayout(
   extras: WindowsZipExtras = {},
 ): void {
   stageWindowsPortableTop(exePath, layoutDir, extras);
-  // Windows 宿主的 tar 可能是 MSYS GNU tar 或 System32 bsdtar：盘符冒号会被
-  // GNU tar 当作远程主机语法（叠加 MSYS 反斜杠转义，本机实证 broken pipe），
-  // 统一传正斜杠路径并加 --force-local（两实现的公共子集）。
+  // Windows 宿主的 tar 可能是 MSYS GNU tar（本机 Git Bash）或 System32
+  // bsdtar（CI pwsh），能力矩阵不同（本机/CI 双实证）：
+  // - 盘符冒号：GNU tar 当远程主机语法（叠加 MSYS 反斜杠转义 → broken
+  //   pipe），需 --force-local + 正斜杠；bsdtar 不支持 --force-local（致命
+  //   错误），但正斜杠盘符路径本身可用 → 按 --version 探测实现自适应。
+  // - 压缩级别：两者 --use-compress-program 皆支持（外部 zstd -19 -T0）；
+  //   bsdtar --zstd 不收级别、--options 不存在。
+  const tarVersion = spawnSync("tar", ["--version"], {
+    encoding: "utf8",
+    timeout: 10_000,
+    windowsHide: true,
+  });
+  const isBsdtar = (tarVersion.stdout ?? "").includes("bsdtar");
   const posix = (value: string) => value.replaceAll("\\", "/");
   const base = [
-    "--force-local",
+    ...(isBsdtar ? [] : ["--force-local"]),
     "-cf",
     posix(dest),
     "-C",
