@@ -5,7 +5,7 @@
   "identifier": "com.xresloader.xresconv-gui",
   "build": {
     "beforeDevCommand": "corepack yarn workspace @xresconv/desktop dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1423",
     "beforeBuildCommand": "corepack yarn workspace @xresconv/desktop build",
     "frontendDist": "../apps/desktop/dist"
   },

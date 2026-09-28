@@ -9,7 +9,11 @@ export default defineConfig({
   base: "./",
   clearScreen: false,
   server: {
-    port: 1420,
+    // Pin IPv4 loopback: Node >= 17 resolves `localhost` to ::1 first on this
+    // machine, which makes Vite bind IPv6-only while the Tauri CLI polls
+    // 127.0.0.1 and waits forever ("Waiting for your frontend dev server").
+    host: "127.0.0.1",
+    port: 1423,
     strictPort: true,
   },
   build: {
