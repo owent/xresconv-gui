@@ -7,6 +7,7 @@ export type TargetArch = DesktopArch | LinuxArch;
 export type LinuxDistro = "ubuntu-22.04";
 export type WebviewStrategy =
   | "webview2-evergreen"
+  | "webview2-fixed-runtime"
   | "system-only"
   | "webkitgtk-system"
   | "webkitgtk-bundled";
@@ -63,6 +64,7 @@ export type RuntimePayload =
   | "native-addons"
   | "resources"
   | "webview2-bootstrapper"
+  | "webview2-fixed-runtime"
   | "linux-selfcontained-runtime";
 
 export interface NodeHash {

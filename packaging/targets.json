@@ -15,10 +15,30 @@
     {
       "os": "windows",
       "osVersionRange": ">=10.0.17763",
+      "arch": "x64",
+      "variant": "offline",
+      "targetTriple": "x86_64-pc-windows-msvc",
+      "webviewStrategy": "webview2-fixed-runtime",
+      "minimumWebview": "120.0.0",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "windows",
+      "osVersionRange": ">=10.0.17763",
       "arch": "arm64",
       "variant": "bootstrap",
       "targetTriple": "aarch64-pc-windows-msvc",
       "webviewStrategy": "webview2-evergreen",
+      "minimumWebview": "120.0.0",
+      "nodeVersion": "24"
+    },
+    {
+      "os": "windows",
+      "osVersionRange": ">=10.0.17763",
+      "arch": "arm64",
+      "variant": "offline",
+      "targetTriple": "aarch64-pc-windows-msvc",
+      "webviewStrategy": "webview2-fixed-runtime",
       "minimumWebview": "120.0.0",
       "nodeVersion": "24"
     },

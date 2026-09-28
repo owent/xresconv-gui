@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 import {
   detectDistro,
   nativeArch,
+  parseFixedRuntimeLinks,
   parsePackageArgs,
   selectArtifact,
   verifyReusableLayout,
@@ -83,4 +84,27 @@ it("selects a fresh RPM and never renames stale or ambiguous output", () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+it("parses Fixed Version runtime links from the download page HTML (u002F escapes, highest version per arch)", () => {
+  // 2026-09-28 实抓页面片段形态：链接以字面 \u002F 转义内嵌（无需 JS 渲染），
+  // 同架构多版本并存时取最高版本；裸斜杠链接同样接受。
+  const html = [
+    'x: "msedge.sf.dl.delivery.mp.microsoft.com\\u002Ffilestreamingservice\\u002Ffiles\\u002Fb82d47e8-d146-4563-94d1-3a3176b25c0a\\u002FMicrosoft.WebView2.FixedVersionRuntime.153.0.4234.48.x64.cab",',
+    'y: "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/125acdc1-7d47-4c37-b4b9-b2452c6ec327/Microsoft.WebView2.FixedVersionRuntime.154.0.4258.37.x64.cab",',
+    'z: "msedge.sf.dl.delivery.mp.microsoft.com\\u002Ffilestreamingservice\\u002Ffiles\\u002F14402c3c-0447-4db8-92e4-f79b20be8387\\u002FMicrosoft.WebView2.FixedVersionRuntime.154.0.4258.37.arm64.cab",',
+  ].join("\n");
+  const links = parseFixedRuntimeLinks(html);
+  expect(links.size).toBe(2);
+  const x64 = links.get("x64");
+  if (!x64) throw new Error("x64 link missing");
+  expect(x64.version).toBe("154.0.4258.37");
+  expect(x64.url).toBe(
+    "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/125acdc1-7d47-4c37-b4b9-b2452c6ec327/Microsoft.WebView2.FixedVersionRuntime.154.0.4258.37.x64.cab",
+  );
+  expect(links.get("arm64")?.version).toBe("154.0.4258.37");
+});
+
+it("returns no Fixed Version links for a page whose markup changed (fail-closed downstream)", () => {
+  expect(parseFixedRuntimeLinks("<html>download button only</html>").size).toBe(0);
 });

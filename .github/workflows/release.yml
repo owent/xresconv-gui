@@ -1,7 +1,8 @@
 name: release
 
 # 新架构发行（P5 CI-04/CI-06 + 2026-09-28 portable 归档决策）：仅 v3 标签触发。
-# Windows = 解压即双击 zip（无安装器）；Linux = 发行版无关 tar.zst（bootstrap
+# Windows = 解压即双击 zip（bootstrap/offline；offline 内嵌 Fixed Version 运行
+# 时完全离线，无安装器）；Linux = 发行版无关 tar.zst（bootstrap
 # 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
 # ——两者与 --portable 与否无关；macOS 保持 dmg 双变体（不签名——签名/公证
 # 在受控发行环境后补，P5-07）。汇总 job 是唯一写 release 的入口，校验产物
@@ -29,7 +30,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [bootstrap]
+        # bootstrap=系统 Evergreen+bootstrapper sidecar；offline=内嵌 Fixed
+        # Version 运行时（构建期抓官方下载页直链下载 cab，~300MB，缓存于
+        # build/webview2-fixedruntime）。
+        variant: [bootstrap, offline]
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -153,7 +157,7 @@ jobs:
         # 构建通道落实后加入。未传 --target 时按全量矩阵校验（本地预检语义）。
         run: >
           node scripts/verify-release.ts
-          --target=windows/-/x64/bootstrap
+          --target=windows/-/x64/bootstrap --target=windows/-/x64/offline
           --target=macos/-/x64/bootstrap --target=macos/-/x64/offline
           --target=macos/-/arm64/bootstrap --target=macos/-/arm64/offline
           --target=linux/-/x86_64/bootstrap --target=linux/-/x86_64/offline

@@ -97,12 +97,10 @@ function checkCoherence(target: ReleaseTarget): void {
   }
   switch (target.os) {
     case "windows": {
-      if (target.webviewStrategy !== "webview2-evergreen") {
-        fail(
-          "INCOHERENT_TARGET",
-          target,
-          "windows requires webview2-evergreen (system Evergreen runtime; zip form)",
-        );
+      const want =
+        target.variant === "offline" ? "webview2-fixed-runtime" : "webview2-evergreen";
+      if (target.webviewStrategy !== want) {
+        fail("INCOHERENT_TARGET", target, `windows ${target.variant} requires ${want}`);
       }
       if (typeof target.minimumWebview !== "string" || target.minimumWebview.length === 0) {
         fail("INCOHERENT_TARGET", target, "windows targets must declare a WebView2 floor");

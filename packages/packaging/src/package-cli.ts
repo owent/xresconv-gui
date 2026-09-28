@@ -155,14 +155,21 @@ function tarStageTo(dest: string): void {
 }
 
 /** Windows portable zip：解压后进入 xresconv-gui/ 直接双击 xresconv-gui.exe。
- * 用户 2026-09-28 决策：不创建安装包；WebView2 用系统 Evergreen 运行时，包内
- * 附官方 bootstrapper（MicrosoftEdgeWebview2Setup.exe）作为修复通道，壳预检
- * 缺失时弹窗指引。仅 windows 宿主可达（nativeArch 已保证）。 */
+ * 用户 2026-09-28 决策：不创建安装包。bootstrap 变体 WebView2 用系统
+ * Evergreen 运行时，包内附官方 bootstrapper（MicrosoftEdgeWebview2Setup.exe）
+ * 作为修复通道，壳预检缺失时弹窗指引；offline 变体内嵌 Fixed Version 运行时
+ * （webview2-runtime/ 目录，壳以 WEBVIEW2_BROWSER_EXECUTABLE_FOLDER 指向它）。
+ * 仅 windows 宿主可达（nativeArch 已保证）。 */
+export interface WindowsZipExtras {
+  bootstrapper?: string;
+  fixedRuntimeDir?: string;
+}
+
 export function zipPortableWindowsLayout(
   exePath: string,
   layoutDir: string,
-  bootstrapperPath: string,
   dest: string,
+  extras: WindowsZipExtras = {},
 ): void {
   rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
   const top = path.join(PORTABLE_ZIP_STAGE, PORTABLE_TAR_TOPDIR);
@@ -178,7 +185,10 @@ export function zipPortableWindowsLayout(
       path.join(layoutDir, "runtime-manifest.json"),
       path.join(top, "runtime-manifest.json"),
     );
-    copyFileSync(bootstrapperPath, path.join(top, "MicrosoftEdgeWebview2Setup.exe"));
+    if (extras.bootstrapper)
+      copyFileSync(extras.bootstrapper, path.join(top, "MicrosoftEdgeWebview2Setup.exe"));
+    if (extras.fixedRuntimeDir)
+      cpSync(extras.fixedRuntimeDir, path.join(top, "webview2-runtime"), { recursive: true });
     const result = spawnSync(
       "pwsh",
       [
@@ -215,6 +225,91 @@ async function ensureWebView2Bootstrapper(): Promise<string> {
     throw new Error("webview2 bootstrapper payload is not a Windows executable");
   writeFileSync(dest, payload);
   return dest;
+}
+
+/** WebView2 Fixed Version 官方下载页（HTML 静态内嵌全部直链，无需 JS 渲染；
+ * 2026-09-28 curl 实证）。无官方 API（WebView2Feedback#3372），页面结构变化
+ * 时解析失败即 fail-closed 中止构建，不产出残缺 offline 包。 */
+export const WEBVIEW2_DOWNLOAD_PAGE = "https://developer.microsoft.com/en-us/microsoft-edge/webview2/";
+const FIXED_RUNTIME_PATTERN =
+  /msedge\.sf\.dl\.delivery\.mp\.microsoft\.com(?:\\u002F|\/)filestreamingservice(?:\\u002F|\/)files(?:\\u002F|\/)([0-9a-f-]+)(?:\\u002F|\/)(Microsoft\.WebView2\.FixedVersionRuntime\.(\d+\.\d+\.\d+\.\d+)\.(x64|x86|arm64)\.cab)/g;
+
+export interface FixedRuntimeLink {
+  url: string;
+  version: string;
+  arch: "x64" | "x86" | "arm64";
+}
+
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 4; i += 1) {
+    if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) < (pb[i] ?? 0) ? -1 : 1;
+  }
+  return 0;
+}
+
+/** 纯函数：从下载页 HTML 解析每个架构的最高版本 cab 直链。URL 里的
+ * `\u002F` 转义还原为 `/`；同架构多版本取最高（页面保证最新两大版本的
+ * most-patched 可下载）。 */
+export function parseFixedRuntimeLinks(
+  html: string,
+): Map<"x64" | "x86" | "arm64", FixedRuntimeLink> {
+  const best = new Map<"x64" | "x86" | "arm64", FixedRuntimeLink>();
+  for (const match of html.matchAll(FIXED_RUNTIME_PATTERN)) {
+    const guid = match[1] as string;
+    const file = (match[2] as string).replace(/\\u002F/g, "/");
+    const version = match[3] as string;
+    const arch = match[4] as "x64" | "x86" | "arm64";
+    const url = `https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/${guid}/${file}`;
+    const current = best.get(arch);
+    if (current === undefined || compareVersions(version, current.version) > 0)
+      best.set(arch, { url, version, arch });
+  }
+  return best;
+}
+
+const WEBVIEW2_FIXED_CACHE = path.join(ROOT, "build/webview2-fixedruntime");
+
+/** Windows offline zip 的 Fixed Version 运行时（2026-09-28 决策）：抓官方下载
+ * 页取直链（无 API，见 parseFixedRuntimeLinks）→ cab 下载缓存（MSCF 魔数 +
+ * 体积下限校验）→ `expand -F:*` 解压（官方指定方式）。返回解压出的运行时
+ * 目录（Microsoft.WebView2.FixedVersionRuntime.<version>.<arch>/）。 */
+export async function ensureWebView2FixedRuntime(arch: "x64" | "arm64"): Promise<string> {
+  const page = await fetch(WEBVIEW2_DOWNLOAD_PAGE, { redirect: "follow" });
+  if (!page.ok) throw new Error(`webview2 download page fetch failed: HTTP ${page.status}`);
+  const link = parseFixedRuntimeLinks(await page.text()).get(arch);
+  if (link === undefined)
+    throw new Error(`no Fixed Version runtime link for ${arch} on the download page`);
+  const cab = path.join(WEBVIEW2_FIXED_CACHE, `Microsoft.WebView2.FixedVersionRuntime.${link.version}.${arch}.cab`);
+  const extractRoot = path.join(WEBVIEW2_FIXED_CACHE, "extracted", `${link.version}-${arch}`);
+  const runtimeDir = path.join(extractRoot, `Microsoft.WebView2.FixedVersionRuntime.${link.version}.${arch}`);
+  if (existsSync(path.join(runtimeDir, "msedgewebview2.exe"))) return runtimeDir;
+  if (!existsSync(cab)) {
+    const response = await fetch(link.url, { redirect: "follow" });
+    if (!response.ok) throw new Error(`fixed runtime download failed: HTTP ${response.status}`);
+    const payload = Buffer.from(await response.arrayBuffer());
+    if (payload.length < 100_000_000 || payload.subarray(0, 4).toString("ascii") !== "MSCF")
+      throw new Error("fixed runtime payload is not a complete cabinet file");
+    mkdirSync(WEBVIEW2_FIXED_CACHE, { recursive: true });
+    writeFileSync(cab, payload);
+  }
+  rmSync(extractRoot, { recursive: true, force: true });
+  mkdirSync(extractRoot, { recursive: true });
+  // expand.exe（System32 内置）是官方文档指定的 cab 解压方式；-F:* 展开全部
+  // 文件。必须绝对路径调用：Git Bash 环境的 /usr/bin/expand（tab 转空格工具）
+  // 会遮蔽 PATH 查找（本机实证 exit 1）。
+  const systemExpand = path.join(process.env.SystemRoot ?? "C:\Windows", "System32", "expand.exe");
+  const result = spawnSync(systemExpand, [cab, "-F:*", extractRoot], {
+    stdio: "inherit",
+    timeout: 10 * 60_000,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0)
+    throw new Error(`expand failed (${result.error?.message ?? result.status})`);
+  if (!existsSync(path.join(runtimeDir, "msedgewebview2.exe")))
+    throw new Error(`fixed runtime layout unexpected: ${runtimeDir} has no msedgewebview2.exe`);
+  return runtimeDir;
 }
 
 /** Linux offline portable：已产出的自含 AppImage `--appimage-extract`（免 FUSE，
@@ -337,6 +432,7 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
   mkdirSync(output, { recursive: true });
   mkdirSync(overlays, { recursive: true });
   let bootstrapper: string | undefined;
+  let fixedRuntime: string | undefined;
   for (const variant of variants) {
     const target = targets.find((t) => t.os === os && t.arch === arch && t.variant === variant);
     if (!target) throw new Error(`no declared target for ${os}/${arch}/${variant}`);
@@ -403,12 +499,20 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
           tarPortableBootstrapLayout(exe, layout, dest);
         }
       } else if (format === "zip") {
-        // Windows "解压即双击" zip：裸 exe + 发行布局 + WebView2 bootstrapper。
+        // Windows "解压即双击" zip：裸 exe + 发行布局。bootstrap 附官方
+        // bootstrapper sidecar（Evergreen 修复通道）；offline 内嵌 Fixed
+        // Version 运行时（webview2-runtime/，壳启动时指向它，完全离线）。
         runTauriBuild(["build", "--no-bundle"]);
         const exe = path.join(ROOT, "target/release", "xresconv-gui.exe");
         if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
-        if (bootstrapper === undefined) bootstrapper = await ensureWebView2Bootstrapper();
-        zipPortableWindowsLayout(exe, layout, bootstrapper, dest);
+        if (variant === "offline") {
+          if (fixedRuntime === undefined)
+            fixedRuntime = await ensureWebView2FixedRuntime(arch === "x64" ? "x64" : "arm64");
+          zipPortableWindowsLayout(exe, layout, dest, { fixedRuntimeDir: fixedRuntime });
+        } else {
+          if (bootstrapper === undefined) bootstrapper = await ensureWebView2Bootstrapper();
+          zipPortableWindowsLayout(exe, layout, dest, { bootstrapper });
+        }
       } else if (format === "appimage") {
         base.bundle.targets = ["appimage"];
         const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);

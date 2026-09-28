@@ -17,6 +17,7 @@ export const TARGET_OSES: readonly TargetOs[] = ["windows", "macos", "linux"];
 export const TARGET_VARIANTS: readonly TargetVariant[] = ["bootstrap", "offline"];
 export const WEBVIEW_STRATEGIES: readonly WebviewStrategy[] = [
   "webview2-evergreen",
+  "webview2-fixed-runtime",
   "system-only",
   "webkitgtk-system",
   "webkitgtk-bundled",
@@ -36,17 +37,18 @@ export function targetKey(
 }
 
 /**
- * The release baseline as identity keys (2026-09-28 portable-archive decision:
- * Windows ships a single bootstrap-variant zip per arch — the offline variant
- * (bundling the Fixed Version runtime) awaits a CI-automatable acquisition
- * channel and is intentionally absent; Linux ships distro-independent
- * bootstrap + offline tar.zst per arch; macOS keeps dmg x64+arm64 in both
- * variants). validateTargets requires exact set equality with this list.
+ * The release baseline as identity keys (2026-09-28 portable-archive decision,
+ * same-day offline addendum: Windows ships a bootstrap zip (system Evergreen
+ * WebView2 + in-archive bootstrapper sidecar) and an offline zip (bundling the
+ * Fixed Version runtime) per arch; Linux ships distro-independent bootstrap +
+ * offline tar.zst per arch; macOS keeps dmg x64+arm64 in both variants).
+ * validateTargets requires exact set equality with this list.
  */
 export function baselineKeys(): string[] {
   const keys: string[] = [];
   for (const arch of DESKTOP_ARCHES) {
     keys.push(targetKey({ os: "windows", arch, variant: "bootstrap" }));
+    keys.push(targetKey({ os: "windows", arch, variant: "offline" }));
   }
   for (const arch of DESKTOP_ARCHES) {
     for (const variant of TARGET_VARIANTS) {

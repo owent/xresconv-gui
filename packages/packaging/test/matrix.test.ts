@@ -8,7 +8,7 @@ const VERSION = "3.0.0-dev.0";
 describe("buildMatrix (CI-06 aggregate input)", () => {
   it("yields one row per shipped artifact with full metadata", () => {
     const matrix = buildMatrix(realTargetsFile(), VERSION);
-    expect(matrix).toHaveLength(12);
+    expect(matrix).toHaveLength(14);
     for (const row of matrix) {
       expect(row.name.length).toBeGreaterThan(0);
       expect(row.sha256Name).toBe(`${row.name}.sha256`);
@@ -50,17 +50,17 @@ describe("buildMatrix (CI-06 aggregate input)", () => {
       .flatMap((t) => releaseArtifacts(t, VERSION).map((a) => a.name))
       .sort();
     expect(fromMatrix).toEqual(fromNaming);
-    expect(new Set(fromMatrix).size).toBe(12);
+    expect(new Set(fromMatrix).size).toBe(14);
   });
 
-  it("format counts: zip 2, dmg 4, appimage 2, tar.zst 4", () => {
+  it("format counts: zip 4, dmg 4, appimage 2, tar.zst 4", () => {
     const matrix = buildMatrix(realTargetsFile(), VERSION);
     const counts = new Map<string, number>();
     for (const row of matrix) {
       counts.set(row.format, (counts.get(row.format) ?? 0) + 1);
     }
     expect(Object.fromEntries(counts)).toEqual({
-      zip: 2,
+      zip: 4,
       dmg: 4,
       appimage: 2,
       "tar.zst": 4,
@@ -72,6 +72,7 @@ describe("selectMatrix (release CI built-subset verification)", () => {
   // release.yml 当前实际构建的目标（与三个 build job 的 matrix 同步维护）
   const CI_KEYS = [
     "windows/-/x64/bootstrap",
+    "windows/-/x64/offline",
     "macos/-/x64/bootstrap",
     "macos/-/x64/offline",
     "macos/-/arm64/bootstrap",
@@ -93,6 +94,7 @@ describe("selectMatrix (release CI built-subset verification)", () => {
       "xresconv-gui-3.0.0-dev.0-macos-x64-bootstrap.dmg",
       "xresconv-gui-3.0.0-dev.0-macos-x64-offline.dmg",
       "xresconv-gui-3.0.0-dev.0-windows-x64-bootstrap.zip",
+      "xresconv-gui-3.0.0-dev.0-windows-x64-offline.zip",
     ]);
     for (const row of selected) {
       expect(matrix).toContain(row);

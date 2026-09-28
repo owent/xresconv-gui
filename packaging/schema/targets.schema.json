@@ -53,7 +53,7 @@
         },
         "variant": {
           "enum": ["bootstrap", "offline"],
-          "description": "bootstrap: runtime prerequisites come from the system (Windows WebView2 Evergreen with an in-archive bootstrapper sidecar for repair; Linux system WebKitGTK). offline: prerequisites carried in the package (self-contained Linux bundle). Windows offline (bundling the WebView2 Fixed Version runtime) is intentionally absent until a CI-automatable acquisition channel exists (2026-09-28)."
+          "description": "bootstrap: runtime prerequisites come from the system (Windows WebView2 Evergreen with an in-archive bootstrapper sidecar for repair; Linux system WebKitGTK). offline: prerequisites carried in the package (Windows bundles the Fixed Version runtime as webview2-runtime/; Linux self-contained bundle)."
         },
         "targetTriple": {
           "type": "string",
@@ -61,8 +61,14 @@
           "description": "Rust target triple of the Tauri shell build for this target."
         },
         "webviewStrategy": {
-          "enum": ["webview2-evergreen", "system-only", "webkitgtk-system", "webkitgtk-bundled"],
-          "description": "WebView provisioning strategy; the os/variant-coherent value is enforced semantically by @xresconv/packaging. windows: webview2-evergreen (system Evergreen runtime expected, shell preflights it and guides to the in-archive bootstrapper when missing). macos: system-only (WKWebView ships with the OS, D5). linux bootstrap: webkitgtk-system (WebKitGTK 4.1 from the distro, preflight.sh guides). linux offline: webkitgtk-bundled (WebKitGTK/GTK and transitive deps carried in the self-contained package)."
+          "enum": [
+            "webview2-evergreen",
+            "webview2-fixed-runtime",
+            "system-only",
+            "webkitgtk-system",
+            "webkitgtk-bundled"
+          ],
+          "description": "WebView provisioning strategy; the os/variant-coherent value is enforced semantically by @xresconv/packaging. windows bootstrap: webview2-evergreen (system Evergreen runtime expected, shell preflights it and guides to the in-archive bootstrapper when missing). windows offline: webview2-fixed-runtime (Fixed Version runtime bundled in the archive as webview2-runtime/, shell points the loader at it via WEBVIEW2_BROWSER_EXECUTABLE_FOLDER and applies the Win10 AppContainer ACL). macos: system-only (WKWebView ships with the OS, D5). linux bootstrap: webkitgtk-system (WebKitGTK 4.1 from the distro, preflight.sh guides). linux offline: webkitgtk-bundled (WebKitGTK/GTK and transitive deps carried in the self-contained package)."
         },
         "minimumWebview": {
           "type": ["string", "null"],

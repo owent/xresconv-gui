@@ -88,10 +88,17 @@ describe("PK01 negative paths", () => {
   });
 
   it("windows with the legacy installer WebView2 strategy fails coherence", () => {
-    const base = pickTarget((t) => t.os === "windows");
+    const base = pickTarget((t) => t.os === "windows" && t.variant === "bootstrap");
     const bad: ReleaseTarget = { ...base, webviewStrategy: "webkitgtk-bundled" };
     const error = expectFailure(() => validateTargets(asData([bad])), "INCOHERENT_TARGET");
     expect(error.message).toContain("webview2-evergreen");
+  });
+
+  it("windows offline must bundle the fixed runtime, not rely on Evergreen", () => {
+    const base = pickTarget((t) => t.os === "windows" && t.variant === "offline");
+    const bad: ReleaseTarget = { ...base, webviewStrategy: "webview2-evergreen" };
+    const error = expectFailure(() => validateTargets(asData([bad])), "INCOHERENT_TARGET");
+    expect(error.message).toContain("webview2-fixed-runtime");
   });
 
   it("macOS with a webview version floor fails coherence (gate is osVersionRange, D5)", () => {

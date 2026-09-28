@@ -169,10 +169,16 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 
 ### targets.json 与矩阵（22 → 10 行，一行一产物）
 
-- **Windows**：仅 `bootstrap` 变体 ×2 架构，`webviewStrategy=webview2-evergreen`（依赖系统 Evergreen 运行时）。offline 变体（捆绑 WebView2 Fixed Version 运行时）**暂缓**：Fixed Version 官方仅提供门户手动下载（无稳定可编程 URL），无法 CI 自动化获取；待出现可自动化通道再评审加回。产物 `xresconv-gui-<version>-windows-<arch>-bootstrap.zip`。
+- **Windows**：`bootstrap`（`webview2-evergreen`，依赖系统 Evergreen 运行时）与 `offline`（`webview2-fixed-runtime`，捆绑 Fixed Version 运行时）双变体 ×2 架构（同日增补落地，见下节）。产物 `xresconv-gui-<version>-windows-<arch>-{bootstrap,offline}.zip`。
 - **Linux**：`bootstrap`/`offline` ×2 架构共 4 行，**全部无 distro 字段**（产物发行版无关）；构建基线收敛为 Ubuntu 22.04 最老基线（`LINUX_BUILD_BASELINE`，`package-cli` 校验宿主一致，glibc 2.35 地板）。产物：bootstrap `…bootstrap.tar.zst`、offline `…offline.AppImage` + `…offline.tar.zst`（AppImage 并存为 2026-09-27 既有决策）。
 - **macOS**：x64/arm64 × bootstrap/offline 4 行不变，产物仍为 DMG 安装器（`formatFor` 仅存 dmg；windows/linux 调用 throw `NO_INSTALLER_FORMAT`）。
 - `buildMatrix` 改为一行一**产物**（linux offline 一行 target 出两行产物）；manifest schema 删除 `distro` 字段、`webviewStrategy` 枚举更新、`webview2-offline-installer` payload 移除。
+
+### Windows offline：Fixed Version 运行时内嵌（2026-09-28 同日增补，用户授权调研决策）
+
+调研结论（来源索引同日条目）：Fixed Version 无官方下载 API（WebView2Feedback#3372），但官方下载页 HTML **静态内嵌**最新两大版本 × 三架构的 cab 直链（curl 实证，无需 JS 渲染）——`parseFixedRuntimeLinks` 抓页解析（/ 转义还原、同架构取最高版本），页面结构变化即解析失败 → 构建 fail-closed。cab（x64 ≈294MB）下载缓存 `build/webview2-fixedruntime/`（MSCF 魔数 + 体积下限校验），`expand -F:*` 解压（官方指定方式），zip 内固定目录 `webview2-runtime/`（去版本号）。备选方案（Evergreen Standalone Installer 附加资产 / 自仓缓存）因"需先安装才可运行"或"版本冻结需人工滚动"被否。
+
+运行时链路：壳预检发现 exe 旁 `webview2-runtime/msedgewebview2.exe` → `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 指向该目录（loader env var 优先级最高、提权宿主下也生效——wry#1782；相邻目录不被 loader 自动发现）→ 幂等补 Win10 Fixed≥120 要求的 AppContainer 读执行 ACL（S-1-15-2-2 / S-1-15-2-1，官方 icacls 等价的 DACL 实现；失败仅告警不阻塞，Win11 无此要求）→ 跳过注册表预检（版本由打包合同保证 ≥120）。固定 runtime 不自动更新，安全补丁随发行滚动（offline 语义固有代价，官方文档明示）。
 
 ### Windows zip 内容与 WebView2 策略
 
