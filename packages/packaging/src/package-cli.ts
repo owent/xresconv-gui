@@ -242,8 +242,10 @@ export function tarZstPortableWindowsLayout(
   // - 盘符冒号：GNU tar 当远程主机语法（叠加 MSYS 反斜杠转义 → broken
   //   pipe），需 --force-local + 正斜杠；bsdtar 不支持 --force-local（致命
   //   错误），但正斜杠盘符路径本身可用 → 按 --version 探测实现自适应。
-  // - 压缩级别：两者 --use-compress-program 皆支持（外部 zstd -19 -T0）；
-  //   bsdtar --zstd 不收级别、--options 不存在。
+  // - 外部压缩程序经 tar 管道（--use-compress-program）在 CI 的 bsdtar +
+  //   Win32 zstd 组合上大流量死锁（run 36434085221 超时 15min 被杀；本机
+  //   GNU tar + MSYS zstd 正常——小样本实测曾掩盖该差异）→ 改两步走：
+  //   无压缩 tar 打包，再由 zstd 直接压文件（纯文件 IO，无跨进程管道）。
   const tarVersion = spawnSync("tar", ["--version"], {
     encoding: "utf8",
     timeout: 10_000,
@@ -251,20 +253,11 @@ export function tarZstPortableWindowsLayout(
   });
   const isBsdtar = (tarVersion.stdout ?? "").includes("bsdtar");
   const posix = (value: string) => value.replaceAll("\\", "/");
-  const base = [
-    ...(isBsdtar ? [] : ["--force-local"]),
-    "-cf",
-    posix(dest),
-    "-C",
-    posix(PORTABLE_ZIP_STAGE),
-    PORTABLE_TAR_TOPDIR,
-  ];
+  const stagingTar = path.join(ROOT, "build/portable-tar-staging.tar");
   try {
-    // 级别/线程控制走外部 zstd 过滤程序（--use-compress-program 是 GNU tar 与
-    // bsdtar 的公共子集；bsdtar 3.8.8 的 --zstd 不接受级别、--options 不存在，
-    // 本机实测）。zstd 不可用时**抛错而非静默回退**：内置压缩器是默认级别，
-    // offline 产物会从 ~262MiB 劣化到 ~329MiB（run 36428739745 实证），静默
-    // 劣化比失败更糟。Git Bash 与 GitHub Windows 镜像均预装 zstd（C:\tools\zstd）。
+    // zstd 不可用时抛错而非静默回退：tar 内置压缩器是默认级别，offline 产物
+    // 会从 ~262MiB 劣化到 ~329MiB（run 36428739745 实证）。Git Bash 与
+    // GitHub Windows 镜像均预装 zstd。
     const zstd = spawnSync("zstd", ["--version"], {
       encoding: "utf8",
       timeout: 10_000,
@@ -274,17 +267,35 @@ export function tarZstPortableWindowsLayout(
       throw new Error(
         `external zstd is required for the offline tar.zst (zstd -19 -T0); install zstd or use CI (${zstd.error?.message ?? zstd.stderr?.trim() ?? "not found in PATH"})`,
       );
-    const multithreaded = spawnSync(
+    const packed = spawnSync(
       "tar",
-      ["--use-compress-program", "zstd -19 -T0", ...base],
-      { encoding: "utf8", timeout: 15 * 60_000, windowsHide: true },
+      [
+        ...(isBsdtar ? [] : ["--force-local"]),
+        "-cf",
+        posix(stagingTar),
+        "-C",
+        posix(PORTABLE_ZIP_STAGE),
+        PORTABLE_TAR_TOPDIR,
+      ],
+      { stdio: "inherit", timeout: 10 * 60_000, windowsHide: true },
     );
-    if (multithreaded.status !== 0)
+    if (packed.error || packed.status !== 0)
       throw new Error(
-        `tar zstd -19 -T0 failed (${multithreaded.status}): ${multithreaded.stderr?.trim()}`,
+        `tar (uncompressed staging) failed (${packed.error?.message ?? packed.status})`,
+      );
+    // -T0 = 按 CPU 核数多线程（本机 8 核 L19 ≈49s）；-f 覆盖已存在产物。
+    const compressed = spawnSync(
+      "zstd",
+      ["-19", "-T0", "-f", posix(stagingTar), "-o", posix(dest)],
+      { stdio: "inherit", timeout: 15 * 60_000, windowsHide: true },
+    );
+    if (compressed.error || compressed.status !== 0)
+      throw new Error(
+        `zstd -19 -T0 failed (${compressed.error?.message ?? compressed.status})`,
       );
   } finally {
     rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
+    rmSync(stagingTar, { force: true });
   }
 }
 
