@@ -37,7 +37,7 @@ export interface TreeTerminateReport {
 export interface ProcessScope {
   readonly name: string;
   readonly backend: ProcessTreeBackend;
-  /** POSIX 注入 detached:true；Windows 原样返回。spawn 前调用。 */
+  /** POSIX 注入 detached:true；Windows 禁止受监督子进程弹出控制台。spawn 前调用。 */
   decorateSpawnOptions<T extends SpawnOptions>(options: T): T;
   /** 登记子进程所有权；spawn 成功后立即调用。 */
   register(child: ChildProcess): void;
@@ -239,7 +239,7 @@ class ProcessScopeImpl implements ProcessScope {
     if (this.backend === "process-group") {
       return { ...options, detached: true };
     }
-    return { ...options };
+    return { ...options, windowsHide: true };
   }
 
   register(child: ChildProcess): void {

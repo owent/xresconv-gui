@@ -184,6 +184,8 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 
 两种归档的顶层目录均为 `xresconv-gui/`：应用 exe、构建产物附带时的 `WebView2Loader.dll`、`runtime/`、`app/`、`runtime-manifest.json`。bootstrap 另附官方 `MicrosoftEdgeWebview2Setup.exe`，使用 PowerShell 7 的 .NET `ZipFile.CreateFromDirectory` 压缩；路径经环境变量传递，保留隐藏文件，不拼接 PowerShell 代码。offline 另附 `webview2-runtime/` 和记录语言策略/删减统计的 `webview2-runtime-policy.json`。
 
+Windows 两种归档共用的 GUI 壳必须以无控制台方式启动 Node guardian，guardian 的受监督 Node 子进程也不得弹出控制台；否则用户关闭弹出的控制台会中断 guardian 的 stdout 协议管道。发布前的 Windows 回归门禁和发行包实测见 [控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
+
 ### Windows offline 压缩与语言策略（2026-09-29）
 
 构建使用独立 `build/windows-archive-*` 暂存目录：`tar -cf payload.tar xresconv-gui` → `zstd -19 -T0 --long=27 payload.tar -o payload.tar.zst` → `zstd -t`。tar 参数全部是相对路径，兼容 GNU tar 与 bsdtar，无需猜测实现；不使用跨进程压缩管道、不回退默认压缩级别。128 MiB 长窗口增加解压内存需求，保持 zstd 默认允许的窗口范围；更高窗口与 L22 未作为默认。复制/压缩/校验失败清理本次暂存并保留旧产物，成功替换前使旧校验文件失效，随后由 CLI 写新 SHA-256。

@@ -303,6 +303,7 @@ impl GuardianClient {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
+        crate::windowless_process::configure_background_command(&mut command);
         // F10/F11：--log-configure 由壳 CLI 解析后经 env 接力给 guardian → backend。
         if let Some(path) = guardian_log_configure() {
             command.env("XRESCONV_LOG_CONFIGURE", path);
@@ -591,6 +592,41 @@ impl GuardianState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn gui_shell_does_not_create_a_guardian_console() {
+        // A cargo test executable is a console process. Launch a tiny GUI
+        // subsystem parent that uses the exact production Command helper.
+        let root = workspace_root();
+        let probe_dir = root
+            .join("build")
+            .join("console-process-test")
+            .join(format!("{}", std::process::id()));
+        std::fs::create_dir_all(&probe_dir).unwrap();
+        let fixture = probe_dir.join("windowless-launcher.exe");
+        let result_file = probe_dir.join("console.txt");
+        let compiled = Command::new("rustc")
+            .arg("--edition=2021")
+            .arg(root.join("tests/fixtures/windowless-launcher.rs"))
+            .arg("-o")
+            .arg(&fixture)
+            .output()
+            .expect("compile GUI parent fixture");
+        assert!(
+            compiled.status.success(),
+            "fixture compiler failed: {compiled:?}"
+        );
+        let status = Command::new(&fixture)
+            .arg(&result_file)
+            .current_dir(&root)
+            .status()
+            .expect("launch GUI parent fixture");
+        assert!(status.success(), "GUI parent fixture failed: {status:?}");
+        let result = std::fs::read_to_string(&result_file).expect("console probe result");
+        let _ = std::fs::remove_dir_all(&probe_dir);
+        assert_eq!(result, "none", "guardian child acquired a console");
+    }
 
     #[test]
     fn forged_reply_cannot_settle_a_request_successfully() {

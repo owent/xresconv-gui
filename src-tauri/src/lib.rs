@@ -11,6 +11,7 @@ use tauri_plugin_cli::CliExt;
 
 mod guardian;
 mod webview_preflight;
+mod windowless_process;
 
 pub use webview_preflight::ensure_webview2_or_exit;
 

@@ -58,6 +58,8 @@ guardian 管理各进程作用域，backend 发起已校验的执行请求；每
 
 Tauri→guardian 优先使用 sidecar 私有 stdin/stdout 字节管道：guardian 的 stdout 专用于控制，内部日志走 stderr；脚本/Java stdout/stderr 从独立子管道读取，不能透传成 guardian 控制帧。若 Tauri 插件不能提供所需字节语义，P2-01 冻结最小流适配，不为此引入 HTTP 服务。
 
+Windows GUI 壳启动 console-subsystem 的 Node guardian 时使用 `CREATE_NO_WINDOW`，保留上述管道；guardian 管理的子进程经 `ProcessScope.decorateSpawnOptions` 统一设置 `windowsHide: true`。关闭应用窗口按生命周期协议停止进程，不依赖关闭控制台。发行包故障复现与验证见 [2026-09-29 控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
+
 字节通道拟定帧为 4 字节大端长度 + UTF-8 JSON，初始上限 1 MiB；分块大快照，接收前验证长度和预算。guardian→可信 backend 使用 `child_process.fork` 的 IPC，明确 `execPath`/serialization 并处理 send 背压。Node 内置 IPC 已在 message 回调前解析，不能声称 Ajv 提供预分配长度防护；脚本/不受控扩展使用 spawn + 专用有界字节通道，独立于日志，P2-01 验证三平台实现。
 
 Node IPC 的发送回调仅确认发送情况，不表示业务已完成；必须有应用层 ACK/Complete。禁止用 NODE_ 前缀的保留 cmd，也不把 advanced serialization 当跨 Tauri 协议。按钮 data/闭包仍留在 worker 内。[Node child_process](https://nodejs.org/api/child_process.html)

@@ -5,7 +5,7 @@
  * - taskkill 回退后端同样完成树终止。
  * 所有等待均有显式上限。
  */
-import { spawn } from "node:child_process";
+import { type SpawnOptions, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
@@ -75,6 +75,21 @@ async function spawnTree(scope: ProcessScope): Promise<[number, number]> {
 }
 
 describe("process tree scope (P2-02)", () => {
+  it.skipIf(process.platform !== "win32")(
+    "scoped subprocesses cannot open a visible Windows console",
+    async () => {
+      const scope = createProcessScope({ name: "t-windowless" });
+      try {
+        const options = scope.decorateSpawnOptions({ stdio: "pipe" });
+        const overridden = scope.decorateSpawnOptions({ stdio: "pipe", windowsHide: false });
+        expect((options as SpawnOptions).windowsHide).toBe(true);
+        expect(overridden.windowsHide).toBe(true);
+      } finally {
+        await scope.dispose();
+      }
+    },
+  );
+
   it(
     "terminate reaps a registered child with close-confirmed evidence",
     async () => {

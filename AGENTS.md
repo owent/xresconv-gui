@@ -54,6 +54,7 @@
 - 用户自定义脚本在独立 Node worker 中执行，可信脚本可访问本地模块与进程；故障隔离不等于防恶意沙箱。保持 `resolve()`/`reject()` 和弹框回调约定，不向脚本提供 DOM/jQuery/Electron。详见 `docs/plan/02-contracts-script-host.md`。
 - GUI 与文件编码统一 UTF-8；Windows 默认 GBK，文件名建议全英文（见 README“注意事项”）。
 - src-tauri 中被 `#[cfg(test)]` 测试引用的模块不得触碰 tauri/wry 运行时类型（如 `AppHandle`/`Emitter`）：测试 exe 无 SxS manifest，经 Drop glue 保留 wry 对话框代码会导入 comctl32 v6 专有符号，进程加载即 0xc0000139。事件出口用注入闭包（P4-02 `EventSink`，诊断工具 `build/tools/check-imports.mjs`）。
+- Windows 发行壳是 GUI subsystem；启动 Node guardian 必须经 `windowless_process` 设置 `CREATE_NO_WINDOW`，受监督子进程必须经 `ProcessScope.decorateSpawnOptions` 设置 `windowsHide`。仅数 `conhost.exe` 不足以判断是否弹窗；回归见 `gui_shell_does_not_create_a_guardian_console` 和 [发行包实测](docs/plan/records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 
 - Windows offline 压缩必须保持 tar 文件 → 外部 zstd 文件两步，不恢复 tar 压缩管道（CI 大负载死锁已有实证）。用真实负载验证压缩/解压，不能以小样本或退出码替代产物校验。语言裁剪默认关闭，须显式选 `--webview-locales=mainstream` 并复验固定运行时版本。
 
