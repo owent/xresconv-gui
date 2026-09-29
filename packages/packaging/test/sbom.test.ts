@@ -15,7 +15,7 @@ function file(partial: Partial<ManifestFile> & { path: string }): ManifestFile {
 function manifest(files: ManifestFile[]): RuntimeManifest {
   return {
     schemaVersion: 1,
-    appVersion: "3.0.0-dev.0",
+    appVersion: "3.0.0-dev.1",
     sourceCommit: "0".repeat(40),
     targetTriple: "x86_64-pc-windows-msvc",
     os: "windows",
@@ -111,7 +111,7 @@ describe("packageInventory / buildSpdx（P5-07 SBOM 部分）", () => {
       expect(rel.spdxElementId).toBe(appPkg?.SPDXID);
       expect(rel.relationshipType).toBe("DEPENDS_ON");
     }
-    expect(doc.documentNamespace).toContain("3.0.0-dev.0");
+    expect(doc.documentNamespace).toContain("3.0.0-dev.1");
   });
 });
 

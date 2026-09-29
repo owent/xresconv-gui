@@ -1,7 +1,7 @@
 更新记录
 ==========
 
-3.0.0-dev.0
+3.0.0-dev.1
 ------
 
 1. 架构重写：以 Tauri 2 薄壳 + 系统 WebView + 独立 Node.js 业务内核替代旧 Electron 架构，支持 Windows / Linux / macOS（64 位）。

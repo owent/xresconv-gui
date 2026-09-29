@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
         if (command === "get_cli_matches") return { input: { value: snapshot.config.path } };
         if (command === "read_display_settings") return settings;
         if (command === "write_display_settings") { settings = args; return; }
-        if (command === "get_app_info") return { name: "xresconv-gui", version: "3.0.0-dev.0", protocol_version: 1 };
+        if (command === "get_app_info") return { name: "xresconv-gui", version: "3.0.0-dev.1", protocol_version: 1 };
         if (command === "get_backend_health") return { ok: true, node: "v24.21.0", backend: { state: "ready", generation: 1 } };
         if (command === "plugin:event|listen") { if (args.event === "xresconv-event") eventHandler = Number(args.handler); return args.handler; }
         if (command === "plugin:event|unlisten") return;

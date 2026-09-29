@@ -15,7 +15,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   isTauri: () => false,
   invoke: vi.fn(async (cmd: string) => {
     if (cmd === "get_app_info") {
-      return { name: "xresconv-gui", version: "3.0.0-dev.0", protocol_version: 1 };
+      return { name: "xresconv-gui", version: "3.0.0-dev.1", protocol_version: 1 };
     }
     if (cmd === "get_cli_matches") {
       return { input: { value: "tests/fixtures/config/basic.xml" } };
@@ -77,7 +77,7 @@ function defaultInvokeImpl(cmd: string, args?: unknown): Promise<unknown> {
     });
   }
   if (cmd === "get_app_info") {
-    return Promise.resolve({ name: "xresconv-gui", version: "3.0.0-dev.0", protocol_version: 1 });
+    return Promise.resolve({ name: "xresconv-gui", version: "3.0.0-dev.1", protocol_version: 1 });
   }
   if (cmd === "get_cli_matches") {
     return Promise.resolve({ "log-configure": { value: "log4js.json" } });
@@ -111,7 +111,7 @@ async function renderAndSettle() {
   const log = await screen.findByRole("log", { name: "日志列表" });
   await waitFor(() => {
     const text = log.textContent ?? "";
-    expect(text).toContain("xresconv-gui v3.0.0-dev.0 · protocol v1");
+    expect(text).toContain("xresconv-gui v3.0.0-dev.1 · protocol v1");
     expect(text).toContain("guardian ok · node v24.21.0");
     expect(text).toContain('Java 环境：openjdk version "17.0.9" 2023-10-17');
   });
@@ -164,7 +164,7 @@ describe("App shell (P4-01)", () => {
   it("routes handshake info from the shell into the run log", async () => {
     const log = await renderAndSettle();
     const text = log.textContent ?? "";
-    expect(text).toContain("xresconv-gui v3.0.0-dev.0 · protocol v1");
+    expect(text).toContain("xresconv-gui v3.0.0-dev.1 · protocol v1");
     expect(text).toContain("backend ready · pid 1235 · generation 1");
     // 主面板不再有常驻状态行（版本/健康/Java 都只在日志里）。
     expect(screen.queryByTestId("backend-health")).toBeNull();
@@ -234,7 +234,7 @@ describe("App shell (P4-01)", () => {
     );
     await waitFor(() =>
       expect(screen.getByRole("log", { name: "日志列表" }).textContent ?? "").toContain(
-        "xresconv-gui v3.0.0-dev.0",
+        "xresconv-gui v3.0.0-dev.1",
       ),
     );
     expect(invokeCallCount("get_app_info")).toBe(1);

@@ -164,7 +164,7 @@ describe("display settings bootstrap (auto-load retry)", () => {
         case "get_app_info":
           return Promise.resolve({
             name: "xresconv-gui",
-            version: "3.0.0-dev.0",
+            version: "3.0.0-dev.1",
             protocol_version: 1,
           });
         case "get_cli_matches":

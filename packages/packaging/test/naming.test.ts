@@ -11,7 +11,7 @@ import {
 import type { PortableFormat } from "../src/types.ts";
 import { pickTarget, realTargetsFile } from "./fixtures.ts";
 
-const VERSION = "3.0.0-dev.0";
+const VERSION = "3.0.0-dev.1";
 
 describe("artifactName (installer naming; macOS dmg only since the 2026-09-28 portable decision)", () => {
   it("names the macOS dmg targets", () => {
@@ -20,13 +20,13 @@ describe("artifactName (installer naming; macOS dmg only since the 2026-09-28 po
         pickTarget((t) => t.os === "macos" && t.arch === "x64"),
         VERSION,
       ),
-    ).toBe("xresconv-gui-3.0.0-dev.0-macos-x64-bootstrap.dmg");
+    ).toBe("xresconv-gui-3.0.0-dev.1-macos-x64-bootstrap.dmg");
     expect(
       artifactName(
         pickTarget((t) => t.os === "macos" && t.arch === "arm64"),
         VERSION,
       ),
-    ).toBe("xresconv-gui-3.0.0-dev.0-macos-arm64-bootstrap.dmg");
+    ).toBe("xresconv-gui-3.0.0-dev.1-macos-arm64-bootstrap.dmg");
   });
 
   it("windows/linux targets have no installer format (portable archives only)", () => {
@@ -67,47 +67,47 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
       [
         (t) => t.os === "macos" && t.arch === "x64" && t.variant === "offline",
         "app.zip",
-        "xresconv-gui-3.0.0-dev.0-macos-x64-offline.app.zip",
+        "xresconv-gui-3.0.0-dev.1-macos-x64-offline.app.zip",
       ],
       [
         (t) => t.os === "macos" && t.arch === "arm64" && t.variant === "offline",
         "app.zip",
-        "xresconv-gui-3.0.0-dev.0-macos-arm64-offline.app.zip",
+        "xresconv-gui-3.0.0-dev.1-macos-arm64-offline.app.zip",
       ],
       [
         (t) => t.os === "windows" && t.arch === "x64",
         "zip",
-        "xresconv-gui-3.0.0-dev.0-windows-x64-bootstrap.zip",
+        "xresconv-gui-3.0.0-dev.1-windows-x64-bootstrap.zip",
       ],
       [
         (t) => t.os === "windows" && t.arch === "arm64",
         "zip",
-        "xresconv-gui-3.0.0-dev.0-windows-arm64-bootstrap.zip",
+        "xresconv-gui-3.0.0-dev.1-windows-arm64-bootstrap.zip",
       ],
       [
         (t) => t.os === "windows" && t.arch === "x64" && t.variant === "offline",
         "tar.zst",
-        "xresconv-gui-3.0.0-dev.0-windows-x64-offline.tar.zst",
+        "xresconv-gui-3.0.0-dev.1-windows-x64-offline.tar.zst",
       ],
       [
         (t) => t.os === "linux" && t.variant === "bootstrap" && t.arch === "x86_64",
         "tar.zst",
-        "xresconv-gui-3.0.0-dev.0-linux-x86_64-bootstrap.tar.zst",
+        "xresconv-gui-3.0.0-dev.1-linux-x86_64-bootstrap.tar.zst",
       ],
       [
         (t) => t.os === "linux" && t.variant === "offline" && t.arch === "x86_64",
         "tar.zst",
-        "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.tar.zst",
+        "xresconv-gui-3.0.0-dev.1-linux-x86_64-offline.tar.zst",
       ],
       [
         (t) => t.os === "linux" && t.variant === "offline" && t.arch === "x86_64",
         "appimage",
-        "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.AppImage",
+        "xresconv-gui-3.0.0-dev.1-linux-x86_64-offline.AppImage",
       ],
       [
         (t) => t.os === "linux" && t.variant === "offline" && t.arch === "aarch64",
         "tar.zst",
-        "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.tar.zst",
+        "xresconv-gui-3.0.0-dev.1-linux-aarch64-offline.tar.zst",
       ],
     ];
     for (const [pred, format, expected] of cases) {
@@ -178,14 +178,14 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
 
   it("pins the portable verification scope (8 artifacts: macOS app.zip + Linux bootstrap/offline tar.zst + offline AppImage)", () => {
     expect(portableArtifactNames(realTargetsFile(), VERSION)).toEqual([
-      "xresconv-gui-3.0.0-dev.0-linux-aarch64-bootstrap.tar.zst",
-      "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.AppImage",
-      "xresconv-gui-3.0.0-dev.0-linux-aarch64-offline.tar.zst",
-      "xresconv-gui-3.0.0-dev.0-linux-x86_64-bootstrap.tar.zst",
-      "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.AppImage",
-      "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.tar.zst",
-      "xresconv-gui-3.0.0-dev.0-macos-arm64-offline.app.zip",
-      "xresconv-gui-3.0.0-dev.0-macos-x64-offline.app.zip",
+      "xresconv-gui-3.0.0-dev.1-linux-aarch64-bootstrap.tar.zst",
+      "xresconv-gui-3.0.0-dev.1-linux-aarch64-offline.AppImage",
+      "xresconv-gui-3.0.0-dev.1-linux-aarch64-offline.tar.zst",
+      "xresconv-gui-3.0.0-dev.1-linux-x86_64-bootstrap.tar.zst",
+      "xresconv-gui-3.0.0-dev.1-linux-x86_64-offline.AppImage",
+      "xresconv-gui-3.0.0-dev.1-linux-x86_64-offline.tar.zst",
+      "xresconv-gui-3.0.0-dev.1-macos-arm64-offline.app.zip",
+      "xresconv-gui-3.0.0-dev.1-macos-x64-offline.app.zip",
     ]);
   });
 

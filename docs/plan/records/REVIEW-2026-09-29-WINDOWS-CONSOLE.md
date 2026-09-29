@@ -4,7 +4,7 @@
 
 ## 症状与复现
 
-用户下载的 `v3.0.0-dev.0` Windows x64 bootstrap ZIP（SHA-256 `eee632257b7e69d6117c4d20b88aca13b8f9b428da0ef4baf9e7ef12d9e18a17`）解压启动后出现额外控制台窗口。关闭该窗口后，GUI 报 `后端进程已退出：guardian stdout closed: failed to fill whole buffer`。
+用户下载的 `v3.0.0-dev.1` Windows x64 bootstrap ZIP（SHA-256 `eee632257b7e69d6117c4d20b88aca13b8f9b428da0ef4baf9e7ef12d9e18a17`）解压启动后出现额外控制台窗口。关闭该窗口后，GUI 报 `后端进程已退出：guardian stdout closed: failed to fill whole buffer`。
 
 以实际下载包隔离启动，Win32 `AttachConsole(pid)` / `GetConsoleWindow()` / `IsWindowVisible()` 检测到 guardian、backend 和两个 worker 共用一个**可见**控制台。壳使用 Windows GUI subsystem；它启动的 Node 是 console subsystem，原 `Command` 没有禁止创建控制台的标志。Rust 的 `spawn_reader` 在 guardian stdout 管道断开后按协议报告 EOF，因此该错误是进程退出后的结果，而非 JSON 帧解析问题。没有为复现主动关闭控制台以免终止用户任务；错误与进程生命周期的因果关系由源码和操作系统行为解释。
 

@@ -129,7 +129,7 @@ beforeAll(async () => {
     path.join(contractsDest, "package.json"),
     JSON.stringify({
       name: "@xresconv/contracts",
-      version: "3.0.0-dev.0",
+      version: "3.0.0-dev.1",
       exports: { "./schema/*": "./schema/*" },
     }),
     "utf8",

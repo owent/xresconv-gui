@@ -3,7 +3,7 @@ import { targetKey } from "../src/baseline.ts";
 import { buildMatrix, releaseArtifacts, selectMatrix } from "../src/matrix.ts";
 import { realTargetsFile } from "./fixtures.ts";
 
-const VERSION = "3.0.0-dev.0";
+const VERSION = "3.0.0-dev.1";
 
 describe("buildMatrix (CI-06 aggregate input)", () => {
   it("yields one row per shipped artifact with full metadata", () => {
@@ -87,15 +87,15 @@ describe("selectMatrix (release CI built-subset verification)", () => {
     const selected = selectMatrix(matrix, CI_KEYS);
     // linux offline 选一行 key 带出两个产物（AppImage + tar.zst）
     expect(selected.map((row) => row.name)).toEqual([
-      "xresconv-gui-3.0.0-dev.0-linux-x86_64-bootstrap.tar.zst",
-      "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.AppImage",
-      "xresconv-gui-3.0.0-dev.0-linux-x86_64-offline.tar.zst",
-      "xresconv-gui-3.0.0-dev.0-macos-arm64-bootstrap.dmg",
-      "xresconv-gui-3.0.0-dev.0-macos-arm64-offline.dmg",
-      "xresconv-gui-3.0.0-dev.0-macos-x64-bootstrap.dmg",
-      "xresconv-gui-3.0.0-dev.0-macos-x64-offline.dmg",
-      "xresconv-gui-3.0.0-dev.0-windows-x64-bootstrap.zip",
-      "xresconv-gui-3.0.0-dev.0-windows-x64-offline.tar.zst",
+      "xresconv-gui-3.0.0-dev.1-linux-x86_64-bootstrap.tar.zst",
+      "xresconv-gui-3.0.0-dev.1-linux-x86_64-offline.AppImage",
+      "xresconv-gui-3.0.0-dev.1-linux-x86_64-offline.tar.zst",
+      "xresconv-gui-3.0.0-dev.1-macos-arm64-bootstrap.dmg",
+      "xresconv-gui-3.0.0-dev.1-macos-arm64-offline.dmg",
+      "xresconv-gui-3.0.0-dev.1-macos-x64-bootstrap.dmg",
+      "xresconv-gui-3.0.0-dev.1-macos-x64-offline.dmg",
+      "xresconv-gui-3.0.0-dev.1-windows-x64-bootstrap.zip",
+      "xresconv-gui-3.0.0-dev.1-windows-x64-offline.tar.zst",
     ]);
     for (const row of selected) {
       expect(matrix).toContain(row);

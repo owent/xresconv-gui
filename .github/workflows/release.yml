@@ -182,7 +182,7 @@ jobs:
           file: "build/release-artifacts/**/*"
           tags: true
           draft: true
-          # 含 prerelease 后缀的 tag（如 v3.0.0-dev.0、v3.0.0-rc.1）标记为
+          # 含 prerelease 后缀的 tag（如 v3.0.0-dev.1、v3.0.0-rc.1）标记为
           # pre-release；正式版 tag（如 v3.0.0）保持 false。
           prerelease: ${{ contains(github.ref_name, '-') }}
           overwrite: false

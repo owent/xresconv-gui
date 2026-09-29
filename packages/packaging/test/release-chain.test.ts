@@ -105,7 +105,7 @@ beforeAll(async () => {
       path: process.execPath,
       source: `local-test-copy:node-v${process.versions.node}-${process.platform}-${process.arch}`,
     },
-    appVersion: "3.0.0-dev.0",
+    appVersion: "3.0.0-dev.1",
     sourceCommit: SAMPLE_COMMIT,
     repositorySnapshot: {
       repository: "https://github.com/xresloader/xresconv-gui.git",
