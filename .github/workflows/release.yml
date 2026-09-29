@@ -1,8 +1,8 @@
 name: release
 
 # 新架构发行（P5 CI-04/CI-06 + 2026-09-28 portable 归档决策）：仅 v3 标签触发。
-# Windows = 解压即用归档（bootstrap zip 双击解压 + 系统 Evergreen；offline
-# tar.zst 内嵌 Fixed Version 运行时完全离线，用支持 zstd 的工具解压，
+# Windows = 解压即用 7z 归档（bootstrap 附 Evergreen 引导器；offline
+# 内嵌 Fixed Version 运行时完全离线，用支持 7z 的工具解压，
 # 无安装器）；Linux = 发行版无关 tar.zst（bootstrap
 # 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
 # ——两者与 --portable 与否无关；macOS 保持 dmg 双变体（不签名——签名/公证
@@ -37,33 +37,30 @@ jobs:
         variant: [bootstrap, offline]
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable
-      - name: Ensure zstd for offline tar.zst
-        if: matrix.variant == 'offline'
+      - name: Check 7-Zip
         shell: pwsh
-        run: ./scripts/ensure-zstd.ps1
+        run: |
+          7z i > $null
+          if ($LASTEXITCODE -ne 0) { throw '7-Zip is required for Windows release archives' }
       - run: corepack yarn install --immutable
       - run: corepack yarn package:windows --variant=${{ matrix.variant }}
       # actions/upload-artifact v7.0.1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
           name: artifacts-windows-x64-${{ matrix.variant }}
-          # bootstrap=zip（双击解压）；offline=tar.zst（zstd 压缩，体积优化）。
-          # 两组 glob 各匹配对应变体的单一产物，另一组匹配空——upload-artifact
-          # 仅当合并集合为空才 error，故混合 glob 对两变体均成立。
+          # 双变体均为 7z，归档与 SHA-256 必须同时上传。
           path: |
-            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.zip
-            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.zip.sha256
-            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.tar.zst
-            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.tar.zst.sha256
+            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.7z
+            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.7z.sha256
 
   build-linux:
     name: build linux ${{ matrix.distro }} x86_64
@@ -78,11 +75,11 @@ jobs:
             variant: all
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: |
@@ -92,7 +89,7 @@ jobs:
       - run: corepack yarn install --immutable
       - run: corepack yarn package:linux --variant=${{ matrix.variant }} --distro=${{ matrix.distro }}
       # actions/upload-artifact v7.0.1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
           name: artifacts-linux-${{ matrix.distro }}-x86_64
@@ -117,11 +114,11 @@ jobs:
             runner: macos-15
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable
@@ -130,7 +127,7 @@ jobs:
       - run: corepack yarn package:macos --variant=${{ matrix.variant }} --arch=${{ matrix.arch }}
 
       # actions/upload-artifact v7.0.1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
           name: artifacts-macos-${{ matrix.arch }}-${{ matrix.variant }}
@@ -147,17 +144,17 @@ jobs:
       contents: write
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable
       - run: corepack yarn install --immutable
       # actions/download-artifact v8.0.1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@v8.0.1
         with:
           path: build/release-artifacts
       - name: Verify artifact set equals expected matrix
@@ -175,7 +172,7 @@ jobs:
           RELEASE_VERSION: ${{ github.ref_name }}
       - name: Create draft release (no overwrite)
         # xresloader/upload-to-github-release v1.6.2
-        uses: xresloader/upload-to-github-release@7c5757a90c0bcf0c0e1741da8f2abd7b85e675d0
+        uses: xresloader/upload-to-github-release@v1.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

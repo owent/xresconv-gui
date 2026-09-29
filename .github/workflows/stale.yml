@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # actions/stale v11.0.0（保持 90 天与豁免标签语义；最小权限，不自动关闭）
-      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93
+      - uses: actions/stale@v11.0.0
         with:
           stale-issue-message: "This issue was marked as stale due to lack of activity."
           days-before-issue-stale: 90

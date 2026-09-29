@@ -61,7 +61,7 @@ describe("artifactName (installer naming; macOS dmg only since the 2026-09-28 po
   );
 });
 
-describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst + AppImage)", () => {
+describe("portable artifact naming (Windows 7z / macOS .app.zip / Linux tar.zst + AppImage)", () => {
   it("derives portable names from the locked distro-free base name", () => {
     const cases: Array<[Parameters<typeof pickTarget>[0], PortableFormat, string]> = [
       [
@@ -76,18 +76,18 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
       ],
       [
         (t) => t.os === "windows" && t.arch === "x64",
-        "zip",
-        "xresconv-gui-3.0.0-dev.1-windows-x64-bootstrap.zip",
+        "7z",
+        "xresconv-gui-3.0.0-dev.1-windows-x64-bootstrap.7z",
       ],
       [
         (t) => t.os === "windows" && t.arch === "arm64",
-        "zip",
-        "xresconv-gui-3.0.0-dev.1-windows-arm64-bootstrap.zip",
+        "7z",
+        "xresconv-gui-3.0.0-dev.1-windows-arm64-bootstrap.7z",
       ],
       [
         (t) => t.os === "windows" && t.arch === "x64" && t.variant === "offline",
-        "tar.zst",
-        "xresconv-gui-3.0.0-dev.1-windows-x64-offline.tar.zst",
+        "7z",
+        "xresconv-gui-3.0.0-dev.1-windows-x64-offline.7z",
       ],
       [
         (t) => t.os === "linux" && t.variant === "bootstrap" && t.arch === "x86_64",
@@ -115,13 +115,13 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
     }
   });
 
-  it("maps portable formats per os/variant (windows bootstrap zip / offline tar.zst; linux offline appimage+tar.zst)", () => {
+  it("maps both Windows variants to 7z and leaves other platform formats unchanged", () => {
     expect(
       portableFormats(pickTarget((t) => t.os === "windows" && t.variant === "bootstrap")),
-    ).toEqual(["zip"]);
+    ).toEqual(["7z"]);
     expect(
       portableFormats(pickTarget((t) => t.os === "windows" && t.variant === "offline")),
-    ).toEqual(["tar.zst"]);
+    ).toEqual(["7z"]);
     expect(portableFormats(pickTarget((t) => t.os === "macos"))).toEqual(["app.zip"]);
     expect(portableFormats(pickTarget((t) => t.os === "linux" && t.variant === "offline"))).toEqual(
       ["appimage", "tar.zst"],
@@ -149,14 +149,17 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
     expect(() => portableArtifactName(linuxBootstrap, VERSION, "appimage")).toThrow(
       /is not portable for target/,
     );
-    // windows bootstrap 只出 zip、offline 只出 tar.zst——交叉/无关格式 fail-closed
+    // Both Windows variants only accept 7z; old formats fail closed.
     expect(() => portableArtifactName(windowsBootstrap, VERSION, "appimage")).toThrow(
       /is not portable for target/,
     );
     expect(() => portableArtifactName(windowsBootstrap, VERSION, "tar.zst")).toThrow(
       /is not portable for target/,
     );
-    expect(() => portableArtifactName(windowsOffline, VERSION, "zip")).toThrow(
+    expect(() => portableArtifactName(windowsOffline, VERSION, "tar.zst")).toThrow(
+      /is not portable for target/,
+    );
+    expect(() => portableArtifactName(windowsBootstrap, VERSION, "app.zip")).toThrow(
       /is not portable for target/,
     );
   });
@@ -192,7 +195,7 @@ describe("portable artifact naming (Windows zip / macOS .app.zip / Linux tar.zst
   it("every real target yields unique, whitespace-free release artifact names", () => {
     const file = realTargetsFile();
     const pattern =
-      /^xresconv-gui-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?-(?:windows|macos|linux)-(?:x64|arm64|x86_64|aarch64)-(?:bootstrap|offline)\.(?:zip|app\.zip|AppImage|tar\.zst|dmg)$/;
+      /^xresconv-gui-\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?-(?:windows|macos|linux)-(?:x64|arm64|x86_64|aarch64)-(?:bootstrap|offline)\.(?:7z|app\.zip|AppImage|tar\.zst|dmg)$/;
     const names = file.targets.flatMap((t) => releaseArtifacts(t, VERSION).map((a) => a.name));
     for (const name of names) {
       expect(name).toMatch(pattern);

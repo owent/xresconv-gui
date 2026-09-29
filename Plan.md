@@ -583,7 +583,7 @@ Cargo 检查仅针对 Tauri 壳工作区；Node 业务/契约测试不调用 Car
 - [ ] 三平台进程隔离与故障恢复测试报告。
 - [ ] 所有支持目标的 bootstrap/offline 产物及逐项安装证据。
 - [ ] 运行时清单、签名、SHA-256、SBOM、许可证及大小报告。
-- [ ] CI、release、stale 全部 Actions 的最新稳定版本与完整 SHA 审计记录。
+- [ ] CI、release、portable-build、stale 全部 Actions 的最新稳定 v 数字标签、运行时要求与 CI 实跑审计记录。
 - [ ] README、CHANGELOG、脚本 API、安装/升级/离线/调试说明和 AI 工程指引同步。
 - [ ] 发布回滚路径和旧版本保留说明。
 - [ ] D1–D6 的决定、验证证据及剩余限制；业务代码位于 Node/TypeScript，Tauri 原生胶水范围可审计。

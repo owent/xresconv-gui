@@ -43,22 +43,21 @@ function artifactBase(target: ReleaseTarget, version: string): string {
 
 /** Portable（非安装器）交付形态（2026-09-28 用户决策：Release 一律 portable
  * 归档——Linux 不再出 deb/rpm，Windows 不再出安装器）。macOS portable = 未
- * 签名 .app（ditto 压缩 .app.zip）；Windows bootstrap = zip（exe+布局+WebView2
- * bootstrapper sidecar，42MiB，解压即双击运行）；Windows offline = tar.zst
- * （内嵌 Fixed Version 运行时；zstd 参数与语言策略见发行设计，目标机须有
- * 支持 zstd 的解压工具，不能推断所有 Windows 内置 tar 均支持）；
+ * 签名 .app（ditto 压缩 .app.zip）；Windows bootstrap/offline 均为 7z
+ * （bootstrap 附 WebView2 bootstrapper；offline 内嵌 Fixed Version，
+ * 解压后双击应用；目标机须有支持 7z 的解压工具）；
  * Linux bootstrap = 系统 WebKitGTK tar.zst（发行版无关，preflight.sh 探测/
  * 指引）；Linux offline = 自含 AppImage + 同闭包 tar.zst（用户 2026-09-27
  * 决策：与 AppImage 并存；压缩格式按 2026-09-28 决策为 zstd）。 */
 export function portableFormats(target: ReleaseTarget): PortableFormat[] {
   if (target.os === "macos") return ["app.zip"];
-  if (target.os === "windows") return target.variant === "offline" ? ["tar.zst"] : ["zip"];
+  if (target.os === "windows") return ["7z"];
   if (target.variant === "offline") return ["appimage", "tar.zst"];
   return ["tar.zst"];
 }
 
 const PORTABLE_EXTENSIONS: Record<PortableFormat, string> = {
-  zip: "zip",
+  "7z": "7z",
   "app.zip": "app.zip",
   appimage: "AppImage",
   "tar.zst": "tar.zst",

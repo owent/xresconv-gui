@@ -1,8 +1,8 @@
 name: portable-build
 
 # 跨平台 portable 构建验证（用户 2026-09-27 指示：无签名证书，各平台打包
-# 仅需 Portable 包，不需要安装包；2026-09-28 调整：Windows=zip、Linux=tar.zst
-# 进入正式 Release，压缩格式统一 zstd；Linux 两种运行时策略都与 AppImage
+# 仅需 Portable 包，不需要安装包；Windows 发行包为 7z、Linux 为 tar.zst。
+# Linux 两种运行时策略都与 AppImage
 # 并存）。范围（packaging/matrix.ts portableArtifactNames 精确 8 项，
 # fail-closed）：
 #   macOS x64/arm64 offline → 未签名 .app（ditto 压缩 .app.zip；无签名身份
@@ -49,11 +49,11 @@ jobs:
             runner: macos-15
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Enable Corepack Yarn (pinned by packageManager)
@@ -64,7 +64,7 @@ jobs:
         run: |
           rustup show active-toolchain || rustup toolchain install
       # Swatinem/rust-cache v2.9.2（与 E2E/生产安装器缓存分离：key 含用途与架构）
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: src-tauri
           key: portable-macos-${{ matrix.arch }}
@@ -73,7 +73,7 @@ jobs:
       - name: Verify artifact (extract, manifest identity, per-file SHA-256, bundled node)
         run: node --experimental-strip-types scripts/verify-portable.ts --os=macos --arch=${{ matrix.arch }} --variant=offline
       # actions/upload-artifact v7.0.1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
           name: portable-macos-${{ matrix.arch }}
@@ -97,11 +97,11 @@ jobs:
             runner: ubuntu-22.04-arm
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Install Linux WebKitGTK build deps
@@ -116,7 +116,7 @@ jobs:
         run: |
           rustup show active-toolchain || rustup toolchain install
       # Swatinem/rust-cache v2.9.2（与 E2E/生产安装器缓存分离：key 含用途与架构）
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: src-tauri
           key: portable-linux-${{ matrix.arch }}
@@ -129,7 +129,7 @@ jobs:
           node --experimental-strip-types scripts/verify-portable.ts --os=linux --arch=${{ matrix.arch }} --variant=offline
           node --experimental-strip-types scripts/verify-portable.ts --os=linux --arch=${{ matrix.arch }} --variant=bootstrap
       # actions/upload-artifact v7.0.1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
           name: portable-linux-${{ matrix.arch }}
@@ -150,9 +150,9 @@ jobs:
     timeout-minutes: 20
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Enable Corepack Yarn (pinned by packageManager)
@@ -160,7 +160,7 @@ jobs:
       - name: Install (immutable)
         run: corepack yarn install --immutable
       # actions/download-artifact v8.0.1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@v8.0.1
         with:
           path: build/release-artifacts
       - name: Verify portable artifact set and SHA-256 sidecars

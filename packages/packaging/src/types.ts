@@ -34,9 +34,9 @@ export interface TargetsFile {
  * archives only (user decision 2026-09-28), so macOS DMG is the sole one. */
 export type ArtifactFormat = "dmg";
 
-/** Portable（非安装器）交付形态：Windows zip、macOS .app.zip、Linux offline
+/** Portable（非安装器）交付形态：Windows 7z、macOS .app.zip、Linux offline
  * 自含 AppImage 与 tar.zst、Linux bootstrap 系统 WebKitGTK tar.zst。 */
-export type PortableFormat = "zip" | "app.zip" | "appimage" | "tar.zst";
+export type PortableFormat = "7z" | "app.zip" | "appimage" | "tar.zst";
 
 /** One row of the release matrix consumed by the CI aggregate job (CI-06);
  * one row per shipped artifact (a target with two artifacts yields two rows). */

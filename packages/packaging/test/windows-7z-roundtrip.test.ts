@@ -3,21 +3,21 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { zipPortableWindowsLayout } from "../src/package-cli.ts";
+import { sevenZipPortableWindowsLayout } from "../src/package-cli.ts";
 
 it.skipIf(process.platform !== "win32")(
-  "round-trips hidden payloads and quoted Unicode ZIP paths with real PowerShell",
+  "round-trips hidden payloads and quoted Unicode 7z paths",
   () => {
     const build = fileURLToPath(new URL("../../../build/", import.meta.url));
     mkdirSync(build, { recursive: true });
-    const dir = mkdtempSync(path.join(build, "zip-roundtrip-"));
+    const dir = mkdtempSync(path.join(build, "7z-roundtrip-"));
     try {
       const layout = path.join(dir, "源文件 it's here");
       mkdirSync(path.join(layout, "runtime"), { recursive: true });
       mkdirSync(path.join(layout, "app"));
       const exe = path.join(dir, "app.exe");
       const hidden = path.join(layout, "app/hidden.txt");
-      const zip = path.join(dir, "it's a 中文.zip");
+      const archive = path.join(dir, "it's a 中文.7z");
       const extracted = path.join(dir, "extracted");
       writeFileSync(exe, "MZ test");
       writeFileSync(hidden, "隐藏 payload");
@@ -38,21 +38,11 @@ it.skipIf(process.platform !== "win32")(
       );
       expect(mark.error).toBeUndefined();
       expect(mark.status).toBe(0);
-      zipPortableWindowsLayout(exe, layout, zip);
-      const unpack = spawnSync(
-        "pwsh",
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-Command",
-          "[IO.Compression.ZipFile]::ExtractToDirectory($env:XRESCONV_TEST_ZIP, $env:XRESCONV_TEST_DEST)",
-        ],
-        {
-          env: { ...process.env, XRESCONV_TEST_ZIP: zip, XRESCONV_TEST_DEST: extracted },
-          timeout: 10_000,
-          windowsHide: true,
-        },
-      );
+      sevenZipPortableWindowsLayout(exe, layout, archive);
+      const unpack = spawnSync("7z", ["x", archive, `-o${extracted}`, "-y", "-bso0", "-bsp0"], {
+        timeout: 10_000,
+        windowsHide: true,
+      });
       expect(unpack.error).toBeUndefined();
       expect(unpack.status, unpack.stderr?.toString()).toBe(0);
       expect(readFileSync(path.join(extracted, "xresconv-gui/app/hidden.txt"), "utf8")).toBe(

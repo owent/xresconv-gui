@@ -141,46 +141,69 @@ function runTauriBuild(args: string[]): void {
 }
 
 /** Portable 归档固定顶层目录名（= productName），解压后 `./xresconv-gui/`
- * 即应用根（Windows zip 与 Linux tar.zst 一致）。 */
+ * 即应用根（Windows 7z 与 Linux tar.zst 一致）。 */
 const PORTABLE_TAR_TOPDIR = "xresconv-gui";
 const PORTABLE_TAR_STAGE = path.join(ROOT, "build/portable-tar");
 
 function tarStageTo(dest: string): void {
-  // 用户 2026-09-28 决策：Linux 归档一律 zstd 压缩（tar.zst）。GNU tar 经
-  // --zstd 调用 PATH 上的 zstd（CI Linux apt 安装；本机/官方镜像均内置）。
-  const result = spawnSync(
-    "tar",
-    ["--zstd", "-cf", dest, "-C", PORTABLE_TAR_STAGE, PORTABLE_TAR_TOPDIR],
+  // Keep the tar and compressor as separate files, then verify the completed
+  // zstd stream before replacing any existing release artifact.
+  const packed = spawnSync("tar", ["-cf", "payload.tar", PORTABLE_TAR_TOPDIR], {
+    cwd: PORTABLE_TAR_STAGE,
+    stdio: "inherit",
+    timeout: 10 * 60_000,
+    windowsHide: true,
+  });
+  if (packed.error || packed.status !== 0)
+    throw new Error(`tar failed (${packed.error?.message ?? packed.status})`);
+  const compressed = spawnSync(
+    "zstd",
+    ["-19", "-T2", "--long=27", "payload.tar", "-o", "payload.tar.zst"],
     {
+      cwd: PORTABLE_TAR_STAGE,
       stdio: "inherit",
-      timeout: 10 * 60_000,
+      timeout: 20 * 60_000,
       windowsHide: true,
     },
   );
-  if (result.error || result.status !== 0)
-    throw new Error(`tar failed (${result.error?.message ?? result.status})`);
+  if (compressed.error || compressed.status !== 0)
+    throw new Error(
+      `zstd -19 -T2 --long=27 failed (${compressed.error?.message ?? compressed.status})`,
+    );
+  const archive = path.join(PORTABLE_TAR_STAGE, "payload.tar.zst");
+  verifyArchiveHeader(archive, "28b52ffd");
+  const verified = spawnSync("zstd", ["-t", "payload.tar.zst"], {
+    cwd: PORTABLE_TAR_STAGE,
+    stdio: "inherit",
+    timeout: 5 * 60_000,
+    windowsHide: true,
+  });
+  if (verified.error || verified.status !== 0)
+    throw new Error(`zstd integrity check failed (${verified.error?.message ?? verified.status})`);
+  rmSync(`${dest}.sha256`, { force: true });
+  renameSync(archive, dest);
 }
 
-/** Windows portable zip：解压后进入 xresconv-gui/ 直接双击 xresconv-gui.exe。
+/** Windows portable 7z：解压后进入 xresconv-gui/ 直接双击 xresconv-gui.exe。
  * 用户 2026-09-28 决策：不创建安装包。bootstrap 变体 WebView2 用系统
  * Evergreen 运行时，包内附官方 bootstrapper（MicrosoftEdgeWebview2Setup.exe）
  * 作为修复通道，壳预检缺失时弹窗指引；offline 变体内嵌 Fixed Version 运行时
  * （webview2-runtime/ 目录，壳以 WEBVIEW2_BROWSER_EXECUTABLE_FOLDER 指向它）。
  * 仅 windows 宿主可达（nativeArch 已保证）。 */
-export interface WindowsZipExtras {
+export interface WindowsArchiveExtras {
   bootstrapper?: string;
   fixedRuntimeDir?: string;
   fixedRuntimeLocales?: WebViewLocalePolicy;
 }
 
-/** 组装 Windows portable 顶层目录（zip 与 tar.zst 共用）：exe + wry 的
+/** 组装 Windows portable 顶层目录：exe + wry 的
  * WebView2Loader.dll + 发行布局（runtime/app/manifest）+ WebView2 附件
  * （bootstrap 附 bootstrapper sidecar；offline 内嵌 fixed runtime）。 */
 function stageWindowsPortableTop(
   stage: string,
   exePath: string,
   layoutDir: string,
-  extras: WindowsZipExtras,
+  extras: WindowsArchiveExtras,
 ): void {
   const top = path.join(stage, PORTABLE_TAR_TOPDIR);
   mkdirSync(top, { recursive: true });
@@ -232,113 +255,64 @@ function withWindowsArchiveStage(dest: string, pack: (stage: string) => string):
 function verifyArchiveHeader(file: string, magic: string): void {
   const handle = openSync(file, "r");
   try {
-    const header = Buffer.alloc(4);
-    if (readSync(handle, header, 0, header.length, 0) !== 4 || header.toString("hex") !== magic)
+    const header = Buffer.alloc(magic.length / 2);
+    if (
+      readSync(handle, header, 0, header.length, 0) !== header.length ||
+      header.toString("hex") !== magic
+    )
       throw new Error(`invalid archive header: ${path.basename(file)}`);
   } finally {
     closeSync(handle);
   }
 }
 
-/** Windows bootstrap ZIP uses .NET directly: Compress-Archive skips hidden
- * files. Paths travel in environment values, never as PowerShell source. */
-export function zipPortableWindowsLayout(
+/** Archive the staged Windows layout with 7-Zip. The same method and solid
+ * compression settings apply to bootstrap and offline packages. */
+export function sevenZipPortableWindowsLayout(
   exePath: string,
   layoutDir: string,
   dest: string,
-  extras: WindowsZipExtras = {},
+  extras: WindowsArchiveExtras = {},
 ): void {
   withWindowsArchiveStage(dest, (stage) => {
     stageWindowsPortableTop(stage, exePath, layoutDir, extras);
-    const archive = path.join(stage, "payload.zip");
+    const archive = path.join(stage, "payload.7z");
     const result = spawnSync(
-      "pwsh",
+      "7z",
       [
-        "-NoLogo",
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        "$ErrorActionPreference = 'Stop'; [System.IO.Compression.ZipFile]::CreateFromDirectory($env:XRESCONV_ARCHIVE_SOURCE, $env:XRESCONV_ARCHIVE_DEST, [System.IO.Compression.CompressionLevel]::Optimal, $true)",
+        "a",
+        "-t7z",
+        "-mx=9",
+        "-mmt=2",
+        "-ms=on",
+        "-bso0",
+        "-bsp0",
+        "payload.7z",
+        PORTABLE_TAR_TOPDIR,
       ],
       {
+        cwd: stage,
         stdio: "inherit",
-        timeout: 10 * 60_000,
+        timeout: 30 * 60_000,
         windowsHide: true,
-        env: {
-          ...process.env,
-          XRESCONV_ARCHIVE_SOURCE: path.join(stage, PORTABLE_TAR_TOPDIR),
-          XRESCONV_ARCHIVE_DEST: archive,
-        },
       },
     );
     if (result.error || result.status !== 0)
-      throw new Error(`ZIP creation failed (${result.error?.message ?? result.status})`);
-    verifyArchiveHeader(archive, "504b0304");
-    return archive;
-  });
-}
-
-/** Windows offline uses two file-based steps. A tar compressor pipe deadlocked
- * with CI's bsdtar + Win32 zstd (run 36434085221). Relative filenames also avoid
- * GNU tar's drive-colon remote syntax and bsdtar's lack of --force-local. */
-export function tarZstPortableWindowsLayout(
-  exePath: string,
-  layoutDir: string,
-  dest: string,
-  extras: WindowsZipExtras = {},
-): void {
-  withWindowsArchiveStage(dest, (stage) => {
-    // zstd 不可用时抛错而非静默回退：tar 内置压缩器是默认级别，offline 产物
-    // 会从 ~262MiB 劣化到 ~329MiB（run 36428739745 实证）。CI 显式探测并
-    // 准备外部 zstd，本机缺失时给出诊断。
-    const zstd = spawnSync("zstd", ["--version"], {
-      encoding: "utf8",
-      timeout: 10_000,
-      windowsHide: true,
-    });
-    if (zstd.error || zstd.status !== 0)
-      throw new Error(
-        `external zstd is required for the offline tar.zst (zstd -19 -T0 --long=27); install zstd or use CI (${zstd.error?.message ?? zstd.stderr?.trim() ?? "not found in PATH"})`,
-      );
-    stageWindowsPortableTop(stage, exePath, layoutDir, extras);
-    const packed = spawnSync("tar", ["-cf", "payload.tar", PORTABLE_TAR_TOPDIR], {
+      throw new Error(`7z creation failed (${result.error?.message ?? result.status})`);
+    verifyArchiveHeader(archive, "377abcaf271c");
+    const verified = spawnSync("7z", ["t", "-bso0", "-bsp0", "payload.7z"], {
       cwd: stage,
       stdio: "inherit",
       timeout: 10 * 60_000,
       windowsHide: true,
     });
-    if (packed.error || packed.status !== 0)
-      throw new Error(
-        `tar (uncompressed staging) failed (${packed.error?.message ?? packed.status})`,
-      );
-    // 128 MiB window: measured smaller with the same payload; no decoder
-    // override required (unlike --long values greater than 27).
-    const compressed = spawnSync(
-      "zstd",
-      ["-19", "-T0", "--long=27", "payload.tar", "-o", "payload.tar.zst"],
-      { cwd: stage, stdio: "inherit", timeout: 15 * 60_000, windowsHide: true },
-    );
-    if (compressed.error || compressed.status !== 0)
-      throw new Error(
-        `zstd -19 -T0 --long=27 failed (${compressed.error?.message ?? compressed.status})`,
-      );
-    const archive = path.join(stage, "payload.tar.zst");
-    verifyArchiveHeader(archive, "28b52ffd");
-    const verified = spawnSync("zstd", ["-t", "payload.tar.zst"], {
-      cwd: stage,
-      stdio: "inherit",
-      timeout: 5 * 60_000,
-      windowsHide: true,
-    });
     if (verified.error || verified.status !== 0)
-      throw new Error(
-        `zstd integrity check failed (${verified.error?.message ?? verified.status})`,
-      );
+      throw new Error(`7z integrity check failed (${verified.error?.message ?? verified.status})`);
     return archive;
   });
 }
 
-/** WebView2 Evergreen bootstrapper 官方稳定短链（微软文档引用）；zip 内
+/** WebView2 Evergreen bootstrapper 官方稳定短链（微软文档引用）；7z 内
  * sidecar 的唯一来源。下载后缓存到 build/，MZ 头 + 体积下限防半截文件。 */
 const WEBVIEW2_BOOTSTRAPPER_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";
 const WEBVIEW2_BOOTSTRAPPER_CACHE = path.join(ROOT, "build/webview2-bootstrapper");
@@ -605,8 +579,8 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
       base.bundle[key] = { ...base.bundle[key], ...(signing[key] as object) };
     // macOS release 产物是 dmg 安装器（--portable 时为未签名 .app.zip，供
     // portable 管线）；Windows/Linux 一律 portable 归档（用户 2026-09-28
-    // 决策）：Windows bootstrap zip 解压即双击、offline tar.zst（zstd 压缩，
-    // 体积优化）；Linux tar.zst 解压即运行 + offline AppImage 并存。与是否
+    // 决策）：Windows 双变体 7z 解压即双击；Linux tar.zst 解压即运行 +
+    // offline AppImage 并存。与是否
     // 传 --portable 无关。
     const formats: Array<PortableFormat | "dmg-installer"> =
       os === "windows" || os === "linux"
@@ -623,20 +597,7 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
           : portableArtifactName(target, version, format);
       const dest = path.join(output, name);
       if (format === "tar.zst") {
-        if (os === "windows") {
-          // Windows offline "解压即用" tar.zst：裸 exe + 发行布局 + 内嵌 Fixed
-          // Version 运行时（webview2-runtime/，壳启动时指向它，完全离线）。
-          // 使用外部 zstd，目标机需要支持 zstd 的 tar 或其他解压工具。
-          runTauriBuild(["build", "--no-bundle"]);
-          const exe = path.join(ROOT, "target/release", "xresconv-gui.exe");
-          if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
-          if (fixedRuntime === undefined)
-            fixedRuntime = await ensureWebView2FixedRuntime(arch === "x64" ? "x64" : "arm64");
-          tarZstPortableWindowsLayout(exe, layout, dest, {
-            fixedRuntimeDir: fixedRuntime,
-            fixedRuntimeLocales: options["webview-locales"] as WebViewLocalePolicy,
-          });
-        } else if (variant === "offline") {
+        if (variant === "offline") {
           // Linux "解压即运行" tar.zst：已产出的自含 AppImage 解包重压（复用
           // linuxdeploy 闭包，用户侧免 FUSE 免安装）。
           if (appimageSource === undefined)
@@ -650,15 +611,22 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
           if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
           tarPortableBootstrapLayout(exe, layout, dest);
         }
-      } else if (format === "zip") {
-        // Windows bootstrap "解压即双击" zip：裸 exe + 发行布局 + 官方
-        // bootstrapper sidecar（Evergreen 修复通道）。offline 已改用 tar.zst
-        // （zstd 压缩，体积优化，见 tarZstPortableWindowsLayout）。
+      } else if (format === "7z") {
+        // Windows bootstrap 附官方 bootstrapper；offline 内嵌 Fixed Version。
         runTauriBuild(["build", "--no-bundle"]);
         const exe = path.join(ROOT, "target/release", "xresconv-gui.exe");
         if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
-        if (bootstrapper === undefined) bootstrapper = await ensureWebView2Bootstrapper();
-        zipPortableWindowsLayout(exe, layout, dest, { bootstrapper });
+        if (variant === "offline") {
+          if (fixedRuntime === undefined)
+            fixedRuntime = await ensureWebView2FixedRuntime(arch === "x64" ? "x64" : "arm64");
+          sevenZipPortableWindowsLayout(exe, layout, dest, {
+            fixedRuntimeDir: fixedRuntime,
+            fixedRuntimeLocales: options["webview-locales"] as WebViewLocalePolicy,
+          });
+        } else {
+          if (bootstrapper === undefined) bootstrapper = await ensureWebView2Bootstrapper();
+          sevenZipPortableWindowsLayout(exe, layout, dest, { bootstrapper });
+        }
       } else if (format === "appimage") {
         base.bundle.targets = ["appimage"];
         const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);

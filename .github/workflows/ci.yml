@@ -2,7 +2,7 @@ name: ci
 
 # 新架构 CI（P5 CI-01..CI-03）：工具链固定 → 质量（Node/契约 + 壳）→ 桌面 E2E。
 # 规则（docs/plan/05-packaging-release.md §CI）：
-# - Action 一律固定完整 commit SHA 并注释版本；传递 uses 同样审计；
+# - Action 使用已核验的 v 数字发行标签；传递 uses 同样审计；
 # - 先 setup Node → Corepack/Yarn → yarn install --immutable；不用 setup-node 的
 #   npm cache（与 Yarn 不匹配，P0 已登记的缺陷不复活）；
 # - Rust 用 runner rustup 锁定 toolchain 文件；cargo 一律 --locked；
@@ -31,11 +31,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Enable Corepack Yarn (pinned by packageManager)
@@ -67,11 +67,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Enable Corepack Yarn (pinned by packageManager)
@@ -88,7 +88,7 @@ jobs:
           rustup show active-toolchain || rustup toolchain install
           rustup component add rustfmt clippy
       # Swatinem/rust-cache v2.9.2（E2E 与生产构建缓存分离：key 含用途）
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+      - uses: Swatinem/rust-cache@v2.9.2
         with:
           workspaces: src-tauri
           key: shell-quality
@@ -122,11 +122,11 @@ jobs:
     timeout-minutes: 40
     steps:
       # actions/checkout v7.0.1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@v7.0.1
         with:
           lfs: true
       # actions/setup-node v7.0.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Enable Corepack Yarn
@@ -188,7 +188,7 @@ jobs:
       # actions/upload-artifact v7.0.1（失败证据：日志/截图/退出码）
       - name: Upload E2E failure evidence
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: e2e-evidence-${{ matrix.os }}
           path: |

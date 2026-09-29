@@ -38,7 +38,7 @@
 - 常用命令：
   - 开发运行：`yarn dev:desktop`（tauri dev，前端热更新）
   - 构建壳：`yarn build:desktop`
-- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → tauri 双配置 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows bootstrap=zip 附 WebView2 bootstrapper sidecar、offline=tar.zst 内嵌 Fixed Version 运行时（构建需 tar + 外部 zstd；解压能力按目标系统核验；语言策略与尺寸实测见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与合同见 05 册 §Portable 与 §Release portable 归档）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
+- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → tauri 双配置 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows 双变体=7z（bootstrap 附 WebView2 bootstrapper，offline 内嵌 Fixed Version；构建需 7-Zip，用户需支持 7z 的解压工具；语言策略见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与合同见 05 册 §Portable 与 §Release portable 归档）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
 
 ## 目录结构
 
@@ -56,7 +56,7 @@
 - src-tauri 中被 `#[cfg(test)]` 测试引用的模块不得触碰 tauri/wry 运行时类型（如 `AppHandle`/`Emitter`）：测试 exe 无 SxS manifest，经 Drop glue 保留 wry 对话框代码会导入 comctl32 v6 专有符号，进程加载即 0xc0000139。事件出口用注入闭包（P4-02 `EventSink`，诊断工具 `build/tools/check-imports.mjs`）。
 - Windows 发行壳是 GUI subsystem；启动 Node guardian 必须经 `windowless_process` 设置 `CREATE_NO_WINDOW`，受监督子进程必须经 `ProcessScope.decorateSpawnOptions` 设置 `windowsHide`。仅数 `conhost.exe` 不足以判断是否弹窗；回归见 `gui_shell_does_not_create_a_guardian_console` 和 [发行包实测](docs/plan/records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 
-- Windows offline 压缩必须保持 tar 文件 → 外部 zstd 文件两步，不恢复 tar 压缩管道（CI 大负载死锁已有实证）。用真实负载验证压缩/解压，不能以小样本或退出码替代产物校验。语言裁剪默认关闭，须显式选 `--webview-locales=mainstream` 并复验固定运行时版本。
+- Windows 双变体均使用 7z；Linux tar.zst 使用 tar 文件 → 外部 zstd 文件两步，以显式压缩级别并校验后发布。用真实负载验证压缩/解压，不能只看小样本或退出码。语言裁剪默认关闭，须显式选 `--webview-locales=mainstream` 并复验固定运行时版本。
 
 ## 任务分流
 

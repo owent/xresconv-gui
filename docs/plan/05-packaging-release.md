@@ -108,11 +108,11 @@ flowchart TD
 
 ## CI 工作流拆分和权限
 
-Action 版本以主计划表及实施时官方稳定发行核验为准，实际 workflow 固定完整 commit SHA 并注释版本；当前所有三个 workflow 都必须覆盖，不能只更新 release。
+Action 版本以实施时核验的官方稳定发行为准；所有工作流使用最新可用的 v 数字发行标签，升级时检查 action.yml runtime、runner 要求、输入字段和嵌套 uses。
 
 | 拟 job/任务 | 输入与职责 | 权限/出口 |
 | --- | --- | --- |
-| CI-01 validate-toolchain | 固定 Node/Corepack/Yarn；原生壳 job 固定 Rust；检查版本报告、锁文件、Action SHA/runner | 默认只读；版本漂移或不兼容失败 |
+| CI-01 validate-toolchain | 固定 Node/Corepack/Yarn；原生壳 job 固定 Rust；检查版本报告、锁文件、Action 标签/runner | 默认只读；版本漂移或不兼容失败 |
 | CI-02 quality | Node job 执行 docs/lint/typecheck/schema/unit 与 `--immutable`；壳 job 独立执行 Cargo `--locked` 检查 | Node 业务与契约生成不依赖 Cargo；无签名密钥，测试失败返回非零 |
 | CI-03 desktop | Windows/macOS/Linux 原生测试 feature 构建 + E2E | 每个平台保留日志/截图/退出/清理证据 |
 | CI-04 build-variants | 全目标 production 构建、组装、签名和产物检查 | 可信发行触发才接触签名；PR 用不签名构建验证 |
@@ -165,11 +165,11 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 
 ## Release portable 归档定稿（2026-09-28，用户决策；取代上两节的发行形态）
 
-当前发行规范：**Linux 为 tar.zst 双变体及 offline AppImage；Windows 为 bootstrap zip 与 offline tar.zst，均不创建安装包**。macOS 维持 DMG。本节取代上文历史阶段中的安装器、tar.gz 和 Windows 无 portable 形态说明。2026-09-29 的修复与尺寸实验见 [审查记录](records/REVIEW-2026-09-29.md)。
+当前发行规范：**Linux 为 tar.zst 双变体及 offline AppImage；Windows 两变体均为 7z，均不创建安装包**。macOS 维持 DMG。本节取代上文历史阶段中的安装器、tar.gz 和 Windows 无 portable 形态说明。2026-09-29 的修复与尺寸实验见 [审查记录](records/REVIEW-2026-09-29.md)。
 
 ### targets.json 与矩阵（12 个目标、14 个产物）
 
-- **Windows**：`bootstrap`（`webview2-evergreen`，依赖系统 Evergreen 运行时）与 `offline`（`webview2-fixed-runtime`，捆绑 Fixed Version 运行时）双变体 ×2 架构（同日增补落地，见下节）。产物 `xresconv-gui-<version>-windows-<arch>-bootstrap.zip` 与 `-offline.tar.zst`（offline 压缩优化见「Windows offline 压缩优化」节）。
+- **Windows**：`bootstrap`（`webview2-evergreen`，依赖系统 Evergreen 运行时）与 `offline`（`webview2-fixed-runtime`，捆绑 Fixed Version 运行时）双变体 ×2 架构（同日增补落地，见下节）。产物 `xresconv-gui-<version>-windows-<arch>-bootstrap.7z` 与 `-offline.7z`（同一 7z 压缩与完整性验证流程）。
 - **Linux**：`bootstrap`/`offline` ×2 架构共 4 行，**全部无 distro 字段**（产物发行版无关）；构建基线收敛为 Ubuntu 22.04 最老基线（`LINUX_BUILD_BASELINE`，`package-cli` 校验宿主一致，glibc 2.35 地板）。产物：bootstrap `…bootstrap.tar.zst`、offline `…offline.AppImage` + `…offline.tar.zst`（AppImage 并存为 2026-09-27 既有决策）。
 - **macOS**：x64/arm64 × bootstrap/offline 4 行不变，产物仍为 DMG 安装器（`formatFor` 仅存 dmg；windows/linux 调用 throw `NO_INSTALLER_FORMAT`）。
 - `buildMatrix` 改为一行一**产物**（linux offline 一行 target 出两行产物）；manifest schema 删除 `distro` 字段、`webviewStrategy` 枚举更新、`webview2-offline-installer` payload 移除。
@@ -182,31 +182,20 @@ Action 版本以主计划表及实施时官方稳定发行核验为准，实际 
 
 ### Windows 归档内容与 WebView2 策略
 
-两种归档的顶层目录均为 `xresconv-gui/`：应用 exe、构建产物附带时的 `WebView2Loader.dll`、`runtime/`、`app/`、`runtime-manifest.json`。bootstrap 另附官方 `MicrosoftEdgeWebview2Setup.exe`，使用 PowerShell 7 的 .NET `ZipFile.CreateFromDirectory` 压缩；路径经环境变量传递，保留隐藏文件，不拼接 PowerShell 代码。offline 另附 `webview2-runtime/` 和记录语言策略/删减统计的 `webview2-runtime-policy.json`。
+两种归档的顶层目录均为 `xresconv-gui/`：应用 exe、构建产物附带时的 `WebView2Loader.dll`、`runtime/`、`app/`、`runtime-manifest.json`。bootstrap 另附官方 `MicrosoftEdgeWebview2Setup.exe`；两变体均以 7-Zip 对暂存目录压缩并用 `7z t` 校验，路径通过独立进程参数传递，保留隐藏文件和 Unicode 路径。offline 另附 `webview2-runtime/` 和记录语言策略/删减统计的 `webview2-runtime-policy.json`。
 
 Windows 两种归档共用的 GUI 壳必须以无控制台方式启动 Node guardian，guardian 的受监督 Node 子进程也不得弹出控制台；否则用户关闭弹出的控制台会中断 guardian 的 stdout 协议管道。发布前的 Windows 回归门禁和发行包实测见 [控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 
-### Windows offline 压缩与语言策略（2026-09-29）
+### Windows 7z 与语言策略（2026-09-29）
 
-构建使用独立 `build/windows-archive-*` 暂存目录：`tar -cf payload.tar xresconv-gui` → `zstd -19 -T0 --long=27 payload.tar -o payload.tar.zst` → `zstd -t`。tar 参数全部是相对路径，兼容 GNU tar 与 bsdtar，无需猜测实现；不使用跨进程压缩管道、不回退默认压缩级别。128 MiB 长窗口增加解压内存需求，保持 zstd 默认允许的窗口范围；更高窗口与 L22 未作为默认。复制/压缩/校验失败清理本次暂存并保留旧产物，成功替换前使旧校验文件失效，随后由 CLI 写新 SHA-256。
+Windows 两种变体均在独立 `build/windows-archive-*` 暂存目录中组装 `xresconv-gui/`，再以 `7z a -t7z -mx=9 -mmt=2 -ms=on` 压缩。构建读取 7z 文件头并执行 `7z t`；复制、压缩或校验失败均清理暂存且保留旧归档和旧 SHA-256。验证完成才使旧校验文件失效并替换归档，由 CLI 写新边车。`-mx=9` 为最高压缩级别，`-mmt=2` 限制线程数；两种归档内容和脚本宿主能力不变。
 
-同一负载、WebView2 154.0.4258.37 x64、zstd 1.5.7 的实测：
+此前同负载实验中，Windows bootstrap ZIP 42.38 MiB、7z 26.07 MiB；offline 全语言 zstd L19+long=27 为 252.28 MiB、7z LZMA2 为 210.65 MiB。数据仅适用于当时负载，详见 [Node 体积研究](records/RESEARCH-2026-09-29-NODE-SIZE.md)与[发行审查](records/REVIEW-2026-09-29.md)；新版本须以实际输出重新测量。解压示例：`7z x 文件.7z`，目标机需预先安装支持 7z 的解压工具。
 
-| 语言资源 | 压缩 | 字节数 | MiB |
-| --- | --- | --- | --- |
-| 全部 | L19 | 275350176 | 262.59 |
-| 全部 | L19 + long=27（默认） | 264539709 | 252.28 |
-| 十种 | L19 | 254764784 | 242.96 |
-| 十种 | L19 + long=27（可选） | 243664078 | 232.38 |
-
-默认 `--webview-locales=all` 保留微软分发要求的完整文件集。显式 `--webview-locales=mainstream` 保留 en-US、zh-CN、zh-TW、ja、ko、de、fr、es、pt-BR、ru，裁剪已识别的主语言包与对应 overlay 字符串；保留未知资源、ICU、PDF/媒体/渲染二进制、许可和原始下载缓存。缺少任一保留语言时构建失败；切回 `all` 即恢复。语言选项仅适用 Windows offline（`--variant=all` 时只影响 offline）。这只影响运行时内建界面，不为应用增加翻译。
-
-微软未提供语言裁剪支持承诺，因此它是项目自行验证的可选策略；本轮十语言及 hu/zz-ZZ 已在该固定版本启动真实 GUI。未保留/未知语言依 WebView2 优先级选可用语言，本机回退 zh-CN；Chromium 最终回退 en-US，不能承诺所有机器一律英文。每次运行时升级须重验。未裁剪 `icudtl.dat` 或 Node ICU，避免改变用户脚本的 Unicode/Intl 语义。
-
-解压示例：`tar -xf 文件.tar.zst`。应先确认目标机的 tar 支持 zstd；已核验本机 bsdtar 3.8.8，不能推断所有 Windows 10/11 镜像都支持。旧离线机器应提前准备支持 zstd 的解压工具（如 7-Zip）。压缩基准、替代方案及限制见审查记录；不将不同运行时版本或历史包体混算收益。
+默认 `--webview-locales=all` 保留微软分发要求的完整文件集。显式 `--webview-locales=mainstream` 保留 en-US、zh-CN、zh-TW、ja、ko、de、fr、es、pt-BR、ru，裁剪已识别的主语言包与对应 overlay 字符串；保留未知资源、ICU、PDF/媒体/渲染二进制、许可和原始下载缓存。缺少任一保留语言时构建失败；切回 `all` 即恢复。语言选项仅适用 Windows offline（`--variant=all` 时只影响 offline）。微软未提供语言裁剪支持承诺，运行时升级须重新验证；默认不裁剪 Node ICU。
 
 ### 压缩格式与 CI
 
-- Linux 归档仍为 `tar --zstd`，本轮未改变其压缩配置；Windows offline 为上述两步文件压缩，构建机必须有外部 zstd。`scripts/ensure-zstd.ps1` 检查探测、安装与复检的原生退出码，任一步失败阻断发行。
-- `release.yml`：Windows job（x64 bootstrap→zip、offline→tar.zst）；Linux job 收敛单 ubuntu-22.04（`--variant=all` 产 3 产物）；macOS 不变；aggregate `verify-release.ts --target` 8 键 → 9 产物 + 9 边车。`--portable` 标志仅对 macOS 生效（app.zip portable 管线），Windows/Linux 产物与该标志无关。
-- `portable-build.yml`：Linux 产物改 tar.zst、去 `--distro` 传参（入口保留作期望基线校验）；聚合 8 项集合不变（仅 tar.gz→tar.zst）。
+- Linux bootstrap/offline 的 tar.zst 在落盘 tar 文件后用外部 `zstd -19 -T2 --long=27` 压缩，检查文件头并执行 `zstd -t`，成功后替换归档；避免使用压缩管道或 tar 的默认 zstd 级别。较高压缩级别增加构建耗时和内存，窗口保持 128 MiB。offline AppImage 仍由 Tauri/linuxdeploy 生成，不经过该 zstd 步骤。
+- `release.yml`：Windows job（x64 bootstrap/offline 均为 7z）；Linux job 在 ubuntu-22.04 用外部 zstd 构建 3 个产物；macOS DMG 不使用 zstd。aggregate `verify-release.ts --target` 8 键 → 9 产物 + 9 边车。`--portable` 标志仅对 macOS 生效，Windows/Linux 产物与该标志无关。
+- `portable-build.yml`：Linux 两变体共享上述显式 zstd 参数；macOS 未签名 `.app.zip` 仍由 ditto 打包。全部工作流的 Action 引用使用核验过的最新 v 数字发行标签；不使用固定 commit id。

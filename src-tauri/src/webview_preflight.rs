@@ -1,6 +1,6 @@
 //! Windows WebView2 运行时原生预检（P5-03，PK02：先检查后 GUI）。
 //!
-//! Windows 发行形态是解压即用的归档（bootstrap zip / offline tar.zst，无安装器）：
+//! Windows 发行形态是解压即用的 7z 归档（bootstrap / offline，无安装器）：
 //! bootstrap = 系统 Evergreen 运行时（包内附官方 bootstrapper 作为修复
 //! 通道）；offline = 内嵌 Fixed Version 运行时（`webview2-runtime/` 目录），
 //! 完全离线。预检在任何 WebView 创建之前完成两件事（fail-closed）：

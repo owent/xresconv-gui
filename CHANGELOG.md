@@ -4,8 +4,8 @@
 3.0.0-dev.1
 ------
 
-1. 架构重写：以 Tauri 2 薄壳 + 系统 WebView + 独立 Node.js 业务内核替代旧 Electron 架构，支持 Windows / Linux / macOS（64 位）。
-2. 发行包全部为解压即用形态：Windows 为 bootstrap zip（依赖系统 WebView2 并附引导安装器）+ offline tar.zst（内嵌 WebView2 Fixed Version 运行时；zstd L19 长窗口压缩，可选十种主流语言，使用支持 zstd 的工具解压）；Linux 为 tar.zst 双变体（bootstrap 依赖系统 WebKitGTK、offline 自含）+ offline AppImage 并存，不再提供 deb/rpm；macOS 为 DMG。
+1. 架构重写：以 Tauri 2 壳 + 系统 WebView + 独立 Node.js 业务内核替代旧 Electron 架构，支持 Windows / Linux / macOS（64 位）。
+2. 发行包全部为解压即用形态：Windows bootstrap/offline 均为 7z（bootstrap 依赖系统 WebView2 并附引导安装器；offline 内嵌 WebView2 Fixed Version 运行时，可选十种主流语言）；Linux 为 zstd L19 压缩的 tar.zst 双变体（bootstrap 依赖系统 WebKitGTK、offline 自含）+ offline AppImage 并存，不再提供 deb/rpm；macOS 为 DMG。
 3. 首个 3.0 开发预发布版本，仅供测试。
 
 2.6.0

@@ -3,10 +3,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { tarZstPortableWindowsLayout, zipPortableWindowsLayout } from "../src/package-cli.ts";
+import { sevenZipPortableWindowsLayout } from "../src/package-cli.ts";
 
 const stagedDirs = vi.hoisted(() => [] as string[]);
-
 vi.mock("node:fs", async (original) => {
   const fs = await original<typeof import("node:fs")>();
   return {
@@ -18,7 +17,6 @@ vi.mock("node:fs", async (original) => {
     },
   };
 });
-
 vi.mock("node:child_process", async (original) => ({
   ...(await original<typeof import("node:child_process")>()),
   spawnSync: vi.fn(),
@@ -27,17 +25,19 @@ vi.mock("node:child_process", async (original) => ({
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const build = path.join(root, "build");
 const run = vi.mocked(spawnSync);
+const magic = Buffer.from("377abcaf271c0004", "hex");
 let dir: string;
 let exe: string;
 let layout: string;
 let dest: string;
+
+function result(status = 0) {
+  return { status, stdout: "", stderr: "test diagnostic", pid: 1, output: [], signal: null };
+}
+
 function expectStageCleaned() {
   expect(stagedDirs).toHaveLength(1);
   expect(stagedDirs.filter(existsSync)).toEqual([]);
-}
-
-function result(status = 0, stdout = "") {
-  return { status, stdout, stderr: "test diagnostic", pid: 1, output: [], signal: null };
 }
 
 beforeEach(() => {
@@ -45,7 +45,7 @@ beforeEach(() => {
   dir = mkdtempSync(path.join(build, "windows-archive-test-"));
   exe = path.join(dir, "app.exe");
   layout = path.join(dir, "layout");
-  dest = path.join(dir, "output.tar.zst");
+  dest = path.join(dir, "output.7z");
   mkdirSync(path.join(layout, "runtime"), { recursive: true });
   mkdirSync(path.join(layout, "app"));
   writeFileSync(exe, "MZ test");
@@ -55,16 +55,8 @@ beforeEach(() => {
   stagedDirs.length = 0;
   run.mockReset();
   run.mockImplementation((command, args, options) => {
-    const argv = args as string[];
-    if (argv.includes("--version"))
-      return result(0, command === "tar" ? "bsdtar 3.8.8" : "zstd 1.5.7");
-    if (command === "zstd" && argv.includes("-o")) {
-      const output = argv[argv.indexOf("-o") + 1] as string;
-      writeFileSync(
-        path.resolve(String(options?.cwd ?? root), output),
-        Buffer.from("28b52ffd00", "hex"),
-      );
-    }
+    if (command === "7z" && args?.[0] === "a")
+      writeFileSync(path.join(String(options?.cwd), "payload.7z"), magic);
     return result();
   });
 });
@@ -74,111 +66,72 @@ afterEach(() => {
   for (const stage of stagedDirs) rmSync(stage, { recursive: true, force: true });
 });
 
-it("uses relative tar members and file compression, independent of GNU/bsdtar drive syntax", () => {
-  tarZstPortableWindowsLayout(exe, layout, dest);
+it("uses ultra solid 7z compression for the staged top-level directory", () => {
+  sevenZipPortableWindowsLayout(exe, layout, dest);
   expect(existsSync(dest)).toBe(true);
-  const tar = run.mock.calls.find(([command, args]) => command === "tar" && args?.includes("-cf"));
-  expect(tar).toBeDefined();
-  expect(tar?.[1]).toEqual(["-cf", "payload.tar", "xresconv-gui"]);
-  expect(tar?.[2]?.cwd).toBeTruthy();
-  expect(run.mock.calls.some(([, args]) => args?.includes("--use-compress-program"))).toBe(false);
-  expect(run.mock.calls.some(([command, args]) => command === "zstd" && args?.includes("-t"))).toBe(
-    true,
-  );
+  expect(run.mock.calls[0]?.[0]).toBe("7z");
+  expect(run.mock.calls[0]?.[1]).toEqual([
+    "a",
+    "-t7z",
+    "-mx=9",
+    "-mmt=2",
+    "-ms=on",
+    "-bso0",
+    "-bsp0",
+    "payload.7z",
+    "xresconv-gui",
+  ]);
+  expect(run.mock.calls[1]?.[1]).toEqual(["t", "-bso0", "-bsp0", "payload.7z"]);
   expectStageCleaned();
 });
 
-it.each(["tar", "zstd"])("preserves a previous archive and checksum when %s fails", (failing) => {
-  writeFileSync(dest, "previous valid archive");
-  writeFileSync(`${dest}.sha256`, "previous checksum");
-  const normal = run.getMockImplementation();
+it("stages bootstrapper and fixed runtime for their respective variants", () => {
+  const bootstrapper = path.join(dir, "bootstrapper.exe");
+  writeFileSync(bootstrapper, "MZ bootstrapper");
   run.mockImplementation((command, args, options) => {
-    if (command === failing && !(args as string[]).includes("--version")) {
-      if (command === "zstd") normal?.(command, args, options);
-      return result(1);
+    if (command === "7z" && args?.[0] === "a") {
+      expect(
+        readFileSync(
+          path.join(String(options?.cwd), "xresconv-gui/MicrosoftEdgeWebview2Setup.exe"),
+          "utf8",
+        ),
+      ).toBe("MZ bootstrapper");
+      writeFileSync(path.join(String(options?.cwd), "payload.7z"), magic);
     }
-    return normal?.(command, args, options) ?? result();
+    return result();
   });
-  expect(() => tarZstPortableWindowsLayout(exe, layout, dest)).toThrow(/failed/);
-  expect(readFileSync(dest, "utf8")).toBe("previous valid archive");
-  expect(readFileSync(`${dest}.sha256`, "utf8")).toBe("previous checksum");
+  sevenZipPortableWindowsLayout(exe, layout, dest, { bootstrapper });
   expectStageCleaned();
 });
 
-it.each(["missing", "nonzero", "timeout"])("fails closed for a %s zstd probe", (failure) => {
-  run.mockImplementation(() => ({
-    ...result(failure === "nonzero" ? 1 : 0),
-    ...(failure !== "nonzero" ? { error: new Error(failure) } : {}),
-  }));
-  expect(() => tarZstPortableWindowsLayout(exe, layout, dest)).toThrow(/zstd/);
-  expect(existsSync(dest)).toBe(false);
-  expectStageCleaned();
-});
-
-it.each([false, true])(
-  "rejects exit-zero output that is missing or invalid (written=%s)",
-  (written) => {
+it.each(["missing", "nonzero", "corrupt", "integrity"])(
+  "preserves the previous archive and checksum after %s failure",
+  (failure) => {
+    writeFileSync(dest, "previous valid archive");
+    writeFileSync(`${dest}.sha256`, "previous checksum");
     run.mockImplementation((command, args, options) => {
-      if (written && command === "zstd" && (args as string[]).includes("-o")) {
-        const argv = args as string[];
+      if (command === "7z" && args?.[0] === "a") {
+        if (failure === "missing") return { ...result(), error: new Error("missing 7z") };
         writeFileSync(
-          path.resolve(String(options?.cwd ?? root), argv[argv.indexOf("-o") + 1] as string),
-          "not zstd",
+          path.join(String(options?.cwd), "payload.7z"),
+          failure === "corrupt" ? "bad header" : magic,
         );
+        if (failure === "nonzero") return result(1);
       }
-      return result(0, "bsdtar 3.8.8");
+      if (command === "7z" && args?.[0] === "t" && failure === "integrity") return result(1);
+      return result();
     });
-    expect(() => tarZstPortableWindowsLayout(exe, layout, dest)).toThrow();
-    expect(existsSync(dest)).toBe(false);
+    expect(() => sevenZipPortableWindowsLayout(exe, layout, dest)).toThrow();
+    expect(readFileSync(dest, "utf8")).toBe("previous valid archive");
+    expect(readFileSync(`${dest}.sha256`, "utf8")).toBe("previous checksum");
     expectStageCleaned();
   },
 );
 
-it("removes partial staging when copying the source layout fails", () => {
-  rmSync(path.join(layout, "runtime"), { recursive: true });
-  expect(() => tarZstPortableWindowsLayout(exe, layout, dest)).toThrow();
-  expectStageCleaned();
-});
-
-it("invalidates an old checksum only after a verified replacement exists", () => {
+it("invalidates a prior checksum only after a verified 7z replacement", () => {
   writeFileSync(`${dest}.sha256`, "old digest");
-  tarZstPortableWindowsLayout(exe, layout, dest);
-  expect(existsSync(`${dest}.sha256`)).toBe(false);
-});
-
-it("rejects a truncated stream even when its zstd magic is valid", () => {
-  const normal = run.getMockImplementation();
-  run.mockImplementation((command, args, options) => {
-    if (command === "zstd" && (args as string[]).includes("-t")) return result(1);
-    return normal?.(command, args, options) ?? result();
-  });
-  expect(() => tarZstPortableWindowsLayout(exe, layout, dest)).toThrow(/integrity check failed/);
-  expect(existsSync(dest)).toBe(false);
-  expectStageCleaned();
-});
-
-it("does not publish partial ZIP output when PowerShell fails", () => {
-  run.mockImplementation((_command, _args, options) => {
-    const output = options?.env?.XRESCONV_ARCHIVE_DEST;
-    if (output) writeFileSync(output, Buffer.from("504b0304", "hex"));
-    return result(1);
-  });
-  expect(() => zipPortableWindowsLayout(exe, layout, dest)).toThrow(/ZIP creation failed/);
-  expect(existsSync(dest)).toBe(false);
-  expectStageCleaned();
-});
-
-it("passes ZIP paths as data, including apostrophes, and uses an API retaining hidden files", () => {
-  dest = path.join(dir, "it's an archive.zip");
-  run.mockImplementation((_command, _args, options) => {
-    const output = options?.env?.XRESCONV_ARCHIVE_DEST;
-    if (output) writeFileSync(output, Buffer.from("504b0304", "hex"));
-    return result();
-  });
-  zipPortableWindowsLayout(exe, layout, dest);
-  const script = String(run.mock.calls[0]?.[1]?.at(-1));
-  expect(script).not.toContain(dest);
-  expect(script).toContain("CreateFromDirectory");
+  sevenZipPortableWindowsLayout(exe, layout, dest);
   expect(existsSync(dest)).toBe(true);
+  expect(existsSync(`${dest}.sha256`)).toBe(false);
   expectStageCleaned();
 });

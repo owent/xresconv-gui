@@ -64,7 +64,7 @@ P1-00 的审计报告区分：可直接保留、需迁移、迁移后删除、�
 | B | adm-zip、compressing、minimatch、log4js | 验证动态 require、导出形式、glob、归档和日志兼容 | 记录具体变更；选择适配层，禁止强推不兼容传递版本 |
 | C | Electron、packager、gulp 与过渡 UI 库 | 可回退批次更新；原 macOS ASAR 约束在旧架构仍有效 | 架构停止支持进入 D1；不偷偷改变发行矩阵 |
 | D | React/TypeScript/Vite、Tauri 官方插件、Node backend/guardian | 复用薄壳与前端；业务统一 TS/Node，不新增 Rust 领域工程 | 不删未完成替代的实现；冲突回到合同 |
-| E | 测试、类型/lint、Actions | 按官方兼容范围成组升级，完整 SHA 固定 Actions | 禁止忽略失败或 force peer 安装 |
+| E | 测试、类型/lint、Actions | 按官方兼容范围成组升级，核验 Actions 版本标签 | 禁止忽略失败或 force peer 安装 |
 
 “更新所有依赖”的处理结果必须逐项是：升级保留、适配后保留、架构移除、明确阻塞。新架构删除的 jQuery 等包不需要为长期保留而额外包装。传递依赖通过合法解析更新，不越过父包版本契约。
 
@@ -75,7 +75,7 @@ P1-00 的审计报告区分：可直接保留、需迁移、迁移后删除、�
 - npm：registry、精确版本、integrity、engines、peerDependencies、平台可选包、生命周期脚本。
 - Tauri 原生依赖：仅核验壳与实际所需插件的 crate/MSRV/feature/目标，保留 Cargo.lock；不再维护业务专用 Rust 依赖清单。
 - Node：发行通道、支持平台、官方归档与校验值；明确 Current 与 LTS 的选择。
-- Action：稳定 tag、完整 commit SHA、action.yml runtime、runner 要求、权限、嵌套 `uses`。
+- Action：最新稳定 v 数字 tag、action.yml runtime、runner 要求、权限、嵌套 `uses`。
 - OS/打包工具：SDK、编译器、NSIS、签名工具、Linux 仓库快照；不把 Tauri 上游固定的内部依赖强行替换成不兼容版本。
 
 核验脚本只产生报告/建议，不能在每次构建自动升级。主计划快照不是可永久复用的 latest 证明；P1 与发行冻结前各刷新一次。

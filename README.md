@@ -30,8 +30,8 @@
 点击[此处](https://github.com/xresloader/xresconv-gui/releases)并根据需要下载对应系统的包，直接执行里面的二进制即可。
 
 每个系统/架构都提供 **bootstrap** 和 **offline** 两种变体，文件名中以
-`-bootstrap` / `-offline` 区分（如 `xresconv-gui-<版本>-windows-x64-bootstrap.zip`、
-`xresconv-gui-<版本>-windows-x64-offline.tar.zst`）。两者应用功能完全相同，
+`-bootstrap` / `-offline` 区分（如 `xresconv-gui-<版本>-windows-x64-bootstrap.7z`、
+`xresconv-gui-<版本>-windows-x64-offline.7z`）。两者应用功能完全相同，
 区别仅在于对系统 WebView 运行时的准备方式：
 
 | 变体 | 体积 | WebView 运行时 | 适用场景 |
@@ -39,10 +39,9 @@
 | **bootstrap**（在线引导） | 较小 | 复用系统已有运行时；缺失时联网引导安装（Windows 附带官方 WebView2 安装器，Linux 经系统包管理器安装 WebKitGTK，macOS 引导升级系统） | 有网络、系统通常已自带运行时的常规环境 |
 | **offline**（离线自含） | 较大 | 包内自带运行时（Windows 内嵌 WebView2 Fixed Version，Linux 内嵌 WebKitGTK 闭包），无需联网补装 WebView | 内网/隔离环境，或无法联网、系统缺少运行时的机器 |
 
-> 归档格式：Windows bootstrap 与 macOS 为双击即可打开的 `.zip` / `.dmg`；
-> Windows offline 与 Linux 为 `.tar.zst`（zstd 压缩，体积更小），用 Windows
-> 支持 zstd 的 `tar -xf 文件.tar.zst` 或 7-Zip 解压。Windows 自带 tar 的能力
-> 随系统版本而异；旧离线机器请提前准备兼容的解压工具，不能假定所有系统均支持。
+> 归档格式：Windows 两种变体均为 `.7z`，用 7-Zip 等兼容工具解压后运行；
+> Linux 提供 `.tar.zst`（用支持 zstd 的 tar 或 7-Zip 解压）和 offline AppImage；
+> macOS 提供 `.dmg`。旧机器请提前准备对应的解压工具。
 
 使用建议：
 
@@ -318,12 +317,12 @@ corepack yarn test:shell    # Tauri 壳单元测试
 ## 打包和发布
 
 ```bash
-corepack yarn package:windows   # Windows x64：bootstrap zip + offline tar.zst（zstd 压缩；Windows 运行）
+corepack yarn package:windows   # Windows x64：bootstrap/offline 均为 7z（Windows 运行，构建需 7-Zip）
 corepack yarn package:linux     # Linux tar.zst 双变体（bootstrap/offline + offline AppImage；Linux 运行）
 corepack yarn package:macos     # macOS 双变体 DMG（须在 mac 主机运行）
 ```
 
-Windows offline 默认保留完整运行时，使用 zstd L19 + 128 MiB 长窗口压缩。
+Windows offline 默认保留完整运行时；两种 Windows 包均使用 7z 最高压缩级别。Linux tar.zst 使用 zstd L19 + 128 MiB 长窗口压缩。
 可选 `corepack yarn package:windows --variant=offline --webview-locales=mainstream`
 保留英、简中、繁中、日、韩、德、法、西、巴葡、俄十种运行时语言；不支持的语言
 由 WebView2 回退到可用语言，保留英文兜底。`--webview-locales=all` 恢复完整资源。

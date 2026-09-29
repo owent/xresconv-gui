@@ -110,7 +110,7 @@
           "linux-selfcontained-runtime"
         ]
       },
-      "description": "Logical payloads carried by this artifact. Every variant ships one shared Node (node-runtime) plus compiled backend/guardian/script-host JS and production npm modules; webview2-bootstrapper (Windows bootstrap zip sidecar), webview2-fixed-runtime (Windows offline zip) and linux-selfcontained-runtime only appear on the matching variants."
+      "description": "Logical payloads carried by this artifact. Every variant ships one shared Node (node-runtime) plus compiled backend/guardian/script-host JS and production npm modules; webview2-bootstrapper (Windows bootstrap 7z sidecar), webview2-fixed-runtime (Windows offline 7z) and linux-selfcontained-runtime only appear on the matching variants."
     },
     "nodeVersion": {
       "type": "string",

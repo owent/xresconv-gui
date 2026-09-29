@@ -19,15 +19,14 @@ describe("buildMatrix (CI-06 aggregate input)", () => {
     }
   });
 
-  it("one row per artifact: macos/windows bootstrap=1, windows offline=1 tar.zst, linux offline=2 (AppImage + tar.zst)", () => {
+  it("one row per artifact: Windows variants use 7z, Linux offline has AppImage and tar.zst", () => {
     const matrix = buildMatrix(realTargetsFile(), VERSION);
     for (const row of matrix) {
       const expected =
         row.os === "linux" && row.variant === "offline" ? ["appimage", "tar.zst"] : undefined;
       if (expected) expect(expected).toContain(row.format);
       else if (row.os === "macos") expect(row.format).toBe("dmg");
-      else if (row.os === "windows")
-        expect(row.format).toBe(row.variant === "offline" ? "tar.zst" : "zip");
+      else if (row.os === "windows") expect(row.format).toBe("7z");
       else expect(row.format).toBe("tar.zst");
     }
   });
@@ -54,17 +53,17 @@ describe("buildMatrix (CI-06 aggregate input)", () => {
     expect(new Set(fromMatrix).size).toBe(14);
   });
 
-  it("format counts: zip 2, dmg 4, appimage 2, tar.zst 6", () => {
+  it("format counts: Windows 7z 4, dmg 4, AppImage 2, Linux tar.zst 4", () => {
     const matrix = buildMatrix(realTargetsFile(), VERSION);
     const counts = new Map<string, number>();
     for (const row of matrix) {
       counts.set(row.format, (counts.get(row.format) ?? 0) + 1);
     }
     expect(Object.fromEntries(counts)).toEqual({
-      zip: 2,
+      "7z": 4,
       dmg: 4,
       appimage: 2,
-      "tar.zst": 6,
+      "tar.zst": 4,
     });
   });
 });
@@ -94,8 +93,8 @@ describe("selectMatrix (release CI built-subset verification)", () => {
       "xresconv-gui-3.0.0-dev.1-macos-arm64-offline.dmg",
       "xresconv-gui-3.0.0-dev.1-macos-x64-bootstrap.dmg",
       "xresconv-gui-3.0.0-dev.1-macos-x64-offline.dmg",
-      "xresconv-gui-3.0.0-dev.1-windows-x64-bootstrap.zip",
-      "xresconv-gui-3.0.0-dev.1-windows-x64-offline.tar.zst",
+      "xresconv-gui-3.0.0-dev.1-windows-x64-bootstrap.7z",
+      "xresconv-gui-3.0.0-dev.1-windows-x64-offline.7z",
     ]);
     for (const row of selected) {
       expect(matrix).toContain(row);

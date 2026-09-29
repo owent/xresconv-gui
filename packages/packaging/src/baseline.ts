@@ -38,10 +38,9 @@ export function targetKey(
 
 /**
  * The release baseline as identity keys (2026-09-28 portable-archive decision,
- * same-day offline addendum: Windows ships a bootstrap zip (system Evergreen
- * WebView2 + in-archive bootstrapper sidecar) and an offline zip (bundling the
- * Fixed Version runtime) per arch; Linux ships distro-independent bootstrap +
- * offline tar.zst per arch; macOS keeps dmg x64+arm64 in both variants).
+ * Windows ships 7z bootstrap (system Evergreen + bootstrapper) and offline
+ * (bundled Fixed Version runtime) per arch; Linux ships distro-independent
+ * bootstrap/offline tar.zst; macOS keeps DMG for both variants and arches).
  * validateTargets requires exact set equality with this list.
  */
 export function baselineKeys(): string[] {
