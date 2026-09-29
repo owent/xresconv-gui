@@ -97,8 +97,7 @@ function checkCoherence(target: ReleaseTarget): void {
   }
   switch (target.os) {
     case "windows": {
-      const want =
-        target.variant === "offline" ? "webview2-fixed-runtime" : "webview2-evergreen";
+      const want = target.variant === "offline" ? "webview2-fixed-runtime" : "webview2-evergreen";
       if (target.webviewStrategy !== want) {
         fail("INCOHERENT_TARGET", target, `windows ${target.variant} requires ${want}`);
       }

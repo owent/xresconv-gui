@@ -5,7 +5,7 @@
 ------
 
 1. 架构重写：以 Tauri 2 薄壳 + 系统 WebView + 独立 Node.js 业务内核替代旧 Electron 架构，支持 Windows / Linux / macOS（64 位）。
-2. 发行包全部为解压即用形态：Windows 为 bootstrap zip（依赖系统 WebView2 并附引导安装器）+ offline tar.zst（内嵌 WebView2 Fixed Version 运行时、完全离线；zstd L19 多线程压缩较 DEFLATE zip 减约 24%，用 Windows 内置 tar 解压）；Linux 为 tar.zst 双变体（bootstrap 依赖系统 WebKitGTK、offline 自含）+ offline AppImage 并存，不再提供 deb/rpm；macOS 为 DMG。
+2. 发行包全部为解压即用形态：Windows 为 bootstrap zip（依赖系统 WebView2 并附引导安装器）+ offline tar.zst（内嵌 WebView2 Fixed Version 运行时；zstd L19 长窗口压缩，可选十种主流语言，使用支持 zstd 的工具解压）；Linux 为 tar.zst 双变体（bootstrap 依赖系统 WebKitGTK、offline 自含）+ offline AppImage 并存，不再提供 deb/rpm；macOS 为 DMG。
 3. 首个 3.0 开发预发布版本，仅供测试。
 
 2.6.0
@@ -136,16 +136,16 @@
 
 1. 更新依赖库
 
-  > + electron -> 11.1.1
-  > + bootstrap -> 5.0.0-beta1
-  > + jquery.fancytree -> 2.37.0
-  > + electron-packer -> 15.2.0
-  > + popper.js 替换为 @popperjs/core
+   > + electron -> 11.1.1
+   > + bootstrap -> 5.0.0-beta1
+   > + jquery.fancytree -> 2.37.0
+   > + electron-packer -> 15.2.0
+   > + popper.js 替换为 @popperjs/core
 
 2. 增加命令行选项 ```--custom-selector/--custom-button <json文件名>``` 用于增加自定义选择器
 3. 允许事件可勾选是否执行
 4. 转表前事件和转表后事件增加允许在面板中设置开启货关闭，新属性如下:
-   
+
    > + ```name``` : 显示名称
    > + ```checked``` : 默认选中/启用
    > + ```mutable``` : 是否可以修改选中/启用状态
@@ -221,7 +221,6 @@
 2. 升级electron到2.0.4
 3. 更新依赖库到当前最新版本release（2018-07-04）
 
-
 1.4.1
 ------
 
@@ -236,9 +235,9 @@
 9. 升级electron-packager到11.1.0
 10. 界面同步优化成bootstrap4
 11. 优化打包方式
-  + 使用标准的node_modules路径并排除开发工具依赖（解决electron会重置模块搜索目录的问题）
-  + 使用asar打包资源文件
 
+    + 使用标准的node_modules路径并排除开发工具依赖（解决electron会重置模块搜索目录的问题）
+    + 使用asar打包资源文件
 
 1.4.0
 ------

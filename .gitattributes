@@ -1,3 +1,14 @@
+# Biome formats these text sources as LF. Pin checkout line endings so
+# Windows core.autocrlf does not recreate formatting failures after checkout.
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+
 # Visual assets and fonts (editable SVGs are assets too).
 *.svg filter=lfs diff=lfs merge=lfs -text
 *.png filter=lfs diff=lfs merge=lfs -text

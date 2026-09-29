@@ -2,8 +2,8 @@ name: release
 
 # 新架构发行（P5 CI-04/CI-06 + 2026-09-28 portable 归档决策）：仅 v3 标签触发。
 # Windows = 解压即用归档（bootstrap zip 双击解压 + 系统 Evergreen；offline
-# tar.zst 内嵌 Fixed Version 运行时完全离线，zstd 压缩体积优化，用内置 tar
-# 解压，无安装器）；Linux = 发行版无关 tar.zst（bootstrap
+# tar.zst 内嵌 Fixed Version 运行时完全离线，用支持 zstd 的工具解压，
+# 无安装器）；Linux = 发行版无关 tar.zst（bootstrap
 # 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
 # ——两者与 --portable 与否无关；macOS 保持 dmg 双变体（不签名——签名/公证
 # 在受控发行环境后补，P5-07）。汇总 job 是唯一写 release 的入口，校验产物
@@ -45,11 +45,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: corepack enable
-      - name: Ensure zstd (offline tar.zst uses zstd -19 -T0; runner image ships it in PATH)
+      - name: Ensure zstd for offline tar.zst
         if: matrix.variant == 'offline'
         shell: pwsh
-        run: |
-          try { zstd --version } catch { choco install zstandard -y --no-progress; zstd --version }
+        run: ./scripts/ensure-zstd.ps1
       - run: corepack yarn install --immutable
       - run: corepack yarn package:windows --variant=${{ matrix.variant }}
       # actions/upload-artifact v7.0.1

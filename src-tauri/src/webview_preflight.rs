@@ -1,11 +1,12 @@
 //! Windows WebView2 运行时原生预检（P5-03，PK02：先检查后 GUI）。
 //!
-//! Windows 发行形态是解压即用的 zip（2026-09-28 用户决策，无安装器）：
+//! Windows 发行形态是解压即用的归档（bootstrap zip / offline tar.zst，无安装器）：
 //! bootstrap = 系统 Evergreen 运行时（包内附官方 bootstrapper 作为修复
 //! 通道）；offline = 内嵌 Fixed Version 运行时（`webview2-runtime/` 目录），
 //! 完全离线。预检在任何 WebView 创建之前完成两件事（fail-closed）：
-//! - offline 布局：把 `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` 指向包内固定
-//!   runtime（相邻目录不被 loader 自动发现；该环境变量优先级最高、提权
+//! - 系统 Evergreen 满足最低版本时优先使用，并清理继承的固定路径覆盖。
+//! - 系统缺失/过旧且有 offline 负载时，指向包内固定 runtime
+//!   （相邻目录不被 loader 自动发现；该环境变量优先级最高、提权
 //!   宿主下也生效——wry#1782），并补 Win10 Fixed≥120 要求的 AppContainer
 //!   读执行 ACL；固定 runtime 由打包合同保证版本 ≥ minimumWebview。
 //! - bootstrap：注册表探测 Evergreen（EdgeUpdate Client 官方固定 GUID），
@@ -16,7 +17,8 @@
 
 use std::path::Path;
 
-/// exe 旁固定 runtime 目录名（zip offline 布局，package-cli 组装时固定命名）。
+/// exe 旁固定 runtime 目录名（offline 布局，package-cli 组装时固定命名）。
+#[cfg(windows)]
 pub const FIXED_RUNTIME_DIR: &str = "webview2-runtime";
 
 /// WebView2 Evergreen 的 EdgeUpdate Client GUID（微软官方固定值）。
@@ -76,8 +78,7 @@ fn webview2_runtime_version() -> Option<String> {
 /// 理由不适用于此。
 #[cfg_attr(not(windows), allow(dead_code))]
 enum WebView2Plan {
-    /// 系统 Evergreen 可用（或包内无 runtime 且系统可用）：不设任何覆盖，
-    /// loader 默认走已安装运行时。
+    /// 系统 Evergreen 可用：清理继承的固定路径覆盖，让 loader 使用系统运行时。
     UseSystemEvergreen,
     /// 系统不可用但包内有 webview2-runtime/：指向它运行。
     UseFixedRuntime,
@@ -93,6 +94,23 @@ fn webview2_plan(fixed_runtime_present: bool, system_version: Option<&str>) -> W
         WebView2Plan::UseFixedRuntime
     } else {
         WebView2Plan::FatalMissing
+    }
+}
+
+/// Apply the decision through an injected environment setter so the startup
+/// behavior can be tested without mutating the test runner's process environment.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn configure_browser_folder(
+    plan: &WebView2Plan,
+    runtime: Option<&Path>,
+    mut set_folder: impl FnMut(Option<&Path>),
+) {
+    match plan {
+        WebView2Plan::UseSystemEvergreen => set_folder(None),
+        WebView2Plan::UseFixedRuntime => {
+            set_folder(Some(runtime.expect("fixed runtime implies exe dir")));
+        }
+        WebView2Plan::FatalMissing => {}
     }
 }
 
@@ -118,11 +136,14 @@ fn show_missing_dialog() {
 #[cfg(windows)]
 fn to_wide(path: &Path) -> Vec<u16> {
     use std::os::windows::ffi::OsStrExt;
-    path.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+    path.as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 /// Win10 + Fixed Version ≥120 的 unpackaged Win32 要求：runtime 目录须授予
-/// ALL APPLICATION PACKAGES（S-1-15-2-2）与 ALL RESTRICTED APPLICATION
+/// ALL RESTRICTED APPLICATION PACKAGES（S-1-15-2-2）与 ALL APPLICATION
 /// PACKAGES（S-1-15-2-1）读+执行并随子对象继承——官方 distribution 文档的
 /// `icacls <dir> /grant *S-1-15-2-2:(OI)(CI)RX` 等价实现（zip 解压出的目录
 /// 不带该 DACL，由壳首次运行时幂等补齐）。返回是否成功；失败不阻塞启动
@@ -132,8 +153,8 @@ fn to_wide(path: &Path) -> Vec<u16> {
 fn grant_appcontainer_rx(dir: &Path) -> bool {
     use windows_sys::Win32::Foundation::LocalFree;
     use windows_sys::Win32::Security::Authorization::{
-        ConvertStringSidToSidW, GetNamedSecurityInfoW, GRANT_ACCESS, NO_MULTIPLE_TRUSTEE,
-        SE_FILE_OBJECT, SetEntriesInAclW, SetNamedSecurityInfoW, EXPLICIT_ACCESS_W,
+        ConvertStringSidToSidW, EXPLICIT_ACCESS_W, GRANT_ACCESS, GetNamedSecurityInfoW,
+        NO_MULTIPLE_TRUSTEE, SE_FILE_OBJECT, SetEntriesInAclW, SetNamedSecurityInfoW,
         TRUSTEE_IS_SID, TRUSTEE_IS_WELL_KNOWN_GROUP,
     };
     use windows_sys::Win32::Security::{
@@ -170,9 +191,7 @@ fn grant_appcontainer_rx(dir: &Path) -> bool {
     for (index, (slot, entry)) in sids.iter_mut().zip(entries.iter_mut()).enumerate() {
         // BOOL：0 = 失败。
         if unsafe { ConvertStringSidToSidW(sid_texts[index], slot) } == 0 {
-            eprintln!(
-                "webview2 fixed-runtime acl: ConvertStringSidToSidW failed for slot {index}"
-            );
+            eprintln!("webview2 fixed-runtime acl: ConvertStringSidToSidW failed for slot {index}");
             unsafe {
                 LocalFree(descriptor as _);
             }
@@ -188,8 +207,14 @@ fn grant_appcontainer_rx(dir: &Path) -> bool {
         entry.Trustee.ptstrName = *slot as _;
     }
     let mut new_dacl: *mut ACL = std::ptr::null_mut();
-    let set_rc =
-        unsafe { SetEntriesInAclW(entries.len() as u32, entries.as_ptr(), old_dacl, &mut new_dacl) };
+    let set_rc = unsafe {
+        SetEntriesInAclW(
+            entries.len() as u32,
+            entries.as_ptr(),
+            old_dacl,
+            &mut new_dacl,
+        )
+    };
     let applied = if set_rc == 0 && !new_dacl.is_null() {
         let rc = unsafe {
             SetNamedSecurityInfoW(
@@ -228,22 +253,29 @@ pub fn ensure_webview2_or_exit() {
         let exe_dir = std::env::current_exe()
             .ok()
             .and_then(|exe| exe.parent().map(Path::to_path_buf));
-        let fixed_present = exe_dir
-            .as_deref()
-            .is_some_and(|dir| dir.join(FIXED_RUNTIME_DIR).join("msedgewebview2.exe").is_file());
+        let fixed_present = exe_dir.as_deref().is_some_and(|dir| {
+            dir.join(FIXED_RUNTIME_DIR)
+                .join("msedgewebview2.exe")
+                .is_file()
+        });
         let version = webview2_runtime_version();
-        match webview2_plan(fixed_present, version.as_deref()) {
+        let plan = webview2_plan(fixed_present, version.as_deref());
+        let runtime = exe_dir.as_deref().map(|dir| dir.join(FIXED_RUNTIME_DIR));
+        configure_browser_folder(&plan, runtime.as_deref(), |folder| {
+            // Single-threaded startup, before creating any WebView/worker.
+            unsafe {
+                match folder {
+                    Some(folder) => std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", folder),
+                    None => std::env::remove_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER"),
+                }
+            }
+        });
+        match plan {
             WebView2Plan::UseSystemEvergreen => {}
             WebView2Plan::UseFixedRuntime => {
                 let runtime = exe_dir
                     .expect("fixed runtime implies exe dir")
                     .join(FIXED_RUNTIME_DIR);
-                // loader 按 env var 定位固定 runtime（相对 exe 的路径需绝对化；
-                // env var 优先级高于注册表与 API 参数，提权宿主下也生效）。
-                // 启动单线程阶段设置，无并发读环境变量的竞态。
-                unsafe {
-                    std::env::set_var("WEBVIEW2_BROWSER_EXECUTABLE_FOLDER", &runtime);
-                }
                 grant_appcontainer_rx(&runtime);
             }
             WebView2Plan::FatalMissing => {
@@ -265,9 +297,29 @@ pub fn ensure_webview2_or_exit() {
 #[cfg(test)]
 mod tests {
     use super::{
-        installed_version, webview2_acceptable, webview2_major, webview2_plan, WebView2Plan,
-        MINIMUM_WEBVIEW2_MAJOR,
+        MINIMUM_WEBVIEW2_MAJOR, WebView2Plan, installed_version, webview2_acceptable,
+        webview2_major, webview2_plan,
     };
+
+    #[test]
+    fn selected_runtime_replaces_inherited_browser_folder_override() {
+        use std::path::{Path, PathBuf};
+        let fixed = Path::new("app/webview2-runtime");
+        for (present, version, expected) in [
+            (true, Some("153.0.0.0"), None),
+            (false, Some("153.0.0.0"), None),
+            (true, None, Some(fixed.to_path_buf())),
+            (true, Some("119.0.0.0"), Some(fixed.to_path_buf())),
+        ] {
+            let mut override_folder = Some(PathBuf::from("missing/inherited-runtime"));
+            super::configure_browser_folder(
+                &webview2_plan(present, version),
+                present.then_some(fixed),
+                |folder| override_folder = folder.map(Path::to_path_buf),
+            );
+            assert_eq!(override_folder, expected);
+        }
+    }
 
     #[test]
     fn stale_machine_registration_does_not_hide_supported_user_runtime() {
@@ -311,12 +363,21 @@ mod tests {
             UseSystemEvergreen
         ));
         // 系统过旧（<120 floor）：有兜底用兜底，无兜底致命。
-        assert!(matches!(webview2_plan(true, Some("119.9.9.9")), UseFixedRuntime));
-        assert!(matches!(webview2_plan(false, Some("119.9.9.9")), FatalMissing));
+        assert!(matches!(
+            webview2_plan(true, Some("119.9.9.9")),
+            UseFixedRuntime
+        ));
+        assert!(matches!(
+            webview2_plan(false, Some("119.9.9.9")),
+            FatalMissing
+        ));
         // 系统缺失：同上。
         assert!(matches!(webview2_plan(true, None), UseFixedRuntime));
         assert!(matches!(webview2_plan(false, None), FatalMissing));
         // 系统版本串损坏按缺失处理。
-        assert!(matches!(webview2_plan(true, Some("garbage")), UseFixedRuntime));
+        assert!(matches!(
+            webview2_plan(true, Some("garbage")),
+            UseFixedRuntime
+        ));
     }
 }

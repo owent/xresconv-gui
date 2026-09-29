@@ -37,12 +37,12 @@
 | 变体 | 体积 | WebView 运行时 | 适用场景 |
 | --- | --- | --- | --- |
 | **bootstrap**（在线引导） | 较小 | 复用系统已有运行时；缺失时联网引导安装（Windows 附带官方 WebView2 安装器，Linux 经系统包管理器安装 WebKitGTK，macOS 引导升级系统） | 有网络、系统通常已自带运行时的常规环境 |
-| **offline**（离线自含） | 较大 | 包内自带完整运行时（Windows 内嵌 WebView2 Fixed Version，Linux 内嵌 WebKitGTK 闭包），开箱即用、全程不联网 | 内网/隔离环境，或无法联网、系统缺少运行时的机器 |
+| **offline**（离线自含） | 较大 | 包内自带运行时（Windows 内嵌 WebView2 Fixed Version，Linux 内嵌 WebKitGTK 闭包），无需联网补装 WebView | 内网/隔离环境，或无法联网、系统缺少运行时的机器 |
 
 > 归档格式：Windows bootstrap 与 macOS 为双击即可打开的 `.zip` / `.dmg`；
 > Windows offline 与 Linux 为 `.tar.zst`（zstd 压缩，体积更小），用 Windows
-> 内置的 `tar -xf 文件.tar.zst`、7-Zip 或 Windows 11 资源管理器即可解压，
-> 离线机器无需额外联网下载工具。
+> 支持 zstd 的 `tar -xf 文件.tar.zst` 或 7-Zip 解压。Windows 自带 tar 的能力
+> 随系统版本而异；旧离线机器请提前准备兼容的解压工具，不能假定所有系统均支持。
 
 使用建议：
 
@@ -322,6 +322,13 @@ corepack yarn package:windows   # Windows x64：bootstrap zip + offline tar.zst�
 corepack yarn package:linux     # Linux tar.zst 双变体（bootstrap/offline + offline AppImage；Linux 运行）
 corepack yarn package:macos     # macOS 双变体 DMG（须在 mac 主机运行）
 ```
+
+Windows offline 默认保留完整运行时，使用 zstd L19 + 128 MiB 长窗口压缩。
+可选 `corepack yarn package:windows --variant=offline --webview-locales=mainstream`
+保留英、简中、繁中、日、韩、德、法、西、巴葡、俄十种运行时语言；不支持的语言
+由 WebView2 回退到可用语言，保留英文兜底。`--webview-locales=all` 恢复完整资源。
+裁剪为本项目验证的可选方案，微软没有提供支持承诺；不影响应用本身的中文界面。
+同负载实测与适用边界见 [发行尺寸审查](docs/plan/records/REVIEW-2026-09-29.md)。
 
 产物按 `packaging/targets.json` 矩阵命名并附带 SHA-256 边车；签名可经环境变量
 注入（`XRESCONV_SIGN_CERT_THUMBPRINT` 等，见 `docs/plan/records/P5-07.md`），

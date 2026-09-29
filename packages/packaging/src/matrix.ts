@@ -45,9 +45,8 @@ function artifactBase(target: ReleaseTarget, version: string): string {
  * 归档——Linux 不再出 deb/rpm，Windows 不再出安装器）。macOS portable = 未
  * 签名 .app（ditto 压缩 .app.zip）；Windows bootstrap = zip（exe+布局+WebView2
  * bootstrapper sidecar，42MiB，解压即双击运行）；Windows offline = tar.zst
- * （内嵌 Fixed Version 运行时；2026-09-28 用户授权：DEFLATE zip 对已压缩的
- * WebView2 运行时收益低，改用 zstd L19 多线程后 344→260MiB，−24.5%，且用
- * Windows 内置 tar 即可解压，离线场景无需第三方工具，见 source-index）；
+ * （内嵌 Fixed Version 运行时；zstd 参数与语言策略见发行设计，目标机须有
+ * 支持 zstd 的解压工具，不能推断所有 Windows 内置 tar 均支持）；
  * Linux bootstrap = 系统 WebKitGTK tar.zst（发行版无关，preflight.sh 探测/
  * 指引）；Linux offline = 自含 AppImage + 同闭包 tar.zst（用户 2026-09-27
  * 决策：与 AppImage 并存；压缩格式按 2026-09-28 决策为 zstd）。 */

@@ -3,12 +3,16 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
+  readSync,
   renameSync,
   rmSync,
   statSync,
@@ -22,6 +26,7 @@ import { LINUX_BUILD_BASELINE } from "./baseline.ts";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
 import { artifactName, portableArtifactName, portableFormats } from "./matrix.ts";
 import type { PortableFormat, ReleaseTarget, RuntimeManifest, TargetOs } from "./types.ts";
+import { copyFixedRuntime, type WebViewLocalePolicy } from "./webview-locales.ts";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -35,10 +40,13 @@ export function parsePackageArgs(args: string[]) {
       distro: { type: "string" },
       "skip-assemble": { type: "boolean", default: false },
       portable: { type: "boolean", default: false },
+      "webview-locales": { type: "string", default: "all" },
     },
   });
   if (!["all", "bootstrap", "offline"].includes(values.variant))
     throw new Error("invalid --variant");
+  if (!["all", "mainstream"].includes(values["webview-locales"]))
+    throw new Error("invalid --webview-locales (expected all or mainstream)");
   return values;
 }
 
@@ -136,7 +144,6 @@ function runTauriBuild(args: string[]): void {
  * 即应用根（Windows zip 与 Linux tar.zst 一致）。 */
 const PORTABLE_TAR_TOPDIR = "xresconv-gui";
 const PORTABLE_TAR_STAGE = path.join(ROOT, "build/portable-tar");
-const PORTABLE_ZIP_STAGE = path.join(ROOT, "build/portable-zip");
 
 function tarStageTo(dest: string): void {
   // 用户 2026-09-28 决策：Linux 归档一律 zstd 压缩（tar.zst）。GNU tar 经
@@ -163,19 +170,19 @@ function tarStageTo(dest: string): void {
 export interface WindowsZipExtras {
   bootstrapper?: string;
   fixedRuntimeDir?: string;
+  fixedRuntimeLocales?: WebViewLocalePolicy;
 }
 
 /** 组装 Windows portable 顶层目录（zip 与 tar.zst 共用）：exe + wry 的
  * WebView2Loader.dll + 发行布局（runtime/app/manifest）+ WebView2 附件
- * （bootstrap 附 bootstrapper sidecar；offline 内嵌 fixed runtime）。返回
- * PORTABLE_ZIP_STAGE，调用方负责压缩后清理。 */
+ * （bootstrap 附 bootstrapper sidecar；offline 内嵌 fixed runtime）。 */
 function stageWindowsPortableTop(
+  stage: string,
   exePath: string,
   layoutDir: string,
   extras: WindowsZipExtras,
 ): void {
-  rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
-  const top = path.join(PORTABLE_ZIP_STAGE, PORTABLE_TAR_TOPDIR);
+  const top = path.join(stage, PORTABLE_TAR_TOPDIR);
   mkdirSync(top, { recursive: true });
   copyFileSync(exePath, path.join(top, "xresconv-gui.exe"));
   // tauri/wry 的 WebView2 loader：--no-bundle 时由 cargo 构建产物携带。
@@ -189,20 +196,61 @@ function stageWindowsPortableTop(
   );
   if (extras.bootstrapper)
     copyFileSync(extras.bootstrapper, path.join(top, "MicrosoftEdgeWebview2Setup.exe"));
-  if (extras.fixedRuntimeDir)
-    cpSync(extras.fixedRuntimeDir, path.join(top, "webview2-runtime"), { recursive: true });
+  if (extras.fixedRuntimeDir) {
+    const locales = extras.fixedRuntimeLocales ?? "all";
+    const report = copyFixedRuntime(
+      extras.fixedRuntimeDir,
+      path.join(top, "webview2-runtime"),
+      locales,
+    );
+    writeFileSync(
+      path.join(top, "webview2-runtime-policy.json"),
+      `${JSON.stringify({ locales, ...report }, null, 2)}\n`,
+      "utf8",
+    );
+  }
 }
 
-/** Windows bootstrap zip（42MiB 级，双击解压）：Compress-Archive（DEFLATE）
- * 对小负载够用，且保留全 Windows 版本原生双击解压。 */
+/** Each invocation owns its staging files. Copy/compression/verification failure
+ * retains the previous artifact pair. A publication error may remove the old
+ * checksum; consumers must always require a matching sidecar. */
+function withWindowsArchiveStage(dest: string, pack: (stage: string) => string): void {
+  const build = path.join(ROOT, "build");
+  mkdirSync(build, { recursive: true });
+  const stage = mkdtempSync(path.join(build, "windows-archive-"));
+  try {
+    const archive = pack(stage);
+    // Never leave an old digest describing newly published bytes. The caller
+    // writes the new digest only after this replacement succeeds.
+    rmSync(`${dest}.sha256`, { force: true });
+    renameSync(archive, dest);
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+  }
+}
+
+function verifyArchiveHeader(file: string, magic: string): void {
+  const handle = openSync(file, "r");
+  try {
+    const header = Buffer.alloc(4);
+    if (readSync(handle, header, 0, header.length, 0) !== 4 || header.toString("hex") !== magic)
+      throw new Error(`invalid archive header: ${path.basename(file)}`);
+  } finally {
+    closeSync(handle);
+  }
+}
+
+/** Windows bootstrap ZIP uses .NET directly: Compress-Archive skips hidden
+ * files. Paths travel in environment values, never as PowerShell source. */
 export function zipPortableWindowsLayout(
   exePath: string,
   layoutDir: string,
   dest: string,
   extras: WindowsZipExtras = {},
 ): void {
-  stageWindowsPortableTop(exePath, layoutDir, extras);
-  try {
+  withWindowsArchiveStage(dest, (stage) => {
+    stageWindowsPortableTop(stage, exePath, layoutDir, extras);
+    const archive = path.join(stage, "payload.zip");
     const result = spawnSync(
       "pwsh",
       [
@@ -210,54 +258,39 @@ export function zipPortableWindowsLayout(
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        `Compress-Archive -LiteralPath '${path.join(PORTABLE_ZIP_STAGE, PORTABLE_TAR_TOPDIR)}' -DestinationPath '${dest}' -Force`,
+        "$ErrorActionPreference = 'Stop'; [System.IO.Compression.ZipFile]::CreateFromDirectory($env:XRESCONV_ARCHIVE_SOURCE, $env:XRESCONV_ARCHIVE_DEST, [System.IO.Compression.CompressionLevel]::Optimal, $true)",
       ],
-      { stdio: "inherit", timeout: 10 * 60_000, windowsHide: true },
+      {
+        stdio: "inherit",
+        timeout: 10 * 60_000,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          XRESCONV_ARCHIVE_SOURCE: path.join(stage, PORTABLE_TAR_TOPDIR),
+          XRESCONV_ARCHIVE_DEST: archive,
+        },
+      },
     );
     if (result.error || result.status !== 0)
-      throw new Error(`Compress-Archive failed (${result.error?.message ?? result.status})`);
-  } finally {
-    rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
-  }
+      throw new Error(`ZIP creation failed (${result.error?.message ?? result.status})`);
+    verifyArchiveHeader(archive, "504b0304");
+    return archive;
+  });
 }
 
-/** Windows offline tar.zst（内嵌 ~668MiB Fixed Version 运行时）：DEFLATE zip
- * 对已压缩的 WebView2 二进制收益低（344MiB）；改用 zstd L19 后 260MiB
- * （−24.5%），多线程 ~49s（2026-09-28 本机实测，见 source-index）。用 Windows
- * 内置 `tar`（bsdtar/libarchive，含 zstd）压缩，无需额外二进制。用户侧同样用
- * 内置 `tar --zstd -xf` 解压，离线场景零依赖。
- *
- * bsdtar 对未知 `--options` 是致命错误（非忽略，本机实证 exit 1）；libarchive
- * <3.6 无 `zstd:threads`。故先试全核多线程（静默捕获，避免退回成功时污染
- * 日志），不支持则退回单线程 L19（~284s，产物一致）。 */
+/** Windows offline uses two file-based steps. A tar compressor pipe deadlocked
+ * with CI's bsdtar + Win32 zstd (run 36434085221). Relative filenames also avoid
+ * GNU tar's drive-colon remote syntax and bsdtar's lack of --force-local. */
 export function tarZstPortableWindowsLayout(
   exePath: string,
   layoutDir: string,
   dest: string,
   extras: WindowsZipExtras = {},
 ): void {
-  stageWindowsPortableTop(exePath, layoutDir, extras);
-  // Windows 宿主的 tar 可能是 MSYS GNU tar（本机 Git Bash）或 System32
-  // bsdtar（CI pwsh），能力矩阵不同（本机/CI 双实证）：
-  // - 盘符冒号：GNU tar 当远程主机语法（叠加 MSYS 反斜杠转义 → broken
-  //   pipe），需 --force-local + 正斜杠；bsdtar 不支持 --force-local（致命
-  //   错误），但正斜杠盘符路径本身可用 → 按 --version 探测实现自适应。
-  // - 外部压缩程序经 tar 管道（--use-compress-program）在 CI 的 bsdtar +
-  //   Win32 zstd 组合上大流量死锁（run 36434085221 超时 15min 被杀；本机
-  //   GNU tar + MSYS zstd 正常——小样本实测曾掩盖该差异）→ 改两步走：
-  //   无压缩 tar 打包，再由 zstd 直接压文件（纯文件 IO，无跨进程管道）。
-  const tarVersion = spawnSync("tar", ["--version"], {
-    encoding: "utf8",
-    timeout: 10_000,
-    windowsHide: true,
-  });
-  const isBsdtar = (tarVersion.stdout ?? "").includes("bsdtar");
-  const posix = (value: string) => value.replaceAll("\\", "/");
-  const stagingTar = path.join(ROOT, "build/portable-tar-staging.tar");
-  try {
+  withWindowsArchiveStage(dest, (stage) => {
     // zstd 不可用时抛错而非静默回退：tar 内置压缩器是默认级别，offline 产物
-    // 会从 ~262MiB 劣化到 ~329MiB（run 36428739745 实证）。Git Bash 与
-    // GitHub Windows 镜像均预装 zstd。
+    // 会从 ~262MiB 劣化到 ~329MiB（run 36428739745 实证）。CI 显式探测并
+    // 准备外部 zstd，本机缺失时给出诊断。
     const zstd = spawnSync("zstd", ["--version"], {
       encoding: "utf8",
       timeout: 10_000,
@@ -265,38 +298,44 @@ export function tarZstPortableWindowsLayout(
     });
     if (zstd.error || zstd.status !== 0)
       throw new Error(
-        `external zstd is required for the offline tar.zst (zstd -19 -T0); install zstd or use CI (${zstd.error?.message ?? zstd.stderr?.trim() ?? "not found in PATH"})`,
+        `external zstd is required for the offline tar.zst (zstd -19 -T0 --long=27); install zstd or use CI (${zstd.error?.message ?? zstd.stderr?.trim() ?? "not found in PATH"})`,
       );
-    const packed = spawnSync(
-      "tar",
-      [
-        ...(isBsdtar ? [] : ["--force-local"]),
-        "-cf",
-        posix(stagingTar),
-        "-C",
-        posix(PORTABLE_ZIP_STAGE),
-        PORTABLE_TAR_TOPDIR,
-      ],
-      { stdio: "inherit", timeout: 10 * 60_000, windowsHide: true },
-    );
+    stageWindowsPortableTop(stage, exePath, layoutDir, extras);
+    const packed = spawnSync("tar", ["-cf", "payload.tar", PORTABLE_TAR_TOPDIR], {
+      cwd: stage,
+      stdio: "inherit",
+      timeout: 10 * 60_000,
+      windowsHide: true,
+    });
     if (packed.error || packed.status !== 0)
       throw new Error(
         `tar (uncompressed staging) failed (${packed.error?.message ?? packed.status})`,
       );
-    // -T0 = 按 CPU 核数多线程（本机 8 核 L19 ≈49s）；-f 覆盖已存在产物。
+    // 128 MiB window: measured smaller with the same payload; no decoder
+    // override required (unlike --long values greater than 27).
     const compressed = spawnSync(
       "zstd",
-      ["-19", "-T0", "-f", posix(stagingTar), "-o", posix(dest)],
-      { stdio: "inherit", timeout: 15 * 60_000, windowsHide: true },
+      ["-19", "-T0", "--long=27", "payload.tar", "-o", "payload.tar.zst"],
+      { cwd: stage, stdio: "inherit", timeout: 15 * 60_000, windowsHide: true },
     );
     if (compressed.error || compressed.status !== 0)
       throw new Error(
-        `zstd -19 -T0 failed (${compressed.error?.message ?? compressed.status})`,
+        `zstd -19 -T0 --long=27 failed (${compressed.error?.message ?? compressed.status})`,
       );
-  } finally {
-    rmSync(PORTABLE_ZIP_STAGE, { recursive: true, force: true });
-    rmSync(stagingTar, { force: true });
-  }
+    const archive = path.join(stage, "payload.tar.zst");
+    verifyArchiveHeader(archive, "28b52ffd");
+    const verified = spawnSync("zstd", ["-t", "payload.tar.zst"], {
+      cwd: stage,
+      stdio: "inherit",
+      timeout: 5 * 60_000,
+      windowsHide: true,
+    });
+    if (verified.error || verified.status !== 0)
+      throw new Error(
+        `zstd integrity check failed (${verified.error?.message ?? verified.status})`,
+      );
+    return archive;
+  });
 }
 
 /** WebView2 Evergreen bootstrapper 官方稳定短链（微软文档引用）；zip 内
@@ -322,7 +361,8 @@ async function ensureWebView2Bootstrapper(): Promise<string> {
 /** WebView2 Fixed Version 官方下载页（HTML 静态内嵌全部直链，无需 JS 渲染；
  * 2026-09-28 curl 实证）。无官方 API（WebView2Feedback#3372），页面结构变化
  * 时解析失败即 fail-closed 中止构建，不产出残缺 offline 包。 */
-export const WEBVIEW2_DOWNLOAD_PAGE = "https://developer.microsoft.com/en-us/microsoft-edge/webview2/";
+export const WEBVIEW2_DOWNLOAD_PAGE =
+  "https://developer.microsoft.com/en-us/microsoft-edge/webview2/";
 const FIXED_RUNTIME_PATTERN =
   /msedge\.sf\.dl\.delivery\.mp\.microsoft\.com(?:\\u002F|\/)filestreamingservice(?:\\u002F|\/)files(?:\\u002F|\/)([0-9a-f-]+)(?:\\u002F|\/)(Microsoft\.WebView2\.FixedVersionRuntime\.(\d+\.\d+\.\d+\.\d+)\.(x64|x86|arm64)\.cab)/g;
 
@@ -363,7 +403,7 @@ export function parseFixedRuntimeLinks(
 
 const WEBVIEW2_FIXED_CACHE = path.join(ROOT, "build/webview2-fixedruntime");
 
-/** Windows offline zip 的 Fixed Version 运行时（2026-09-28 决策）：抓官方下载
+/** Windows offline 的 Fixed Version 运行时（2026-09-28 决策）：抓官方下载
  * 页取直链（无 API，见 parseFixedRuntimeLinks）→ cab 下载缓存（MSCF 魔数 +
  * 体积下限校验）→ `expand -F:*` 解压（官方指定方式）。返回解压出的运行时
  * 目录（Microsoft.WebView2.FixedVersionRuntime.<version>.<arch>/）。 */
@@ -373,9 +413,15 @@ export async function ensureWebView2FixedRuntime(arch: "x64" | "arm64"): Promise
   const link = parseFixedRuntimeLinks(await page.text()).get(arch);
   if (link === undefined)
     throw new Error(`no Fixed Version runtime link for ${arch} on the download page`);
-  const cab = path.join(WEBVIEW2_FIXED_CACHE, `Microsoft.WebView2.FixedVersionRuntime.${link.version}.${arch}.cab`);
+  const cab = path.join(
+    WEBVIEW2_FIXED_CACHE,
+    `Microsoft.WebView2.FixedVersionRuntime.${link.version}.${arch}.cab`,
+  );
   const extractRoot = path.join(WEBVIEW2_FIXED_CACHE, "extracted", `${link.version}-${arch}`);
-  const runtimeDir = path.join(extractRoot, `Microsoft.WebView2.FixedVersionRuntime.${link.version}.${arch}`);
+  const runtimeDir = path.join(
+    extractRoot,
+    `Microsoft.WebView2.FixedVersionRuntime.${link.version}.${arch}`,
+  );
   if (existsSync(path.join(runtimeDir, "msedgewebview2.exe"))) return runtimeDir;
   if (!existsSync(cab)) {
     const response = await fetch(link.url, { redirect: "follow" });
@@ -492,6 +538,8 @@ function signingBundle(os: TargetOs): Record<string, unknown> {
 
 export async function packageNative(os: TargetOs, args = process.argv.slice(2)): Promise<void> {
   const options = parsePackageArgs(args);
+  if (options["webview-locales"] !== "all" && (os !== "windows" || options.variant === "bootstrap"))
+    throw new Error("--webview-locales=mainstream requires a Windows offline build");
   const arch = nativeArch(os);
   if (options.arch !== undefined && options.arch !== arch)
     throw new Error("--arch must match the native host architecture");
@@ -578,13 +626,16 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
         if (os === "windows") {
           // Windows offline "解压即用" tar.zst：裸 exe + 发行布局 + 内嵌 Fixed
           // Version 运行时（webview2-runtime/，壳启动时指向它，完全离线）。
-          // zstd L19 多线程压缩，用 Windows 内置 tar 解压，离线场景零依赖。
+          // 使用外部 zstd，目标机需要支持 zstd 的 tar 或其他解压工具。
           runTauriBuild(["build", "--no-bundle"]);
           const exe = path.join(ROOT, "target/release", "xresconv-gui.exe");
           if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
           if (fixedRuntime === undefined)
             fixedRuntime = await ensureWebView2FixedRuntime(arch === "x64" ? "x64" : "arm64");
-          tarZstPortableWindowsLayout(exe, layout, dest, { fixedRuntimeDir: fixedRuntime });
+          tarZstPortableWindowsLayout(exe, layout, dest, {
+            fixedRuntimeDir: fixedRuntime,
+            fixedRuntimeLocales: options["webview-locales"] as WebViewLocalePolicy,
+          });
         } else if (variant === "offline") {
           // Linux "解压即运行" tar.zst：已产出的自含 AppImage 解包重压（复用
           // linuxdeploy 闭包，用户侧免 FUSE 免安装）。

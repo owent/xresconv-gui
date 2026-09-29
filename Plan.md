@@ -26,6 +26,8 @@ Hint:
 
 ## 1. 状态、目标与实施边界
 
+发行后续验收：复跑 Windows release CI、旧 Windows 解压与干净离线 VM、ARM64/macOS/Linux 实机；可选语言裁剪每次 Fixed Version 升级重验。验收要求是最终归档逐文件校验、语言回退及所属进程清理通过，不能用 mock 或本机结果代替。实现与本轮证据见 [2026-09-29 审查](docs/plan/records/REVIEW-2026-09-29.md)。
+
 - 编制日期：2026-09-23；源码基线 `3e8ec5773368ce02455a74bcd42d7ff03487be08`，应用版本 `2.6.0`。
 - 当前状态（2026-09-25）：P0–P4 完成（G4 Windows 范围通过）；P5 本机可验证范围完成至 P5-09（P5-04/07/08/10 阻塞于 macOS 主机/受控签名环境/VM 实机，已如实登记）；597 例 Node/前端 + 15 例三引擎浏览器 + 13 例 Rust 测试通过；Windows 桌面 E2E 9/9、八格式真实 JAR 差分通过；Windows x64 双变体（29/232 MiB）与 WSL Debian 13 双变体（DEB+自含 AppImage 141 MiB）实构。**CI 推送验证已完成（PR #60 运行级绿）；P7 切换已执行（2026-09-26：旧架构删除+布局对照旧版重构+真实项目转换验证通过+--log-configure 补齐）。剩余（用户指示排最后，手动执行）：macOS 实构、签名实跑、VM 安装矩阵、G5/G6 签字式验收、draft release 复核。** 证据见 `docs/plan/records/`。
 

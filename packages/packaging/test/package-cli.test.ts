@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 import {
   detectDistro,
   nativeArch,
+  packageNative,
   parseFixedRuntimeLinks,
   parsePackageArgs,
   selectArtifact,
@@ -25,6 +26,18 @@ it("rejects unknown option prefixes and invalid variants", () => {
     variant: "offline",
   });
   expect(parsePackageArgs([])).toMatchObject({ portable: false, variant: "all" });
+  expect(parsePackageArgs([])["webview-locales"]).toBe("all");
+  expect(parsePackageArgs(["--webview-locales=mainstream"])["webview-locales"]).toBe("mainstream");
+  expect(() => parsePackageArgs(["--webview-locales=typo"])).toThrow(/webview-locales/);
+});
+
+it("does not silently accept a language policy for a target without a Fixed runtime", async () => {
+  await expect(packageNative("linux", ["--webview-locales=mainstream"])).rejects.toThrow(
+    /Windows offline/,
+  );
+  await expect(
+    packageNative("windows", ["--variant=bootstrap", "--webview-locales=mainstream"]),
+  ).rejects.toThrow(/Windows offline/);
 });
 it("preserves an exact Ubuntu baseline and rejects a foreign native host", () => {
   expect(detectDistro('ID=ubuntu\nVERSION_ID="24.10"')).toBe("ubuntu-24.10");
