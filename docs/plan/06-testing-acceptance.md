@@ -182,6 +182,8 @@ cleanupResult / retryHistory / unsupportedCases / verdict
 | P6-05 | P6-02 至 P6-04 | 大小、启动、交互和吞吐测量 | 达标或明确阻塞，未删除功能/平台换取体积 |
 | P6-06 | P6-05 | 汇总 G6 验收与剩余问题 | 无阻断缺陷、无未说明的能力删除，方可进入 P7 |
 
+进度（2026-09-30）：P6-01 已完成本机范围审查并补齐 14 项子场景缺口（含 `run-loop-stress.test.ts` 承载的 P6-03 本机 100 轮泄漏循环）；实机/延后缺口清单与逐族映射锚点见 [P6-01 记录](records/P6-01.md)。P6-02 的自动化部分（真实 JAR 差分、官方 sample、真实脚本逐字差分）沿用既有入口复跑通过；真实用户样本人工复核未执行。P6-05 本机测量三项门槛达标（体积 -81.1%/吞吐 132.7%/p95 7–55ms，另修复 CONFIG_LIMIT 100k 兼容、日志链两处故障逃逸、日志区键盘访问）、P6-06 本机汇总见对应记录；实机项按用户指示延后最后。
+
 ## 当前自动化入口补充（2026-09-27）
 
 - 单元/契约入口保持 `corepack yarn test:unit` / `test:contracts`；本轮外层限时运行器及日志索引见审查记录。
@@ -189,5 +191,5 @@ cleanupResult / retryHistory / unsupportedCases / verdict
 - `test:desktop` 显式启动已安装的 tauri-driver / 原生 WebDriver，不隐式下载或附加测试插件。构建上限 30 分钟、驱动就绪 15 秒、每轮测试 5 分钟、连接 15 秒且不重试；结束回收所属进程树。
 - 桌面默认依次验证空会话、`tests/fixtures/config/tree-items.xml` 的首次 CLI 加载。测试前备份 exe 旁显示设置，每轮重置，最终恢复原字节；`XRESCONV_E2E_INPUT` 可覆盖加载文件，`XRESCONV_E2E_SKIP_BUILD=1` 只用于已确认匹配源码的本地二进制。
 - Edge WebDriver 的应用参数使用 `--input=路径`，不能拆成两个数组元素；浏览器标志应放 `webviewOptions.additionalBrowserArguments`。失败截图和 CLI/页面诊断保存在 `build/desktop-test-results/`。
-- 真实转换使用 `tests/fixtures/conversion/runtime.mts` 解析 JAR/样本；缺失时显式跳过，多个 JAR 不猜测版本。配置方法和实跑命令见 [转换测试说明](../../tests/fixtures/conversion/README.md)。
+- 真实转换使用 `tests/fixtures/conversion/runtime.mts` 解析 JAR/样本；缺失时显式跳过，多个 JAR 不猜测版本。配置方法和实跑命令见 [转换测试说明](../../tests/fixtures/conversion/README.md)。统一入口 `corepack yarn test:conversion`（即 `node tests/conversion/run-e2e.mjs`；缺 JAR/样本 exit 2 显式退出，相邻 target 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`）。
 - Linux preflight 回归仅在 Linux 执行，mock sudo/ldconfig 后验证参数保真、分步安装与复检；不会安装系统包。Windows 跳过这两项必须保留在结果中。

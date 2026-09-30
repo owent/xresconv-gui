@@ -226,6 +226,40 @@ describe("App shell (P4-01)", () => {
     expect(screen.getByRole("button", { name: "开始转换" })).toBeTruthy();
   });
 
+  it("UI01: Java 缺失只写运行日志 warning 与修复指引，不阻塞界面", async () => {
+    mockedInvoke.mockImplementation((cmd: string, args?: unknown) => {
+      if (cmd === "backend_rpc") {
+        const method = (args as { method?: string } | undefined)?.method;
+        if (method === "checkJava") {
+          return Promise.resolve({
+            ok: false,
+            versionText: "",
+            versions: [],
+            bit64: false,
+            executable: { command: "", source: "path" },
+            problem: "未找到可用的 java 可执行文件",
+            downloadHints: [
+              { name: "Temurin", url: "https://example/temurin" },
+              { name: "Microsoft Build of OpenJDK", url: "https://example/msjdk" },
+            ],
+          });
+        }
+      }
+      return defaultInvokeImpl(cmd, args);
+    });
+    render(<App />);
+    const log = await screen.findByRole("log", { name: "日志列表" });
+    await waitFor(() =>
+      expect(log.textContent ?? "").toContain("Java 环境不满足：未找到可用的 java 可执行文件"),
+    );
+    const text = log.textContent ?? "";
+    expect(text).toContain("XRESCONV_JAVA");
+    expect(text).toContain("Temurin、Microsoft Build of OpenJDK");
+    // 界面不被 Java 缺失阻塞：主区域仍可达，配置工具栏可用。
+    expect(screen.getByRole("form", { name: "转换参数" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "重载配置" })).toBeTruthy();
+  });
+
   it("does not duplicate bridge fetches under StrictMode double-mount", async () => {
     render(
       <StrictMode>

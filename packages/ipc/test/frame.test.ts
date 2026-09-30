@@ -64,6 +64,39 @@ describe("FrameDecoder", () => {
     decoder.push(encodeFrame({ after: "error" }));
     expect(frames).toEqual([]);
   });
+
+  it("rejects a body that is not valid UTF-8 without decoding mojibake (SC01)", () => {
+    const { frames, errors, decoder } = collect();
+    const body = Buffer.from([0xff, 0xfe, 0x28]); // 孤立代理字节序列，非法 UTF-8
+    const head = Buffer.allocUnsafe(4);
+    head.writeUInt32BE(body.length, 0);
+    decoder.push(Buffer.concat([head, body]));
+    expect(frames).toEqual([]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.code).toBe("BAD_JSON");
+  });
+
+  it("parses a __proto__ key with own-property semantics: no prototype pollution (SC01/R12)", () => {
+    const { frames, errors, decoder } = collect();
+    // JSON.parse 规范把 "__proto__" 当 own property；即使解析成功，也不能把它
+    // 当成原型赋值通道。envelope 层另有 additionalProperties:false 拒绝未知键。
+    // 注意：对象字面量 { __proto__: ... } 是原型赋值语法，必须经 JSON 构造自有键。
+    const payload = JSON.parse('{"__proto__": {"polluted": true}, "kind": "rpc"}');
+    decoder.push(encodeFrame(payload));
+    if (errors.length > 0) {
+      // schema 拒绝路径：非法 envelope 直接拒绝，同样视为通过。
+      expect(errors[0]).toBeInstanceOf(FrameCodecError);
+      return;
+    }
+    expect(frames).toHaveLength(1);
+    const parsed = frames[0] as Record<string, unknown>;
+    expect(Object.prototype.hasOwnProperty.call(parsed, "__proto__")).toBe(true);
+    const own = Object.getOwnPropertyDescriptor(parsed, "__proto__")?.value as object;
+    expect(own).toEqual({ polluted: true });
+    // 关键断言：全局原型未被污染。
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    expect(Object.prototype.hasOwnProperty.call(Object.prototype, "polluted")).toBe(false);
+  });
 });
 
 describe("writeFrame", () => {

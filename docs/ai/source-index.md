@@ -93,6 +93,15 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | ICU 精细裁剪 | [Node v24 Intl](https://github.com/nodejs/node/blob/v24.21.0/doc/api/intl.md)、[icu_small.json](https://github.com/nodejs/node/blob/v24.21.0/tools/icu/icu_small.json)、[ICU Data Build Tool](https://unicode-org.github.io/icu/userguide/icu_data/buildtool.html) | small-icu 默认还删除编码转换/断词等数据，不能等同于纯语言裁剪；优先研究 locale filter 并保留其他类别，固定数据版本、保留语言依赖链、验证简体中文/GBK/Unicode/英文回退；预制 dat 可能覆盖过滤配置 | 每次 Node/ICU 升级 | 语言数据裁剪 | 官方机制已核验，定制数据接线未实构 |
 | 替代运行时与 SEA | [Bun 兼容性](https://bun.sh/docs/runtime/nodejs-compat)、[Bun 1.4.2](https://github.com/oven-sh/bun/releases/tag/bun-v1.4.2)、[Deno Node 兼容性](https://docs.deno.com/runtime/fundamentals/node/)、[Deno 2.9.7](https://github.com/denoland/deno/releases/tag/v2.9.7)、[Node v24 SEA](https://github.com/nodejs/node/blob/v24.21.0/doc/api/single-executable-applications.md) | Windows x64 同参数单 exe 的 zstd 为 Node 24.56、Bun 30.47、Deno 30.75 MiB，无直接替换减小下载量的证据；fork/IPC/vm/动态 require/Node-API/无窗口需迁移验收。SEA 仍嵌入 Node，不自动缩小运行时 | 每次候选版本升级 | 运行时替换或单文件化 | 资产压缩已实测，应用兼容性未运行 |
 
+## P6 验收映射（2026-09-30）
+
+| 主题 | 来源 | 当前结论 | review_cadence | update_trigger | status |
+| --- | --- | --- | --- | --- | --- |
+| 用例映射审查 | [P6-01 记录](../plan/records/P6-01.md)、[06 册用例表](../plan/06-testing-acceptance.md) | 39 用例族（CF/SC/EX/UI/PK）全部有真实断言实现；14 项子场景缺口补齐；P6-03 100 轮泄漏循环本机通过（无孤儿 worker、句柄零增长）；剩余缺口按实机阻塞/延后登记 | 每次 P6 后续任务 | 新增用例族或测试重构 | 本机 Windows x64 范围 |
+| UTF-8 拆包与原型污染测试依据 | [StringDecoder](https://nodejs.org/api/string_decoder.html)、[ECMA-262 JSON.Parse](https://tc39.es/ecma262/multipage/structured-data.html#sec-json.parse) | LineBuffer 依赖 StringDecoder 的跨 chunk 多字节缓冲；`JSON.parse` 把 `__proto__` 记为 own property（对象字面量写法则是原型赋值语法，测试须经 JSON 构造该键） | Node 大版本升级 | 帧协议/编码器变更 | 已用例固化（ipc frame、guardian EX02/EX04） |
+| 真实转换差分入口 | [转换 fixtures README](../../tests/fixtures/conversion/README.md)、[runtime.mts](../../tests/fixtures/conversion/runtime.mts) | `yarn test:conversion` 落地为统一入口；相邻仓库 target 同名多 JAR（2.23.7 + shaded）时自动解析按"拒绝猜测"退出 2，须显式 `XRESCONV_TEST_JAR`；本轮显式指定后八格式全 MATCH | JAR/样本升级 | target 目录 JAR 数量变化 | 实测通过 |
+| P6-05 性能测量口径 | [P6-05 记录](../plan/records/P6-05.md) | 三门槛达标：bootstrap -81.1%、吞吐 132.7%、p95 7–55ms；启动 1737ms/进程树 676MB 为记录项（D6 架构代价）。测量脚本 quirks：RAC 按压需 PointerEvent 序列（el.click() 不触发）；真实浏览器 RAC 虚拟化树无 role="tree" 容器（jsdom 有，测试层与真实 DOM 差异）；Playwright 浏览器二进制随版本漂移需镜像重装（`PLAYWRIGHT_DOWNLOAD_HOST=npmmirror`） | Playwright/RAC 升级 | 交互测量或浏览器层失败排查 | 本机 Windows x64 实测 |
+
 ## 外部规范（易变，需定期复核）
 
 | 主题 | 来源 | review_cadence | update_trigger | status |

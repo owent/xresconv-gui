@@ -30,7 +30,13 @@ export class SpawnError extends Error {
   override readonly cause: unknown;
 
   constructor(program: string, cause: unknown) {
-    super(`failed to spawn: ${program}`);
+    // 把底层 code/message 并入文本：发行包日志只保留 message（无 cause 序列化），
+    // ENOENT/EPERM/EACCES 等关键差异不能丢（P6 真实应用采集实测踩坑）。
+    const detail =
+      cause instanceof Error
+        ? `${cause.message} [${String((cause as NodeJS.ErrnoException).code ?? cause.name)}]`
+        : String(cause);
+    super(`failed to spawn: ${program} (${detail})`);
     this.name = "SpawnError";
     this.program = program;
     this.cause = cause;

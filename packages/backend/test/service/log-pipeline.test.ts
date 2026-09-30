@@ -6,11 +6,13 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { createLog4jsSink, type LogEntry, LogPipeline } from "../../src/service/log-pipeline.ts";
+import { ConversionSession } from "../../src/service/session.ts";
+import { fixture, startPool } from "./helpers.ts";
 
 const tmpRoots: string[] = [];
 
@@ -218,5 +220,95 @@ describe("log4js sink", () => {
     expect(sink.diagnostic).toContain("falling back");
     // 回退成功 → sink 可用（默认配置写 cwd 文件，此处只验证不抛，不 append 避免落文件）。
     await sink.shutdown();
+  });
+
+  it("EX04：maxLogSize 轮转生效——超限后生成 .1 备份且继续写入", { timeout: 30_000 }, async () => {
+    const dir = makeTmpDir();
+    const logFile = path.join(dir, "rotate.log");
+    const configPath = path.join(dir, "log4js.json");
+    // 小阈值（4KB）触发轮转；numBackups=2（与默认配置的 10MiB/3 同机制）。
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        appenders: { file: { type: "file", filename: logFile, maxLogSize: 4096, numBackups: 2 } },
+        categories: { default: { appenders: ["file"], level: "debug" } },
+      }),
+    );
+    const sink = createLog4jsSink({ configurePath: configPath });
+    expect(sink.diagnostic).toBeNull();
+    const pipeline = new LogPipeline();
+    pipeline.addSink((entry) => sink.append(entry));
+    const payload = "x".repeat(256);
+    for (let i = 0; i < 100; i += 1) {
+      await pipeline.info(`${payload} #${i}`, "ROT");
+    }
+    await sink.shutdown();
+    // 100×~280B ≈ 28KB > 4KB×若干轮：主文件与备份都存在，内容完整可查。
+    expect(existsSync(logFile)).toBe(true);
+    expect(existsSync(`${logFile}.1`)).toBe(true);
+    const main = readFileSync(logFile, "utf8");
+    expect(main).toContain("[ROT]:");
+    expect(main.length).toBeGreaterThan(0);
+    expect(main.length).toBeLessThanOrEqual(4096 + 512);
+  });
+
+  it("EX04：只读日志文件——append 不抛给调用方，收尾有界不挂起", { timeout: 20_000 }, async () => {
+    const dir = makeTmpDir();
+    const logFile = path.join(dir, "readonly.log");
+    writeFileSync(logFile, "PRESERVE\n", "utf8");
+    // Windows：只读属性使追加写失败；POSIX：0444 同效。
+    chmodSync(logFile, 0o444);
+    const configPath = path.join(dir, "log4js.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        appenders: { file: { type: "file", filename: logFile } },
+        categories: { default: { appenders: ["file"], level: "debug" } },
+      }),
+    );
+    const sink = createLog4jsSink({ configurePath: configPath });
+    const pipeline = new LogPipeline();
+    pipeline.addSink((entry) => sink.append(entry));
+    // 写失败不得抛给调用方，也不得逃逸成 unhandled rejection（EX04；emit 兜底）。
+    const entry = await pipeline.info("denied-write", "RO");
+    expect(entry.message).toBe("denied-write");
+    // 文档化契约：配置失败使 shutdown 拒绝（生产 dispose 按 EX04 捕获记诊断）。
+    await expect(sink.shutdown(2000)).rejects.toThrow(/configuration failed|EPERM/);
+    chmodSync(logFile, 0o666);
+    expect(readFileSync(logFile, "utf8")).toContain("PRESERVE");
+  });
+
+  it("EX04：会话 dispose 容忍日志后端不可用——resolve 并记诊断，不使收尾失败", {
+    timeout: 30_000,
+  }, async () => {
+    const dir = makeTmpDir();
+    const logFile = path.join(dir, "readonly-session.log");
+    writeFileSync(logFile, "PRESERVE\n", "utf8");
+    chmodSync(logFile, 0o444);
+    const configPath = path.join(dir, "log4js.json");
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        appenders: { file: { type: "file", filename: logFile } },
+        categories: { default: { appenders: ["file"], level: "debug" } },
+      }),
+    );
+    const pool = await startPool();
+    try {
+      const session = new ConversionSession({
+        pool,
+        log4js: { configurePath: configPath },
+      });
+      await session.loadConfig(fixture("run-hooks.xml"));
+      await session.pipeline.drain();
+      // dispose 必须 resolve（EX04：日志故障不阻断清理），并留下可见诊断。
+      await expect(session.dispose()).resolves.toBeUndefined();
+      const messages = session.pipeline.snapshot().map((entry) => entry.message);
+      expect(messages.some((m) => m.includes("log4js shutdown failed"))).toBe(true);
+      chmodSync(logFile, 0o666);
+      expect(readFileSync(logFile, "utf8")).toContain("PRESERVE");
+    } finally {
+      await pool.shutdown();
+    }
   });
 });

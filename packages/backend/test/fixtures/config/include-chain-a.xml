@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <include>include-chain-b.xml</include>
+  <global>
+    <work_dir>a-work</work_dir>
+    <proto_file>a.pb</proto_file>
+    <option>a-opt</option>
+  </global>
+  <list>
+    <item file="a.xlsx" scheme="s" name="甲"></item>
+  </list>
+</root>

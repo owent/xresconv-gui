@@ -79,4 +79,24 @@ describe("Java pipe failure boundaries", () => {
     expect(lines.join("")).toBe(text);
     expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(65536);
   });
+
+  it("reassembles UTF-8 multibyte characters split at arbitrary byte boundaries (EX04)", async () => {
+    const child = fakeChild();
+    const lines: string[] = [];
+    const pending = runJavaBatch({
+      ...options,
+      scope: fakeScope(),
+      onLog: (_stream, line) => lines.push(line),
+    });
+    // 含 3 字节（✅/中文）与 4 字节（𐍈）序列；3 字节 chunk 必然把多字节字符切开。
+    const text = "任务参数:资源转换示例 ✅ 𐍈\n尾行无换行";
+    const bytes = Buffer.from(text, "utf8");
+    for (let i = 0; i < bytes.length; i += 3) {
+      child.stdout.emit("data", bytes.subarray(i, i + 3));
+    }
+    child.emit("close", 0, null);
+    await pending;
+    expect(lines.join("")).toBe(text);
+    expect(lines.join("")).not.toContain("\uFFFD");
+  });
 });

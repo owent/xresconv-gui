@@ -76,4 +76,31 @@ describeLoaded("tree selection and layout with a loaded config", () => {
       assert.ok(await button.isDisplayed(), `${name} should be visible`);
     }
   });
+
+  it("UI06：缺失 JAR 的真实转换失败 → 结果文案如实失败、不假成功不挂起", async () => {
+    // 默认 fixture（tree-items.xml）的 xresloader_path=xresloader.jar 相对路径
+    // 在应用 cwd 下不存在 → java 报 "Unable to access jarfile" 非零退出。
+    const checkboxLabel = await $(".tree-checkbox");
+    await checkboxLabel.waitForExist({ timeout: 10_000 });
+    const checkbox = await $('[role="row"][data-key] input[type="checkbox"]');
+    if (!(await checkbox.isSelected())) {
+      await checkboxLabel.click();
+    }
+
+    const start = await $('button=开始转换');
+    await start.click();
+
+    // 运行结果面板出现失败文案（区分阶段、不伪装成功——UI06 合同）。
+    const result = await $('[aria-label="运行结果"]');
+    await result.waitForExist({ timeout: 30_000 });
+    await browser.waitUntil(
+      async () => {
+        const text = await result.getText();
+        return /失败/.test(text) && !/成功/.test(text);
+      },
+      { timeout: 30_000, timeoutMsg: "expected an honest failure summary" },
+    );
+    // 终态后按钮恢复可再次运行（不永久卡住）。
+    await browser.waitUntil(async () => start.isEnabled(), { timeout: 10_000 });
+  });
 });

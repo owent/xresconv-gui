@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -126,6 +127,28 @@ describe("parseXmlConfig: include 合并（P3-02）", () => {
     expect(items(cfg.tree).map((n) => n.item.name)).toEqual(["子项", "父项"]);
   });
 
+  it("④b 两级 include 链 A→B→C：深度优先到达 C、合并顺序与覆盖语义保持（CF02）", async () => {
+    const cfg = await parseXmlConfig(fx("include-chain-a.xml"));
+    // DFS 文档顺序：最深子先应用，入口最后。
+    expect(cfg.loadedFiles).toEqual([
+      path.resolve(fx("include-chain-c.xml")),
+      path.resolve(fx("include-chain-b.xml")),
+      path.resolve(fx("include-chain-a.xml")),
+    ]);
+    // 标量沿链逐级覆盖：a-work 覆盖 b-work 覆盖 c-work。
+    expect(cfg.workDir).toBe("a-work");
+    expect(cfg.protoFile).toEqual(["a.pb"]);
+    // b 覆盖 c 的 output_dir，a 未设置 → b 值保留。
+    expect(cfg.outputDir).toBe("b-out");
+    // 矩阵按文件重写：a、b 无 output_type → c 的 lua 矩阵被重写为空。
+    expect(cfg.outputMatrix).toEqual([]);
+    // 数组类沿链累积：c-opt → b-opt → a-opt；java_option 只在 c 出现。
+    expect(cfg.globalOptions.map((o) => o.value)).toEqual(["c-opt", "b-opt", "a-opt"]);
+    expect(cfg.javaOptions).toEqual(["-Dfile.encoding=UTF-8", "-Xc"]);
+    // items 累积，最深子在前。
+    expect(items(cfg.tree).map((n) => n.item.name)).toEqual(["丙", "乙", "甲"]);
+  });
+
   it("⑤ include 循环 → INCLUDE_CYCLE 含完整链", async () => {
     const err = await parseXmlConfig(fx("include-cycle-a.xml")).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ConfigError);
@@ -168,6 +191,34 @@ describe("parseXmlConfig: include 合并（P3-02）", () => {
     expect(cfg.workDir).toBe("含空格目录");
     expect(cfg.workDirSourceDir).toBe(path.resolve(FIXTURES, "子 目录"));
     expect(resolveWorkDir(cfg)).toBe(path.resolve(FIXTURES, "子 目录", "含空格目录"));
+  });
+
+  it("非 BMP（emoji）目录/文件名的相对 include（CF03 路径变体）", async () => {
+    const cfg = await parseXmlConfig(fx("include-emoji.xml"));
+    expect(cfg.loadedFiles).toEqual([
+      path.resolve(FIXTURES, "包📦目录", "包含🎬文件.xml"),
+      path.resolve(FIXTURES, "include-emoji.xml"),
+    ]);
+    expect(cfg.outputDir).toBe("emoji-out");
+    expect(items(cfg.tree).map((n) => n.item.name)).toEqual(["非BMP条目"]);
+  });
+
+  it("入口相对路径按进程 cwd 解析、与配置目录无关（CF03：变更启动 cwd 等价验证）", async () => {
+    // 在子进程里以 fixture 目录为 cwd 加载相对入口，断言解析出的绝对路径一致。
+    // vitest 进程内 chdir 会污染同 worker 的其他用例，故用独立子进程（spawnSync）。
+    const entry = "include-emoji.xml";
+    const code = `import { parseXmlConfig } from "@xresconv/backend";
+      const cfg = await parseXmlConfig(${JSON.stringify(entry)});
+      console.log(JSON.stringify(cfg.loadedFiles));`;
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", code], {
+      cwd: FIXTURES,
+      encoding: "utf8",
+      timeout: 20_000,
+    });
+    expect(result.status, result.stderr).toBe(0);
+    const loaded = JSON.parse(result.stdout.trim()) as string[];
+    expect(loaded[0]).toBe(path.resolve(FIXTURES, "包📦目录", "包含🎬文件.xml"));
+    expect(loaded[1]).toBe(path.resolve(FIXTURES, entry));
   });
 });
 

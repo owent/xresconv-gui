@@ -5,6 +5,9 @@
  * - silent：全程无输出，EOF 后 exit 0（静默进程也可完成）；
  * - chatty：每行产生多 chunk stdout/stderr（刻意半行拆分，考验行缓冲拼接；
  *   日志块数量不得改变任务计数语义）；
+ * - utf8-split：每行以 2 字节粒度切割 UTF-8 多字节序列输出（中文/emoji 跨
+ *   chunk 到达，考验 StringDecoder 拼接无 mojibake，EX04）；EOF 后再输出
+ *   一段无尾换行的半行，覆盖 flush 路径；
  * - slow：每行 20ms 慢消费（readline for-await 自然背压，考验写端 drain）；
  * - early-exit：收到首行即 exit 7（提前关闭，写端 EPIPE/close 收尾路径）；
  * - fail：EOF 后 exit FAKE_CONV_EXIT（默认 3，退出码=失败任务数约定）；
@@ -52,7 +55,15 @@ if (MODE === "child") {
 
 const rl = readline.createInterface({ input: process.stdin });
 
-if (MODE === "early-exit") {
+if (MODE === "instant-exit") {
+  // 启动即退：不读 stdin、不产出任何输出（区别于读一行再退的 early-exit）；
+  // 写端在管道破裂/关闭事件收尾，考验收尾不挂起与退出码归并。
+  exitWith(9);
+} else if (MODE === "self-kill") {
+  // 硬杀退出：模拟被信号/强杀终止（POSIX 为 SIGKILL 语义；Windows 为强终止）。
+  // runner 侧不猜测 signal 语义，只按非零失败归并——见 ex02 用例。
+  process.kill(process.pid, "SIGKILL");
+} else if (MODE === "early-exit") {
   rl.once("line", (line) => {
     received.push(line);
     exitWith(FAIL_EXIT);
@@ -71,10 +82,21 @@ if (MODE === "early-exit") {
       process.stderr.write(`[warn chunk ${n}`);
       await delay(1);
       process.stderr.write(" tail\n");
+    } else if (MODE === "utf8-split") {
+      const text = `[中文任务 ${n}] 资源转换示例 📦\n`;
+      const bytes = Buffer.from(text, "utf8");
+      for (let i = 0; i < bytes.length; i += 2) {
+        process.stdout.write(bytes.subarray(i, i + 2));
+        await delay(1);
+      }
     } else if (MODE === "slow") {
       await delay(20);
     }
     // silent / fail / child：无输出
+  }
+  if (MODE === "utf8-split") {
+    // 无尾换行的半行：进程退出前由读端 flush 收尾。
+    process.stdout.write("尾包无换行：中文收尾");
   }
   if (MODE === "child") {
     // 挂起：等待被整树终止（永不自行退出）。

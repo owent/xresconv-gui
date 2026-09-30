@@ -110,6 +110,32 @@ describe("runJavaBatch EX02（fake-converter 输出模式矩阵）", () => {
     expect(new Set(received).size).toBe(3);
   });
 
+  it("UTF-8 多字节拆包：跨 chunk/跨字符输出拼回原文，无尾换行走 flush（EX04）", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const dir = makeTmp();
+    const outLines: string[] = [];
+    const result = await runJavaBatch({
+      jarPath: "fake-converter",
+      workDir: dir,
+      tasks: makeTasks(2),
+      spawnSpec: fakeSpec({ FAKE_CONV_MODE: "utf8-split" }),
+      onLog: (stream, text) => {
+        if (stream === "stdout") outLines.push(text);
+      },
+    });
+    expect(result.exitCode).toBe(0);
+    // 2 条完整行 + 1 条 flush 半行，全部无 U+FFFD（mojibake）。
+    const complete = outLines.filter((line) => line.includes("中文任务"));
+    expect(complete).toHaveLength(2);
+    expect(complete[0]).toBe("[中文任务 1] 资源转换示例 📦\n");
+    const flushed = outLines.find((line) => line.includes("尾包无换行"));
+    expect(flushed).toBe("尾包无换行：中文收尾");
+    for (const line of outLines) {
+      expect(line).not.toContain("\uFFFD");
+    }
+  });
+
   it("slow stdin 慢消费：写端背压下 96×4KB 任务行全部恰好一次到达", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
@@ -144,6 +170,35 @@ describe("runJavaBatch EX02（fake-converter 输出模式矩阵）", () => {
     expect(result.exitCode).toBe(7);
     // 批次失败不冒充精确条目失败数：汇总只有 exitCode 语义（Main.java:407 约定）。
     expect(result.failedTaskCount).toBe(7);
+  });
+
+  it("启动即退：不消费 stdin 直接 exit 9 → EPIPE/close 收尾不挂起，退出码归并", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const dir = makeTmp();
+    const result = await runJavaBatch({
+      jarPath: "fake-converter",
+      workDir: dir,
+      tasks: makeTasks(5),
+      spawnSpec: fakeSpec({ FAKE_CONV_MODE: "instant-exit" }),
+    });
+    expect(result.exitCode).toBe(9);
+    expect(result.failedTaskCount).toBe(9);
+  });
+
+  it("硬杀退出：converter SIGKILL 自杀 → 批次非零失败收尾，不挂起不误报成功", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const dir = makeTmp();
+    const result = await runJavaBatch({
+      jarPath: "fake-converter",
+      workDir: dir,
+      tasks: makeTasks(5),
+      spawnSpec: fakeSpec({ FAKE_CONV_MODE: "self-kill" }),
+    });
+    // Windows 强终止无 exitCode（null→1 语义）/POSIX 为 signal；两者都不得是 0 成功。
+    expect(result.exitCode).not.toBe(0);
+    expect(result.failedTaskCount).toBeGreaterThan(0);
   });
 
   it("退出汇总：fail 模式 exit 3（4 任务）→ failedTaskCount=3（退出码语义，非任务数）", {

@@ -83,7 +83,7 @@ function describeRun(run: RunRecord): { tone: "ok" | "error" | "info"; lines: st
           tone: "error",
           lines: [
             `第 ${run.runSeq} 次运行失败：转换批次存在失败（已提交 ${run.taskCount} 个任务，${count}）`,
-            "stdin 批次协议无逐条确认，条目级成败明细未知，详见日志",
+            "详见日志",
           ],
         };
       }

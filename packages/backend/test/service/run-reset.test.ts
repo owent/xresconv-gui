@@ -1,8 +1,9 @@
 /**
  * cancel/reset/close 统一收尾（P2-09/P3-08，EX03/SC10 会话侧）。
  *
- * - 取消覆盖各阶段：before（既有 run.test.ts）/converting（既有）/
- *   after_hooks（本文件：in-flight hook 完成后链中止，无迟到重放）；
+ * - 取消覆盖各阶段：before（本文件：慢 hook 在途时取消，java 不派发）/
+ *   converting（既有 run.test.ts）/ after_hooks（本文件：in-flight hook
+ *   完成后链中止，无迟到重放）；
  * - reset 是业务操作：先取消并等实际回收（runner 终止确认后 run 才 settle），
  *   再清运行期状态重新武装；幂等（同请求重投）；终态一次；
  * - dispose 幂等；有界等待，超时不冒充清理成功；
@@ -56,6 +57,31 @@ describe("cancel/reset/close 统一收尾（EX03）", () => {
   afterAll(async () => {
     await pool.shutdown();
   }, TEST_TIMEOUT_MS);
+
+  it("before_hooks 阶段取消：java 未派发、无 after 链、终态一次（EX03 补 before 阶段）", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const calls: JavaBatchOptions[] = [];
+    const session = new ConversionSession({ pool, runner: okRunner(calls) });
+    const states = collectStates(session);
+    const config = await session.loadConfig(fixture("run-before-slow.xml"));
+
+    const runPromise = session.runConversion(selectAll(config));
+    // 慢 before hook（800ms）在途时取消：before 未完成 → java 不启动。
+    await waitUntil(() => session.getState() === "before_hooks", "before_hooks entered");
+    session.cancel();
+    const summary = await runPromise;
+    await session.pipeline.drain();
+
+    expect(summary.state).toBe("cancelled");
+    expect(calls.length).toBe(0);
+    expect(states.filter((s) => s === "cancelled").length).toBe(1);
+    const messages = session.pipeline.snapshot().map((entry) => entry.message);
+    expect(messages).not.toContain("AFTER");
+    expect(messages.some((m) => m.startsWith("All jobs done"))).toBe(false);
+    expect(messages).toContain("Conversion cancelled.");
+    await session.dispose();
+  });
 
   it("after_hooks 阶段取消：in-flight hook 完成后链中止、无 AFTER2、终态一次", {
     timeout: TEST_TIMEOUT_MS,

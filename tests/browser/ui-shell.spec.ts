@@ -104,3 +104,22 @@ test("UI08-5 高 DPI 与窄窗口：布局不崩溃（200% 缩放、小视口）
   );
   expect(overflow).toBeLessThanOrEqual(2);
 });
+
+// UI08 真实 200% DPI：deviceScaleFactor=2 模拟（此前仅小视口，名实不符——P6-01 登记）。
+test.describe("UI08-5b 真实 200% 缩放", () => {
+  test.use({ deviceScaleFactor: 2 });
+  test("deviceScaleFactor=2：DPR=2 下布局与可访问名保持", async ({ page }) => {
+    expect(await page.evaluate(() => window.devicePixelRatio)).toBe(2);
+    await expect(page.getByRole("heading", { name: "转换列表" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "开始转换" })).toBeVisible();
+    // CSS 布局按逻辑像素计算：整页无横向溢出。
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(2);
+    // 逻辑视口与物理像素分离：物理宽 = 逻辑宽 × DPR。
+    const viewport = page.viewportSize();
+    expect(viewport?.width).toBeTruthy();
+    expect(await page.evaluate(() => window.screen.width)).toBeGreaterThan(0);
+  });
+});

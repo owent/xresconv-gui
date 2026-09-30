@@ -256,6 +256,37 @@ describe("ScriptWorkerPool (P2-01)", () => {
   );
 
   it(
+    "d2. an async death loop (while(true) in a timer callback) is cut by the external WORKER_TIMEOUT (SC07, 06 册样例)",
+    async () => {
+      const pool = new ScriptWorkerPool({ size: 1 });
+      try {
+        await pool.start();
+        const oldPid = pool.stats()[0]?.pid;
+        // 事件循环被回调内同步死循环阻塞：vm timeout 与 worker 自身定时器都
+        // 无法触发，唯一存活边界是池级外部硬截止（BD-01）。
+        const stuck = makeInvoke({
+          source: 'require("node:timers").setTimeout(function () { while (true) {} }, 0);',
+          timeout_ms: 5000,
+        });
+        const err = await expectInvokeError(
+          pool.invoke(stuck, { timeoutMs: 500 }),
+          "WORKER_TIMEOUT",
+        );
+        expect(err.message).toContain(stuck.invocation_id);
+        await waitUntil(
+          () => pool.stats().some((s) => s.pid !== undefined && s.pid !== oldPid),
+          "pool replenish after async death loop",
+        );
+        const after = makeInvoke({ source: 'resolve("back");' });
+        expect((await pool.invoke(after)).outcome).toBe("resolved");
+      } finally {
+        await pool.shutdown();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
     "e. concurrent invokes spread across workers (size 2)",
     async () => {
       const pool = new ScriptWorkerPool({ size: 2 });

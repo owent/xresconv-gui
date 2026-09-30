@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <output_dir>emoji-out</output_dir>
+  </global>
+  <list>
+    <item file="🎮数据.xlsx" scheme="s" name="非BMP条目"></item>
+  </list>
+</root>

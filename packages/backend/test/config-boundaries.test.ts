@@ -19,9 +19,25 @@ afterEach(async () => {
 
 describe("configuration input boundaries", () => {
   it("rejects an oversized XML file before parsing", async () => {
-    await expect(parse(`<root>${" ".repeat(8 * 1024 * 1024)}</root>`)).rejects.toMatchObject({
+    await expect(
+      parse(`<root>${" ".repeat(64 * 1024 * 1024 + 1024)}</root>`),
+    ).rejects.toMatchObject({
       code: "CONFIG_LIMIT",
     });
+  });
+  it("loads a >8MiB single-file config (100k-class entries, F01 parity with old 10.8MiB baseline)", {
+    timeout: 60_000,
+  }, async () => {
+    // P0-05 旧版基线加载过 10.8 MiB/100k 条目的单文件 XML；新读取预算（64 MiB）
+    // 必须覆盖该压力用例（03 册：预算是保护上界，不是功能限制）。
+    const items: string[] = [];
+    for (let i = 1; i <= 100_000; i += 1) {
+      items.push(`<item file="数据表${i}.xlsx" scheme="sheet${i}" name="条目${i}"></item>`);
+    }
+    const config = await parse(
+      `<root><global><work_dir>.</work_dir></global><list>${items.join("")}</list></root>`,
+    );
+    expect(flattenTreeItems(config.tree)).toHaveLength(100_000);
   });
   it("detects an include cycle through directory aliases", async () => {
     const dir = await mkdtemp(path.join(tmpdir(), "xresconv-config-review-"));

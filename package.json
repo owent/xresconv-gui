@@ -41,6 +41,7 @@
     "check:shell": "cargo clippy --workspace --all-targets --locked -- -D warnings",
     "test:browser": "yarn workspace @xresconv/desktop build && yarn workspace @xresconv/desktop exec playwright test",
     "test:desktop": "node tests/desktop/run.mjs",
+    "test:conversion": "node tests/conversion/run-e2e.mjs",
     "verify:portable": "node --experimental-strip-types scripts/verify-portable.ts"
   },
   "repository": {

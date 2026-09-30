@@ -293,7 +293,10 @@ export class LogPipeline {
     if (bypassSinks) return;
     for (const sink of this.sinks) {
       try {
-        sink(entry);
+        // sink 可能返回 Promise（log4js 异步落盘）：异步拒绝同样不能逃逸成
+        // unhandled rejection 杀死 backend（EX04：只读/不可写日志文件场景）。
+        // 持久化失败的可观测性走 sink 自身的 onDiagnostic 通道（session 接线）。
+        void Promise.resolve(sink(entry)).catch(() => {});
       } catch {
         // 落盘故障不阻断日志管线。
       }

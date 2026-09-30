@@ -418,7 +418,14 @@ export class ConversionSession {
       this.matcher = null;
     }
     if (this.log4jsSink !== null) {
-      await this.log4jsSink.shutdown(LOG4JS_SHUTDOWN_TIMEOUT_MS);
+      // 日志后端不可用（如目标只读/配置失败）不能使会话收尾失败（EX04：
+      // 失败可查，不阻断清理）。与上方 run 清理同款"记诊断后继续"。
+      await this.log4jsSink.shutdown(LOG4JS_SHUTDOWN_TIMEOUT_MS).catch((error: unknown) => {
+        void this.pipeline.error(`log4js shutdown failed: ${String(error)}`, "LOG", {
+          bypassHooks: true,
+          bypassSinks: true,
+        });
+      });
     }
   }
 

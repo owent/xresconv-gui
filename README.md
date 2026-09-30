@@ -53,6 +53,16 @@
   bootstrap 在系统过旧时引导升级 macOS，offline 可在受支持系统（macOS 13.5+）上
   完全离线运行；低于最低版本的系统无法通过安装包补齐运行时，需先升级 macOS。
 
+### 界面速览
+
+3.0 新界面按 顶部配置工具栏 / 左侧转换列表 / 底部运行控制与日志 分区，支持：
+
++ 转换条目**搜索过滤**（保留已勾选状态）、分类展开/收起、全选/全不选；
++ **运行中取消**、重载配置、转换前**预览**计划与输出冲突提示；
++ 日志按级别/文本筛选、虚拟滚动大日志窗口、复制筛选结果与导出全部日志；
++ 明暗主题与跟随系统、字号调整（显示设置）；Java 环境与后端状态进入运行日志
+  （不再是常驻状态条）。
+
 ### 启动参数
 
 + `--input <文件名>` : 指定初始的转表清单文件。
@@ -112,13 +122,35 @@
 
 ## 示例
 
-![示例截图-1](docs/snapshoot-1.gif)
+以下截图与动图均来自 3.0 新界面（真实发行包实拍：演示配置走真实 xresloader 转换，工程示例为真实项目配置加载）。
 
-![示例截图-2](docs/snapshoot-2.gif)
+### 转换流程（勾选 → 转换前确认 → 真实转表 → 结果）
 
-![示例截图-3](docs/snapshoot-4.png)
+![转换流程](docs/media/workflow.gif)
+
+![转换完成](docs/media/main-light.png)
+
+### 界面与主题（显示设置、明暗主题、搜索过滤）
+
+![界面与主题](docs/media/theme-ui.gif)
+
+![真实工程-亮色](docs/media/real-project-light.png)
+
+![真实工程-暗色](docs/media/real-project-dark.png)
+
+### 详细配置与输出矩阵
+
+![详细配置](docs/media/details.png)
+
+![输出矩阵](docs/media/output-matrix.png)
+
+### 脚本确认弹窗（on_before_convert 中的 alert_warning）
+
+![脚本确认弹窗](docs/media/script-dialog.png)
 
 自定义按钮启动示例: `./xresconv-gui.exe --custom-selector ./docs/custom-selector.json`
+
+> 界面素材索引与更新方法见 [docs/media/README.md](docs/media/README.md)。
 
 ## 注意事项
 
@@ -137,14 +169,14 @@
         name="事件名称(可选,如果设置了名称，可以在执行时选择是否关闭)" 
         checked="true/false(可选,默认是否选中/启用)" 
         mutable="true/false(可选,是否可修改选中/启用状态)" 
-        type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="开始转表前的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+        type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="开始转表前的事件回调函数，事件执行结束必须调用resolve()函数，以触发进行下一步">
         
     </on_before_convert>
     <on_after_convert 
         name="事件名称(可选,如果设置了名称，可以在执行时选择是否关闭)" 
         checked="true/false(可选,默认是否选中/启用)" 
         mutable="true/false(可选,是否可修改选中/启用状态)"
-        type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="转表结束后的事件回调函数，事件执行结束必须调用done()函数，以触发进行下一步">
+        type="text/javascript" timeout="超时时间（毫秒,默认: 30000）" description="转表结束后的事件回调函数，事件执行结束必须调用resolve()函数，以触发进行下一步">
         // 事件代码脚本
     </on_after_convert>
     <script name="自定义脚本" type="text/javascript" timeout="超时时间（毫秒,默认: 30000）">
@@ -240,6 +272,7 @@
 
 日志Hook回调 **on_append_log** 事件（2.5.0 版本开始）用于抓取和控制日志输出。可用的接口如下：
 
+```javascript
 {
     work_dir: "执行xresloader的工作目录",
     xresloader_path: "xresloader目录",
@@ -259,6 +292,7 @@
     log_error: function (content) {}, // 打印error日志
     require: function (name) {} // 相当于 nodejs的 require(name) 用于导入nodejs 模块
 }
+```
 
 此接口可以通过修改 `data` 内的数据修改输出的日志内容和样式。但是此接口不会排队执行。
 
@@ -310,6 +344,8 @@ corepack yarn test:contracts
 corepack yarn test:browser  # Playwright 三引擎（chromium/firefox/webkit）
 corepack yarn test:desktop  # 桌面 E2E（tauri-driver；Windows 另需 MSEDGEDRIVER_PATH 指向与
                             # WebView2 运行时版本匹配的 msedgedriver.exe）
+corepack yarn test:conversion  # 真实 JAR 八格式 stdin vs argv 差分（相邻 ../xresloader/target
+                               # 有多个匹配 JAR 时须显式 XRESCONV_TEST_JAR，缺件 exit 2）
 corepack yarn check:shell   # Tauri 壳 clippy（-D warnings）
 corepack yarn test:shell    # Tauri 壳单元测试
 ```

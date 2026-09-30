@@ -293,15 +293,15 @@ describe("运行结果文案（P4-06，UI06：区分实际阶段与已发生副�
     expect(region.textContent).toContain("未启动转换");
   });
 
-  it("Java 批次失败：失败计数 + 提交数，不伪造条目级明细", async () => {
+  it("Java 批次失败：失败计数 + 提交数，引导看日志（不伪造条目级明细）", async () => {
     const region = await renderWithResult(
       "converting",
       summaryText({ state: "failed", failedCount: 2, taskCount: 5 }),
     );
     expect(region.textContent).toContain("失败计数 2");
     expect(region.textContent).toContain("5 个任务");
-    expect(region.textContent).toContain("条目级");
-    expect(region.textContent).toContain("日志");
+    // 2026-09-30 用户改版：失败文案精简为"详见日志"，不再展开批次协议说明。
+    expect(region.textContent).toContain("详见日志");
   });
 
   it("after 失败：转换已完成并生成输出，后处理失败不伪装成功", async () => {
@@ -330,7 +330,7 @@ describe("运行结果文案（P4-06，UI06：区分实际阶段与已发生副�
     );
     expect(region.textContent).toContain("已完成");
     expect(region.textContent).toContain("5 个任务");
-    expect(region.textContent).not.toContain("条目级");
+    expect(region.textContent).not.toContain("失败");
   });
 
   it("终态事件缺失（run_end 无前置 state_change）：退化为通用文案，不猜测阶段", async () => {

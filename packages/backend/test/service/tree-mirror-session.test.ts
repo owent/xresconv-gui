@@ -73,4 +73,39 @@ describe("session tree mirror (P2-05)", () => {
     expect(snapshot.nodes[0]?.selected).toBe(false);
     await session.dispose();
   });
+
+  it("hook 改选择后下一次运行按新树状态重新生成计划（CF06）", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    const calls: JavaBatchOptions[] = [];
+    const session = new ConversionSession({ pool, runner: okRunner(calls) });
+    const config = await session.loadConfig(fixture("run-mirror.xml"));
+    const items = flattenTreeItems(config.tree);
+    const first = must(items[0], "first item");
+
+    // 第一次运行：hook1 取消勾选 → 运行后树选择为空（任务数按冻结计划为 1）。
+    const firstRun = await session.runConversion({ items: [first] });
+    await session.pipeline.drain();
+    expect(firstRun.taskCount).toBe(1);
+    expect(session.getSelectedItems()).toEqual([]);
+
+    // 下一次运行缺省选择从会话树派生：计划重新生成 → 0 任务、不 spawn java。
+    const secondRun = await session.runConversion(undefined);
+    expect(secondRun.taskCount).toBe(0);
+    expect(calls.length).toBe(1);
+
+    // UI 重新勾选后再运行：计划再次重新生成 → 任务恢复，hook1 仍会再清一次选择。
+    const version = must(session.getTreeSnapshot(), "tree snapshot").version;
+    const report = session.applyScriptOps([
+      { v: version, op: "select_node", key: first.id, selected: true },
+    ]);
+    expect(report.applied).toBe(1);
+    expect(session.getSelectedItems()).toHaveLength(1);
+    const thirdRun = await session.runConversion(undefined);
+    await session.pipeline.drain();
+    expect(thirdRun.taskCount).toBe(1);
+    expect(calls.length).toBe(2);
+    expect(session.getSelectedItems()).toEqual([]);
+    await session.dispose();
+  });
 });

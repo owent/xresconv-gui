@@ -53,8 +53,11 @@ function splitWords(input: string | undefined): string[] {
 }
 
 const DEFAULT_HOOK_TIMEOUT_MS = 30000; // main.js:1490-1494 等
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 32 * 1024 * 1024;
+// 字节预算是防误配的保护上界，不是功能限制（03 册）。100k 条目压力用例的单文件
+// XML 约 11 MiB（P0-05 基线 10.8 MiB），故单文件上限须覆盖它；取值与 ipc/guardian
+// 的 64/128 MiB 帧预算同尺度（P4-08），仍保持有界。
+const MAX_FILE_BYTES = 64 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 128 * 1024 * 1024;
 const MAX_INCLUDE_DEPTH = 64;
 const MAX_FILES = 1024;
 

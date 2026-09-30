@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>c-work</work_dir>
+    <proto_file>c.pb</proto_file>
+    <output_dir>c-out</output_dir>
+    <output_type>lua</output_type>
+    <option>c-opt</option>
+    <java_option>-Xc</java_option>
+  </global>
+  <list>
+    <item file="c.xlsx" scheme="s" name="丙"></item>
+  </list>
+</root>

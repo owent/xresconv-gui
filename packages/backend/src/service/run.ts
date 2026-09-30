@@ -35,6 +35,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import type { ScriptResult } from "@xresconv/contracts";
 import type { JavaBatchOptions, JavaBatchResult, ScriptWorkerPool } from "@xresconv/guardian";
 import type { Hook, ParsedConfig } from "../config/model.ts";
@@ -256,6 +257,17 @@ interface ShardOutcome {
   failedCount: number;
 }
 
+/**
+ * 剥离 SGR ANSI 转义后的纯文本（仅用于 stderr 级别判定，不改写消息本体——
+ * UI 层按 BD-04 安全渲染 ANSI 颜色）。xresloader 的 log4j2 %highlight 在管道
+ * 上仍输出颜色码（实测 2.23.7：`\x1b[1;33m[WARN ] …`），不剥离会导致告警头
+ * 被误判为 error。经 RegExp 构造以兼容 Biome 控制字符规则。
+ */
+const ANSI_SGR_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+function stripAnsiCodes(text: string): string {
+  return text.replace(ANSI_SGR_PATTERN, "");
+}
+
 /** 单进程分片执行：启动日志 → 派发日志 → runner → 退出分级日志（main.js:2119-2189）。 */
 async function runShard(
   shardTasks: ConversionTask[],
@@ -271,6 +283,11 @@ async function runShard(
 
   const lines: string[] = [];
   let failedCount = 0;
+  // xresloader 的 WARN/ERROR 多行明细与其头行同走 stderr（log4j2 ConsoleErr，
+  // src …/resource/log4j2.xml）。"[WARN ] …" 头之后的 "> File/Table/Row/Column…"
+  // 续行语义同属告警：跟随 warning 渲染，避免来源提示被红色误读为错误（用户反馈）。
+  // 头行可能带 ANSI 颜色码，判级前先剥离。
+  let stderrWarnDetail = false;
   for (const task of shardTasks) {
     try {
       lines.push(encodeTaskLine(task.argv));
@@ -299,9 +316,13 @@ async function runShard(
       onLog: (stream, text) => {
         if (stream === "stdout") {
           void options.pipeline.notice(text); // main.js:2191-2201（绿色 span 属 UI 层）
-        } else if (text.slice(0, 5).toLowerCase() === "[warn") {
+        } else if (stripAnsiCodes(text).slice(0, 5).toLowerCase() === "[warn") {
+          stderrWarnDetail = true;
           void options.pipeline.warning(text); // main.js:2204-2213
+        } else if (stderrWarnDetail && stripAnsiCodes(text).trimStart().startsWith(">")) {
+          void options.pipeline.warning(text);
         } else {
+          stderrWarnDetail = false;
           void options.pipeline.error(text); // main.js:2213-2220
         }
       },
@@ -392,6 +413,15 @@ export async function runConversion(options: RunOptions): Promise<RunSummary> {
         throw new HookChainAbort(formatUnknownError(err));
       }
       taskCount = plan.tasks.length;
+
+      // F06 执行前诊断：工作目录缺失会让 java spawn 报误导性的 ENOENT(指向
+      // java 路径而非 cwd)。派发前显式检查并给出可行动文案。
+      if (plan.tasks.length > 0 && !existsSync(plan.workDir)) {
+        failedCount += plan.tasks.length;
+        throw new HookChainAbort(
+          `工作目录不存在: ${plan.workDir} —— 请先创建该目录,或修正配置中的 work_dir(相对路径相对配置文件所在目录解析)`,
+        );
+      }
 
       // 确定分片：round-robin（task i → 分片 i%N），BD-O3。0 任务不 spawn（BD-O5）。
       const shardCount = Math.min(options.parallelism, plan.tasks.length);

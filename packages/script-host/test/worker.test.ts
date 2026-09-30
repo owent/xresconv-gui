@@ -260,6 +260,67 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
+    "b2. set_name sandbox exposes no require (SC02 负断言)",
+    async () => {
+      const client = new WorkerClient();
+      try {
+        // set_name 是同步沙箱，没有 resolve/reject 出口（main.js:1704-1758）；
+        // 用 item_data 字段把 typeof require 带出，经 set_fields ops 断言。
+        const invoke = makeInvoke({
+          entry_kind: "set_name",
+          source: "item_data.require_type = typeof require;",
+          context: {
+            work_dir: os.tmpdir(),
+            configure_file: path.join(os.tmpdir(), "conv.xml"),
+            item_data: { id: 1, file: "a.xlsx", scheme: "s1", name: "n" },
+          },
+        });
+        client.invoke(invoke);
+        const result = await client.completeOf(invoke.invocation_id);
+        expect(result.outcome).toBe("resolved");
+        expect(result.ops?.[0]).toMatchObject({
+          op: "set_fields",
+          fields: { require_type: "undefined" },
+        });
+      } finally {
+        await client.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "b3. set_name data is created fresh per invocation (SC02, main.js:1712 生命周期)",
+    async () => {
+      const client = new WorkerClient();
+      try {
+        const counterScript = "data.n = (data.n || 0) + 1; item_data.counter = data.n;";
+        for (const expected of [1, 1]) {
+          const invoke = makeInvoke({
+            entry_kind: "set_name",
+            source: counterScript,
+            context: {
+              work_dir: os.tmpdir(),
+              configure_file: path.join(os.tmpdir(), "conv.xml"),
+              item_data: { id: 1, file: "a.xlsx", scheme: "s1", name: "n" },
+            },
+          });
+          client.invoke(invoke);
+          const result = await client.completeOf(invoke.invocation_id);
+          expect(result.outcome).toBe("resolved");
+          expect(result.ops?.[0]).toMatchObject({
+            op: "set_fields",
+            fields: { counter: expected },
+          });
+        }
+      } finally {
+        await client.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
     "c. event context carries every legacy key with the legacy types",
     async () => {
       const client = new WorkerClient();
@@ -415,6 +476,10 @@ describe("script worker (P2-03)", () => {
     TEST_TIMEOUT_MS,
   );
 
+  // 异步回调内死循环（06 册 SC07 样例）阻塞 worker 事件循环：vm timeout 与
+  // worker 自身 wall-clock 定时器都无法触发，唯一边界是 guardian 的外部硬截止——
+  // 该场景在 guardian/script-worker.test.ts 的 WORKER_TIMEOUT 用例验收，不在本层。
+
   it(
     "h. a syntactically broken script reports SCRIPT_COMPILE_ERROR with the filename",
     async () => {
@@ -521,6 +586,49 @@ describe("script worker (P2-03)", () => {
     TEST_TIMEOUT_MS,
   );
 
+  it(
+    "k2. button data keeps functions/Buffer/BigInt alive without forced JSON round-trip (SC05)",
+    async () => {
+      const client = new WorkerClient();
+      try {
+        // 06 册 SC05：按钮 data 不强制 JSON 化——函数/Buffer/BigInt 属于 worker
+        // 进程内状态（buttonDataStore），从不跨 IPC 序列化。
+        const first = makeInvoke({
+          entry_kind: "button",
+          button_id: "btn-types",
+          source:
+            "data.fn = function () { return 42; };" +
+            ' data.buf = require("node:buffer").Buffer.from([1, 2]);' +
+            " data.big = 10n;" +
+            " resolve();",
+          context: {},
+        });
+        client.invoke(first);
+        expect((await client.completeOf(first.invocation_id)).outcome).toBe("resolved");
+
+        const second = makeInvoke({
+          entry_kind: "button",
+          button_id: "btn-types",
+          source:
+            "log_notice(" +
+            '"fn=" + typeof data.fn + ":" + data.fn()' +
+            '+ " buf=" + (data.buf instanceof require("node:buffer").Buffer) + ":" + data.buf.length + ":" + data.buf[1]' +
+            '+ " big=" + (typeof data.big) + ":" + (data.big === 10n)' +
+            "); resolve();",
+          context: {},
+        });
+        client.invoke(second);
+        expect((await client.logOf(second.invocation_id)).message).toBe(
+          "fn=function:42 buf=true:2:2 big=bigint:true",
+        );
+        expect((await client.completeOf(second.invocation_id)).outcome).toBe("resolved");
+      } finally {
+        await client.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
   const ALERT_ORDER_SOURCE = [
     "var order = [];",
     'alert_warning("内容", "标题", {',
@@ -578,6 +686,28 @@ describe("script worker (P2-03)", () => {
             (env) => env.kind === "log" && env.payload.invocation_id === escInvoke.invocation_id,
           );
         expect(strayLog).toBeUndefined();
+      } finally {
+        await client.close();
+      }
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "l2. alert_warning fires no->on_close on choice no (SC06 no 分支)",
+    async () => {
+      const client = new WorkerClient();
+      try {
+        const noInvoke = makeInvoke({ source: ALERT_ORDER_SOURCE, timeout_ms: 2000 });
+        client.invoke(noInvoke);
+        const request = await client.waitFor(
+          (env) => env.kind === "dialog_request" && env.invocation_id === noInvoke.invocation_id,
+          "dialog_request (no case)",
+        );
+        client.send("dialog_respond", { token: request.payload.token, choice: "no" });
+        // no 分支回调顺序与 yes 对称：no 先于 on_close，且 yes 不触发。
+        expect((await client.logOf(noInvoke.invocation_id)).message).toBe("order=no,close");
+        expect((await client.completeOf(noInvoke.invocation_id)).outcome).toBe("resolved");
       } finally {
         await client.close();
       }

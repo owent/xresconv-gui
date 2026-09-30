@@ -5,6 +5,9 @@
  * 语义锚点：main.js:2301-2448（事件链/收尾文案）、main.js:2118-2189（并发与退出码）。
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { JavaBatchOptions, JavaBatchResult, ScriptWorkerPool } from "@xresconv/guardian";
 import { AbortError } from "@xresconv/guardian";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -111,6 +114,51 @@ describe("runConversion", () => {
     expect(messages).toContain("All jobs done, 1 job(s) failed.");
   });
 
+  it("work_dir 不存在但 JAR 为存在的绝对路径 → 派发前失败并给可行动诊断,不 spawn java（F06 执行前诊断）", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    // 场景:绝对 JAR 通过既有存在性检查（XRESLOADER_NOT_FOUND 不触发）,
+    // 但 workDir 缺失会让 java spawn 报误导性 ENOENT（指向 java 而非 cwd）。
+    // 运行时构造 tmp 配置,xresloader_path 指向一个存在的绝对路径文件（本配置自身）。
+    const dir = mkdtempSync(path.join(tmpdir(), "xresconv-missing-workdir-"));
+    try {
+      const configPath = path.join(dir, "conv.xml");
+      writeFileSync(
+        configPath,
+        `<?xml version="1.0" encoding="UTF-8"?>
+<root>
+  <global>
+    <work_dir>definitely-missing-workdir-xyz</work_dir>
+    <xresloader_path>${configPath.replaceAll("\\", "/")}</xresloader_path>
+  </global>
+  <list>
+    <item name="one"><option>-c one</option></item>
+  </list>
+</root>
+`,
+        "utf8",
+      );
+      const calls: JavaBatchOptions[] = [];
+      const session = new ConversionSession({ pool, runner: okRunner(calls) });
+      const config = await session.loadConfig(configPath);
+
+      const summary = await session.runConversion(selectAll(config));
+      await session.pipeline.drain();
+
+      expect(summary.state).toBe("failed");
+      expect(calls.length).toBe(0);
+      const messages = session.pipeline.snapshot().map((entry) => entry.message);
+      expect(
+        messages.some(
+          (m) => m.includes("工作目录不存在") && m.includes("definitely-missing-workdir-xyz"),
+        ),
+      ).toBe(true);
+      await session.dispose();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("java 退出码累加进 failed_count（main.js:2175-2176），after 跳过（main.js:2179-2185）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
@@ -135,6 +183,55 @@ describe("runConversion", () => {
     expect(messages).toContain("[Process 1 exit with code 2.]");
     expect(messages).toContain("All jobs done, 2 job(s) failed.");
     expect(messages.some((m) => m.includes("AFTER"))).toBe(false);
+  });
+
+  it("stderr 告警明细续行按 warning 渲染：[WARN ] 头（含 ANSI）与其 '> File:…' 续行同为黄色，[ERROR] 续行保持红色", {
+    timeout: TEST_TIMEOUT_MS,
+  }, async () => {
+    // xresloader log4j2 ConsoleErr：WARN/ERROR/FATAL 及多行明细全部走 stderr，
+    // 头行携带 ANSI 颜色码（实测 2.23.7："\x1b[1;33m[WARN ] …"），续行为缩进 "> …"
+    // （src …/resource/log4j2.xml）。用户反馈：告警的问题来源行（File/Table/Row/Column）
+    // 渲染成红色会被误读为错误；ANSI 未剥离时连告警头也会误判为 error。
+    const session = new ConversionSession({
+      pool,
+      runner: async (options): Promise<JavaBatchResult> => {
+        options.onLog?.(
+          "stderr",
+          "\u001b[1;33m[WARN ] xresloader - Try to convert test_msg_verifier need at least 0 fields, at most 3 fields, but only provide 1 fields.",
+        );
+        options.onLog?.(
+          "stderr",
+          "  > File: D:/sample/资源转换示例.xlsx, Table: arr_in_arr, Row: 5, Column: 14(N)",
+        );
+        options.onLog?.("stderr", "  > Missing fields: test_id_2");
+        options.onLog?.("stderr", "\u001b[1;31m[ERROR] xresloader - Initialize data source failed");
+        options.onLog?.("stderr", "  > File: D:/sample/other.xlsx");
+        return { exitCode: 0, signal: null, failedTaskCount: 0, durationMs: 1 };
+      },
+    });
+    const config = await session.loadConfig(fixture("run-hooks.xml"));
+    await session.runConversion(selectAll(config));
+    await session.pipeline.drain();
+
+    const stderrEntries = session.pipeline
+      .snapshot()
+      .filter(
+        (entry) =>
+          entry.message.includes("File:") ||
+          entry.message.includes("Missing fields") ||
+          entry.message.includes("Initialize data source") ||
+          entry.message.includes("test_msg_verifier"),
+      );
+    const styleOf = (needle: string) =>
+      stderrEntries.find((entry) => entry.message.includes(needle))?.style;
+    // 告警头与续行 → warning（黄色）
+    expect(styleOf("test_msg_verifier")).toBe("alert-warning");
+    expect(styleOf("Column: 14(N)")).toBe("alert-warning");
+    expect(styleOf("Missing fields")).toBe("alert-warning");
+    // 错误头与其续行 → error（红色），不被前面的 warning 状态污染
+    expect(styleOf("Initialize data source")).toBe("alert-danger");
+    expect(styleOf("other.xlsx")).toBe("alert-danger");
+    await session.dispose();
   });
 
   it("确定分片：round-robin（task i → 分片 i%N，BD-O3），5 任务并发 2 → [0,2,4]/[1,3]", {

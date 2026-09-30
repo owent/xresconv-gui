@@ -301,6 +301,25 @@ describe("ConversionTree (P4-03)", () => {
     expect(applyOpsPayloads(invoke)[0]).toEqual([{ v: 1, op: "select_node", key: 2 }]);
   });
 
+  it("ArrowDown/ArrowUp 在行间移动焦点，纯导航不产生选择 ops（UI03）", async () => {
+    const invoke = await loadFixture();
+    routeRpc(invoke, { applyOps: () => okReport() });
+    render(<ConversionTree />);
+    const user = userEvent.setup();
+
+    (screen.getByText("alpha").closest('[role="row"]') as HTMLElement | null)?.focus();
+    expect(useSessionStore.getState().focusedKey).toBe(1);
+
+    await user.keyboard("{ArrowDown}");
+    await waitFor(() => expect(useSessionStore.getState().focusedKey).toBe(2));
+    await user.keyboard("{ArrowDown}");
+    await waitFor(() => expect(useSessionStore.getState().focusedKey).toBe(3));
+    await user.keyboard("{ArrowUp}");
+    await waitFor(() => expect(useSessionStore.getState().focusedKey).toBe(2));
+
+    expect(applyOpsPayloads(invoke)).toHaveLength(0);
+  });
+
   it("双击切换勾选（旧版行为；净效果=切换一次）", async () => {
     const invoke = await loadFixture();
     routeRpc(invoke, { applyOps: () => okReport() });

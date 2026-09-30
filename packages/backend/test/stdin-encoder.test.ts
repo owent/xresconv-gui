@@ -46,6 +46,21 @@ describe("encodeTaskLine: mini-parser 往返（Main.java:344-374 基准）", () 
     ["(?i) 内联正则值", ["-m", "KeyWordRegex=(?i)[a-z_\\$]+"]],
     ["点号/冒号/等号混合", ["-m", "DataSource=file.xlsx|sheet1|3,1", "--data-version", "1.0.0.0"]],
     ["tab 空白值", ["-m", "sep=a\tb"]],
+    [
+      "shell 元字符只当数据（无 shell 拼接，EX01 注入样例）",
+      [
+        "-o",
+        "out; rm -rf /",
+        "-m",
+        "Name=$(whoami)",
+        "-m",
+        "Cmd=`echo hi`",
+        "-n",
+        "a && calc.exe",
+        "-n",
+        "x | y",
+      ],
+    ],
   ];
 
   for (const [name, argv] of cases) {
