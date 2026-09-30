@@ -18,7 +18,7 @@ Hint:
 | 2 | [接口与脚本宿主](docs/plan/02-contracts-script-host.md) | P2，IPC、脚本上下文、节点镜像、监督与资源回收 |
 | 3 | [配置与转换内核](docs/plan/03-domain-conversion.md) | P3，XML、选择、转换计划、Java 协议及日志 |
 | 4 | [UI 与交互](docs/plan/04-ui.md) | P4，页面组成、状态所有权、可访问性及迁移 |
-| 5 | [安装与 CI 发布](docs/plan/05-packaging-release.md) | P5，双版本安装包、运行时、签名、Actions 和产物矩阵 |
+| 5 | [打包与 CI 发布](docs/plan/05-packaging-release.md) | P5，便携归档、运行时、签名、Actions 和产物矩阵 |
 | 6 | [测试与验收](docs/plan/06-testing-acceptance.md) | P6，fixture、具体步骤/断言、覆盖映射和证据 |
 | 7 | [切换与交接](docs/plan/07-cutover.md) | P7，删除旧架构、数据兼容、回滚和交付清单 |
 
@@ -28,25 +28,22 @@ Hint:
 
 发行后续验收：复跑 Windows release CI、旧 Windows 解压与干净离线 VM、ARM64/macOS/Linux 实机；可选语言裁剪每次 Fixed Version 升级重验。验收要求是最终归档逐文件校验、语言回退及所属进程清理通过，不能用 mock 或本机结果代替。实现与本轮证据见 [2026-09-29 审查](docs/plan/records/REVIEW-2026-09-29.md)。
 
-- 编制日期：2026-09-23；源码基线 `3e8ec5773368ce02455a74bcd42d7ff03487be08`，应用版本 `2.6.0`。
-- 当前状态（2026-09-25）：P0–P4 完成（G4 Windows 范围通过）；P5 本机可验证范围完成至 P5-09（P5-04/07/08/10 阻塞于 macOS 主机/受控签名环境/VM 实机，已如实登记）；597 例 Node/前端 + 15 例三引擎浏览器 + 13 例 Rust 测试通过；Windows 桌面 E2E 9/9、八格式真实 JAR 差分通过；Windows x64 双变体（29/232 MiB）与 WSL Debian 13 双变体（DEB+自含 AppImage 141 MiB）实构。**CI 推送验证已完成（PR #60 运行级绿）；P7 切换已执行（2026-09-26：旧架构删除+布局对照旧版重构+真实项目转换验证通过+--log-configure 补齐）。剩余（用户指示排最后，手动执行）：macOS 实构、签名实跑、VM 安装矩阵、G5/G6 签字式验收、draft release 复核。** 证据见 `docs/plan/records/`。
-
-本轮进展（2026-09-27）：已完成包含 `4e6ebee` 至 `71e7ddb` 的审查、确认问题修复、公共打包逻辑精简及全组件 UI 更新；646 项 Node/前端、21 项三引擎浏览器、15 项 Rust 和 12 项 Windows 桌面验证通过，2 项 Linux shell 回归未在 Windows 执行。真实 JAR 八格式 30 文件一致，真实项目 28 任务成功。当前工作树的证据与未验收边界见 [本轮审查](docs/plan/records/REVIEW-2026-09-27.md)；上段 CI/安装包数字为历史证据。
-
-本轮进展（2026-09-27 第二批，P5-11）：按用户指示（无签名证书、仅需 Portable 包）落地跨平台 Portable 构建验证——新增 `portable-build.yml`（macOS x64/arm64 未签名 `.app.zip` + Linux x86_64/aarch64 自含 AppImage，Ubuntu 22.04 最老基线，原生 runner 无交叉编译；聚合 fail-closed 核验精确 4 项产物与 SHA-256），**CI 已实跑全绿（run 36314376880、36316437303）**；打包 CLI 增加 `--portable` 形态与 `yarn verify:portable` 逐产物验证（解包→manifest 身份→全量逐文件 SHA-256→包内 Node 原生探针）。**顺带修复两个真实缺陷**：① Linux deb/rpm/AppImage 的发行布局自定位无候选命中且 linuxdeploy 会改写 usr/lib 下全部 ELF——负载落位定稿 `/usr/share/<product>`（`bundle.linux.*.files` 映射），壳候选改 `../share/<product>`；② compat-service 模块级 stdout 健康行在 esbuild bundle 中误触发、先于帧协议污染 worker 流（TOO_LARGE）——已删除并加 bundle 首帧回归。另修复 edc8b2e 遗留的 desktop E2E 15s/0 超时误杀（e6f3893 后 ci 全绿，含 ubuntu E2E）。同日增补（用户决策）：Linux 增加解压即运行的 tar.gz 双形态（bootstrap=系统 WebKitGTK 平铺包、offline=AppImage 闭包重压的自含包），与 AppImage 并存，聚合范围扩为精确 8 项。记录见 [P5-11](docs/plan/records/P5-11.md)；安装验收、签名与 G5 仍归 P5-07/P5-08/P5-10，不因构建验证视为完成。
+- 编制日期：2026-09-23；源码基线 `3e8ec5773368ce02455a74bcd42d7ff03487be08`，当时应用版本 `2.6.0`。
+- 当前状态（2026-09-30）：P0–P7 本机实施已完成；P6 本机范围证据见 [P6-06](docs/plan/records/P6-06.md)。本次审查与修复见 [2026-09-30 记录](docs/plan/records/REVIEW-2026-09-30.md)。本机结果不代表正式发行或跨平台验收。
+- 待完成：Windows release CI 重跑与归档验证；旧 Windows/干净离线 VM、Windows/Linux ARM64 与 macOS 实机、签名公证；G5/G6 跨平台验收及 draft release 复核。验收条件见 [05 册](docs/plan/05-packaging-release.md) 和 [06 册](docs/plan/06-testing-acceptance.md)，历史快照见 [阶段记录](docs/plan/records/README.md)。
 
 用户已确定的目标：
 
 1. 将保留的依赖、工具链及全部 GitHub Actions 升级到实施时最新稳定版本。
-2. 采用 **Tauri 2 薄桌面壳 + 系统 WebView + 独立 Node.js 进程**；配置、领域模型、转换调度、日志和脚本宿主使用 TypeScript/Node.js，不开发 Rust 业务层。
+2. 采用 **Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程**；Tauri 负责窗口、系统接口、进程启动与消息转发，配置、领域模型、转换调度、日志和脚本宿主由 TypeScript/Node.js 处理。
 3. 全面重构 UI、数据模型、配置加载、转换调度、日志、脚本宿主及发布流程；移除 jQuery、Fancytree、Bootstrap 等旧 UI 依赖。
 4. 保留现有业务功能、XML 配置格式、启动参数、自定义按钮、JavaScript 用户脚本和必要的 Node.js 模块能力。
 5. 用户脚本发生异常、死循环、进程退出或资源超限时，不得导致 GUI 白屏、主进程退出或任务状态永久卡住。
-6. 每个正式支持的平台/架构同时提供引导安装版和离线安装版。系统运行时满足要求时复用，否则引导安装或从包内安装。
+6. 正式发行提供 bootstrap/offline 两种运行时策略。Windows 与 Linux 发行便携归档；macOS 发行 DMG。正式构建覆盖范围与待验收目标以 05 册和当前工作流为准。
 
 实施边界：本仓库负责 GUI 与宿主，不自行变更 xresconv-conf 或 xresloader 的协议。Java 与 xresloader.jar 仍为用户提供的业务运行环境；“离线安装版”默认覆盖本 GUI 的 Node.js 与 WebView/GUI 运行依赖，不擅自附带或升级用户的 JDK、JAR。
 
-完成条件：功能对照表、旧脚本回归、故障隔离、三平台真实应用测试、安装矩阵和产物检查均通过，才允许切换正式发行。体积数字必须来自完整产物，不能以空 Tauri 应用或运行时本体替代。
+正式发行条件：功能对照表、旧脚本回归、故障隔离、三平台真实应用测试、运行时矩阵和产物检查均通过。体积数字必须来自完整产物，不能以空 Tauri 应用或运行时本体替代。
 
 ## 2. 源码事实与待决策事项
 
@@ -95,7 +92,7 @@ D1–D5 已全部决策，不再阻塞任何阶段；D2 离线自含包与 D5 �
 
 | 层次 | 选择 | 职责与理由 |
 | --- | --- | --- |
-| 桌面壳 | Tauri 2 与官方插件 | 窗口、原生对话框、参数、受控消息转发和 Node 启停；只留必要 Rust 入口/胶水，不承载业务 |
+| 桌面层 | Tauri 2 与官方插件 | 窗口、原生对话框、参数、受控消息转发和 Node 启停；只留必要 Rust 入口与接口适配，不承载业务 |
 | 前端 | React 19、TypeScript、Vite | 本地静态 SPA，组件与业务状态分离；不需要 SSR、RSC 或额外 Web 服务 |
 | 可访问组件 | React Aria Components | 按钮、选择器、对话框、树与键盘交互；取代依赖 DOM 全局修改的旧组件 |
 | 样式 | CSS Modules、CSS 自定义属性、Grid/Flex | 本地设计令牌与主题，按最低 WebView 实测兼容；避免仅为样式引入新的浏览器版本门槛 |
@@ -106,7 +103,7 @@ D1–D5 已全部决策，不再阻塞任何阶段；D2 离线自含包与 D5 �
 | 旧脚本 | 随包 Node.js、独立脚本执行器 | 保留 JS/Node/CommonJS 语义；与 GUI、主调度、可信日志服务分进程 |
 | 旧语义辅助 | Node 模块与按需独立任务 | 复用 minimatch/JS RegExp/log4js；复杂解析、regex、自定义 appender 放入可终止隔离域 |
 | 契约 | JSON Schema → TypeScript 类型，Ajv 验证 | schema 在 packages/contracts 唯一维护；UI/业务/guardian/worker 共用，不再经 Cargo 导出 |
-| 质量工具 | TypeScript、Biome、markdownlint；Tauri 壳的 rustfmt/clippy | 业务检查统一 JS/TS；原生检查只覆盖必要桌面胶水 |
+| 质量工具 | TypeScript、Biome、markdownlint；Tauri 桌面层的 rustfmt/clippy | 业务检查统一 JS/TS；原生检查只覆盖必要桌面接口适配代码 |
 | 测试 | Vitest、Node 子进程、Testing Library、Playwright、WDIO Tauri | 领域及脚本用 JS/TS 测试；Tauri 只保留桥接/生命周期的原生检查 |
 
 React 官方提供 Vite + TypeScript 的客户端应用路线，适合本地 Tauri 应用（[React 指引](https://react.dev/learn/build-a-react-app-from-scratch)、[Tauri Vite 接入](https://v2.tauri.app/start/frontend/vite/)）。2026-09-23 npm 周下载统计 React 约为 Vue 的 11 倍、Svelte 的 31 倍（含 CI 与间接使用，仅作生态体量依据，统计来源见来源索引）；选 React 是为组件、测试与可访问性生态，不声称执行性能绝对最佳。Tailwind 4 的现代浏览器要求会额外约束系统 WebView，故采用 CSS Modules 与渐进增强；React Aria 的三态/树焦点/虚拟化仍须在实际 WebView 验证（[Tailwind 兼容要求](https://tailwindcss.com/docs/compatibility)、[React Aria Tree](https://react-aria.adobe.com/Tree)）。
@@ -123,13 +120,13 @@ React 官方提供 Vite + TypeScript 的客户端应用路线，适合本地 Tau
 
 当前依赖处理（P7 前）：electron/@electron/packager/gulp 过渡期保留，切换后删除；jquery/jquery.fancytree/bootstrap/@popperjs 不进入新 UI 或 Node 发行依赖（fancytree 安装修补脚本一并删除）；adm-zip/compressing/log4js/minimatch 保留为脚本/兼容服务模块并验证边界。升级流程：清点直接/传递依赖 → 阅读变更与运行时要求 → 小批升级 → 锁文件与行为差异检查 → 对应测试 → 记录结果；传递依赖只在上游允许且测试通过的范围内更新。
 
-Yarn 4 为唯一 JS 包管理器（`nodeLinker: node-modules`，便于动态 require 与离线部署）；Cargo.lock 只服务 Tauri 壳。（[Yarn 配置](https://yarnpkg.com/configuration/yarnrc)、[Node 版本清单](https://nodejs.org/dist/index.json)、[fast-xml-parser 仓库](https://github.com/NaturalIntelligence/fast-xml-parser)）
+Yarn 4 为唯一 JS 包管理器（`nodeLinker: node-modules`，便于动态 require 与离线部署）；Cargo.lock 只服务 Tauri 桌面层。（[Yarn 配置](https://yarnpkg.com/configuration/yarnrc)、[Node 版本清单](https://nodejs.org/dist/index.json)、[fast-xml-parser 仓库](https://github.com/NaturalIntelligence/fast-xml-parser)）
 
 ## 4. 目标架构与职责
 
 ```mermaid
 flowchart TD
-    UI[React UI / 系统 WebView] <-->|受控消息| Host[Tauri 薄桌面壳]
+    UI[React UI / 系统 WebView] <-->|受控消息| Host[Tauri 桌面层]
     Host <-->|私有 IPC| Guard[独立 Node guardian]
     Guard <-->|Node IPC| Backend[独立 Node 业务服务]
     Backend --> Domain[TS 配置 / 计划 / 状态机]
@@ -146,7 +143,7 @@ src-tauri/                    Tauri 必要入口、官方插件和最小消息/�
 packages/backend/             TypeScript 业务入口、配置/领域/计划/状态机模块
 packages/guardian/            Node 生命周期、子进程作用域、外部超时、清理
 packages/contracts/           手工维护的 JSON Schema、生成 TS 类型与校验器
-packages/ipc/                 字节帧编解码（壳↔guardian↔worker 边界）
+packages/ipc/                 字节帧编解码（桌面层↔guardian↔worker 边界）
 packages/script-host/         用户脚本宿主及旧接口兼容层
 packages/compat-service/      glob/RegExp、log4js 等受控兼容服务
 packages/packaging/           发行目标/manifest 校验与 production 布局组装
@@ -401,7 +398,7 @@ Linux 没有统一的 WebView2 式安装器。支持范围是明确发行版/版
 
 ### P1：依赖、工具链与新骨架
 
-已完成：P1-00 Rust 业务 → Node/TS 迁移审计；Electron 44.4.5 升级（无架构冲突）；Yarn 4 唯一锁文件与 Corepack/Node 锁定；backend/guardian 入口与壳握手链；JSON Schema 唯一协议源（TS/Ajv，无 Cargo）；Biome/类型检查/Vitest/薄壳原生检查/初始桌面 E2E（Windows 实测；记录 P1-00～P1-09）。
+已完成：P1-00 Rust 业务 → Node/TS 迁移审计；Electron 44.4.5 升级（无架构冲突）；Yarn 4 唯一锁文件与 Corepack/Node 锁定；backend/guardian 入口与桌面层握手链；JSON Schema 唯一协议源（TS/Ajv，无 Cargo）；Biome/类型检查/Vitest/Tauri 桌面层原生检查/初始桌面 E2E（Windows 实测；记录 P1-00～P1-09）。
 
 已完成（2026-09-25 追记）：ci.yml/release.yml/stale.yml 落地并推送验证（PR #60 六轮迭代后运行级全绿；Actions 全 SHA 固定）。未完成：macOS 真桌面 E2E（tauri-driver 静默退出待 mac 实机定位）、Windows GUI runner 桌面 E2E。
 
@@ -425,7 +422,7 @@ Linux 没有统一的 WebView2 式安装器。支持范围是明确发行版/版
 
 ### P4：完整 React UI
 
-已完成：页面骨架与 tokens（P4-01）；业务 RPC 脊柱与壳通道（P4-02）；转换树与三态选择（P4-03）；设置表单/输出矩阵/预览（P4-04）；自定义选择器/按钮动作链、hook 开关、DialogHost（P4-05）；RunControls 开始/取消接线、阶段与结果文案（P4-06，UI06/EX03 前端侧）；日志面板分页/筛选/复制导出/ANSI 安全富文本与 getLogs 游标契约（P4-07，UI07/EX04 前端侧）；树虚拟化（RAC Virtualizer）、帧预算 64MiB（100k 快照过通道）、三引擎浏览器测试与主题/axe 基线（P4-08，UI03/UI08 浏览器层）；依赖/产物扫描（无旧 UI 运行依赖）、真实 WebView2 桌面 E2E（9/9）、G4 报告（P4-09，Windows 实测范围通过）。旧版窗口重建按钮已按用户决策从界面移除，后端 reset RPC 保留。
+已完成：页面骨架与 tokens（P4-01）；业务 RPC 脊柱与桌面层通道（P4-02）；转换树与三态选择（P4-03）；设置表单/输出矩阵/预览（P4-04）；自定义选择器/按钮动作链、hook 开关、DialogHost（P4-05）；RunControls 开始/取消接线、阶段与结果文案（P4-06，UI06/EX03 前端侧）；日志面板分页/筛选/复制导出/ANSI 安全富文本与 getLogs 游标契约（P4-07，UI07/EX04 前端侧）；树虚拟化（RAC Virtualizer）、帧预算 64MiB（100k 快照过通道）、三引擎浏览器测试与主题/axe 基线（P4-08，UI03/UI08 浏览器层）；依赖/产物扫描（无旧 UI 运行依赖）、真实 WebView2 桌面 E2E（9/9）、G4 报告（P4-09，Windows 实测范围通过）。旧版窗口重建按钮已按用户决策从界面移除，后端 reset RPC 保留。
 
 P4 范围外遗留随 CI/P6：真实 WebView 键盘全键位走查与 p95 实测（P6-05）；Linux/macOS 桌面 E2E（平台矩阵）。
 
@@ -453,7 +450,7 @@ P4 范围外遗留随 CI/P6：真实 WebView 键盘全键位走查与 p95 实测
 
 ### P7：移除旧架构与交接
 
-已完成（2026-09-26，记录 [P7](docs/plan/records/P7.md)）：旧 Electron/gulp/旧 src/build.yml/Fancytree 补丁/旧依赖删除；log4js 默认配置内联（随删除暴露的 P5 隐患一并修复）；`--log-configure` 全链接线（壳 CLI→guardian env→backend，F10/F11 缺口补齐）；README/AGENTS/source-index 交接更新；回滚入口=v2.6.0 tag+README 迁移说明。
+已完成（2026-09-26，记录 [P7](docs/plan/records/P7.md)）：旧 Electron/gulp/旧 src/build.yml/Fancytree 补丁/旧依赖删除；log4js 默认配置内联（随删除暴露的 P5 隐患一并修复）；`--log-configure` 全链接线（Tauri 桌面层 CLI→guardian env→backend，F10/F11 缺口补齐）；README/AGENTS/source-index 交接更新；回滚入口=v2.6.0 tag+README 迁移说明。
 
 - [ ] （随 P5-10 实机验收）构建一个完整 draft release，复核所有产物；正式发布另按项目发行流程执行。
 
@@ -469,7 +466,7 @@ P4 范围外遗留随 CI/P6：真实 WebView 键盘全键位走查与 p95 实测
 | --- | --- | --- |
 | 静态/契约 | TypeScript、Biome、rustfmt/clippy、Schema fixtures | 边界类型、错误枚举、非法消息、旧版本拒绝、生成结果一致性 |
 | Node 领域单元 | Vitest | XML、路径、矩阵、状态机、编码器、调度与退出归并 |
-| Tauri 最小壳检查 | cargo check/test 与真实 IPC 冒烟 | 必要消息桥、窗口权限、插件注册和 sidecar 生命周期，不覆盖 Node 业务逻辑 |
+| Tauri 桌面层检查 | cargo check/test 与真实 IPC 冒烟 | 必要消息桥、窗口权限、插件注册和 sidecar 生命周期，不覆盖 Node 业务逻辑 |
 | JS 单元/宿主 | Vitest、独立 Node 子进程 | 模块加载、脚本 API、回调、状态、异步/退出/超时 |
 | 组件 | Testing Library + Vitest 浏览器环境 | 用户可见行为、键盘、三态选择、表单与弹框；不把 DOM 模拟器当真实 WebView |
 | 浏览器 E2E | Playwright Chromium/WebKit/Firefox、axe | 渲染、CSS、键盘与 IPC mock；不替代真实原生 IPC/安装测试 |
@@ -507,7 +504,7 @@ embedded WebDriver 与 IPC mocking 插件只在测试构建启用。正式发行
 | --- | --- | --- |
 | R01 | 同步 throw、异步回调 throw、未处理 rejection | 脚本/任务进入预期失败态，GUI/主进程继续运行 |
 | R02 | 同步死循环、Promise/定时器回调死循环、永不 resolve | 外部截止时间生效，终止并回收 worker，不依赖 worker 自身定时器 |
-| R03 | process.exit、abort、可控原生崩溃、内存/Buffer 耗尽；backend/guardian 各自崩溃或挂起 | 只影响对应隔离域，壳仍可显示故障，运行可收尾并清理，无无限重启或副作用自动重放 |
+| R03 | process.exit、abort、可控原生崩溃、内存/Buffer 耗尽；backend/guardian 各自崩溃或挂起 | 只影响对应隔离域，桌面层仍可显示故障，运行可收尾并清理，无无限重启或副作用自动重放 |
 | R04 | resolve/reject 多次、结束后回调、旧 generation 回包 | 最多结束一次，迟到消息被拒绝 |
 | R05 | 按钮连点、重入、多个按钮、日志 hook 同时执行 | 按约定串行/并行，data 不串用，日志不死锁 |
 | R06 | Java 启动失败、非零退出、信号、stdin 关闭、stdout/stderr 分块 | 终态与错误正确，不把日志块当任务完成 |
@@ -574,7 +571,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 ```
 
-Cargo 检查仅针对 Tauri 壳工作区；Node 业务/契约测试不调用 Cargo。
+Cargo 检查仅针对 Tauri 桌面层工作区；Node 业务/契约测试不调用 Cargo。
 
 每次测试报告记录：提交、OS/架构、运行时版本、工作目录、命令、用例数、退出码、失败证据和清理结果。只完成用例发现、mock 测试或跨编译，不得写为真实桌面/离线安装验收通过。
 

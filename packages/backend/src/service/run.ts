@@ -35,7 +35,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { statSync } from "node:fs";
 import type { ScriptResult } from "@xresconv/contracts";
 import type { JavaBatchOptions, JavaBatchResult, ScriptWorkerPool } from "@xresconv/guardian";
 import type { Hook, ParsedConfig } from "../config/model.ts";
@@ -416,11 +416,23 @@ export async function runConversion(options: RunOptions): Promise<RunSummary> {
 
       // F06 执行前诊断：工作目录缺失会让 java spawn 报误导性的 ENOENT(指向
       // java 路径而非 cwd)。派发前显式检查并给出可行动文案。
-      if (plan.tasks.length > 0 && !existsSync(plan.workDir)) {
-        failedCount += plan.tasks.length;
-        throw new HookChainAbort(
-          `工作目录不存在: ${plan.workDir} —— 请先创建该目录,或修正配置中的 work_dir(相对路径相对配置文件所在目录解析)`,
-        );
+      if (plan.tasks.length > 0) {
+        let workDirError: string | undefined;
+        try {
+          if (!statSync(plan.workDir).isDirectory()) {
+            workDirError = `工作目录不是目录: ${plan.workDir} —— 请将 work_dir 指向一个目录`;
+          }
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          workDirError =
+            code === "ENOENT" || code === "ENOTDIR"
+              ? `工作目录不存在: ${plan.workDir} —— 请先创建该目录，或修正配置中的 work_dir（相对路径相对配置文件所在目录解析）`
+              : `无法访问工作目录: ${plan.workDir} (${formatUnknownError(error)})`;
+        }
+        if (workDirError !== undefined) {
+          failedCount += plan.tasks.length;
+          throw new HookChainAbort(workDirError);
+        }
       }
 
       // 确定分片：round-robin（task i → 分片 i%N），BD-O3。0 任务不 spawn（BD-O5）。

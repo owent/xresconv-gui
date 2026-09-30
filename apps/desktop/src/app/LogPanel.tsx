@@ -205,7 +205,6 @@ export function LogPanel() {
         style={{ minHeight: LOG_VIEWPORT_MIN_HEIGHT }}
         // axe scrollable-region-focusable（WebKit 检出）：滚动区必须可键盘访问。
         // role="log" 是直播区域非交互控件，Biome 的交互元素规则与 axe 此项要求冲突，按 axe 执行。
-        // biome-ignore lint/a11y/useFocusableInteractive: axe scrollable-region-focusable 要求滚动区可聚焦；role="log" 非交互控件不适用该规则
         // biome-ignore lint/a11y/noNoninteractiveTabindex: axe scrollable-region-focusable 要求滚动区可键盘聚焦（键盘滚动），非交互 tabindex 属预期
         tabIndex={0}
         onScroll={() => {

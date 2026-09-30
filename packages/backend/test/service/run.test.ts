@@ -5,9 +5,9 @@
  * 语义锚点：main.js:2301-2448（事件链/收尾文案）、main.js:2118-2189（并发与退出码）。
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { JavaBatchOptions, JavaBatchResult, ScriptWorkerPool } from "@xresconv/guardian";
 import { AbortError } from "@xresconv/guardian";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -114,21 +114,28 @@ describe("runConversion", () => {
     expect(messages).toContain("All jobs done, 1 job(s) failed.");
   });
 
-  it("work_dir 不存在但 JAR 为存在的绝对路径 → 派发前失败并给可行动诊断,不 spawn java（F06 执行前诊断）", {
-    timeout: TEST_TIMEOUT_MS,
-  }, async () => {
-    // 场景:绝对 JAR 通过既有存在性检查（XRESLOADER_NOT_FOUND 不触发）,
-    // 但 workDir 缺失会让 java spawn 报误导性 ENOENT（指向 java 而非 cwd）。
-    // 运行时构造 tmp 配置,xresloader_path 指向一个存在的绝对路径文件（本配置自身）。
-    const dir = mkdtempSync(path.join(tmpdir(), "xresconv-missing-workdir-"));
-    try {
-      const configPath = path.join(dir, "conv.xml");
-      writeFileSync(
-        configPath,
-        `<?xml version="1.0" encoding="UTF-8"?>
+  it.each(["missing", "file"] as const)(
+    "work_dir 为 %s 时派发前失败并指出路径问题，不 spawn java",
+    {
+      timeout: TEST_TIMEOUT_MS,
+    },
+    async (kind) => {
+      // 场景:绝对 JAR 通过既有存在性检查（XRESLOADER_NOT_FOUND 不触发）,
+      // 但 workDir 缺失会让 java spawn 报误导性 ENOENT（指向 java 而非 cwd）。
+      // 运行时构造 tmp 配置,xresloader_path 指向一个存在的绝对路径文件（本配置自身）。
+      const build = fileURLToPath(new URL("../../../../build/", import.meta.url));
+      mkdirSync(build, { recursive: true });
+      const dir = mkdtempSync(path.join(build, "run-workdir-"));
+      try {
+        const configPath = path.join(dir, "conv.xml");
+        const workDir =
+          kind === "file" ? configPath : path.join(dir, "definitely-missing-workdir-xyz");
+        writeFileSync(
+          configPath,
+          `<?xml version="1.0" encoding="UTF-8"?>
 <root>
   <global>
-    <work_dir>definitely-missing-workdir-xyz</work_dir>
+    <work_dir>${workDir.replaceAll("\\", "/")}</work_dir>
     <xresloader_path>${configPath.replaceAll("\\", "/")}</xresloader_path>
   </global>
   <list>
@@ -136,28 +143,32 @@ describe("runConversion", () => {
   </list>
 </root>
 `,
-        "utf8",
-      );
-      const calls: JavaBatchOptions[] = [];
-      const session = new ConversionSession({ pool, runner: okRunner(calls) });
-      const config = await session.loadConfig(configPath);
+          "utf8",
+        );
+        const calls: JavaBatchOptions[] = [];
+        const session = new ConversionSession({ pool, runner: okRunner(calls) });
+        const config = await session.loadConfig(configPath);
 
-      const summary = await session.runConversion(selectAll(config));
-      await session.pipeline.drain();
+        const summary = await session.runConversion(selectAll(config));
+        await session.pipeline.drain();
 
-      expect(summary.state).toBe("failed");
-      expect(calls.length).toBe(0);
-      const messages = session.pipeline.snapshot().map((entry) => entry.message);
-      expect(
-        messages.some(
-          (m) => m.includes("工作目录不存在") && m.includes("definitely-missing-workdir-xyz"),
-        ),
-      ).toBe(true);
-      await session.dispose();
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+        expect(summary.state).toBe("failed");
+        expect(summary.failedCount).toBe(summary.taskCount);
+        expect(calls.length).toBe(0);
+        const messages = session.pipeline.snapshot().map((entry) => entry.message);
+        expect(
+          messages.some(
+            (m) =>
+              m.includes(kind === "file" ? "工作目录不是目录" : "工作目录不存在") &&
+              m.includes(workDir),
+          ),
+        ).toBe(true);
+        await session.dispose();
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("java 退出码累加进 failed_count（main.js:2175-2176），after 跳过（main.js:2179-2185）", {
     timeout: TEST_TIMEOUT_MS,

@@ -4,13 +4,13 @@
 
 对应 P2，同时定义 P1/P3/P4 共用接口。D6 的 Node/TypeScript 业务和监督层已有 Windows 实测，协议 v1 冻结规则见 [P2-12](records/P2-12.md)；跨平台范围仍以实际记录为准。
 
-监督与通道边界（已实现）：重复启动/关闭须等待同一结果；终止后的 scope 禁止再登记进程；RPC deadline 包含管道写入等待。Rust 壳写队列最多 16 帧、待决请求最多 128；guardian 出站积压最多 8 MiB，单帧仍为 1 MiB。过大 RPC 回复返回关联的 `RESPONSE_TOO_LARGE`，超时/通道失效不自动重放。实现与回归见 [增量审查记录](records/REVIEW-P2-P5-2026-09-24.md)。
+监督与通道边界（已实现）：重复启动/关闭须等待同一结果；终止后的 scope 禁止再登记进程；RPC deadline 包含管道写入等待。Tauri 桌面层写队列最多 16 帧、待决请求最多 128；guardian 出站积压最多 8 MiB，单帧仍为 1 MiB。过大 RPC 回复返回关联的 `RESPONSE_TOO_LARGE`，超时/通道失效不自动重放。实现与回归见 [增量审查记录](records/REVIEW-P2-P5-2026-09-24.md)。
 
 ## 进程职责与最小原生边界
 
 | 隔离域 | 实现 | 允许职责 | 禁止职责 |
 | --- | --- | --- | --- |
-| Tauri 薄壳 | 官方插件 + 必要 Rust 入口/胶水 | 窗口/对话框、受控消息转发、Node 引导和失联提示、最低限度生命周期适配 | XML、业务状态机、Java 调度规则、执行用户脚本 |
+| Tauri 桌面层 | 官方插件 + 必要 Rust 入口与接口适配代码 | 窗口/对话框、受控消息转发、Node 引导和失联提示、最低限度生命周期适配 | XML、业务状态机、Java 调度规则、执行用户脚本 |
 | Node guardian | TypeScript 编译后的 JS，独立进程 | 启动业务/脚本/Java 作用域、消息路由、外部截止、退出与清理 | 用户脚本、regex、XML、同步大日志/业务计算 |
 | Node backend | TypeScript 编译后的 JS，独立进程 | 配置会话、选择/计划/状态机、请求校验、转换编排 | vm/eval 用户 JS、自定义 log appender、在同事件循环执行无限制匹配 |
 | Node script/helper | 按职责独立 Node 进程 | 五类用户脚本、解析/复杂匹配、自定义日志扩展 | 未授权业务命令、任意 Tauri 能力 |
@@ -58,7 +58,7 @@ guardian 管理各进程作用域，backend 发起已校验的执行请求；每
 
 Tauri→guardian 优先使用 sidecar 私有 stdin/stdout 字节管道：guardian 的 stdout 专用于控制，内部日志走 stderr；脚本/Java stdout/stderr 从独立子管道读取，不能透传成 guardian 控制帧。若 Tauri 插件不能提供所需字节语义，P2-01 冻结最小流适配，不为此引入 HTTP 服务。
 
-Windows GUI 壳启动 console-subsystem 的 Node guardian 时使用 `CREATE_NO_WINDOW`，保留上述管道；guardian 管理的子进程经 `ProcessScope.decorateSpawnOptions` 统一设置 `windowsHide: true`。关闭应用窗口按生命周期协议停止进程，不依赖关闭控制台。发行包故障复现与验证见 [2026-09-29 控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
+Windows GUI 桌面程序启动 console-subsystem 的 Node guardian 时使用 `CREATE_NO_WINDOW`，保留上述管道；guardian 管理的子进程经 `ProcessScope.decorateSpawnOptions` 统一设置 `windowsHide: true`。关闭应用窗口按生命周期协议停止进程，不依赖关闭控制台。发行包故障复现与验证见 [2026-09-29 控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 
 字节通道拟定帧为 4 字节大端长度 + UTF-8 JSON，初始上限 1 MiB；分块大快照，接收前验证长度和预算。guardian→可信 backend 使用 `child_process.fork` 的 IPC，明确 `execPath`/serialization 并处理 send 背压。Node 内置 IPC 已在 message 回调前解析，不能声称 Ajv 提供预分配长度防护；脚本/不受控扩展使用 spawn + 专用有界字节通道，独立于日志，P2-01 验证三平台实现。
 
@@ -120,7 +120,7 @@ Node 路径由已校验的发行 manifest 和应用资源目录确定；绝不�
 
 ```mermaid
 sequenceDiagram
-    participant UI as Tauri 薄桌面壳
+    participant UI as Tauri 桌面层
     participant Guard as Node guardian
     participant Backend as Node backend
     participant JS as Node worker
@@ -133,15 +133,15 @@ sequenceDiagram
         JS-->>Guard: Complete 与操作
         Guard-->>Backend: 校验后的执行结果
         Backend-->>UI: 经 guardian 转发状态事件
-    else 超时或壳/业务服务失联
+    else 超时或桌面层/业务服务失联
         Guard->>JS: 终止所属进程树
         Guard-->>UI: 终态或关闭清理记录
     end
 ```
 
-监督责任由独立 Node guardian 承担，不编写 Rust guardian。它只处理短时有界消息与异步进程 IO，不导入业务解析或脚本模块；业务服务卡住时，其 watchdog 仍可终止相关作用域。Tauri 壳独立检测 guardian 失联并显示错误，不能把故障弹框也依赖失联服务。
+监督责任由独立 Node guardian 承担，不编写 Rust guardian。它只处理短时有界消息与异步进程 IO，不导入业务解析或脚本模块；业务服务卡住时，其 watchdog 仍可终止相关作用域。Tauri 桌面层独立检测 guardian 失联并显示错误，不能把故障弹框也依赖失联服务。
 
-backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java 并通知壳；只允许显式新建会话恢复，不自动重放旧任务。guardian 自身退出/被杀：壳调用已验证的生命周期适配回收其作用域，若无法证明完整清理就报告失败且阻塞该平台验收。纯 Node 的跨平台进程树/资源能力不是先验保证。
+backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java 并通知桌面层；只允许显式新建会话恢复，不自动重放旧任务。guardian 自身退出/被杀：桌面层调用已验证的生命周期适配回收其作用域，若无法证明完整清理就报告失败且阻塞该平台验收。纯 Node 的跨平台进程树/资源能力不是先验保证。
 
 监督进程仅从继承的控制句柄/受控私有通道接受启动描述，业务脚本不能提交任意系统 PID 作为 kill 目标。登记原生进程句柄或包含启动标识的所有权信息，避免 PID 重用误杀无关进程。父端死亡以句柄/管道关闭及必要的系统机制检测，不只轮询 PID 存在。
 
@@ -159,8 +159,8 @@ backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java �
 
 | 任务 | 前置 | 拟实现位置/动作 | 验收与回退 |
 | --- | --- | --- | --- |
-| P2-01 | G1 | contracts、薄壳桥、Node 角色 IPC：握手、分块、背压与受控帧 | SC01/SC11；worker 不能伪装 backend 或越权调用 |
-| P2-02 | P2-01 | packages/guardian：Node 监督与三平台生命周期适配原型 | SC07/SC08/SC11；业务/壳/guardian 分别被杀时清理达到合同 |
+| P2-01 | G1 | contracts、桌面层消息桥、Node 角色 IPC：握手、分块、背压与受控帧 | SC01/SC11；worker 不能伪装 backend 或越权调用 |
+| P2-02 | P2-01 | packages/guardian：Node 监督与三平台生命周期适配原型 | SC07/SC08/SC11；业务/桌面层/guardian 分别被杀时清理达到合同 |
 | P2-03 | P2-01 | script-host：五入口、字段类型、data、回调 | SC02/SC03；逐字段与旧行为比对 |
 | P2-04 | P2-03 | require 锚点、cache、worker 分组、环境策略 | SC04；跨 hook 缓存样例不兼容即 G2 阻塞 |
 | P2-05 | P2-03 | NodeMirror、别名、同步方法、有序操作 | SC05；不使用 React/DOM/jQuery 实现镜像 |

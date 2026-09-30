@@ -2,7 +2,7 @@
   "name": "xresconv-gui",
   "version": "3.0.0-dev.1",
   "publisher": "owent",
-  "description": "xresconv 批量转表工具-GUI (Tauri 2 薄壳 + Node.js 业务内核)",
+  "description": "xresconv 批量转表工具-GUI (Tauri 2 桌面层 + Node.js 业务进程)",
   "packageManager": "yarn@4.18.0",
   "engines": {
     "node": ">=24.0.0"

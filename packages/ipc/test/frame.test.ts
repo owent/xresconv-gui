@@ -90,12 +90,12 @@ describe("FrameDecoder", () => {
     }
     expect(frames).toHaveLength(1);
     const parsed = frames[0] as Record<string, unknown>;
-    expect(Object.prototype.hasOwnProperty.call(parsed, "__proto__")).toBe(true);
+    expect(Object.hasOwn(parsed, "__proto__")).toBe(true);
     const own = Object.getOwnPropertyDescriptor(parsed, "__proto__")?.value as object;
     expect(own).toEqual({ polluted: true });
     // 关键断言：全局原型未被污染。
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
-    expect(Object.prototype.hasOwnProperty.call(Object.prototype, "polluted")).toBe(false);
+    expect(Object.hasOwn(Object.prototype, "polluted")).toBe(false);
   });
 });
 

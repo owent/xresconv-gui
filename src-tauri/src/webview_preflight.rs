@@ -188,15 +188,21 @@ fn grant_appcontainer_rx(dir: &Path) -> bool {
     ];
     let mut sids: [PSID; 2] = [std::ptr::null_mut(), std::ptr::null_mut()];
     let mut entries: [EXPLICIT_ACCESS_W; 2] = unsafe { std::mem::zeroed() };
-    for (index, (slot, entry)) in sids.iter_mut().zip(entries.iter_mut()).enumerate() {
+    for index in 0..sids.len() {
         // BOOL：0 = 失败。
-        if unsafe { ConvertStringSidToSidW(sid_texts[index], slot) } == 0 {
+        if unsafe { ConvertStringSidToSidW(sid_texts[index], &mut sids[index]) } == 0 {
             eprintln!("webview2 fixed-runtime acl: ConvertStringSidToSidW failed for slot {index}");
             unsafe {
+                for sid in sids {
+                    if !sid.is_null() {
+                        LocalFree(sid as _);
+                    }
+                }
                 LocalFree(descriptor as _);
             }
             return false;
         }
+        let entry = &mut entries[index];
         entry.grfAccessPermissions = FILE_GENERIC_READ | FILE_GENERIC_EXECUTE;
         entry.grfAccessMode = GRANT_ACCESS;
         entry.grfInheritance = SUB_CONTAINERS_AND_OBJECTS_INHERIT;
@@ -204,7 +210,7 @@ fn grant_appcontainer_rx(dir: &Path) -> bool {
         entry.Trustee.MultipleTrusteeOperation = NO_MULTIPLE_TRUSTEE;
         entry.Trustee.TrusteeForm = TRUSTEE_IS_SID;
         entry.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-        entry.Trustee.ptstrName = *slot as _;
+        entry.Trustee.ptstrName = sids[index] as _;
     }
     let mut new_dacl: *mut ACL = std::ptr::null_mut();
     let set_rc = unsafe {
@@ -238,6 +244,12 @@ fn grant_appcontainer_rx(dir: &Path) -> bool {
         false
     };
     unsafe {
+        // ConvertStringSidToSidW allocates both SID buffers with LocalAlloc.
+        for sid in sids {
+            if !sid.is_null() {
+                LocalFree(sid as _);
+            }
+        }
         if !new_dacl.is_null() {
             LocalFree(new_dacl as _);
         }

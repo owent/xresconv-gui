@@ -21,7 +21,7 @@ buildToolchain / repositorySnapshot / verificationReport
 
 manifest 在安装完成后能与实际文件校验；其自身的可信性来自签名发行/已验证安装器，而不是仅含哈希便宣称可信。禁止在 manifest 中写开发机绝对路径或密钥。
 
-大小报告分别记录 Tauri 薄壳/前端、Node 二进制、backend/guardian/worker JS、运行 npm 模块、必要原生适配、资源、引导器、离线运行时、安装器开销和整体压缩/展开大小。Node 二进制只带一份，多个进程共享它，不为每个角色再打包一份 Node；许可不裁剪。生产包排除测试插件、fixtures、编译缓存和开发依赖，动态 require 需要的包文件不能按静态引用随意删。
+大小报告分别记录 Tauri 桌面层/前端、Node 二进制、backend/guardian/worker JS、运行 npm 模块、必要原生适配、资源、引导器、离线运行时、安装器开销和整体压缩/展开大小。Node 二进制只带一份，多个进程共享它，不为每个角色再打包一份 Node；许可不裁剪。生产包排除测试插件、fixtures、编译缓存和开发依赖，动态 require 需要的包文件不能按静态引用随意删。
 
 ## 运行时检查与安装状态机
 
@@ -112,8 +112,8 @@ Action 版本以实施时核验的官方稳定发行为准；所有工作流使�
 
 | 拟 job/任务 | 输入与职责 | 权限/出口 |
 | --- | --- | --- |
-| CI-01 validate-toolchain | 固定 Node/Corepack/Yarn；原生壳 job 固定 Rust；检查版本报告、锁文件、Action 标签/runner | 默认只读；版本漂移或不兼容失败 |
-| CI-02 quality | Node job 执行 docs/lint/typecheck/schema/unit 与 `--immutable`；壳 job 独立执行 Cargo `--locked` 检查 | Node 业务与契约生成不依赖 Cargo；无签名密钥，测试失败返回非零 |
+| CI-01 validate-toolchain | 固定 Node/Corepack/Yarn；Tauri 桌面层 job 固定 Rust；检查版本报告、锁文件、Action 标签/runner | 默认只读；版本漂移或不兼容失败 |
+| CI-02 quality | Node job 执行 docs/lint/typecheck/schema/unit 与 `--immutable`；Tauri 桌面层 job 独立执行 Cargo `--locked` 检查 | Node 业务与契约生成不依赖 Cargo；无签名密钥，测试失败返回非零 |
 | CI-03 desktop | Windows/macOS/Linux 原生测试 feature 构建 + E2E | 每个平台保留日志/截图/退出/清理证据 |
 | CI-04 build-variants | 全目标 production 构建、组装、签名和产物检查 | 可信发行触发才接触签名；PR 用不签名构建验证 |
 | CI-05 installer-tests | 干净 VM/原生机验证两变体及断网依赖 | 外部验收产物绑定 digest，手工测试也须提供记录 |
@@ -148,7 +148,7 @@ Action 版本以实施时核验的官方稳定发行为准；所有工作流使�
   - Windows NSIS 与 Linux bootstrap deb/rpm 是安装器，**无 portable 形态**——Windows portable 的 manifest webview 语义需要另行修订本册合同与 targets.json，不擅自发明。
 - **验证范围**（`portableArtifactNames`，精确 4 项）：macOS x64/arm64 + Linux x86_64/aarch64，一律取 offline 命名（macOS 两变体负载相同，targets.json 仅 `variant` 字段不同；Linux portable 只有 offline 自含形态）。macOS x64 用 `macos-15-intel`、arm64 用 `macos-15` 原生 runner；Linux 双架构均在 Ubuntu 22.04 最老基线（x86_64 用 `ubuntu-22.04`、aarch64 用 `ubuntu-22.04-arm` 原生 runner，无交叉编译）。
 - **工作流** `.github/workflows/portable-build.yml`：构建 → `scripts/verify-portable.ts` 逐产物验证（解包 → manifest 身份与本次构建/目标完全一致 → 全量逐文件 SHA-256 → 包内 Node `--version` 原生探针；Linux 另验 AppRun 与 WebKitGTK 自含闭包，macOS 另验 Info.plist 最低系统 13.5）→ 聚合 job 只做产物集合 + 边车哈希核验（CI-06 语义，无 release 写权限）。AppImage aarch64 由 tauri-bundler 按 `Arch::AArch64` 选取 `linuxdeploy-aarch64.AppImage`/`AppRun-aarch64`，bundler 自设 `APPIMAGE_EXTRACT_AND_RUN=1`，无需 FUSE；ARM 镜像需安装 `xdg-utils`（`bundleXdgOpen` 默认 true）。
-- **Linux 发行负载落位 = `/usr/share/xresconv-gui`（P5-11 定稿）**：linuxdeploy `deployDependenciesForExistingFiles` 会递归扫描 AppDir `usr/lib` 下全部 ELF 并 patchelf 改 rpath + strip，随包负载若经 `resources` 映射落位 `usr/lib/<productName>`，`koffi.node` 与 `runtime/node` 必被改写、manifest 逐文件哈希失配（CI/WSL 实证；`NO_STRIP=1` 只免 strip 不免 patchelf）。因此 Linux 三格式（deb/rpm/AppImage）经 `bundle.linux.{deb,rpm,appimage}.files` 把发行布局（runtime/app/runtime-manifest.json/preflight.sh）落位 `/usr/share/xresconv-gui`——不能落 `/opt`：AppImage 打包仅把 `data/usr/` 子树拷入 AppDir（tauri-bundler v2.11.5 `linuxdeploy.rs` 源码约束），`/usr/share` 是三格式统一、位于扫描盲区的唯一单跳落位，壳侧候选相应探测 `../share/<productName>`（`guardian.rs`；P5-05 的 `/usr/lib` 布局与"启动冒烟"结论由本节取代）。
+- **Linux 发行负载落位 = `/usr/share/xresconv-gui`（P5-11 定稿）**：linuxdeploy `deployDependenciesForExistingFiles` 会递归扫描 AppDir `usr/lib` 下全部 ELF 并 patchelf 改 rpath + strip，随包负载若经 `resources` 映射落位 `usr/lib/<productName>`，`koffi.node` 与 `runtime/node` 必被改写、manifest 逐文件哈希失配（CI/WSL 实证；`NO_STRIP=1` 只免 strip 不免 patchelf）。因此 Linux 三格式（deb/rpm/AppImage）经 `bundle.linux.{deb,rpm,appimage}.files` 把发行布局（runtime/app/runtime-manifest.json/preflight.sh）落位 `/usr/share/xresconv-gui`——不能落 `/opt`：AppImage 打包仅把 `data/usr/` 子树拷入 AppDir（tauri-bundler v2.11.5 `linuxdeploy.rs` 源码约束），`/usr/share` 是三格式统一、位于扫描盲区的唯一单跳落位，桌面层的资源候选路径相应探测 `../share/<productName>`（`guardian.rs`；P5-05 的 `/usr/lib` 布局与"启动冒烟"结论由本节取代）。
 - **与本册合同的关系**：portable 验证只证明"构建过程 + 负载完整性 + 包内自定位"，不构成 I01–I14 安装验收，也不替代签名（P5-07）；manifest 的 `verificationReport.result` 保持 `fail`。若最终发行决定转向 portable-only（放弃安装器矩阵），须先修订本册与 targets.json 的 webview 策略语义再改 release.yml。
 
 ### Linux"解压即运行"tar.gz（2026-09-27 增补，用户决策）
@@ -156,7 +156,7 @@ Action 版本以实施时核验的官方稳定发行为准；所有工作流使�
 用户增补指示：Linux 需要解压直接运行的包（不要 deb/AppImage/rpm 这类特殊格式）；系统 WebKit 尽量复用桌面发行版附带的；tar.gz 与 AppImage 并存。落地：
 
 - **两种运行时策略并存**（`portableFormats`）：
-  - `xresconv-gui-<version>-linux-<arch>-bootstrap.tar.gz`（≈49MB）——裸 exe + `runtime/`+`app/`+`runtime-manifest.json`+`preflight.sh` 平铺（exe 同级布局，壳候选第一优先级，平台无关代码路径）；运行时复用系统 WebKitGTK 4.1（≥ minimumWebview 2.38），缺库时 `preflight.sh` 给按发行版安装指引。验证含 ldd 探针（exe 必须解析到系统 webkit）与 preflight 就绪路径。
+  - `xresconv-gui-<version>-linux-<arch>-bootstrap.tar.gz`（≈49MB）——裸 exe + `runtime/`+`app/`+`runtime-manifest.json`+`preflight.sh` 平铺（exe 同级布局，桌面层资源候选路径的第一优先级，平台无关代码路径）；运行时复用系统 WebKitGTK 4.1（≥ minimumWebview 2.38），缺库时 `preflight.sh` 给按发行版安装指引。验证含 ldd 探针（exe 必须解析到系统 webkit）与 preflight 就绪路径。
   - `xresconv-gui-<version>-linux-<arch>-offline.tar.gz`（≈160MB）——自含 AppImage `--appimage-extract` 解包后重压（复用 linuxdeploy 闭包，不在脚本侧重造依赖收集）；解压后 `./xresconv-gui/AppRun`（或 `usr/bin/xresconv-gui`，路径自定位均命中 `../share/<productName>`）。
   - `xresconv-gui-<version>-linux-<arch>-offline.AppImage` 保留并存。
 - **命名规则**：portable 产物一律不带 distro 段（发行版无关产物）；bootstrap tar.gz 的构建基线记录在包内 `manifest.distro`（构建于 ubuntu-22.04 最老基线行），文件名不携带。
@@ -184,7 +184,7 @@ Action 版本以实施时核验的官方稳定发行为准；所有工作流使�
 
 两种归档的顶层目录均为 `xresconv-gui/`：应用 exe、构建产物附带时的 `WebView2Loader.dll`、`runtime/`、`app/`、`runtime-manifest.json`。bootstrap 另附官方 `MicrosoftEdgeWebview2Setup.exe`；两变体均以 7-Zip 对暂存目录压缩并用 `7z t` 校验，路径通过独立进程参数传递，保留隐藏文件和 Unicode 路径。offline 另附 `webview2-runtime/` 和记录语言策略/删减统计的 `webview2-runtime-policy.json`。
 
-Windows 两种归档共用的 GUI 壳必须以无控制台方式启动 Node guardian，guardian 的受监督 Node 子进程也不得弹出控制台；否则用户关闭弹出的控制台会中断 guardian 的 stdout 协议管道。发布前的 Windows 回归门禁和发行包实测见 [控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
+Windows 两种归档共用的 Tauri 桌面程序必须以无控制台方式启动 Node guardian，guardian 的受监督 Node 子进程也不得弹出控制台；否则用户关闭弹出的控制台会中断 guardian 的 stdout 协议管道。发布前的 Windows 回归门禁和发行包实测见 [控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 
 ### Windows 7z 与语言策略（2026-09-29）
 

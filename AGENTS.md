@@ -5,8 +5,8 @@
 ## 项目目标与边界
 
 - xresconv-gui：符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的 GUI 批量转表工具，以 [xresloader](https://github.com/xresloader/xresloader) 为后端。
-- 基于 Tauri 2 薄壳 + 系统 WebView + 独立 Node.js 业务内核，支持 Windows / Linux / macOS（64 位；D1 决策，旧 2.6.0 为 32 位终点版本）。
-- 本仓库只包含 GUI 壳与打包逻辑；转表协议变更属于 xresconv-conf / xresloader 仓库。
+- 基于 Tauri 2 桌面层（负责窗口、系统接口、进程启动与消息转发）+ 系统 WebView + 独立 Node.js 业务进程，支持 Windows / Linux / macOS（64 位；D1 决策，旧 2.6.0 为 32 位终点版本）。
+- 本仓库负责 GUI、Node.js 业务进程与打包逻辑；转表协议变更属于 xresconv-conf / xresloader 仓库。
 
 ## 不可违反的原则
 
@@ -33,12 +33,12 @@
 
 ## 技术栈与命令
 
-- Node.js LTS（>=24）+ Tauri 2 + React 19 + TypeScript workspaces。壳入口 `src-tauri/`（最小胶水），前端 `apps/desktop/`，业务内核 `packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`（D6：业务全在 Node/TS，Rust 仅壳）。
-- 包管理器：**Yarn 4（corepack，`packageManager: yarn@4.18.0`）为唯一 JS 包管理器**；`package-lock.json`、`pnpm-lock.yaml` 已删除（P1-02），唯一 JS 锁文件为 `yarn.lock`，`Cargo.lock` 仅服务 Tauri 薄壳。安装用 `corepack yarn install`，变更依赖时只更新 `yarn.lock`。
+- Node.js LTS（>=24）+ Tauri 2 + React 19 + TypeScript workspaces。桌面层入口 `src-tauri/`（窗口、系统接口与进程通信），前端 `apps/desktop/`，业务内核 `packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`（D6：业务全在 Node/TS，Rust 仅实现桌面层）。
+- 包管理器：**Yarn 4（corepack，`packageManager: yarn@4.18.0`）为唯一 JS 包管理器**；`package-lock.json`、`pnpm-lock.yaml` 已删除（P1-02），唯一 JS 锁文件为 `yarn.lock`，`Cargo.lock` 仅服务 Tauri 桌面层。安装用 `corepack yarn install`，变更依赖时只更新 `yarn.lock`。
 - 常用命令：
   - 开发运行：`yarn dev:desktop`（tauri dev，前端热更新）
-  - 构建壳：`yarn build:desktop`
-- 新架构（Tauri 薄壳 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn test:conversion`（真实 JAR 八格式 stdin vs argv 差分；相邻 `../xresloader/target` 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`，缺件 exit 2 显式退出）、`yarn check:shell` / `yarn test:shell`（Cargo 薄壳）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → tauri 双配置 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows 双变体=7z（bootstrap 附 WebView2 bootstrapper，offline 内嵌 Fixed Version；构建需 7-Zip，用户需支持 7z 的解压工具；语言策略见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与合同见 05 册 §Portable 与 §Release portable 归档）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
+  - 构建桌面应用：`yarn build:desktop`
+- 新架构（Tauri 桌面层 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn test:conversion`（真实 JAR 八格式 stdin vs argv 差分；相邻 `../xresloader/target` 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`，缺件 exit 2 显式退出）、`yarn check:shell` / `yarn test:shell`（Tauri 桌面层的 Cargo 检查）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → 平台归档 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows 双变体=7z（bootstrap 附 WebView2 bootstrapper，offline 内嵌 Fixed Version；构建需 7-Zip，用户需支持 7z 的解压工具；语言策略见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与合同见 05 册 §Portable 与 §Release portable 归档）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
 
 ## 目录结构
 
@@ -54,7 +54,7 @@
 - 用户自定义脚本在独立 Node worker 中执行，可信脚本可访问本地模块与进程；故障隔离不等于防恶意沙箱。保持 `resolve()`/`reject()` 和弹框回调约定，不向脚本提供 DOM/jQuery/Electron。详见 `docs/plan/02-contracts-script-host.md`。
 - GUI 与文件编码统一 UTF-8；Windows 默认 GBK，文件名建议全英文（见 README“注意事项”）。
 - src-tauri 中被 `#[cfg(test)]` 测试引用的模块不得触碰 tauri/wry 运行时类型（如 `AppHandle`/`Emitter`）：测试 exe 无 SxS manifest，经 Drop glue 保留 wry 对话框代码会导入 comctl32 v6 专有符号，进程加载即 0xc0000139。事件出口用注入闭包（P4-02 `EventSink`，诊断工具 `build/tools/check-imports.mjs`）。
-- Windows 发行壳是 GUI subsystem；启动 Node guardian 必须经 `windowless_process` 设置 `CREATE_NO_WINDOW`，受监督子进程必须经 `ProcessScope.decorateSpawnOptions` 设置 `windowsHide`。仅数 `conhost.exe` 不足以判断是否弹窗；回归见 `gui_shell_does_not_create_a_guardian_console` 和 [发行包实测](docs/plan/records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
+- Windows 发行版的 Tauri 桌面程序使用 GUI subsystem；启动 Node guardian 必须经 `windowless_process` 设置 `CREATE_NO_WINDOW`，受监督子进程必须经 `ProcessScope.decorateSpawnOptions` 设置 `windowsHide`。仅数 `conhost.exe` 不足以判断是否弹窗；回归见 `gui_shell_does_not_create_a_guardian_console` 和 [发行包实测](docs/plan/records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 
 - Windows 双变体均使用 7z；Linux tar.zst 使用 tar 文件 → 外部 zstd 文件两步，以显式压缩级别并校验后发布。用真实负载验证压缩/解压，不能只看小样本或退出码。语言裁剪默认关闭，须显式选 `--webview-locales=mainstream` 并复验固定运行时版本。
 

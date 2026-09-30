@@ -49,7 +49,7 @@ CF02 不能只比较一次偶然顺序。用受控延迟复现旧代码并记录
 | SC08 | 可控 heap/Buffer/native 内存压力、派生多层/后台/detached 子进程；取消和强杀 GUI | 实测资源上限与清理；未支持的恶意逃逸边界记录，不能误写“完全沙箱” | F09/F12、R03/R07/R08 |
 | SC09 | 多日志 hook 连续改写、第二个 throw、hook 内再次 log、日志突发和慢 hook | 顺序、递归保护、原始记录和错误可查；管道读取、取消不死锁 | F10、C13、R05/R09 |
 | SC10 | worker 写文件后崩溃；有多个活动 invocation；旧 generation 迟到回包 | 不重试副作用；所有受影响调用进入确定状态；新 worker 不接受旧回复 | F08/F09、R04/R07/R10/R11 |
-| SC11 | 分别阻塞/终止 backend、guardian；worker 伪报 backend 身份、向 stdout 注入帧、发送超大帧；可信 fork 通道断开/背压/发送回调后不响应；壳强杀 | 身份绑定实际通道；按字节限长后再解析不可信消息；发送回调不当作业务完成；独立监督截止可用，UI 故障可见，所属子树清理有实证，不自动重放 | F08/F09/F12、R03/R04/R07/R09/R10/R11/R12 |
+| SC11 | 分别阻塞/终止 backend、guardian；worker 伪报 backend 身份、向 stdout 注入帧、发送超大帧；可信 fork 通道断开/背压/发送回调后不响应；强杀桌面层进程 | 身份绑定实际通道；按字节限长后再解析不可信消息；发送回调不当作业务完成；独立监督截止可用，UI 故障可见，所属子树清理有实证，不自动重放 | F08/F09/F12、R03/R04/R07/R09/R10/R11/R12 |
 
 ### 必须保留的具体样例
 
@@ -144,7 +144,7 @@ EX05 不仅比较 exit code 或文件存在。确定性格式做字节比较；�
 
 统一命令采用主计划列出的 `yarn test:unit/test:script-host/test:contracts/test:browser/test:desktop/test:conversion/test:installers`，实施时在各工具真实能力内提供 case/target 过滤，不能捏造某框架不存在的 CLI 参数。所有 runner 必须输出实际发现与执行数量；零用例视为失败。
 
-Node 业务与契约 job 在不提供 Rust/Cargo 的环境执行 schema 生成、类型检查和相关测试，确认已经解除旧 Cargo 导出依赖。Tauri 原生壳单独执行 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`；workspace 收敛为必要桌面入口/胶水，不含 Rust 业务工程。生产 feature 和 E2E feature 分别检查，不能用单次 `--all-features` 构建取代生产权限验证。
+Node 业务与契约 job 在不提供 Rust/Cargo 的环境执行 schema 生成、类型检查和相关测试，确认已经解除旧 Cargo 导出依赖。Tauri 桌面层单独执行 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`；workspace 收敛为必要桌面入口与接口适配代码，不含 Rust 业务工程。生产 feature 和 E2E feature 分别检查，不能用单次 `--all-features` 构建取代生产权限验证。
 
 不得把故障测试直接指向开发者机器的真实项目或安装目录。安装器 runner 缺少隔离目标标识时拒绝执行；测试用的卸载、杀进程只作用于 manifest 登记的测试安装/进程所有权。
 

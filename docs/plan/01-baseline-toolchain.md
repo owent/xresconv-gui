@@ -50,8 +50,8 @@ P1-00 已按下表完成既有代码与测试的迁移审计，去向登记见 [
 | `crates/process-supervisor` | timeout/回收测试迁至 `packages/guardian`；旧单进程 smoke 不算进程树已验收 | SC07/SC08/SC11；不继续开发 Rust guardian |
 | `crates/protocol` | 已有协议样例保留，JSON Schema 迁成 `packages/contracts/schema` 的唯一源 | SC01、现有合法/非法样例；移除 cargo schema 导出依赖 |
 | `packages/contracts` | 保留 json-schema-to-typescript/Ajv 流程，修改 generate:schema/类型来源注释 | 无 Cargo 的 Node 环境也能生成类型并运行契约测试 |
-| `src-tauri` | 保留窗口/CLI/对话框/opener/必要消息桥，移除对业务 crates 的依赖 | 真实壳→guardian→backend 往返；不复制领域逻辑到 Tauri command |
-| `Cargo.toml/lock`、工具链文件 | 仅保留 Tauri 壳所需工作区和依赖；清理业务专用项，保留实际需要的原生传递依赖 | 原生构建与最小桥接测试仍通过，不能整体删除 Cargo |
+| `src-tauri` | 保留窗口/CLI/对话框/opener/必要消息桥，移除对业务 crates 的依赖 | 真实桌面层→guardian→backend 往返；不复制领域逻辑到 Tauri command |
+| `Cargo.toml/lock`、工具链文件 | 仅保留 Tauri 桌面层所需工作区和依赖；清理业务专用项，保留实际需要的原生传递依赖 | 原生构建与最小桥接测试仍通过，不能整体删除 Cargo |
 | `package.json`、Yarn、Vite/Biome/Vitest、现有前端 | 复用已经做出的依赖和骨架工作，补 backend/guardian workspaces | 不重做无关升级；Node 单测/契约不调用 Cargo |
 
 P1-00 的审计报告区分：可直接保留、需迁移、迁移后删除、尚无验证。其迁移项分别并入 P1-04/P1-06/P2/P3，相关替代测试通过后才移除旧模块；不能先删代码再用空测试证明新架构通过。
@@ -63,7 +63,7 @@ P1-00 的审计报告区分：可直接保留、需迁移、迁移后删除、�
 | A | Node、Corepack、Yarn | 独立锁版本和 engines；先能重现旧构建，再迁移 lockfile | 保留升级前基线；解决工具链冲突，不改业务预期 |
 | B | adm-zip、compressing、minimatch、log4js | 验证动态 require、导出形式、glob、归档和日志兼容 | 记录具体变更；选择适配层，禁止强推不兼容传递版本 |
 | C | Electron、packager、gulp 与过渡 UI 库 | 可回退批次更新；原 macOS ASAR 约束在旧架构仍有效 | 架构停止支持进入 D1；不偷偷改变发行矩阵 |
-| D | React/TypeScript/Vite、Tauri 官方插件、Node backend/guardian | 复用薄壳与前端；业务统一 TS/Node，不新增 Rust 领域工程 | 不删未完成替代的实现；冲突回到合同 |
+| D | React/TypeScript/Vite、Tauri 官方插件、Node backend/guardian | 复用 Tauri 桌面层与前端；业务统一 TS/Node，不新增 Rust 领域工程 | 不删未完成替代的实现；冲突回到合同 |
 | E | 测试、类型/lint、Actions | 按官方兼容范围成组升级，核验 Actions 版本标签 | 禁止忽略失败或 force peer 安装 |
 
 “更新所有依赖”的处理结果必须逐项是：升级保留、适配后保留、架构移除、明确阻塞。新架构删除的 jQuery 等包不需要为长期保留而额外包装。传递依赖通过合法解析更新，不越过父包版本契约。
@@ -73,7 +73,7 @@ P1-00 的审计报告区分：可直接保留、需迁移、迁移后删除、�
 拟新增 `scripts/check-toolchain.*` 和 `docs/plan` 所引用的实施版本报告，记录以下字段：
 
 - npm：registry、精确版本、integrity、engines、peerDependencies、平台可选包、生命周期脚本。
-- Tauri 原生依赖：仅核验壳与实际所需插件的 crate/MSRV/feature/目标，保留 Cargo.lock；不再维护业务专用 Rust 依赖清单。
+- Tauri 原生依赖：仅核验 Tauri 桌面层与实际所需插件的 crate/MSRV/feature/目标，保留 Cargo.lock；不再维护业务专用 Rust 依赖清单。
 - Node：发行通道、支持平台、官方归档与校验值；明确 Current 与 LTS 的选择。
 - Action：最新稳定 v 数字 tag、action.yml runtime、runner 要求、权限、嵌套 `uses`。
 - OS/打包工具：SDK、编译器、NSIS、签名工具、Linux 仓库快照；不把 Tauri 上游固定的内部依赖强行替换成不兼容版本。
@@ -88,10 +88,10 @@ P1-00 的审计报告区分：可直接保留、需迁移、迁移后删除、�
 | P1-01 | P1-00 | 工具链报告、`package.json`、`.yarnrc.yml`、仅供 Tauri 的 `rust-toolchain.toml` | 精确版本及 peer/MSRV 全部可解释 |
 | P1-02 | P1-01 | Yarn 4 lockfile、工作区定义；清理两份非权威锁文件 | `yarn install --immutable` 不改锁；node-modules 布局保留动态加载 |
 | P1-03 | P1-02 | 旧架构依赖升级批次与对应回归 | 旧功能对照可运行；过渡期 prepare 不破坏新包 |
-| P1-04 | P1-01 | 复用 apps/desktop 与薄 src-tauri，建立 packages/backend/guardian 入口 | 三平台窗口/选文件与 Node 服务握手成功，不承载 Rust 业务 |
+| P1-04 | P1-01 | 复用 apps/desktop 与仅含桌面接口代码的 src-tauri，建立 packages/backend/guardian 入口 | 三平台窗口/选文件与 Node 服务握手成功，不承载 Rust 业务 |
 | P1-05 | P1-04 | Vite 资源路径、Tauri 资源映射、图标、CLI 参数入口 | 安装目录含空格/中文仍可定位资源，无 HTTP 服务依赖 |
 | P1-06 | P1-04 | packages/contracts 的 JSON Schema/TS/Ajv，移除 Cargo 导出 | UI/各 Node 角色判断一致；最小 Tauri 桥接拒绝越权/过大请求 |
-| P1-07 | P1-04 | Biome、tsconfig、Vitest 和壳的原生检查；更新来源索引 | Node 业务测试不依赖 Rust；原生壳仍有独立构建验证 |
+| P1-07 | P1-04 | Biome、tsconfig、Vitest 和桌面层的原生检查；更新来源索引 | Node 业务测试不依赖 Rust；Tauri 桌面层仍有独立构建验证 |
 | P1-08 | P1-05、P1-07 | 原生桌面 E2E 最小测试构建 | 三平台真实应用握手通过；测试插件被独立 feature 控制 |
 | P1-09 | P1-03 至 P1-08 | G1 报告、工具链和骨架审阅 | 不依赖开发机全局模块；未通过项有明确阻塞 |
 
@@ -101,7 +101,7 @@ P1-00 的审计报告区分：可直接保留、需迁移、迁移后删除、�
 
 packages/backend 的领域模块不依赖 Tauri/React，可在纯 Node 环境运行。guardian 只负责消息路由/截止/进程所有权，不导入 XML、转换规则或用户脚本。contracts 不反向依赖业务包；前端只经 adapter 调用服务，生成类型的更新必须经契约测试。
 
-目标命令：`yarn lint/typecheck/test:contracts/test:unit/test:desktop`，其中已有脚本先审计再复用。配置/状态机/调度/契约测试统一 Vitest/Node；Cargo 仅用于 Tauri 壳。保留旧启动/打包命令直至 P7 交接，禁止构建时下载未登记运行文件。
+目标命令：`yarn lint/typecheck/test:contracts/test:unit/test:desktop`，其中已有脚本先审计再复用。配置/状态机/调度/契约测试统一 Vitest/Node；Cargo 仅用于 Tauri 桌面层。保留旧启动/打包命令直至 P7 交接，禁止构建时下载未登记运行文件。
 
 回退单位是该升级批次和对应锁文件/文档，不回退用户原有源码改动。基线预期文件修改必须显示差异理由；不得自动用新实现输出覆盖旧结果。
 

@@ -44,7 +44,7 @@ evidence_paths / remaining_limits / rollback_point
 ```mermaid
 flowchart TD
     B[P0 基线和样本] --> A[P1-00 Node 方案收敛审计]
-    A --> T[P1 工具链和薄壳骨架]
+    A --> T[P1 工具链和桌面层骨架]
     T --> S[P2 脚本与监督原型]
     S --> C[P3 配置和转换]
     C --> U[P4 完整界面]

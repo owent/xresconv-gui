@@ -23,25 +23,25 @@
 
 这是一个符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的GUI转表工具，并且使用 [xresloader](https://github.com/xresloader/xresloader) 作为数据导出工具后端。
 
-3.0 起基于 **Tauri 2 薄壳 + 系统 WebView + 独立 Node.js 业务内核**（业务与脚本宿主全在 Node/TypeScript，Rust 仅桌面壳胶水）。支持 Windows 10+/主流 Linux 桌面（Ubuntu 22.04/24.04、Debian 12/13、Fedora 最近两个正式版）和 macOS 13.5+，仅 64 位。每个目标提供 bootstrap（在线引导运行时）与 offline（离线自含）两种安装变体。
+3.0 起基于 **Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程**（Tauri 负责窗口、系统接口、进程启动与消息转发；业务与脚本宿主由 Node.js/TypeScript 进程处理）。目标平台为 Windows 10+/主流 Linux 桌面（Ubuntu 22.04/24.04、Debian 12/13、Fedora 最近两个正式版）和 macOS 13.5+，仅 64 位。当前发行工作流构建 Windows x64、Linux x86_64 和 macOS x64/arm64；其他架构的正式发行仍待验收。
 
 ## 下载和使用
 
-点击[此处](https://github.com/xresloader/xresconv-gui/releases)并根据需要下载对应系统的包，直接执行里面的二进制即可。
+在[发行页](https://github.com/xresloader/xresconv-gui/releases)选择与系统、架构匹配的包。当前自动化构建和本机测试不等于所有平台已完成实机验收；具体边界见[验收记录](docs/plan/records/P6-06.md)。
 
-每个系统/架构都提供 **bootstrap** 和 **offline** 两种变体，文件名中以
+发行目标区分 **bootstrap** 和 **offline** 两种变体，文件名中以
 `-bootstrap` / `-offline` 区分（如 `xresconv-gui-<版本>-windows-x64-bootstrap.7z`、
 `xresconv-gui-<版本>-windows-x64-offline.7z`）。两者应用功能完全相同，
 区别仅在于对系统 WebView 运行时的准备方式：
 
 | 变体 | 体积 | WebView 运行时 | 适用场景 |
 | --- | --- | --- | --- |
-| **bootstrap**（在线引导） | 较小 | 复用系统已有运行时；缺失时联网引导安装（Windows 附带官方 WebView2 安装器，Linux 经系统包管理器安装 WebKitGTK，macOS 引导升级系统） | 有网络、系统通常已自带运行时的常规环境 |
-| **offline**（离线自含） | 较大 | 包内自带运行时（Windows 内嵌 WebView2 Fixed Version，Linux 内嵌 WebKitGTK 闭包），无需联网补装 WebView | 内网/隔离环境，或无法联网、系统缺少运行时的机器 |
+| **bootstrap** | 较小 | 复用系统运行时；缺失时 Windows 提示手动运行包内 WebView2 安装器，Linux 预检提示安装 WebKitGTK，macOS 需升级系统 | 有网络、系统已具备或可安装运行时 |
+| **offline** | 较大 | Windows 包内含 WebView2 Fixed Version，Linux 包内含 WebKitGTK 闭包；macOS 仍使用系统 WKWebView | 无法联网或缺少 Windows/Linux 运行时的机器 |
 
 > 归档格式：Windows 两种变体均为 `.7z`，用 7-Zip 等兼容工具解压后运行；
 > Linux 提供 `.tar.zst`（用支持 zstd 的 tar 或 7-Zip 解压）和 offline AppImage；
-> macOS 提供 `.dmg`。旧机器请提前准备对应的解压工具。
+> macOS 发行工作流提供 `.dmg`。Windows 归档需兼容 7z 的解压工具；Linux `.tar.zst` 需支持 zstd 的解压工具。
 
 使用建议：
 
@@ -312,7 +312,7 @@
 
 ### 环境准备
 
-1. 安装 Node.js LTS（>=24）与 Rust stable（构建 Tauri 壳）；Windows 另需
+1. 安装 Node.js LTS（>=24）与 Rust stable（构建 Tauri 桌面层）；Windows 另需
    WebView2 运行时（一般系统自带），Linux 需 WebKitGTK 4.1 开发包
    （`libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`）。
 1. 包管理器为 **Yarn 4**（Corepack 提供，仓库 `packageManager` 字段锁定版本）：
@@ -324,7 +324,7 @@ corepack yarn install      # 安装依赖（唯一 JS 锁文件 yarn.lock）
 ### 直接启动（开发模式）
 
 ```bash
-corepack yarn dev:desktop   # tauri dev：前端热更新 + 调试壳
+corepack yarn dev:desktop   # tauri dev：前端热更新 + 调试桌面程序
 ```
 
 ### 调试
@@ -332,7 +332,7 @@ corepack yarn dev:desktop   # tauri dev：前端热更新 + 调试壳
 + 前端/业务内核（TypeScript）：`dev:desktop` 下使用浏览器开发者工具
   （`--debug-mode` 启动参数自动打开）；Node 内核为独立进程，可在
   VSCode 以 Attach 方式调试。
-+ Tauri 壳（Rust）：`RUST_LOG=trace corepack yarn dev:desktop`。
++ Tauri 桌面层（Rust）：`RUST_LOG=trace corepack yarn dev:desktop`。
 
 ### 质量门禁与测试
 
@@ -346,8 +346,8 @@ corepack yarn test:desktop  # 桌面 E2E（tauri-driver；Windows 另需 MSEDGED
                             # WebView2 运行时版本匹配的 msedgedriver.exe）
 corepack yarn test:conversion  # 真实 JAR 八格式 stdin vs argv 差分（相邻 ../xresloader/target
                                # 有多个匹配 JAR 时须显式 XRESCONV_TEST_JAR，缺件 exit 2）
-corepack yarn check:shell   # Tauri 壳 clippy（-D warnings）
-corepack yarn test:shell    # Tauri 壳单元测试
+corepack yarn check:shell   # Tauri 桌面层 clippy（-D warnings）
+corepack yarn test:shell    # Tauri 桌面层单元测试
 ```
 
 ## 打包和发布

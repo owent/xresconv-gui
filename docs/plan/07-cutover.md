@@ -28,7 +28,7 @@
 | 对象 | 删除前检查 | 替代入口 |
 | --- | --- | --- |
 | `src/setup.js`、`src/main.js`、旧 HTML/CSS | CLI、窗口、脚本、配置、日志和所有功能映射齐全 | 薄 `src-tauri/`、`apps/desktop/`、`packages/backend` 与各 Node 包 |
-| 已有 `crates/config`、`domain`、`process-supervisor`、`protocol` 及 Cargo schema 导出 | P1-00 审计完成，相关合同和测试已迁往 Node 且通过；检查壳引用和 CI | TypeScript backend/guardian、JSON Schema 源；保留 Tauri 所需 Cargo.lock/工具链 |
+| 已有 `crates/config`、`domain`、`process-supervisor`、`protocol` 及 Cargo schema 导出 | P1-00 审计完成，相关合同和测试已迁往 Node 且通过；检查 Tauri 桌面层引用和 CI | TypeScript backend/guardian、JSON Schema 源；保留 Tauri 所需 Cargo.lock/工具链 |
 | Electron / packager | 不再作为旧应用对照执行的必要工具进入生产构建 | Tauri 构建/发行 |
 | jquery/Fancytree/Bootstrap/Popper | 新 UI、worker、CSS 及动态模块清单均不依赖它们 | React 组件和经测试的节点镜像 |
 | `scripts/patch-fancytree.js`、copy-libs、旧 prepare | 所有引用已移除，不影响新工作区安装 | 新工具链准备/资源组装 |

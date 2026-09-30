@@ -4,7 +4,7 @@ description: "Use When: creating, updating, or auditing AI agent configuration i
 license: MIT
 metadata:
   owner: project-ai-maintainers
-  last-reviewed: 2026-09-27
+  last-reviewed: 2026-09-30
 ---
 
 # AI Agent 配置维护
