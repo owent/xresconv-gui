@@ -2,7 +2,7 @@
 
 [执行索引](README.md) · [上一册](02-contracts-script-host.md) · [下一册](04-ui.md)
 
-对应 P3。业务内核采用 TypeScript，运行在独立 Node.js backend 中，不依赖 WebView；另一个 Node.js guardian 负责进程生命周期与超时。核心接口已实现并有 Windows 实测（见 P3 各任务记录），跨平台验收待 CI；输出差异由固定旧版和 JAR 样例裁定；P0 已批准的缺陷修复按差异台账验收。
+对应 P3。业务内核采用 TypeScript，运行在独立 Node.js backend 中，不依赖 WebView；另一个 Node.js guardian 负责进程生命周期与超时。核心接口已实现，Windows 本机/真实 JAR 与 Windows/Linux CI 已有证据（见 [发布核对](records/RELEASE-2026-10-03.md)）；最终介质与全矩阵实机仍待验收；输出差异由固定旧版和 JAR 样例裁定；P0 已批准的缺陷修复按差异台账验收。
 
 ## 配置加载事务
 
@@ -34,7 +34,9 @@
 
 文件读取、include 数量、深度、节点总量和脚本文本分别设预算。超过主事件循环响应预算的解析放入可终止 helper 进程，返回候选快照；guardian 不解析 XML。不得用 `readFileSync`、`spawnSync` 或无界 CPU 循环阻塞取消、健康检查与消息处理。100k 节点压测须覆盖候选构建、序列化和快照传输，不只测 parser。
 
-当前原型的读取预算为单文件 8 MiB、总量 32 MiB、include 深度 64/文件数 1024；严格 UTF-8 且只允许一个 `root` 文档根。以 realpath 判重/循环，声明路径继续决定相对路径。非法/溢出的 hook timeout 诊断并回退 30000ms（合法范围 1–2147481647ms，预留 guardian 宽限）。独立解析 helper、节点/脚本文本独立预算仍是未完成项，不能以字节上限替代响应性验收。修复依据及测试见最新审查记录。
+当前读取预算为单文件 64 MiB、总量 128 MiB、include 深度 64/文件数 1024；另限累计 100 万 XML 元素、元素深度 100（保持锁定 parser 的原有默认）、单脚本 1 MiB/累计 8 MiB。严格 UTF-8 且只允许一个 `root` 文档根；以 realpath 判重/循环，声明路径继续决定相对路径。非法/溢出的 hook timeout 诊断并回退 30000ms（合法范围 1–2147481647ms，预留 guardian 宽限）。
+
+业务加载经 `config/isolated-loader.ts` 在独立 Node helper 完成同步 XML 校验/解析和候选构建；ProcessScope 监督，外部 30 秒截止覆盖启动、读取、解析和有界帧传输，超时/取消/异常后确认回收再返回。关闭会话等待活动解析结束；取消或失败保留旧候选，完整返回后才执行原有 set_name 和提交。`parseXmlConfig` 保留为 helper 内及纯解析测试入口。响应性、100k 跨进程传输、独立预算与事务回归见 `packages/backend/test/config-isolation.test.ts` / `service/load-config.test.ts`；最终平台进度见 [R3](08-release-follow-up.md)。
 
 ## 选择与转换计划
 
@@ -95,21 +97,10 @@ Node.js 内部诊断与用户 log4js 日志区分，Tauri 原生诊断只记录�
 
 内存队列必须有界，超出 UI 容量的日志仍落盘并显示可加载范围。磁盘满/权限失败/日志服务挂起时，报告持久化失败并执行既定停止或降级策略；不得既承诺无损又默默丢弃，也不能让无限背压永久卡住转换取消。
 
-当前降级合同：在途 hook 数以日志容量为限，超限记录保留原文并累计 `hookSkippedCount`，可能先于仍在处理的 hook 落队；正常 hook 顺序保持，改写记录保留 `rawMessage`。独立 log4js 子进程限制配置 1 MiB、待发送记录 128 条、单条 256 KiB；超限明确报告未持久化。每个请求 5s 截止，shutdown 默认总预算 5s，终止后额外等待 close 最多 2s；超时/清理未确认均拒绝，不能报告成功 flush。持久化诊断跳过 hook 与落盘 sink，防止递归。此处是过载时的显式降级，完整持久化/轮转/分页及 guardian 接线仍待完成。
+当前降级合同：在途 hook 数以日志容量为限，超限记录保留原文并累计 `hookSkippedCount`，可能先于仍在处理的 hook 落队；正常 hook 顺序保持，改写记录保留 `rawMessage`。独立 log4js 子进程限制配置 1 MiB、待发送记录 128 条、单条 256 KiB；超限明确报告未持久化。每个请求 5s 截止，shutdown 默认总预算 5s，终止后额外等待 close 最多 2s；超时/清理未确认均拒绝，不能报告成功 flush。持久化诊断跳过 hook 与落盘 sink，防止递归。此处是过载时的显式降级；持久化/轮转/分页及运行接线的已有测试见 [P6-01](records/P6-01.md)，最终平台/介质的 EX04 复验仍按 R2/R5 执行。
 
-## P3 任务清单
+## 实施证据与后续验证
 
-| 任务 | 依赖 | 拟实现位置/动作 | 验收 |
-| --- | --- | --- | --- |
-| P3-01 | G1、P0 配置样本 | `packages/backend/src/config`：TypeScript 解析、校验与来源模型 | CF01，文本与字段不丢失；BD-07 差异明确 |
-| P3-02 | P3-01 | include 图、覆盖、路径、候选事务 | CF02/CF03，竞态与坏配置不覆盖有效状态 |
-| P3-03 | P2-03、P3-02 | set_name 与提交阶段整合 | SC02/CF02；异常/超时后策略可解释 |
-| P3-04 | P2-08、P3-02 | `packages/backend/src/domain`：选择器、资格矩阵、三态选择 | CF04/CF05，精确匹配与禁用节点正确 |
-| P3-05 | P3-04 | PlanBuilder、输出检查与冻结 | CF05/CF06，before 修改三种可见性符合合同 |
-| P3-06 | P3-05 | Java argv/stdin 编码器、fallback | EX01，按真实 parser 往返，不按显示字符串猜测 |
-| P3-07 | P2-02、P3-06 | backend Java 模块与 guardian 适配：批次调度、背压、退出汇总 | EX02/SC11，静默进程也可完成，多块日志不重复派发 |
-| P3-08 | P3-07、P2-09 | cancel/reset/close 状态机 | EX03，终态一次、取消可完成、无误杀 |
-| P3-09 | P2-08、P3-07 | 日志、log4js、分页和 flush | EX04，日志风暴/磁盘错误有界且可诊断 |
-| P3-10 | P3-03 至 P3-09 | 固定真实 JAR 差分与 G3 报告 | EX05；所有输出格式按业务内容比较 |
+配置/include/事务、选择与输出矩阵、计划冻结、Java 编码/批次/取消、独立日志 sink 和八格式真实 JAR 差分的实施证据见 [P3 records](records/README.md)、[P3-10](records/P3-10.md) 与 [P6-06](records/P6-06.md)。
 
-失败时回退对应模块/批次，不删除旧基线，不修改 JAR 协议来掩盖本仓库适配问题。只要某种输出格式、事件路径或自定义选择器仍无验证，新内核就不能替换正式入口。
+独立解析/预算的本轮实现与 Windows/Linux 回归见 [执行记录](records/EXECUTION-2026-10-03.md)。任何配置/执行器修改重跑 CF01–CF06、SC02/SC11、EX01–EX05 受影响用例与固定 JAR 对照。回退对应模块/批次，保留旧 golden，不修改上游协议掩盖适配问题。未知格式、事件或选择器差异不得静默忽略。

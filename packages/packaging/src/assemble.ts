@@ -19,10 +19,8 @@
  * → schema 必须落位在 bundle 上溯可达的 node_modules；缺失的平台
  * optionalDependencies（如 @koromix/koffi-linux-*）跳过不视为缺失。
  *
- * 本切片是 PK07 的本机部分：Node 二进制由调用方取得（本机 process.execPath
- * 或 CI 下载的 dist 副本），本模块负责"校验"（--version 实测精确版本与
- * major 匹配 target.nodeVersion、可选 sha256 强校验、ABI 实测）；nodejs.org
- * 下载与 SHASUMS256.txt 获取属 CI（CI-04），见 records/P5-02 遗留。
+ * 原生目标探测 Node 版本/ABI；显式交叉目标由 node-acquisition.ts 核验官方
+ * 归档/headers 后提供版本与 ABI，组装阶段检查哈希和架构，不执行目标 Node。
  */
 
 import { spawnSync } from "node:child_process";
@@ -32,6 +30,7 @@ import { isBuiltin } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { verifyBinaryTarget } from "./binary-target.ts";
 import { PackagingError } from "./errors.ts";
 import { validateRuntimeManifest } from "./load.ts";
 import type {
@@ -78,6 +77,12 @@ const ROLE_BUNDLES = [
     destDir: "app/backend",
     destName: "log-sink-worker.mjs",
   },
+  {
+    workspace: "@xresconv/backend",
+    entry: "packages/backend/src/config/config-worker.ts",
+    destDir: "app/backend",
+    destName: "config-worker.mjs",
+  },
 ] as const;
 
 /** dependencies 携带 workspace 协议的包目录（npm 种子推导来源）。 */
@@ -103,6 +108,8 @@ export interface NodeAcquisition {
   source: string;
   /** 期望 sha256（CI：SHASUMS256.txt 对应值）；给出时强制校验，不符即拒绝。 */
   expectedSha256?: string;
+  /** Official archive/header facts for an explicitly requested cross build; no target runtime probe. */
+  crossFacts?: { exactVersion: string; nodeAbi: string; os: ReleaseTarget["os"]; arch: string };
 }
 
 export interface AssembleLayoutOptions {
@@ -162,6 +169,27 @@ function verifyNodeBinary(node: NodeAcquisition, target: ReleaseTarget): NodeFac
     throw new PackagingError("NODE_ACQUISITION_FAILED", "bundled Node binary does not exist", [
       `path: ${node.path}`,
     ]);
+  }
+  if (node.crossFacts) {
+    const facts = node.crossFacts;
+    const sha256 = sha256File(node.path);
+    if (
+      !node.expectedSha256 ||
+      sha256 !== node.expectedSha256 ||
+      !node.source.startsWith("https://nodejs.org/dist/") ||
+      facts.os !== target.os ||
+      facts.arch !== target.arch ||
+      !/^\d+\.\d+\.\d+$/.test(facts.exactVersion) ||
+      facts.exactVersion.split(".")[0] !== target.nodeVersion ||
+      !/^\d+$/.test(facts.nodeAbi)
+    )
+      throw new PackagingError(
+        "NODE_ACQUISITION_FAILED",
+        "invalid cross Node acquisition facts/hash",
+        [],
+      );
+    verifyBinaryTarget(fs.readFileSync(node.path), target);
+    return { exactVersion: facts.exactVersion, nodeAbi: facts.nodeAbi, sha256 };
   }
   const versionOutput = runNode(node.path, ["--version"], "node --version");
   const versionMatch = /^v(\d+)\.(\d+)\.(\d+)$/.exec(versionOutput);
@@ -325,6 +353,7 @@ export function copyNpmClosure(
   repoRoot: string,
   nodeModulesDest: string,
   exclusion: RegExp | null,
+  target?: ReleaseTarget,
 ): Map<string, CopiedPackage> {
   interface QueueEntry {
     name: string;
@@ -371,7 +400,26 @@ export function copyNpmClosure(
       licenses?: unknown;
       dependencies?: Record<string, string>;
       optionalDependencies?: Record<string, string>;
+      os?: string[];
+      cpu?: string[];
     };
+    if (target) {
+      const os = target.os === "windows" ? "win32" : target.os === "macos" ? "darwin" : "linux";
+      const cpu =
+        target.arch === "aarch64" ? "arm64" : target.arch === "x86_64" ? "x64" : target.arch;
+      const supports = (list: string[] | undefined, value: string) =>
+        !list ||
+        (!list.includes(`!${value}`) &&
+          (list.every((entry) => entry.startsWith("!")) || list.includes(value)));
+      if (!supports(manifest.os, os) || !supports(manifest.cpu, cpu)) {
+        if (optional) continue;
+        throw new PackagingError(
+          "ASSEMBLY_FAILED",
+          `required package ${name} does not support the target`,
+          [],
+        );
+      }
+    }
     if (typeof manifest.version !== "string" || manifest.version.length === 0) {
       throw new PackagingError("ASSEMBLY_FAILED", `package ${name} carries no version`, [dir]);
     }
@@ -524,7 +572,18 @@ export async function assembleRuntimeLayout(
   const nodeModulesDest = path.join(outDir, "app", "node_modules");
   fs.mkdirSync(nodeModulesDest, { recursive: true });
   placeContractsSchema(repoRoot, nodeModulesDest);
-  const copied = copyNpmClosure(seeds, repoRoot, nodeModulesDest, glibcExclusion(target));
+  const copied = copyNpmClosure(seeds, repoRoot, nodeModulesDest, glibcExclusion(target), target);
+  if (copied.has("koffi")) {
+    const os = target.os === "windows" ? "win32" : target.os === "macos" ? "darwin" : "linux";
+    const arch =
+      target.arch === "aarch64" ? "arm64" : target.arch === "x86_64" ? "x64" : target.arch;
+    if (!copied.has(`@koromix/koffi-${os}-${arch}`))
+      throw new PackagingError(
+        "ASSEMBLY_FAILED",
+        "target Koffi native module is missing; install with supportedArchitectures.cpu",
+        [],
+      );
+  }
   for (const seed of options.userScriptPackages ?? DEFAULT_USER_SCRIPT_PACKAGES) {
     if (!copied.has(seed) && !isBuiltin(seed)) {
       throw new PackagingError(
@@ -580,6 +639,8 @@ export async function assembleRuntimeLayout(
       path: file.path,
       sha256: file.sha256,
     }));
+  for (const module of nativeModules)
+    verifyBinaryTarget(fs.readFileSync(path.join(outDir, module.path)), target);
 
   const moduleTreeInput = files
     .filter((file) => file.path.startsWith("app/node_modules/"))

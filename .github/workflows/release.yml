@@ -1,20 +1,23 @@
 name: release
 
-# 新架构发行（P5 CI-04/CI-06 + 2026-09-28 portable 归档决策）：仅 v3 标签触发。
+# 新架构发行：v3 标签创建 draft；手动构建仅上传 Actions 产物。
 # Windows = 解压即用 7z 归档（bootstrap 附 Evergreen 引导器；offline
 # 内嵌 Fixed Version 运行时完全离线，用支持 7z 的工具解压，
 # 无安装器）；Linux = 发行版无关 tar.zst（bootstrap
 # 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
 # ——两者与 --portable 与否无关；macOS 保持 dmg 双变体（不签名——签名/公证
 # 在受控发行环境后补，P5-07）。汇总 job 是唯一写 release 的入口，校验产物
-# 名集合与本次构建目标子集（verify 步骤的 --target 列表）完全相等后创建
+# 名集合与 targets.json 全量 14 产物完全相等后创建
 # draft（不 overwrite，不自动发布）。
 # 旧 v2.x 标签不再触发（D1：旧架构 2.6.0 为终点版本）。
 
 on:
   push:
+    branches:
+      - "build/validate-*"
     tags:
       - "v3*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -25,8 +28,8 @@ env:
 jobs:
   # CI-04：按平台构建变体。产物命名/矩阵由 packaging/targets.json 派生。
   build-windows:
-    name: build windows x64 (${{ matrix.variant }})
-    runs-on: windows-latest
+    name: build windows ${{ matrix.arch }} (${{ matrix.variant }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -35,6 +38,12 @@ jobs:
         # Version 运行时（构建期抓官方下载页直链下载 cab，~300MB，缓存于
         # build/webview2-fixedruntime）。
         variant: [bootstrap, offline]
+        arch: [x64, arm64]
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@v7.0.1
@@ -51,20 +60,20 @@ jobs:
           7z i > $null
           if ($LASTEXITCODE -ne 0) { throw '7-Zip is required for Windows release archives' }
       - run: corepack yarn install --immutable
-      - run: corepack yarn package:windows --variant=${{ matrix.variant }}
+      - run: corepack yarn package:windows --variant=${{ matrix.variant }} --arch=${{ matrix.arch }}
       # actions/upload-artifact v7.0.1
       - uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
-          name: artifacts-windows-x64-${{ matrix.variant }}
+          name: artifacts-windows-${{ matrix.arch }}-${{ matrix.variant }}
           # 双变体均为 7z，归档与 SHA-256 必须同时上传。
           path: |
-            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.7z
-            build/dist/xresconv-gui-*-windows-x64-${{ matrix.variant }}.7z.sha256
+            build/dist/xresconv-gui-*-windows-${{ matrix.arch }}-${{ matrix.variant }}.7z
+            build/dist/xresconv-gui-*-windows-${{ matrix.arch }}-${{ matrix.variant }}.7z.sha256
 
   build-linux:
-    name: build linux ${{ matrix.distro }} x86_64
-    runs-on: ubuntu-22.04
+    name: build linux ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -73,6 +82,12 @@ jobs:
           # 最老支持基线（glibc 2.35 地板）单点构建；tar.zst/AppImage 均发行版无关
           - distro: ubuntu-22.04
             variant: all
+            arch: x86_64
+            runner: ubuntu-22.04
+          - distro: ubuntu-22.04
+            variant: all
+            arch: aarch64
+            runner: ubuntu-22.04-arm
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@v7.0.1
@@ -87,16 +102,16 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev zstd
       - run: corepack enable
       - run: corepack yarn install --immutable
-      - run: corepack yarn package:linux --variant=${{ matrix.variant }} --distro=${{ matrix.distro }}
+      - run: corepack yarn package:linux --variant=${{ matrix.variant }} --distro=${{ matrix.distro }} --arch=${{ matrix.arch }}
       # actions/upload-artifact v7.0.1
       - uses: actions/upload-artifact@v7.0.1
         with:
           if-no-files-found: error
-          name: artifacts-linux-${{ matrix.distro }}-x86_64
+          name: artifacts-linux-${{ matrix.arch }}
           path: |
-            build/dist/xresconv-gui-*-linux-x86_64-bootstrap.tar.zst*
-            build/dist/xresconv-gui-*-linux-x86_64-offline.AppImage*
-            build/dist/xresconv-gui-*-linux-x86_64-offline.tar.zst*
+            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-bootstrap.tar.zst*
+            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-offline.AppImage*
+            build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-offline.tar.zst*
 
   build-macos:
     name: build macos ${{ matrix.arch }} (${{ matrix.variant }})
@@ -134,14 +149,11 @@ jobs:
           path: |
             build/dist/xresconv-gui-*-macos-${{ matrix.arch }}-${{ matrix.variant }}.dmg*
 
-  # CI-06：汇总（唯一写 release 的 job）。核对产物集合与 buildMatrix 完全相等，
-  # 再创建 draft；不覆盖既有发行。签名与安装验收（G5）完成后才可正式发布。
-  aggregate-release:
-    name: aggregate draft release
+  # 所有构建均先以只读权限验证全量产物；手动入口在这里结束。
+  verify-matrix:
+    name: verify full artifact matrix
     needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       # actions/checkout v7.0.1
       - uses: actions/checkout@v7.0.1
@@ -157,19 +169,26 @@ jobs:
       - uses: actions/download-artifact@v8.0.1
         with:
           path: build/release-artifacts
+      - name: Read candidate version
+        id: version
+        run: node -e 'require("node:fs").appendFileSync(process.env.GITHUB_OUTPUT, "value=" + require("./package.json").version + "\n")'
       - name: Verify artifact set equals expected matrix
-        # --target 列表 = 本次 CI 实际构建的目标（targetKey 格式，见
-        # packaging/src/matrix.ts selectMatrix）；必须与上方三个 build job 的
-        # matrix 同步维护。剩余基线目标（windows/linux arm64）待原生/交叉
-        # 构建通道落实后加入。未传 --target 时按全量矩阵校验（本地预检语义）。
-        run: >
-          node scripts/verify-release.ts
-          --target=windows/-/x64/bootstrap --target=windows/-/x64/offline
-          --target=macos/-/x64/bootstrap --target=macos/-/x64/offline
-          --target=macos/-/arm64/bootstrap --target=macos/-/arm64/offline
-          --target=linux/-/x86_64/bootstrap --target=linux/-/x86_64/offline
+        run: node scripts/verify-release.ts
         env:
-          RELEASE_VERSION: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ startsWith(github.ref, 'refs/tags/v3') && github.ref_name || steps.version.outputs.value }}
+
+  # 唯一具有 release 写权限的 job：手动触发永远不进入此 job。
+  aggregate-release:
+    name: aggregate draft release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v3')
+    needs: [verify-matrix]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          path: build/release-artifacts
       - name: Create draft release (no overwrite)
         # xresloader/upload-to-github-release v1.6.2
         uses: xresloader/upload-to-github-release@v1.6.2

@@ -79,4 +79,41 @@ describe("loadConfig + set_name", () => {
     expect(session.getState()).toBe("ready");
     expect(flattenTreeItems(config.tree).length).toBe(2);
   });
+
+  it("加载取消保留旧候选，随后仍能重新加载", { timeout: TEST_TIMEOUT_MS }, async () => {
+    const session = new ConversionSession({ pool });
+    const original = await session.loadConfig(fixture("set-name.xml"));
+    const loading = session.loadConfig(fixture("set-name.xml"));
+    const rejected = expect(loading).rejects.toMatchObject({ code: "CONFIG_CANCELLED" });
+    session.cancel();
+    await rejected;
+    expect(session.getState()).toBe("cancelled");
+    expect(session.getConfig()).toBe(original);
+    await session.loadConfig(fixture("set-name.xml"));
+    expect(session.getState()).toBe("ready");
+    await session.dispose();
+  });
+
+  it("关闭会话等待活动解析回收，禁止提交新候选", { timeout: TEST_TIMEOUT_MS }, async () => {
+    const session = new ConversionSession({ pool });
+    const loading = session.loadConfig(fixture("set-name.xml"));
+    const rejected = expect(loading).rejects.toMatchObject({ code: "CONFIG_CANCELLED" });
+    await session.dispose();
+    await rejected;
+    expect(session.getState()).toBe("cancelled");
+    expect(session.getConfig()).toBeNull();
+    await expect(session.loadConfig(fixture("set-name.xml"))).rejects.toThrow("disposed");
+  });
+
+  it("loading 状态订阅抛错仍释放加载所有权", { timeout: TEST_TIMEOUT_MS }, async () => {
+    const session = new ConversionSession({ pool });
+    session.onStateChange = (state) => {
+      if (state === "loading") throw new Error("subscriber failed");
+    };
+    await expect(session.loadConfig(fixture("set-name.xml"))).rejects.toThrow("subscriber failed");
+    session.onStateChange = undefined;
+    await session.loadConfig(fixture("set-name.xml"));
+    expect(session.getState()).toBe("ready");
+    await session.dispose();
+  });
 });

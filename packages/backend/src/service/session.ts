@@ -117,6 +117,8 @@ export class ConversionSession {
   private matcher: MatcherService | null = null;
   private readonly matcherFactory: () => MatcherService;
   private javaAbort: AbortController | null = null;
+  private loadAbort: AbortController | null = null;
+  private loadFinished: Promise<void> | null = null;
   private cancelRequested = false;
   private activeRun: Promise<RunSummary> | null = null;
   private disposed = false;
@@ -188,14 +190,21 @@ export class ConversionSession {
    * set_name 整合由 load-config.ts 完成（错误/超时记诊断、加载继续）。
    */
   async loadConfig(configPath: string): Promise<ParsedConfig> {
-    if (this.disposed || this.javaAbort !== null) throw new Error("session is disposed or running");
-    this.transition("loading");
+    if (this.disposed || this.javaAbort !== null || this.loadAbort !== null)
+      throw new Error("session is disposed or running or loading");
+    const loadAbort = new AbortController();
+    this.loadAbort = loadAbort;
+    const finished = Promise.withResolvers<void>();
+    this.loadFinished = finished.promise;
     try {
+      this.transition("loading");
       const config = await loadConfigWithSetName(configPath, {
         pool: this.pool,
         pipeline: this.pipeline,
         setNameTimeoutMs: this.setNameTimeoutMs,
+        signal: loadAbort.signal,
       });
+      loadAbort.signal.throwIfAborted();
       if (this.disposed) throw new Error("session disposed during configuration load");
       for (const diagnostic of config.diagnostics) {
         void this.pipeline.warning(`${diagnostic.message} (${diagnostic.file})`, "CONFIG");
@@ -214,8 +223,12 @@ export class ConversionSession {
       return config;
     } catch (err) {
       void this.pipeline.error(formatUnknownError(err), "CONFIG");
-      this.transition("failed");
+      this.transition(loadAbort.signal.aborted ? "cancelled" : "failed");
       throw err;
+    } finally {
+      this.loadAbort = null;
+      this.loadFinished = null;
+      finished.resolve();
     }
   }
 
@@ -370,6 +383,7 @@ export class ConversionSession {
    * 清理完成后才进入 cancelled。worker 在途 invoke 不杀（共享池），由其 timeout 兜底。
    */
   cancel(): void {
+    this.loadAbort?.abort();
     if (
       this.state !== "before_hooks" &&
       this.state !== "converting" &&
@@ -386,12 +400,14 @@ export class ConversionSession {
   dispose(): Promise<void> {
     if (this.disposePromise !== null) return this.disposePromise;
     this.disposed = true;
+    this.loadAbort?.abort();
     this.disposePromise = this.disposeOnce();
     return this.disposePromise;
   }
 
   private async disposeOnce(): Promise<void> {
     this.cancel();
+    await this.loadFinished;
     const run = this.activeRun;
     if (run !== null) {
       // 实际回收后才算清理成功：run 的 settle 发生在 runner 终止确认之后。

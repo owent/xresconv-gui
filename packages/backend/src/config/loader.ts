@@ -60,6 +60,17 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 128 * 1024 * 1024;
 const MAX_INCLUDE_DEPTH = 64;
 const MAX_FILES = 1024;
+const MAX_XML_NODES = 1_000_000;
+const MAX_XML_DEPTH = 100; // Preserve fast-xml-parser 5.11.1's existing default.
+const MAX_SCRIPT_BYTES = 1024 * 1024;
+const MAX_TOTAL_SCRIPT_BYTES = 8 * 1024 * 1024;
+const SCRIPT_TAGS = new Set([
+  "set_name",
+  "on_before_convert",
+  "on_after_convert",
+  "on_append_log",
+  "script",
+]);
 
 /** 需要强制数组形态的子标签（isArray 回调查表）。 */
 const ARRAY_TAGS: Record<string, true> = {
@@ -85,6 +96,7 @@ const ARRAY_TAGS: Record<string, true> = {
 
 // XMLParser.parse 无状态可复用，模块级单例。
 const PARSER = new XMLParser({
+  maxNestedTags: MAX_XML_DEPTH,
   ignoreAttributes: false,
   attributeNamePrefix: "@",
   parseTagValue: false,
@@ -135,6 +147,8 @@ function childEntries(node: RawNode): Array<[string, RawNode[]]> {
 /** 合并中间态（对应旧版 conv_data 的可变部分）。 */
 interface MergeState {
   totalBytes: number;
+  xmlNodes: number;
+  scriptBytes: number;
   filesRead: number;
   diagnostics: ConfigDiagnostic[];
   loaded: Set<string>;
@@ -159,6 +173,41 @@ interface MergeState {
   tree: TreeNode[];
   /** category id → 节点（main.js:1453-1455 的 cat_map）。 */
   catMap: Map<string, TreeCategoryNode>;
+}
+
+/** Count all elements, including ignored tags, without recursive JS stack growth. */
+function checkDocumentBudget(
+  document: Record<string, unknown>,
+  file: string,
+  state: MergeState,
+): void {
+  const pending: { node: RawNode; tag: string; depth: number }[] = [];
+  const append = (node: RawNode, depth: number) => {
+    for (const [tag, nodes] of childEntries(node)) {
+      if (tag.startsWith("?")) continue;
+      for (const child of nodes) pending.push({ node: child, tag, depth });
+    }
+  };
+  append(document, 1);
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) break;
+    if (++state.xmlNodes > MAX_XML_NODES || current.depth > MAX_XML_DEPTH)
+      throw new ConfigError("CONFIG_LIMIT", `${file}: XML element count/depth budget exceeded`, {
+        path: file,
+        budget: current.depth > MAX_XML_DEPTH ? "xmlDepth" : "xmlNodes",
+      });
+    if (SCRIPT_TAGS.has(current.tag)) {
+      const bytes = Buffer.byteLength(textOf(current.node), "utf8");
+      state.scriptBytes += bytes;
+      if (bytes > MAX_SCRIPT_BYTES || state.scriptBytes > MAX_TOTAL_SCRIPT_BYTES)
+        throw new ConfigError("CONFIG_LIMIT", `${file}: script text budget exceeded`, {
+          path: file,
+          budget: "scriptBytes",
+        });
+    }
+    append(current.node, current.depth + 1);
+  }
 }
 
 function parseTimeout(
@@ -534,6 +583,11 @@ async function loadFile(file: string, state: MergeState): Promise<void> {
     try {
       document = PARSER.parse(content) as Record<string, unknown>;
     } catch (err) {
+      if (err instanceof Error && err.message === "Maximum nested tags exceeded")
+        throw new ConfigError("CONFIG_LIMIT", `${resolved}: XML depth budget exceeded`, {
+          path: resolved,
+          budget: "xmlDepth",
+        });
       // 含 DOCTYPE 外部实体等解析期拒绝（fxp："External entities are not supported"，
       // 不发起任何文件/网络读取，天然满足 Plan §7.1 禁用外部实体）。
       throw new ConfigError(
@@ -549,6 +603,7 @@ async function loadFile(file: string, state: MergeState): Promise<void> {
         path: resolved,
       });
     }
+    checkDocumentBudget(document, resolved, state);
     const root = objOf(document.root as RawNode);
 
     // 先按 DFS 文档顺序应用全部 include，再应用本文件（BD-C1：确定性顺序，修复 B2 竞态）
@@ -604,6 +659,8 @@ export async function parseXmlConfig(absPath: string): Promise<ParsedConfig> {
   const entry = path.resolve(absPath);
   const state: MergeState = {
     totalBytes: 0,
+    xmlNodes: 0,
+    scriptBytes: 0,
     filesRead: 0,
     diagnostics: [],
     loaded: new Set(),

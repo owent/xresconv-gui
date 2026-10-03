@@ -25,6 +25,7 @@ import { assembleRuntimeLayout } from "./assemble.ts";
 import { LINUX_BUILD_BASELINE } from "./baseline.ts";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
 import { artifactName, portableArtifactName, portableFormats } from "./matrix.ts";
+import { acquireCrossNode } from "./node-acquisition.ts";
 import type { PortableFormat, ReleaseTarget, RuntimeManifest, TargetOs } from "./types.ts";
 import { copyFixedRuntime, type WebViewLocalePolicy } from "./webview-locales.ts";
 
@@ -37,6 +38,7 @@ export function parsePackageArgs(args: string[]) {
     options: {
       variant: { type: "string", default: "all" },
       arch: { type: "string" },
+      cross: { type: "boolean", default: false },
       distro: { type: "string" },
       "skip-assemble": { type: "boolean", default: false },
       portable: { type: "boolean", default: false },
@@ -55,6 +57,23 @@ export function nativeArch(os: TargetOs, platform = process.platform, arch = pro
   if (platform !== wanted || !["x64", "arm64"].includes(arch))
     throw new Error(`package-${os} requires a native x64/arm64 host`);
   return os === "linux" ? (arch === "arm64" ? "aarch64" : "x86_64") : arch;
+}
+
+/** Cross compilation is opt-in and stays within the host OS/toolchain. */
+export function packageArch(
+  os: TargetOs,
+  requested: string | undefined,
+  cross: boolean,
+  platform = process.platform,
+  hostArch = process.arch,
+): string {
+  const native = nativeArch(os, platform, hostArch);
+  const wanted = requested ?? native;
+  const supported = os === "linux" ? ["x86_64", "aarch64"] : ["x64", "arm64"];
+  if (!supported.includes(wanted)) throw new Error("unsupported target architecture");
+  if (wanted !== native && !cross)
+    throw new Error("--arch must match the native host architecture (or pass --cross)");
+  return wanted;
 }
 
 export function detectDistro(text: string): string {
@@ -514,9 +533,8 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
   const options = parsePackageArgs(args);
   if (options["webview-locales"] !== "all" && (os !== "windows" || options.variant === "bootstrap"))
     throw new Error("--webview-locales=mainstream requires a Windows offline build");
-  const arch = nativeArch(os);
-  if (options.arch !== undefined && options.arch !== arch)
-    throw new Error("--arch must match the native host architecture");
+  const arch = packageArch(os, options.arch, options.cross);
+  const cross = arch !== nativeArch(os);
   // Linux 归档发行版无关，但必须在最老支持基线上构建（glibc 地板）；宿主探测
   // 与期望基线（--distro，默认 ubuntu-22.04）不一致即 fail-closed。
   const distro = os === "linux" ? detectDistro(readFileSync("/etc/os-release", "utf8")) : undefined;
@@ -550,6 +568,13 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
   for (const variant of variants) {
     const target = targets.find((t) => t.os === os && t.arch === arch && t.variant === variant);
     if (!target) throw new Error(`no declared target for ${os}/${arch}/${variant}`);
+    const targetArgs = cross ? ["--target", target.targetTriple] : [];
+    const targetRelease = path.join(
+      ROOT,
+      "target",
+      ...(cross ? [target.targetTriple] : []),
+      "release",
+    );
     if (options["skip-assemble"]) verifyReusableLayout(layout, target, version, commit);
     else {
       // This fixed, repo-owned directory contains only generated staging data.
@@ -557,10 +582,12 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
       await assembleRuntimeLayout({
         target,
         outDir: layout,
-        node: {
-          path: process.execPath,
-          source: `local-build:node-v${process.versions.node}-${process.platform}-${process.arch}`,
-        },
+        node: cross
+          ? await acquireCrossNode(target, path.join(ROOT, "build/cross-node"))
+          : {
+              path: process.execPath,
+              source: `local-build:node-v${process.versions.node}-${process.platform}-${process.arch}`,
+            },
         appVersion: version,
         sourceCommit: commit,
         repositorySnapshot: {
@@ -606,15 +633,15 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
         } else {
           // Linux bootstrap：裸 exe（tauri build --no-bundle）+ 发行布局平铺，
           // 运行时用系统 WebKitGTK（preflight.sh 探测/指引）。
-          runTauriBuild(["build", "--no-bundle"]);
-          const exe = path.join(ROOT, "target/release", "xresconv-gui");
+          runTauriBuild(["build", "--no-bundle", ...targetArgs]);
+          const exe = path.join(targetRelease, "xresconv-gui");
           if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
           tarPortableBootstrapLayout(exe, layout, dest);
         }
       } else if (format === "7z") {
         // Windows bootstrap 附官方 bootstrapper；offline 内嵌 Fixed Version。
-        runTauriBuild(["build", "--no-bundle"]);
-        const exe = path.join(ROOT, "target/release", "xresconv-gui.exe");
+        runTauriBuild(["build", "--no-bundle", ...targetArgs]);
+        const exe = path.join(targetRelease, "xresconv-gui.exe");
         if (!existsSync(exe)) throw new Error(`app binary not found: ${exe}`);
         if (variant === "offline") {
           if (fixedRuntime === undefined)
@@ -631,9 +658,9 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
         base.bundle.targets = ["appimage"];
         const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
         writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
-        runTauriBuild(["build", "--config", overlay]);
+        runTauriBuild(["build", "--config", overlay, ...targetArgs]);
         const source = selectArtifact(
-          path.join(ROOT, "target/release/bundle", "appimage"),
+          path.join(targetRelease, "bundle", "appimage"),
           ".AppImage",
           started,
         );
@@ -646,20 +673,16 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
         base.bundle.targets = ["app"];
         const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
         writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
-        runTauriBuild(["build", "--config", overlay]);
-        const app = selectArtifact(path.join(ROOT, "target/release/bundle/macos"), ".app", started);
+        runTauriBuild(["build", "--config", overlay, ...targetArgs]);
+        const app = selectArtifact(path.join(targetRelease, "bundle/macos"), ".app", started);
         zipMacAppBundle(app, dest);
       } else {
         // macOS dmg 安装器（macos 非 --portable 的唯一产物）。
         base.bundle.targets = ["dmg"];
         const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
         writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");
-        runTauriBuild(["build", "--config", overlay]);
-        const source = selectArtifact(
-          path.join(ROOT, "target/release/bundle", "dmg"),
-          ".dmg",
-          started,
-        );
+        runTauriBuild(["build", "--config", overlay, ...targetArgs]);
+        const source = selectArtifact(path.join(targetRelease, "bundle", "dmg"), ".dmg", started);
         cpSync(source, dest);
       }
       const digest = createHash("sha256").update(readFileSync(dest)).digest("hex");

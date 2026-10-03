@@ -2,21 +2,87 @@
 
 [执行索引](README.md) · [上一册](05-packaging-release.md) · [下一册](07-cutover.md)
 
-本册把主计划 C01–C15、R01–R12、I01–I14 展开为可执行场景。**历史证据见 [阶段记录](records/README.md)，当前复验见 [2026-09-27 审查](records/REVIEW-2026-09-27.md)。Windows 模块/桌面与三引擎浏览器验证不等于跨平台安装验收。** 测试 ID 是固定引用，不以预估总用例数作为覆盖证明。
+本册集中维护 C01–C15、R01–R12、I01–I14 类别及 CF/SC/EX/UI/PK 执行场景。测试编号保持固定，逐用例映射见 [P6-01](records/P6-01.md)，本机/真实项目汇总见 [P6-06](records/P6-06.md)，当前 CI 与发布范围见 [发布核对](records/RELEASE-2026-10-03.md)。第一轮用户验证已完成，不推断未提供记录的实机矩阵通过。
 
-## 测试目录与夹具
+## 验收类别
 
-| 拟定目录 | 内容 | 运行约束 |
+Linux 权限用例须以普通用户运行，root/CAP_DAC_OVERRIDE 会绕过只读文件权限；最小构建容器须设置 UTF-8 locale（如 `LANG=C.UTF-8` / `LC_ALL=C.UTF-8`），否则本轮 OpenJDK 17 的文件名原生编码仍为 ASCII，`-Dfile.encoding=UTF-8` 不能替代它。容器内进程树测试须有 init 回收孤儿（Podman 使用 `--init`）；普通 shell 作为 PID 1 不满足该条件。WSL 挂载目录的大量并发模块读取可能触发短启动截止；先减少测试并发或移至 Linux 文件系统并保留首轮结果，不跳过失败用例。
+
+### 功能与兼容类别 C01–C15
+
+| 测试 ID | 场景 | 必须断言 |
+| --- | --- | --- |
+| C01 | 最小/完整 XML、CDATA、转义字符、空属性、非法 XML | 模型与公开合同一致；BD-07 明确修复旧转义/容错缺陷，失败可定位且不覆盖有效配置 |
+| C02 | 多层 include、重复/循环 include、同名覆盖、跨目录 | 顺序、默认值、错误与路径基准正确 |
+| C03 | 中文/空格/引号/UNC/长路径/软链接 | 文件与 Java 参数实际可用，无错误转义或路径串用 |
+| C04 | 树级联、部分选择、禁止节点、展开收起、键盘 | UI 与 Node 业务服务选择集合一致，重绘/虚拟化不丢状态 |
+| C05 | 精确/glob/regex、大小写、无效规则、灾难回溯 | 旧语义对照；超时不会阻塞 UI |
+| C06 | 多 proto_file/data_src_dir、Java options/default_scheme | 数组和覆盖规则正确，重复值处理与基线一致 |
+| C07 | 所有输出格式及单/多矩阵、tag/class、rename/output_dir | 任务集合、输出路径、实际内容正确；无效组合不能选中 |
+| C08 | 多个选择器文件、默认选中、reload 和动作链 | 顺序、共享 data、错误中断及重载行为一致 |
+| C09 | 五类脚本入口、启用/禁用/mutable、resolve/reject | 调用顺序、上下文、数据生命周期与结束语义符合契约 |
+| C10 | D3 公开节点合同、对象别名和回调引用；未公开接口访问 | 公开数据镜像和操作回传正确，排除项有诊断/迁移说明，不依赖 jQuery/真实 DOM |
+| C11 | 动态/相对 require、模块缓存、npm 与原生扩展 | 实际发行目录离线可加载；ABI 不符给出可行动错误 |
+| C12 | adm-zip/compressing、log4js 自定义配置及轮转 | 归档 round-trip、文件日志内容、轮转和退出 flush 正确 |
+| C13 | on_append_log 改写与递归、ANSI 和富文本 | 改写有序、原日志可追溯，不执行 HTML 中主动内容 |
+| C14 | 所有启动参数、开发工具、文件对话框、版本/Java 检查 | 从安装目录/快捷方式/CLI 启动均正确 |
+| C15 | 旧版与新版使用相同真实 JAR/输入 | 可确定输出字节比较；含时间戳等字段按预先定义规则归一化，不能忽略业务差异 |
+
+### 故障与恢复类别 R01–R12
+
+| 测试 ID | 注入 | 必须断言 |
+| --- | --- | --- |
+| R01 | 同步 throw、异步回调 throw、未处理 rejection | 脚本/任务进入预期失败态，GUI/主进程继续运行 |
+| R02 | 同步死循环、Promise/定时器回调死循环、永不 resolve | 外部截止时间生效，终止并回收 worker，不依赖 worker 自身定时器 |
+| R03 | process.exit、abort、可控原生崩溃、内存/Buffer 耗尽；backend/guardian 各自崩溃或挂起 | 只影响对应隔离域，桌面层仍可显示故障，运行可收尾并清理，无无限重启或副作用自动重放 |
+| R04 | resolve/reject 多次、结束后回调、旧 generation 回包 | 最多结束一次，迟到消息被拒绝 |
+| R05 | 按钮连点、重入、多个按钮、日志 hook 同时执行 | 按约定串行/并行，data 不串用，日志不死锁 |
+| R06 | Java 启动失败、非零退出、信号、stdin 关闭、stdout/stderr 分块 | 终态与错误正确，不把日志块当任务完成 |
+| R07 | 运行中取消/重置/关闭窗口/主宿主被终止 | 所属进程树清理，重开后无幽灵任务和旧回调 |
+| R08 | 派生多层子进程、detached、持续后台进程 | 验证各平台清理边界；未满足的强隔离要求阻塞对应安全声明 |
+| R09 | 日志风暴、超大/畸形 IPC、未知方法、版本错配 | 有界处理，拒绝非法输入，不拖垮 GUI |
+| R10 | 两个配置会话、运行中更换配置、输出同名 | 版本隔离正确，旧任务不能覆盖新状态，冲突策略明确 |
+| R11 | 宿主崩溃时已有文件副作用 | 不自动重试脚本或伪造回滚，清楚标记需用户核验 |
+| R12 | 配置/日志富文本注入、危险 URL、原型污染 | 不能进入 UI 执行或调用任意 Tauri 能力 |
+
+资源耗尽和原生崩溃测试在隔离的 CI/VM 中运行，外部监督进程自身有硬截止时间；每个用例结束检查子进程、句柄和临时文件，不在开发者日常环境制造无限资源消耗。
+
+### 交付与运行时类别 I01–I14
+
+每个正式支持的 OS × 发行版版本 × 架构 × bootstrap/offline 均执行下列适用用例；macOS 的系统 WebView 特例按05 册 macOS 约定验收。
+
+| 测试 ID | 初始状态/操作 | 必须断言 |
+| --- | --- | --- |
+| I01 | 已有满足要求的运行时，在线与断网 | 直接复用，无额外下载或安装 |
+| I02 | 无运行时，bootstrap 在线 | 安装引导先于 GUI，安装完成复检后可运行 |
+| I03 | 无运行时，offline 断网且无下载缓存 | 仅包内资源完成安装和启动，捕获网络访问证明 |
+| I04 | 无运行时，bootstrap 断网 | 给出明确恢复办法，不白屏、不循环重试 |
+| I05 | 运行时版本过旧 | 升级或明确拒绝；不误判“文件存在即可用” |
+| I06 | 普通用户、管理员、拒绝提权、企业策略阻止 | 明确结果，无半安装后假成功 |
+| I07 | 安装中断、文件损坏、校验失败、空间不足、包管理锁 | 安全退出，可恢复重试，不破坏已有系统运行时 |
+| I08 | 从旧版升级、同版修复、卸载重装 | 配置和用户数据策略一致，共享系统运行时不随本应用卸载 |
+| I09 | 中文/空格安装目录、只读目录、快捷方式启动 | Node、资源与脚本模块定位正确 |
+| I10 | Windows ARM64、macOS 两架构、Linux 两架构 | 原生运行，无误装其他架构依赖 |
+| I11 | macOS stapled 签名包离线首次打开 | Gatekeeper 与 sidecar 启动通过；过旧系统不伪装可补装 WKWebView |
+| I12 | Linux 最小支持桌面与已更新桌面 | 离线闭包完整、复用已满足依赖，无外部仓库访问或强制降级 |
+| I13 | 无系统 Node、无 npm 网络、无开发工具 | 用户脚本正常运行；不尝试安装开发依赖 |
+| I14 | Java/JAR 缺失或不兼容 | GUI 正常显示诊断，与 GUI 运行时安装状态区分 |
+
+Windows/Linux 当前为便携归档：I08 的升级/修复/卸载对应新目录替换、重解压与删除应用目录；不执行已取消的 NSIS/DEB/RPM 安装器流程。PK08/I11 的签名、公证与 Gatekeeper 属签名渠道 R6；当前无证书的开发预发布如实记录未签名，其他安全/许可/hash 检查仍必需。
+
+## 测试目录与数据
+
+| 实际目录/规划入口 | 内容 | 运行约束 |
 | --- | --- | --- |
 | `tests/fixtures/config` | 最小/完整 XML、include 图、非法/延迟/大配置 | UTF-8、来源与预期模型齐全 |
 | `tests/fixtures/selectors` | 当前 docs/custom-selector.json 的冻结样本和边界规则 | 不修改真实用户选择器文件 |
 | `tests/fixtures/scripts` | 五类正常脚本、对象别名、动态 require、模块缓存 | 标出旧/新允许差异与运行上下文 |
 | `tests/fixtures/conversion` | 表格、协议、固定 JAR/JDK manifest、预期输出 | 大文件/外部 JAR 按哈希获取，不冒充当前仓库文件 |
-| `tests/helpers/fake-converter` | 可控制 stdin、stdout/stderr、退出和子树的假程序 | argv/stdin 原样捕获；与真实 JAR 测试分开 |
-| `tests/script-host` | 真实 Node worker 和监督进程集成 | 每例有外部截止与清理检查 |
-| `tests/backend` / `tests/guardian` | Node 业务、角色协议、监督与生命周期 | 独立进程故障注入；Node 单元/契约 job 无 Rust 依赖 |
-| `tests/browser` / `tests/desktop` | 浏览器 adapter 测试 / 原生 Tauri 测试 | 报告分别标识，不混称桌面验收 |
-| `tests/installers` | 干净 VM 快照、安装入口、断网与包管理证据 | 只允许显式隔离测试环境执行故障/卸载 |
+| `packages/guardian/test/fixtures/fake-converter.mjs` | 可控制 stdin、stdout/stderr、退出和子树的假程序 | argv/stdin 原样捕获；与真实 JAR 测试分开 |
+| `packages/script-host/test` | 真实 Node worker 和监督进程集成 | 每例有外部截止与清理检查 |
+| `packages/backend/test` / `packages/guardian/test` | Node 业务、角色协议、监督与生命周期 | 独立进程故障注入；Node 单元/契约 job 无 Rust 依赖 |
+| `apps/desktop/test` / `tests/browser` / `tests/desktop` | 浏览器 adapter 测试 / 原生 Tauri 测试 | 报告分别标识，不混称桌面验收 |
+| 规划：隔离 VM/原生机验收记录（当前无 `tests/installers` runner） | R5 缺运行时、断网与目录替换/删除证据 | 只允许显式隔离测试环境执行故障/卸载 |
 
 每个 fixture 有 manifest：ID、内容哈希、来源、适用 OS/架构、关联 F/C/R/I、旧观察结果、新预期、归一化规则、清理方法。旧基线只通过人工审阅更新；测试程序不得失败后自动重写 expected。
 
@@ -142,7 +208,7 @@ EX05 不仅比较 exit code 或文件存在。确定性格式做字节比较；�
 | 平台集成 | 进程/UI/安装变化 | 三平台真实桌面、相关架构与安装器 |
 | 完整验收 | 候选发行 | 全部必需 OS × distro × arch × variant、真实 JAR、签名安装、性能 |
 
-统一命令采用主计划列出的 `yarn test:unit/test:script-host/test:contracts/test:browser/test:desktop/test:conversion/test:installers`，实施时在各工具真实能力内提供 case/target 过滤，不能捏造某框架不存在的 CLI 参数。所有 runner 必须输出实际发现与执行数量；零用例视为失败。
+当前根入口为 `corepack yarn lint` / `typecheck` / `test:unit` / `test:contracts` / `test:browser` / `test:desktop` / `test:conversion` / `check:shell` / `test:shell`；发行校验见 05/08 册。单脚本宿主测试用 `corepack yarn workspace @xresconv/script-host test`。根 `test:script-host` / `test:installers` / `package:verify` 尚未实现，不列为可执行命令。所有 runner 报告实际执行数，零用例失败；过滤参数按真实 CLI 核验。
 
 Node 业务与契约 job 在不提供 Rust/Cargo 的环境执行 schema 生成、类型检查和相关测试，确认已经解除旧 Cargo 导出依赖。Tauri 桌面层单独执行 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`；workspace 收敛为必要桌面入口与接口适配代码，不含 Rust 业务工程。生产 feature 和 E2E feature 分别检查，不能用单次 `--all-features` 构建取代生产权限验证。
 
@@ -150,7 +216,7 @@ Node 业务与契约 job 在不提供 Rust/Cargo 的环境执行 schema 生成�
 
 ## 性能、稳定性和证据模板
 
-P0 固定参考硬件/VM、数据、压缩算法和架构。候选门槛沿用主计划：Windows x64 bootstrap 至少减少 50%、关键交互 p95 小于 100 ms、转换吞吐不低于基线 90%、100 次循环无持续泄漏。这些是待验证目标，不能写成预测收益。
+P0 固定参考硬件/VM、数据、压缩算法和架构。质量门槛：Windows x64 bootstrap 至少减少 50%、关键交互 p95 小于 100 ms、转换吞吐不低于基线 90%、100 次循环无持续泄漏。Windows 本机达标证据见 P6-05，其他平台必须实测，不能外推收益。
 
 性能步骤：预热与冷启动分开 → 同负载重复测量 → 保存各次原值 → 计算分布/中位数/p95 → 标明失败/异常样本及原因。冷启动至少 10 次，交互每类至少 100 次作为初始采样计划；实际稳定性不足时增加样本并说明，不只删掉慢样本。
 
@@ -171,18 +237,13 @@ cleanupResult / retryHistory / unsupportedCases / verdict
 
 可复现产物位于 CI artifact 或本地 `build/<task>/` 的任务输出，长期保留的摘要和清单在实施时建立索引。重试不能覆盖首轮失败证据；偶发问题记录触发条件、责任任务和恢复门槛，不以自动重试成功掩盖。
 
-## P6 验收任务
+## 当前验收范围
 
-| 任务 | 前置 | 执行 | 完成条件 |
-| --- | --- | --- | --- |
-| P6-01 | G2/G3/G4 | 审查 F/C/R/I → CF/SC/EX/UI/PK → 测试实现映射 | 每项有真实断言，无仅列名未实现的强制项 |
-| P6-02 | P6-01 | 真实脚本/配置与固定 JAR 差分 | 无未解释兼容差异，BD 项有证据 |
-| P6-03 | P6-01 | 故障/资源/取消/宿主死亡和 100 次循环 | 清理、无重放和主流程存活达到各平台合同 |
-| P6-04 | G5 | 全目标安装/签名/离线/升级与卸载 | 必需变体齐全、报告绑定最终介质 hash |
-| P6-05 | P6-02 至 P6-04 | 大小、启动、交互和吞吐测量 | 达标或明确阻塞，未删除功能/平台换取体积 |
-| P6-06 | P6-05 | 汇总 G6 验收与剩余问题 | 无阻断缺陷、无未说明的能力删除，方可进入 P7 |
-
-进度（2026-09-30）：P6-01 已完成本机范围审查并补齐 14 项子场景缺口（含 `run-loop-stress.test.ts` 承载的 P6-03 本机 100 轮泄漏循环）；实机/延后缺口清单与逐族映射锚点见 [P6-01 记录](records/P6-01.md)。P6-02 的自动化部分（真实 JAR 差分、官方 sample、真实脚本逐字差分）沿用既有入口复跑通过；真实用户样本人工复核未执行。P6-05 本机测量三项门槛达标（体积 -81.1%/吞吐 132.7%/p95 7–55ms，另修复 CONFIG_LIMIT 100k 兼容、日志链两处故障逃逸、日志区键盘访问）、P6-06 本机汇总见对应记录；实机项按用户指示延后最后。
+- P6-01 映射审查/14 项子场景补齐与 P6-03 Windows 100 轮泄漏循环已完成，见 [P6-01](records/P6-01.md)。
+- P6-02 自动化差分与真实项目已完成本机复验：八格式 JAR、官方 sample、五真实脚本；atsf4g-co 13 条目/26 任务/26 文件成功，见 [P6-06](records/P6-06.md)。
+- P6-05 Windows 本机大小/吞吐/交互门槛达标，P6-06 为本机范围汇总；不是全平台 G6。
+- dev.0 首次发布/第一轮用户验证与当前 HEAD Windows/Linux CI、macOS/Linux Portable 已核对，见 [发布记录](records/RELEASE-2026-10-03.md)。
+- 本轮 XML 隔离、Windows/Linux 门禁与最终包结果见 [执行记录](records/EXECUTION-2026-10-03.md)；P6-04、额外实机与签名范围集中至 [R2–R6](08-release-follow-up.md)，不维护第二份任务表。
 
 ## 当前自动化入口补充（2026-09-27）
 

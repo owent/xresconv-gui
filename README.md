@@ -23,11 +23,15 @@
 
 这是一个符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的GUI转表工具，并且使用 [xresloader](https://github.com/xresloader/xresloader) 作为数据导出工具后端。
 
-3.0 起基于 **Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程**（Tauri 负责窗口、系统接口、进程启动与消息转发；业务与脚本宿主由 Node.js/TypeScript 进程处理）。目标平台为 Windows 10+/主流 Linux 桌面（Ubuntu 22.04/24.04、Debian 12/13、Fedora 最近两个正式版）和 macOS 13.5+，仅 64 位。当前发行工作流构建 Windows x64、Linux x86_64 和 macOS x64/arm64；其他架构的正式发行仍待验收。
+3.0 起基于 **Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程**（Tauri 负责窗口、系统接口、进程启动与消息转发；业务与脚本宿主由 Node.js/TypeScript 进程处理）。目标平台为 Windows 10+/主流 Linux 桌面（Ubuntu 22.04/24.04、Debian 12/13、Fedora 最近两个正式版）和 macOS 13.5+，仅 64 位。当前工作流覆盖各平台 x64/ARM64；已发布 dev.0 的 Windows/Linux 仍仅 x64，当前候选产物与运行验收见[执行进度](docs/plan/08-release-follow-up.md)。
 
 ## 下载和使用
 
 在[发行页](https://github.com/xresloader/xresconv-gui/releases)选择与系统、架构匹配的包。当前自动化构建和本机测试不等于所有平台已完成实机验收；具体边界见[验收记录](docs/plan/records/P6-06.md)。
+
+已发布的 [v3.0.0-dev.0](https://github.com/owent/xresconv-gui/releases/tag/v3.0.0-dev.0)
+Windows 包实际为 bootstrap `.zip` / offline `.tar.zst`；下文的双 `.7z` 是当前源码的下一轮发行格式。
+下载和解压时以对应 Release 的文件名为准；最新发布与验证范围见[发布核对记录](docs/plan/records/RELEASE-2026-10-03.md)。
 
 发行目标区分 **bootstrap** 和 **offline** 两种变体，文件名中以
 `-bootstrap` / `-offline` 区分（如 `xresconv-gui-<版本>-windows-x64-bootstrap.7z`、
@@ -356,7 +360,13 @@ corepack yarn test:shell    # Tauri 桌面层单元测试
 corepack yarn package:windows   # Windows x64：bootstrap/offline 均为 7z（Windows 运行，构建需 7-Zip）
 corepack yarn package:linux     # Linux tar.zst 双变体（bootstrap/offline + offline AppImage；Linux 运行）
 corepack yarn package:macos     # macOS 双变体 DMG（须在 mac 主机运行）
+corepack yarn package:windows --cross --arch=arm64 --variant=all
+corepack yarn package:linux --cross --arch=aarch64 --variant=all --distro=ubuntu-22.04
 ```
+
+交叉打包须配置对应 Rust 目标与平台 C/C++ 库；Linux ARM AppImage 还需要 ARM 主机或模拟器中的完整 ARM 用户空间完成打包，x64 容器仅装 ARM 开发库不足以收集离线依赖。目标 Node 来自与宿主同版本的官方归档，经 SHA-256 校验；原生模块按目标架构筛选。配置与本轮实际流程见[发行约定](docs/plan/05-packaging-release.md)。
+
+`corepack yarn verify:portable --os=windows --arch=x64 --variant=bootstrap` 可核验 Windows 7z；macOS/Linux 使用对应 OS/架构参数。Windows 交叉包可加 `--static-only`，不执行目标程序。手动或 `build/validate-*` 分支构建只上传 Actions 产物；只有 v3 tag push 才创建 draft Release。
 
 Windows offline 默认保留完整运行时；两种 Windows 包均使用 7z 最高压缩级别。Linux tar.zst 使用 zstd L19 + 128 MiB 长窗口压缩。
 可选 `corepack yarn package:windows --variant=offline --webview-locales=mainstream`

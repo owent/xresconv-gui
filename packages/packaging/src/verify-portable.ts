@@ -18,25 +18,28 @@ import {
   rmSync,
 } from "node:fs";
 import path from "node:path";
+import { verifyBinaryTarget } from "./binary-target.ts";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
 import { portableArtifactName, portableArtifactNames, portableFormats } from "./matrix.ts";
 import { verifyReleaseArtifacts } from "./release-artifacts.ts";
-import type { ReleaseTarget, RuntimeManifest, TargetVariant } from "./types.ts";
+import type { ReleaseTarget, RuntimeManifest, TargetOs, TargetVariant } from "./types.ts";
 
 const EXTRACT_TIMEOUT_MS = 5 * 60_000;
 const NODE_PROBE_TIMEOUT_MS = 30_000;
 const LAYOUT_SEARCH_DEPTH = 8;
 
 export interface PortableExpectation {
-  os: "macos" | "linux";
+  os: TargetOs;
   arch: string;
   variant: TargetVariant;
   version: string;
   commit: string;
+  /** Explicit cross-build integrity check; target programs are never executed. */
+  staticOnly?: boolean;
 }
 
 export function resolvePortableTarget(
-  os: "macos" | "linux",
+  os: TargetOs,
   arch: string,
   variant: TargetVariant,
 ): ReleaseTarget {
@@ -214,6 +217,37 @@ function extractTarZst(tarPath: string, destDir: string): string {
   return path.join(destDir, "xresconv-gui");
 }
 
+function extractWindows7z(file: string, destDir: string): string {
+  const result = spawnSync("7z", ["x", "-y", "-bso0", "-bsp0", `-o${destDir}`, file], {
+    timeout: EXTRACT_TIMEOUT_MS,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0)
+    throw new Error(`7z extract failed: ${String(result.error ?? result.status)}`);
+  const tops = readdirSync(destDir);
+  if (tops.length !== 1 || tops[0] !== "xresconv-gui")
+    throw new Error("Windows archive must contain exactly one xresconv-gui directory");
+  return path.join(destDir, "xresconv-gui");
+}
+
+export function verifyWindowsExtras(root: string, target: ReleaseTarget): void {
+  verifyBinaryTarget(readFileSync(path.join(root, "xresconv-gui.exe")), target);
+  if (target.variant === "bootstrap") {
+    const setup = readFileSync(path.join(root, "MicrosoftEdgeWebview2Setup.exe"));
+    if (setup.subarray(0, 2).toString() !== "MZ") throw new Error("invalid Windows bootstrapper");
+  } else {
+    verifyBinaryTarget(
+      readFileSync(path.join(root, "webview2-runtime/msedgewebview2.exe")),
+      target,
+    );
+    const policy = JSON.parse(
+      readFileSync(path.join(root, "webview2-runtime-policy.json"), "utf8"),
+    );
+    if (policy.locales !== "all" && policy.locales !== "mainstream")
+      throw new Error("invalid Fixed Runtime locale policy");
+  }
+}
+
 async function sha256File(filePath: string): Promise<string> {
   const hash = createHash("sha256");
   for await (const chunk of createReadStream(filePath)) hash.update(chunk);
@@ -248,19 +282,31 @@ export async function verifyPortableArtifacts(
       const formatDir = path.join(workDir, format);
       mkdirSync(formatDir, { recursive: true });
       const extracted =
-        format === "app.zip"
-          ? extractMacZip(file, formatDir)
-          : format === "appimage"
-            ? extractAppImage(file, formatDir)
-            : extractTarZst(file, formatDir);
+        format === "7z"
+          ? extractWindows7z(file, formatDir)
+          : format === "app.zip"
+            ? extractMacZip(file, formatDir)
+            : format === "appimage"
+              ? extractAppImage(file, formatDir)
+              : extractTarZst(file, formatDir);
       const layoutRoot = findLayoutRoot(extracted);
       const manifest = validateRuntimeManifest(
         JSON.parse(readFileSync(path.join(layoutRoot, "runtime-manifest.json"), "utf8")),
       );
       verifyLayoutIdentity(manifest, expected, target);
       verifyLayoutPayload(layoutRoot, manifest);
-      const nodeVersion = verifyBundledNode(layoutRoot, manifest);
-      if (expected.os === "macos") readInfoPlistVersion(extracted, manifest);
+      const nodeVersion = expected.staticOnly
+        ? `not executed (static ${manifest.nodeVersion})`
+        : verifyBundledNode(layoutRoot, manifest);
+      if (expected.staticOnly)
+        verifyBinaryTarget(
+          readFileSync(
+            path.join(layoutRoot, "runtime", expected.os === "windows" ? "node.exe" : "node"),
+          ),
+          target,
+        );
+      if (expected.os === "windows") verifyWindowsExtras(extracted, target);
+      else if (expected.os === "macos") readInfoPlistVersion(extracted, manifest);
       else if (format === "tar.zst" && expected.variant === "bootstrap")
         verifyBootstrapExtras(extracted);
       else verifyLinuxExtras(extracted);

@@ -9,7 +9,7 @@
 | 包管理器 | `package.json`、`.yarnrc.yml`、`yarn.lock`、工作树状态 | 唯一 JS 锁为 yarn.lock，Cargo.lock 服务 Tauri；2026-09-24 immutable 安装通过，WDIO 既有四项 peer 警告另列于审查记录 | current（Windows 本机） |
 | 构建/打包（P7 起新架构） | `packages/packaging/src/package-cli.ts`、`.github/workflows/release.yml`、`packaging/targets.json` | 组装单份 Node 发行布局；Windows 用 Tauri 无 bundle 二进制打 7z，Linux 用 AppImage/无 bundle 二进制打 tar.zst，macOS 用 Tauri 打 DMG；产物按矩阵命名并附 SHA-256。旧 Electron/gulp 管线已删除 | current（2026-09-30 源码核验） |
 | 应用图标与 LFS | `docs/brand/app-icon.svg`、`.gitattributes`、`src-tauri/tauri.conf.json`、`.github/workflows/ci.yml` / `release.yml` | SVG 母版生成平台图标与 favicon；受跟踪静态资源及不透明二进制走 LFS，两个构建入口均需获取 LFS 内容 | current（2026-09-24 本地核验） |
-| 测试与 lint | [2026-09-27 审查](../plan/records/REVIEW-2026-09-27.md)、[前次审查](../plan/records/REVIEW-P2-P5-2026-09-24.md)、`package.json`、`tests/` | 当前通过数、失败回归、环境与未验证项以本轮审查为准；模块通过不等于跨平台阶段验收 | current（Windows 本机） |
+| 测试与 lint | [P6-06](../plan/records/P6-06.md)、[2026-09-30 审查](../plan/records/REVIEW-2026-09-30.md)、[发布/CI 核对](../plan/records/RELEASE-2026-10-03.md)、`package.json` | Windows 本机功能/真实项目/性能已验；当前 HEAD ci 的 JS/Rust/browser 与 Windows/Linux 桌面 job 通过；数量/跳过/环境按各报告，不外推全矩阵 | current（2026-10-03 核对） |
 | P0 基线环境 | `docs/plan/records/P0-01.md`、`P0-04.md`、`P0-05.md` | 历史基线用 Yarn 1.22.22 + yarn.lock v1；与当前 Yarn 4 工作树区分。固定组合：OpenJDK 25.0.4.1 + xresloader 2.23.6.jar（sha256 `72fd7655…0caa88`）。记录提示旧 Electron 启动前需移除 `ELECTRON_RUN_AS_NODE=1` | 既有记录，本轮未重跑 |
 | 用户脚本沙箱 | `README.md`、[脚本合同](../plan/02-contracts-script-host.md)、`packages/script-host`、`packages/guardian` | 独立 Node worker 承载可信脚本并隔离普通故障；保留 resolve/reject 与弹框回调；不提供 DOM/jQuery/Electron，不声称防恶意沙箱 | current（2026-09-27） |
 | AI 配置骨架 | 本次初始化任务 | `AGENTS.md` 主入口 + `CLAUDE.md` 导入层 + `.agents/skills/` + `docs/ai/`；不创建占位目录与工具专属薄层 | current |
@@ -35,8 +35,8 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | D2 Linux 范围与打包 | 原 per-distro 发行版矩阵（Ubuntu 22.04/24.04、Debian 12/13、Fedora 43/44）由 2026-09-28 用户决策取代：不再输出 deb/rpm，Linux 一律发行版无关 tar.zst（bootstrap 系统 WebKitGTK + offline 自含，AppImage 并存），构建基线收敛 Ubuntu 22.04（glibc 2.35 地板）。运行环境仍覆盖原 D2 发行版集合（WebKitGTK≥2.38） | current（2026-09-28 修订） |
 | D3 脚本兼容范围 | 仅承诺文档化公开接口（README + `tests/fixtures/scripts/contract.md`）；DOM/jQuery/Electron/未公开 Fancytree 内部不兼容，检测到给诊断与迁移指引 | current |
 | D4 威胁模型 | 可信脚本 + 故障隔离；允许文件/外部进程；边界是故障不得白屏/杀主进程/卡死任务 + IPC 授权；不声称防恶意沙箱 | current |
-| D5 macOS 交付 | 系统 WKWebView；系统不足引导升级 macOS；最低系统取 Node/Tauri/前端交集（候选 13.5，P5 复核） | current（最低版本待 P5 复核） |
-| D6 实现语言 | 业务、配置、调度、日志和 guardian 采用 TypeScript/Node.js；Tauri 只保留必要 Rust 构建/入口/接口适配；用户 JS 继续独立进程隔离 | current（Node 业务/监督层与 Tauri 桌面层已实现至当前切片） |
+| D5 macOS 交付 | 系统 WKWebView；最低 macOS 13.5 已写入 targets/tauri 配置并在 macOS 双架构 Portable 校验；低于最低系统引导升级 OS | current（实机系统边界仍按 R5） |
+| D6 实现语言 | 业务、配置、调度、日志和 guardian 使用 TypeScript/Node.js；Rust 仅 Tauri 桌面层；脚本独立进程。P7 已移除旧实现 | current（实施已完成，跨平台实机另验） |
 
 ## 增量审查依据（2026-09-24）
 
@@ -111,6 +111,16 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | Windows SID 生命周期 | [ConvertStringSidToSidW](https://learn.microsoft.com/en-us/windows/win32/api/sddl/nf-sddl-convertstringsidtosidw)、[SetNamedSecurityInfoW](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow) | 转换出的 SID 必须用 `LocalFree` 释放；设置目录 DACL 时可将可继承 ACE 传播至现有子项。预检已补正常与部分失败路径释放 | 每次 Windows ACL 代码变更 | WebView2 预检修改 | Rust Windows fmt/test/clippy 通过；离线 VM 待验 |
 | Agent 入口与发行说明 | [AGENTS.md 规范](https://agents.md/)、`AGENTS.md`、`README.md`、`.github/workflows/release.yml` | Agent 入口只保留当前平台打包路径；用户文档区分发行 CI 当前构建子集、便携归档与 macOS 系统 WKWebView | 每次发行策略变化 | 打包工作流或 AI 入口修改 | 2026-09-30 同步 |
 
+## 2026-10-03 发布事实与计划收敛
+
+| 主题 | 来源 | 当前结论 | review_cadence | update_trigger | status |
+| --- | --- | --- | --- | --- | --- |
+| 第一轮 Release | [dev.0 API](https://api.github.com/repos/owent/xresconv-gui/releases/tags/v3.0.0-dev.0)、[tag 对象](https://api.github.com/repos/owent/xresconv-gui/git/tags/a9b483e91a700a8e6ebcf3d57b76cbcd0626b976)、用户 2026-10-03 确认 | 公开预发布、非 draft；tag 指向 990e5d2；9 产物/9 边车；用户首轮验证完成，逐平台日志未提供。Windows 实际发布仍是 ZIP/tar.zst | 每轮候选 | tag/资产/验收反馈变化 | 已核对 API，未本轮下载资产重算 |
+| 内部 gate 实跑 | [release](https://github.com/owent/xresconv-gui/actions/runs/36526010267)、[当前 ci](https://github.com/owent/xresconv-gui/actions/runs/36715370160)、[当前 portable](https://github.com/owent/xresconv-gui/actions/runs/36715369942)、[完整核对记录](../plan/records/RELEASE-2026-10-03.md) | 当前 6b65026 的质量/Windows-Linux 桌面、macOS-Linux 双架构校验通过；读了 job/step 与聚合日志（9 release/8 portable）。不覆盖当前 Windows 7z/macOS DMG 及实机矩阵 | 每轮候选 | workflow/提交/产物变化 | 2026-10-03 API/job 日志核对 |
+| IPC 大快照预算 | `packages/ipc/src/index.ts`、`src-tauri/src/guardian.rs`、`packages/guardian/bin/service.mjs`、[02 册](../plan/02-contracts-script-host.md) | 当前默认帧 64 MiB、guardian 出站积压 128 MiB；P4-08 已上调以支持 100k 快照，旧 1/8 MiB 文档已纠正 | 每次 IPC 修改 | 帧/队列预算变化 | 2026-10-03 源码核对 |
+| Release API 语义 | [GitHub releases API](https://docs.github.com/en/rest/releases/releases)、[公开 release 列表](https://api.github.com/repos/owent/xresconv-gui/releases?per_page=10) | draft/prerelease/资产 size/digest 分别取证，annotated tag 解引用得到 commit；API digest 与本轮独立下载 hash 明确区分 | 每次 API 变化 | 发行核对流程修改 | 官方文档/API 已核验 |
+| 文档维护入口 | [AGENTS.md](https://agents.md/)、`AGENTS.md`、[计划索引](../plan/README.md)、[活动任务](../plan/08-release-follow-up.md) | 稳定约束放入口、具体约定按需加载、已完成过程进 records；活动状态单处维护。避免旧任务/旧介质/历史版本快照覆盖当前事实 | 每次计划维护 | 发布或阶段完成 | 2026-10-03 同步；现有 Skills/CLAUDE 路由适用 |
+
 ## 外部规范（易变，需定期复核）
 
 | 主题 | 来源 | review_cadence | update_trigger | status |
@@ -135,11 +145,11 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | MCP 安全 | <https://modelcontextprotocol.io/docs/getting-started/intro>、security best practices | 季度 | 接入任何 MCP 前 | 本仓库未接入 |
 | PowerShell 7+ 规则 | <https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_pwsh>、about_Parsing、about_Quoting_Rules、PSScriptAnalyzer | 半年 | 编写 .ps1 脚本前 | current |
 | 桌面图标格式与生成 | <https://v2.tauri.app/develop/icons/> | 每次升级 Tauri | 变更图标源或打包配置前 | 2026-09-24 官方文档复核；本机生成验证 |
-| Git LFS 与 Actions 检出 | <https://git-lfs.com/>、<https://github.com/actions/checkout/blob/main/README.md> | 半年 | 修改 LFS 文件类型或构建流程前 | 2026-09-24 官方文档复核；CI 待运行 |
+| Git LFS 与 Actions 检出 | <https://git-lfs.com/>、<https://github.com/actions/checkout/blob/main/README.md>、[当前 CI/Portable](../plan/records/RELEASE-2026-10-03.md) | 半年 | 修改 LFS 文件类型或构建流程前 | 构建入口已实跑，资源变更需重验；规范原复核 2026-09-24 |
 
 ## 已知缺口与后续建议
 
-- 当前 P2/P3/P4 与发行布局已有本机复验证据，见 [本轮审查](../plan/records/REVIEW-2026-09-27.md)。未完成：全目标安装/签名、公证与 G5/G6、缺失的发行 CI 目标、Linux preflight 本轮回归；P7 已切换，不再列为待实现。
+- dev.0 与基底 HEAD 的 ci/portable-build 已核对，见 [发布记录](../plan/records/RELEASE-2026-10-03.md)；本轮未提交源码的 XML 隔离、Windows/Linux 门禁及产物见 [执行记录](../plan/records/EXECUTION-2026-10-03.md)。活动状态唯一维护于 [08 册](../plan/08-release-follow-up.md)；不把基底 CI、首轮发布或 ARM64 运行免验写成本轮全矩阵通过。
 - Yarn 4 为唯一包管理器；锁文件及动态 require 的真实发行隔离检查见本轮记录。历史包体/CI 成功数字不能替代当前工作树的发行验收。
 - 本机环境限制：`yarn` 未全局安装、`npm`/`pnpm` 的 PowerShell shim 被执行策略拦截（用 `npm.cmd` 调用）；CI 中不受影响。
 - Markdown 校验：新增/修改的 Markdown 必须通过 markdownlint（配置 `.markdownlint.json`，关闭 MD013 行长与 MD041 以适应 CJK 文本与 `@import` 语法）。既有 `README.md`、`CHANGELOG.md` 存在历史告警（MD029/MD034/MD009/MD012/MD032/MD007），未在本次初始化中改动；如需清理单独提交。
@@ -147,7 +157,7 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 
 ## Tauri 重构计划来源
 
-复核日期：2026-09-27。主计划保留依赖/Actions 版本快照；本轮针对锁定实现复核 GUI 状态、虚拟化、Java 诊断、模块闭包、Tauri/Edge 自动化与发行校验。**P0 旧版基线已有记录，新架构、安装器、兼容性与性能尚未完整验收。** 详细合同见 [执行计划索引](../plan/README.md)。
+当前计划收敛复核日期：2026-10-03。主计划只保留稳定目标/边界/功能/摘要，选型来源留在本索引，原始版本与通过范围由 records 保留；模块约定见 [执行索引](../plan/README.md)。**Windows 本机验收和首轮预发布已完成，全矩阵最终介质/实机 G5/G6 尚未闭合。** 下表按具体条目来源和日期使用，不把历史快照当当前 latest。
 
 | 主题 | 来源 | 当前结论 | review_cadence | update_trigger | status |
 | --- | --- | --- | --- | --- | --- |
@@ -158,8 +168,8 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | Node 脚本边界 | [VM](https://nodejs.org/api/vm.html)、[Permissions](https://nodejs.org/api/permissions.html) | VM/权限模型不等于恶意代码强沙箱；普通故障隔离依赖独立进程和外部监督。D4 已定：可信脚本，不声称防恶意 | 每次 Node 升级 | P2 与安全验收 | 文档已复核，威胁模型已定（D4） |
 | 子进程与 IPC | [Node child_process](https://nodejs.org/api/child_process.html)、[Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects) | kill 不证明树回收，send 回调不证明业务完成；不可信帧需先限长，内置 IPC 回调已晚于反序列化；Windows 原生能力需适配验证 | 每次监督实现变化 | P2/P3/SC11 | Node 文档已复核；树回收实现见"进程树监督"行；旧 Tokio 方案不再作为目标实现 |
 | 进程树监督 | [Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)、[koffi](https://www.npmjs.com/package/koffi)（MIT，Node-API 预编译）、[taskkill](https://learn.microsoft.com/windows-server/administration/windows-commands/taskkill) | Windows 主路径 Job Object + KILL_ON_JOB_CLOSE：guardian 崩溃由内核回收整树；OpenProcess 常驻句柄防 PID 重用；taskkill /T /F 仅作降级回退；POSIX detached 进程组已实现 | 每次监督实现变化 | P2-02 | 2026-09-24 win32 实测通过（terminate 杀树、宿主 SIGKILL 后内核回收）；POSIX 分支待 CI |
-| Node XML 实现 | [fast-xml-parser 官方仓库](https://github.com/NaturalIntelligence/fast-xml-parser)、锁定 5.11.1 的 OptionsBuilder/fxp.d.ts、[npm 元数据](https://registry.npmjs.org/fast-xml-parser/latest) | validator/parser 接受某些非目标根结构，业务仍需单 root 校验；读取/include 预算与 realpath 判重已补测试，独立 helper 待完成 | 每次依赖升级 | P3-01/02 | 2026-09-24 源码与回归复核；v4 选项页失效，改查锁定源码 |
-| 桌面自动化 | [Tauri WebDriver](https://v2.tauri.app/develop/tests/webdriver/)、[官方手动接线示例](https://v2.tauri.app/develop/tests/webdriver/example/webdriverio/)、[原 WDIO 服务资料](https://webdriver.io/docs/desktop-testing/tauri/) | 当前直接管理外部 tauri-driver 与匹配的原生驱动，显式超时/进程树回收；不再依赖 @wdio/tauri-service 的自动下载及 mock 注入 | 每次驱动升级 | 桌面测试入口修改 | 2026-09-27 Windows 12 项通过；Linux/macOS 未在本轮实跑 |
+| Node XML 实现 | [fast-xml-parser 官方仓库](https://github.com/NaturalIntelligence/fast-xml-parser)、[npm 元数据](https://registry.npmjs.org/fast-xml-parser/latest)、`packages/backend/src/config/loader.ts` / `isolated-loader.ts`、[P6-05](../plan/records/P6-05.md) | 单 root/严格 UTF-8/XML、realpath/include；64/128 MiB 读取预算。加载入口使用独立 helper、30 秒外部截止及节点/脚本预算；解析器深度明确保持锁定版本默认 100 | 每次依赖升级 | 配置解析/预算修改 | 2026-10-03 实现与 Windows 回归通过；Linux 待验 |
+| 桌面自动化 | [Tauri WebDriver](https://v2.tauri.app/develop/tests/webdriver/)、[官方接线示例](https://v2.tauri.app/develop/tests/webdriver/example/webdriverio/)、[原 WDIO 服务资料](https://webdriver.io/docs/desktop-testing/tauri/)、[当前 CI](../plan/records/RELEASE-2026-10-03.md) | 使用外部 tauri-driver/匹配原生驱动、显式超时/所属进程回收；当前 Windows/Linux 真桌面步骤已 success，macOS WKWebView 与原生对话框等仍按 R5 | 每次驱动升级 | 桌面测试入口修改 | 2026-10-03 job/step 核对；macOS 实机待验 |
 | Windows 双变体 | [WebView2 运行时分发](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)、`packages/packaging/src/package-cli.ts`、`src-tauri/src/webview_preflight.rs` | 当前发行是 bootstrap/offline 7z；前者附 Evergreen 安装器供用户手动运行，后者内嵌 Fixed Version 且系统 Evergreen 优先。旧 NSIS 配置是历史方案，不参与当前发行 CLI | 每次 WebView2/打包升级 | 归档与预检变更 | 2026-09-30 源码核验；旧 Windows/离线 VM 待验 |
 | 系统 WebView / Linux 包 | [WebView Versions](https://v2.tauri.app/reference/webview-versions/)、[Debian](https://v2.tauri.app/distribute/debian/) | macOS 随系统；Linux 离线自含包/闭包是本项目按发行版实现的设计，非 Tauri 自动保证。D2/D5 已定 | 每次支持矩阵变化 | P5 | 文档已复核，平台矩阵已定（D1/D2/D5） |
 | React Aria 树 | [组件源码](https://github.com/adobe/react-spectrum/blob/main/packages/react-aria-components/src/Tree.tsx)、[官方用例](https://github.com/adobe/react-spectrum/blob/main/packages/react-aria-components/stories/Tree.stories.tsx) | 树/虚拟化与旧三态选择需适配和实测；Tree 文档直连本轮失败，使用官方源码/用例核验 | 每次组件升级 | P4 | P4-03 三态/搜索已有单测；虚拟化已落地；2026-09-27 三引擎大字号/行点击复验 |
@@ -168,7 +178,38 @@ D1–D5 登记与影响分析见 [P0-06](../plan/records/P0-06.md)；D6 见 [主
 | Java stdin 分词 | [Java 25 Pattern](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/regex/Pattern.html)、相邻 xresloader `Main.java` | 默认 Pattern 的 ASCII 空白集合不同于 JS Unicode 空白；Scanner 行分隔字符也不能进入单任务行。编码器增加 Unicode 空白/换行用例 | 每次 JAR 升级 | P3-06 | 2026-09-24 源码/文档复核，八格式真实 JAR 通过 |
 | log4js 扩展隔离 | [自定义 appender](https://log4js-node.github.io/log4js-node/writing-appenders.html)、`packages/backend/src/service/log-sink*.ts` | configure/append/shutdown 可执行扩展代码，改为独立进程；有界队列与超时明确报告未持久化/清理未确认 | 每次日志实现改动 | P2-08/P3-09 | 2026-09-24 死循环、独立配置与真实文件 flush 通过 |
 | 前端框架/样式选型 | [React 统计](https://api.npmjs.org/downloads/point/last-week/react)、[Vue 统计](https://api.npmjs.org/downloads/point/last-week/vue)、[Svelte 统计](https://api.npmjs.org/downloads/point/last-week/svelte)、[Tailwind 兼容要求](https://tailwindcss.com/docs/compatibility) | 2026-09-23 快照 React 周下载约为 Vue 11 倍、Svelte 31 倍（含 CI/间接使用，仅作生态体量依据）；选 React 为组件/测试/可访问性生态；Tailwind 4 现代浏览器要求约束系统 WebView，不采用 | 每次框架升级 | P4/P7 | current |
-| 依赖版本快照 | 2026-09-23 自 npm registry/crates.io/官方发行页读取；锁定值以 `package.json`/`yarn.lock`/`Cargo.lock` 为准 | 快照为执行起点非永久锁定；Node 26.x Current 候选 + 24.x LTS 基线；Tauri 2.x（3.x alpha 不采用）；typescript-eslint peer 冲突不引入（Biome+tsc）；React Compiler 单独验证后启用 | 每次升级 | P1/P5 复查 | current |
+| 依赖版本快照 | 2026-09-23 官方 registry/release 调研；锁定值以 `package.json`/`yarn.lock`/`Cargo.lock` 为准；随包目标以 `packaging/targets.json` 为准 | 历史 Current 候选不等于随包目标，当前 targets 为 Node 24；Tauri 2.x；Biome+tsc。发行冻结前重查稳定 release/engines/peer/MSRV，不声称本轮升级了依赖 | 每次升级 | 工具链/发行冻结 | 2026-10-03 源码目标核对；latest 未重查 |
 | Tauri 命令响应性 | [Calling Rust](https://v2.tauri.app/develop/calling-rust/) | 同步 command 默认在主线程；健康检查改为 async + spawn_blocking，避免轮询子进程阻塞 UI | 每次 Tauri 桌面层命令改动 | P1/P2 | 2026-09-24 回归、原生门禁和真实 WebView2 通过 |
 
 同步范围：增量审查更新实现、回归测试、Plan、监督/UI/发行合同与记录索引。本轮已纠正 Agent 入口的旧 Electron 事实；现有 Skills 路由与薄 CLAUDE 层继续适用。跨平台与实体安装验收范围保持。
+
+## 本地收尾调研（2026-10-03）
+
+| 用途 | 来源 | 当前结论 | review_cadence / update_trigger | status |
+| --- | --- | --- | --- | --- |
+| XML 解析 helper | [Node child_process](https://nodejs.org/api/child_process.html)、锁定 `fast-xml-parser@5.11.1` 的 `OptionsBuilder.js` / `OrderedObjParser.js` | 异步 spawn 保持父进程响应；close 与子树回收是完成证据；通过现有 ProcessScope 设置 Windows 无窗口/POSIX 进程组。parser 原有 maxNestedTags=100，显式保持并以 CONFIG_LIMIT 报告 | Node/parser/监督实现升级 | 已核对官方文档与锁定源码；真实进程回归通过 |
+| Windows ARM64 交叉编译 | [Tauri Windows ARM 构建](https://v2.tauri.app/distribute/windows-installer/#building-for-32-bit-or-arm)、[PE 格式](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format) | x64 Windows 安装 ARM64 C++ 库与 Rust 目标后用 --target=aarch64-pc-windows-msvc；打包显式 --cross；PE 机器类型检验不执行目标程序 | 工具链/目标变化 | 本机具备 ARM64 C++ 库；运行验证按用户免验 |
+| 交叉包 Node/原生模块 | [Node 官方校验和](https://nodejs.org/dist/v24.21.0/SHASUMS256.txt)、[Yarn supportedArchitectures](https://yarnpkg.com/configuration/yarnrc#supportedArchitectures)、[Linux ELF 机器类型](https://github.com/torvalds/linux/blob/master/include/uapi/linux/elf-em.h)、[Apple Mach 机器类型](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/machine.h) | 下载与宿主同版本的官方目标 Node/headers，核验归档 SHA-256，从 headers 取得 ABI；不执行目标 Node。Yarn 同时安装 x64/arm64 optional 模块，发行闭包按目标筛选并验证二进制头 | Node/Yarn/原生模块升级 | Windows/Linux ARM64 五个产物已生成；10 个本地产物及边车集合/hash 通过 |
+| WSL Linux 构建环境 | [Podman build](https://docs.podman.io/en/latest/markdown/podman-build.1.html)、[Podman run --init](https://docs.podman.io/en/latest/markdown/podman-run.1.html#init)、[Rust 安装](https://rust-lang.org/tools/install/)、[Ubuntu 镜像说明](https://mirrors.tuna.tsinghua.edu.cn/help/ubuntu/) | 发行构建保持 Ubuntu 22.04/glibc 2.35，WSL Debian 验证。权限用例须普通用户；JVM 原生文件名需 UTF-8 locale；容器需 init 回收强杀孤儿。WSL NTFS 限 2 worker；缓存挂载读取实际 CARGO_HOME，不能猜路径 | 构建环境/基线变化 | Linux 731/10、x64 三包校验及双变体桌面各 13 项通过；本轮不发布 |
+| ARM AppImage 与 binfmt 诊断 | [Tauri CLI 2.11.5 linuxdeploy 源码](https://raw.githubusercontent.com/tauri-apps/tauri/tauri-v2.11.5/crates/tauri-bundler/src/bundle/linux/appimage/linuxdeploy.rs)、[内核匹配规则](https://docs.kernel.org/admin-guide/binfmt-misc.html)、本轮 ELF 头与 strace | Debian QEMU 规则要求 ELF 填充区为零，ARM AppImage 的 AI2 标记导致 ENOEXEC；Tauri 只清主 linuxdeploy 的三字节。采用临时精确 ARM AI2 规则，完成后移除。完整 ARM 用户空间解决宿主 ldd/GTK 插件误选架构；备份不可留在插件扫描目录 | Tauri/linuxdeploy/QEMU 升级 | ARM 离线双产物已生成；临时规则与 bind 已清理，WSLInterop 保留；只运行打包工具 |
+| Windows ARM runner 工具 | [Windows 11 ARM64 软件清单](https://github.com/actions/runner-images/blob/main/images/windows/Windows11-Arm64-Readme.md) | 20260927.180.1 镜像列出 Node 24.21.0、Rust/Cargo 1.98.1、7-Zip 26.03 与 Visual Studio 2026；release matrix 使用 windows-11-arm，实际 job 结果仍需单独核验 | runner 镜像升级 | 2026-10-03 官方清单核对；不作为远端构建通过 |
+| macOS 原生模块静态合同 | [Koffi darwin-x64 3.3.1 元数据](https://registry.npmjs.org/@koromix/koffi-darwin-x64/3.3.1)、[darwin-arm64 元数据](https://registry.npmjs.org/@koromix/koffi-darwin-arm64/3.3.1) | 官方发布包经 dist.integrity 核验；两 .node 均为对应架构的薄 Mach-O 64，满足新增二进制头校验；仅静态读取，不运行 macOS 代码 | Koffi/二进制校验升级 | 双架构头已核验；不构成 macOS 应用构建或运行通过 |
+| ARM AppImage 打包限制 | [Tauri AppImage](https://tauri.app/distribute/appimage/)、[QEMU user mode](https://www.qemu.org/docs/master/user/main.html)、[内核 binfmt_misc](https://docs.kernel.org/admin-guide/binfmt-misc.html) | linuxdeploy 不支持直接交叉打 ARM AppImage，须 ARM 主机或模拟器。Rust 程序交叉编译后使用 QEMU 完成 ARM 打包工具阶段；F 标志支持容器挂载空间。ARM64 应用运行验收按用户免验 | Tauri/linuxdeploy/QEMU 升级 | 官方限制已核对；WSL 架构注册生效，Windows 互操作保留 |
+| Windows ARM64 CRT 来源 | [Microsoft C++ ARM64 安装](https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions)、本机 Visual Studio 官方 `catalog.json` 与已校验组件下载元数据 | 仅存在 arm64 目录不证明有 CRT；本机缺 libcmt.lib，按官方目录下载 ARM64 Desktop CRT，校验目录 SHA-256 并解包到 build，不修改全局 VS。显式选择 MSVC linker 与 ARM64 SDK/CRT LIB | MSVC/SDK 更新 | Windows ARM64 实际链接与双变体打包通过 |
+| 全矩阵候选构建与发布边界 | [GitHub runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)、[手动 workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)、`.github/workflows/release.yml` | Windows/Linux 双架构与 macOS 双架构组成 12 目标/14 产物；手动或 build/validate-* 分支仅构建/精确集合核验。写 Release 的唯一 job 仅接受 v3 tag push，手动构建不进入；默认权限 contents:read | Actions runner/工作流变化 | actionlint 1.7.12 通过；新候选远端执行待授权 |
+
+## 计划精简时迁入的设计来源
+
+以下来源从已精简的主计划/分册迁入，供历史设计追溯；本轮未重新验证这些外部版本或链接，不作为当前 latest 证明。当前采用状态由源码/现行条目确定。
+
+| 用途 | 保留来源 | status |
+| --- | --- | --- |
+| 旧配置样本链接（当前替代为 main/sample.xml，见 XML 完整样本条目） | <https://github.com/xresloader/xresconv-conf/blob/master/sample.xml> | 历史来源迁移，2026-10-03 |
+| React 客户端选型 | <https://react.dev/learn/build-a-react-app-from-scratch> | 历史来源迁移，2026-10-03 |
+| Tauri Vite 接入 | <https://v2.tauri.app/start/frontend/vite/> | 历史来源迁移，2026-10-03 |
+| Node 官方版本清单 | <https://nodejs.org/dist/index.json> | 历史来源迁移，2026-10-03 |
+| 旧 Electron 原生模块 ABI 对照，不作为当前 Node ABI 约定 | <https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules> | 历史来源迁移，2026-10-03 |
+| 历史 Node 26 候选支持平台，不作为当前 Node 24 目标清单 | <https://github.com/nodejs/node/blob/v26.x/BUILDING.md> | 历史来源迁移，2026-10-03 |
+| Actions 固定依赖安全建议；当前版本标签策略另列归档决策 | <https://docs.github.com/en/actions/security-for-github-actions/security-guides/security-hardening-for-github-actions> | 历史来源迁移，2026-10-03 |
+| Tauri Action 历史选型资料 | <https://github.com/tauri-apps/tauri-action/releases> | 历史来源迁移，2026-10-03 |
+| Rust toolchain Action 历史选型资料 | <https://github.com/dtolnay/rust-toolchain> | 历史来源迁移，2026-10-03 |

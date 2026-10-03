@@ -4,7 +4,7 @@
 
 对应 P2，同时定义 P1/P3/P4 共用接口。D6 的 Node/TypeScript 业务和监督层已有 Windows 实测，协议 v1 冻结规则见 [P2-12](records/P2-12.md)；跨平台范围仍以实际记录为准。
 
-监督与通道边界（已实现）：重复启动/关闭须等待同一结果；终止后的 scope 禁止再登记进程；RPC deadline 包含管道写入等待。Tauri 桌面层写队列最多 16 帧、待决请求最多 128；guardian 出站积压最多 8 MiB，单帧仍为 1 MiB。过大 RPC 回复返回关联的 `RESPONSE_TOO_LARGE`，超时/通道失效不自动重放。实现与回归见 [增量审查记录](records/REVIEW-P2-P5-2026-09-24.md)。
+监督与通道边界（已实现）：重复启动/关闭须等待同一结果；终止后的 scope 禁止再登记进程；RPC deadline 包含管道写入等待。Tauri 桌面层写队列最多 16 帧、待决请求最多 128；guardian 出站积压最多 128 MiB，默认单帧 64 MiB。过大 RPC 回复返回关联的 `RESPONSE_TOO_LARGE`，超时/通道失效不自动重放。实现与回归见 [增量审查记录](records/REVIEW-P2-P5-2026-09-24.md)。
 
 ## 进程职责与最小原生边界
 
@@ -60,7 +60,7 @@ Tauri→guardian 优先使用 sidecar 私有 stdin/stdout 字节管道：guardia
 
 Windows GUI 桌面程序启动 console-subsystem 的 Node guardian 时使用 `CREATE_NO_WINDOW`，保留上述管道；guardian 管理的子进程经 `ProcessScope.decorateSpawnOptions` 统一设置 `windowsHide: true`。关闭应用窗口按生命周期协议停止进程，不依赖关闭控制台。发行包故障复现与验证见 [2026-09-29 控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 
-字节通道拟定帧为 4 字节大端长度 + UTF-8 JSON，初始上限 1 MiB；分块大快照，接收前验证长度和预算。guardian→可信 backend 使用 `child_process.fork` 的 IPC，明确 `execPath`/serialization 并处理 send 背压。Node 内置 IPC 已在 message 回调前解析，不能声称 Ajv 提供预分配长度防护；脚本/不受控扩展使用 spawn + 专用有界字节通道，独立于日志，P2-01 验证三平台实现。
+字节通道为 4 字节大端长度 + UTF-8 JSON，当前默认上限 64 MiB（P4-08 支持 100k 快照；`packages/ipc/src/index.ts` 与桌面层镜像同步）；接收前验证长度和预算，过大消息仍失败。guardian→可信 backend 使用 `child_process.fork` 的 IPC，明确 `execPath`/serialization 并处理 send 背压。Node 内置 IPC 已在 message 回调前解析，不能声称 Ajv 提供预分配长度防护；脚本/不受控扩展使用 spawn + 专用有界字节通道，独立于日志，P2-01 验证三平台实现。
 
 Node IPC 的发送回调仅确认发送情况，不表示业务已完成；必须有应用层 ACK/Complete。禁止用 NODE_ 前缀的保留 cmd，也不把 advanced serialization 当跨 Tauri 协议。按钮 data/闭包仍留在 worker 内。[Node child_process](https://nodejs.org/api/child_process.html)
 
@@ -155,21 +155,10 @@ backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java �
 
 脚本有文件/外部命令副作用时不自动重试。worker 崩溃不能恢复任意闭包和模块状态；展示受影响会话及运行结果需核验的信息。D4 已定：脚本可信，允许文件系统与外部进程能力；验收边界是故障隔离（不得白屏/杀主进程/卡死任务）与 IPC 授权，受限能力模式降级为可选增强；Node VM/Permission Model 不提供所需的完整恶意代码边界。[Node VM](https://nodejs.org/api/vm.html)、[Node 权限模型](https://nodejs.org/api/permissions.html)
 
-## P2 任务清单
+## 实施证据与剩余边界
 
-| 任务 | 前置 | 拟实现位置/动作 | 验收与回退 |
-| --- | --- | --- | --- |
-| P2-01 | G1 | contracts、桌面层消息桥、Node 角色 IPC：握手、分块、背压与受控帧 | SC01/SC11；worker 不能伪装 backend 或越权调用 |
-| P2-02 | P2-01 | packages/guardian：Node 监督与三平台生命周期适配原型 | SC07/SC08/SC11；业务/桌面层/guardian 分别被杀时清理达到合同 |
-| P2-03 | P2-01 | script-host：五入口、字段类型、data、回调 | SC02/SC03；逐字段与旧行为比对 |
-| P2-04 | P2-03 | require 锚点、cache、worker 分组、环境策略 | SC04；跨 hook 缓存样例不兼容即 G2 阻塞 |
-| P2-05 | P2-03 | NodeMirror、别名、同步方法、有序操作 | SC05；不使用 React/DOM/jQuery 实现镜像 |
-| P2-06 | P2-03、P2-05 | 弹框回调注册表与失效逻辑 | SC06；回调次数/顺序正确，无过期调用 |
-| P2-07 | P2-02 至 P2-06 | watchdog、资源限制、异步异常和强制退出 | SC07/SC08；按平台报告可保证范围 |
-| P2-08 | P2-04 | 独立日志 hook 与可信 log4js/matcher 服务 | SC09/EX04；复杂 regex 不阻塞日志服务，必要时再分隔离域 |
-| P2-09 | P2-07 | 取消/重置/关闭/各角色崩溃的统一收尾及无重放 | SC10/SC11/EX03；实际回收后才报清理成功 |
-| P2-10 | P2-04 | 发布目录动态模块与原生扩展验证 | SC04/PK07；无 npm 网络、无全局 Node 仍运行 |
-| P2-11 | P2-05 至 P2-10 | 真实脚本差分与 BD 差异清单 | 不用自造简单脚本替代真实样例；不兼容有具体定位 |
-| P2-12 | P2-11 | G2 报告与接口冻结 | SC 全部必需案例通过，或明确阻塞，旧架构仍可回退 |
+P2 的协议、五入口、节点镜像、回调、资源限制、监督、动态模块与真实脚本差分已实施，逐任务证据见 [P2 records](records/README.md)、[P2-11](records/P2-11.md) 和 [P2-12](records/P2-12.md)。当前 Windows/Linux CI 与 macOS/Linux Portable 构建结果见 [发布核对记录](records/RELEASE-2026-10-03.md)。
+
+平台强杀/detached、macOS 实际清理与最终发行目录仍按 [R2/R5](08-release-follow-up.md) 验收；构建或单平台测试不扩大 D4 保证范围。取消/关闭等行为变更先补失败回归，再按 SC07/SC08/SC10/SC11 核验退出/清理与无重放。
 
 Tauri 前端只启用所需窗口/命令能力，不授予任意 shell spawn；自定义命令仍必须自行校验状态和对象权限。测试能力使用显式名单，避免自动合并进发行能力。[Tauri Capabilities](https://v2.tauri.app/security/capabilities/)

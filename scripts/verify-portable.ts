@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /** Portable 产物验证入口（portable-build.yml 使用；本机也可复跑）。
  *
- * 单目标：--os=macos|linux --arch=x64|arm64|aarch64 [--variant=offline|bootstrap]
+ * 单目标：--os=windows|macos|linux --arch=x64|arm64|x86_64|aarch64
+ *         [--variant=offline|bootstrap] [--static-only（仅 Windows 交叉包）]
  *         （Linux 归档发行版无关，无需 distro）
  * 聚合：  --aggregate（build/release-artifacts 全集合 + SHA-256 边车）
  */
@@ -24,6 +25,7 @@ const { values } = parseArgs({
     arch: { type: "string" },
     variant: { type: "string", default: "offline" },
     aggregate: { type: "boolean", default: false },
+    "static-only": { type: "boolean", default: false },
   },
 });
 
@@ -37,8 +39,10 @@ if (values.aggregate) {
   const files = await verifyPortableAggregate(path.join(ROOT, "build/release-artifacts"), version);
   console.log(`Verified ${files.length} portable artifacts and SHA-256 sidecars`);
 } else {
-  if (values.os !== "macos" && values.os !== "linux")
-    throw new Error("--os must be macos or linux (aggregate mode covers the full set)");
+  if (values.os !== "windows" && values.os !== "macos" && values.os !== "linux")
+    throw new Error("--os must be windows, macos or linux");
+  if (values["static-only"] && values.os !== "windows")
+    throw new Error("--static-only currently supports Windows 7z only");
   if (values.variant !== "offline" && values.variant !== "bootstrap")
     throw new Error("--variant must be offline or bootstrap");
   if (!values.arch) throw new Error("--arch is required");
@@ -50,6 +54,7 @@ if (values.aggregate) {
       variant: values.variant,
       version,
       commit: gitHead(),
+      staticOnly: values["static-only"],
     },
     path.join(ROOT, "build/portable-verify"),
   );

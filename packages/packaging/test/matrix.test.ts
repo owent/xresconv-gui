@@ -69,7 +69,7 @@ describe("buildMatrix (CI-06 aggregate input)", () => {
 });
 
 describe("selectMatrix (release CI built-subset verification)", () => {
-  // release.yml 当前实际构建的目标（与三个 build job 的 matrix 同步维护）
+  // dev.0 的历史构建子集，保留对显式 --target 子集预检的验证。
   const CI_KEYS = [
     "windows/-/x64/bootstrap",
     "windows/-/x64/offline",

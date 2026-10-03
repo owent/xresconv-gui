@@ -25,7 +25,8 @@
 import { randomUUID } from "node:crypto";
 import type { ScriptResult } from "@xresconv/contracts";
 import type { ScriptWorkerPool } from "@xresconv/guardian";
-import { parseXmlConfig, resolveWorkDir } from "../config/loader.ts";
+import { parseXmlConfigIsolated } from "../config/isolated-loader.ts";
+import { resolveWorkDir } from "../config/loader.ts";
 import type { ParsedConfig } from "../config/model.ts";
 import { flattenTreeItems } from "../domain/selection.ts";
 import { formatUnknownError } from "./format.ts";
@@ -42,6 +43,7 @@ export interface LoadConfigOptions {
   pipeline?: LogPipeline;
   /** set_name 单条 invoke 超时（毫秒），默认 5000（BD-O1）。 */
   setNameTimeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 /**
@@ -54,7 +56,7 @@ export async function loadConfig(
   configPath: string,
   options: LoadConfigOptions,
 ): Promise<ParsedConfig> {
-  const config = await parseXmlConfig(configPath);
+  const config = await parseXmlConfigIsolated(configPath, { signal: options.signal });
   // item id：树文档序从 1 赋值（main.js:1612），先于 set_name（旧版其中可见 id）。
   let nextId = 1;
   for (const item of flattenTreeItems(config.tree)) {
@@ -68,6 +70,7 @@ export async function loadConfig(
   const timeoutMs = options.setNameTimeoutMs ?? DEFAULT_SET_NAME_TIMEOUT_MS;
   // 逐条 await：ops 应用顺序 = invoke 完成顺序 = 树文档顺序。
   for (const item of flattenTreeItems(config.tree)) {
+    options.signal?.throwIfAborted();
     let result: ScriptResult;
     try {
       result = await options.pool.invoke(

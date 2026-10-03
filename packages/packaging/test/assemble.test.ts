@@ -136,6 +136,7 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
     for (const rel of [
       `runtime/${process.platform === "win32" ? "node.exe" : "node"}`,
       "app/backend/service.mjs",
+      "app/backend/config-worker.mjs",
       "app/guardian/service.mjs",
       "app/script-host/worker.mjs",
       "app/node_modules/@xresconv/contracts/schema/backend-rpc.json",

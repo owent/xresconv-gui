@@ -38,11 +38,11 @@
 - 常用命令：
   - 开发运行：`yarn dev:desktop`（tauri dev，前端热更新）
   - 构建桌面应用：`yarn build:desktop`
-- 新架构（Tauri 桌面层 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn test:conversion`（真实 JAR 八格式 stdin vs argv 差分；相邻 `../xresloader/target` 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`，缺件 exit 2 显式退出）、`yarn check:shell` / `yarn test:shell`（Tauri 桌面层的 Cargo 检查）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → 平台归档 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows 双变体=7z（bootstrap 附 WebView2 bootstrapper，offline 内嵌 Fixed Version；构建需 7-Zip，用户需支持 7z 的解压工具；语言策略见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与合同见 05 册 §Portable 与 §Release portable 归档）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
+- 新架构（Tauri 桌面层 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn test:conversion`（真实 JAR 八格式 stdin vs argv 差分；相邻 `../xresloader/target` 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`，缺件 exit 2 显式退出）、`yarn check:shell` / `yarn test:shell`（Tauri 桌面层的 Cargo 检查）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → 平台归档 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（`verify:portable` 支持 Windows 7z、macOS .app.zip 与 Linux tar.zst/AppImage；Windows 交叉包可用 --static-only；macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows 双变体=7z（bootstrap 附 WebView2 bootstrapper，offline 内嵌 Fixed Version；构建需 7-Zip，用户需支持 7z 的解压工具；语言策略见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与运行时约定见 05 册，同系统跨架构打包须显式 --cross --arch=…，目标 Node/原生模块不得用宿主版本替代；后续验收见 08 册）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
 
 ## 目录结构
 
-- `apps/desktop/`、`packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`、`src-tauri/`、`tests/`：新架构骨架（D6，P1 已验收本机范围，见 `docs/plan/records/`）
+- `apps/desktop/`、`packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`、`src-tauri/`、`tests/`：当前实现（D6，接口/平台/测试约定由 `docs/plan/README.md` 路由，完成证据见 `docs/plan/records/`）
 
 - `docs/`：文档截图、图标、自定义选择器示例 `custom-selector.json`
 - `.github/workflows/`：CI（ci.yml 质量与桌面测试；release.yml 构建与 draft 聚合；stale.yml）
@@ -113,6 +113,8 @@
 ## 文档、路线图与执行计划
 
 每次任务结束前判断是否需更新：`AGENTS.md`、`CLAUDE.md`、`.agents/skills/`、自定义 Agent/prompt/workflow、`docs/` 模块文档、`docs/ai/source-index.md`、部署配置、`roadmap/`（存在时）、测试说明与故障排查文档。
+
+推进或维护执行计划时，先读 `Plan.md` 与 `docs/plan/README.md`，再按任务加载分册。活动任务状态唯一维护在 `docs/plan/08-release-follow-up.md`；完成过程进入 records，模块文档保留约定与证据链接。更新发布进度须分别核对已发布 tag/产物和当前候选提交，不把首轮发布、CI 构建或本机通过外推为全矩阵验收。
 
 文档组织要求：
 

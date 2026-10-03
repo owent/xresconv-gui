@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import {
   findLayoutRoot,
@@ -9,8 +10,46 @@ import {
   verifyBundledNode,
   verifyLayoutIdentity,
   verifyLayoutPayload,
+  verifyWindowsExtras,
 } from "../src/verify-portable.ts";
 import { pickTarget, sampleManifest } from "./fixtures.ts";
+
+it("checks Windows executable architecture and variant attachments", () => {
+  const root = fileURLToPath(new URL("../../../build/verify-windows-tests/", import.meta.url));
+  mkdirSync(root, { recursive: true });
+  const dir = mkdtempSync(path.join(root, "case-"));
+  const pe = Buffer.alloc(128);
+  pe.writeUInt16LE(0x5a4d, 0);
+  pe.writeUInt32LE(64, 0x3c);
+  pe.writeUInt32LE(0x4550, 64);
+  pe.writeUInt16LE(0xaa64, 68);
+  try {
+    const bootstrap = resolvePortableTarget("windows", "arm64", "bootstrap");
+    writeFileSync(path.join(dir, "xresconv-gui.exe"), pe);
+    expect(() => verifyWindowsExtras(dir, bootstrap)).toThrow();
+    writeFileSync(path.join(dir, "MicrosoftEdgeWebview2Setup.exe"), "MZ sample");
+    expect(() => verifyWindowsExtras(dir, bootstrap)).not.toThrow();
+    expect(() =>
+      verifyWindowsExtras(dir, resolvePortableTarget("windows", "x64", "bootstrap")),
+    ).toThrow("architecture");
+    const offline = resolvePortableTarget("windows", "arm64", "offline");
+    expect(() => verifyWindowsExtras(dir, offline)).toThrow();
+    mkdirSync(path.join(dir, "webview2-runtime"));
+    writeFileSync(path.join(dir, "webview2-runtime/msedgewebview2.exe"), pe);
+    writeFileSync(
+      path.join(dir, "webview2-runtime-policy.json"),
+      JSON.stringify({ locales: "all" }),
+    );
+    expect(() => verifyWindowsExtras(dir, offline)).not.toThrow();
+    writeFileSync(
+      path.join(dir, "webview2-runtime-policy.json"),
+      JSON.stringify({ locales: "unknown" }),
+    );
+    expect(() => verifyWindowsExtras(dir, offline)).toThrow("locale policy");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 function digest(content: string): string {
   return createHash("sha256").update(content).digest("hex");
