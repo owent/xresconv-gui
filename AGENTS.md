@@ -34,7 +34,7 @@
 ## 技术栈与命令
 
 - Node.js LTS（>=24）+ Tauri 2 + React 19 + TypeScript workspaces。桌面层入口 `src-tauri/`（窗口、系统接口与进程通信），前端 `apps/desktop/`，业务内核 `packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`（D6：业务全在 Node/TS，Rust 仅实现桌面层）。
-- 包管理器：**Yarn 4（corepack，`packageManager: yarn@4.18.0`）为唯一 JS 包管理器**；`package-lock.json`、`pnpm-lock.yaml` 已删除（P1-02），唯一 JS 锁文件为 `yarn.lock`，`Cargo.lock` 仅服务 Tauri 桌面层。安装用 `corepack yarn install`，变更依赖时只更新 `yarn.lock`。
+- 包管理器：**Yarn 4（corepack，`packageManager: yarn@4.18.1`）为唯一 JS 包管理器**；`package-lock.json`、`pnpm-lock.yaml` 已删除（P1-02），唯一 JS 锁文件为 `yarn.lock`，`Cargo.lock` 仅服务 Tauri 桌面层。安装用 `corepack yarn install`，变更依赖时只更新 `yarn.lock`。
 - 常用命令：
   - 开发运行：`yarn dev:desktop`（tauri dev，前端热更新）
   - 构建桌面应用：`yarn build:desktop`

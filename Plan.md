@@ -17,7 +17,7 @@
 - P0–P4 的实施、P5 发行管线、P6 Windows x64 本机范围及 P7 旧架构切换已有证据；完整 G5/G6 跨平台实机验收仍未闭合。第一轮发布不自动覆盖后续代码、归档格式或运行时变更。
 - 本轮边界：不发布；Linux 使用 WSL/Debian，ARM64 交叉打包后运行免验。XML 隔离、Windows/Linux x64 最终包和门禁已有本轮证据；macOS 原生构建已取得 CI 证据，发行矩阵重验等剩余任务只维护在 08 册。
 
-目标：Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程；保留 XML、CLI、转换、公开脚本接口和必要 Node 模块能力。脚本故障不得白屏、杀主进程或永久卡住任务；发行提供 bootstrap/offline 两种运行时策略。
+目标：Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程；保留 XML、CLI、转换、公开脚本接口和必要 Node 模块能力。脚本故障不得白屏、杀主进程或永久卡住任务；Windows/Linux 发行提供 bootstrap/offline 两种运行时策略，macOS 统一使用系统 WKWebView。
 
 本仓库不变更 xresconv-conf / xresloader 协议；Java/JAR 由用户提供。GUI 离线包覆盖 Node/WebView 运行依赖，不附带或升级用户 JDK/JAR。
 
@@ -130,17 +130,17 @@ guardian 的外部截止不依赖 worker 事件循环；取消/超时/关闭/宿
 
 ## 8. 运行时与发行矩阵
 
-`packaging/targets.json` 定义 12 个目标、14 个正式形态产物；当前工作流源码已补齐全量矩阵，执行结果见 08 册。dev.0 实际发布仍是 8 目标/9 产物子集；支持目标与已发布子集分别验收。
+`packaging/targets.json` 定义 12 个可构建目标；正式发行选择 10 个目标、12 个产物，macOS 不重复发布 offline DMG。当前工作流源码与精确聚合集合同步，执行结果见 08 册。dev.0 实际发布仍是 8 目标/9 产物子集；支持目标与已发布子集分别验收。
 
 - Windows x64/ARM64：bootstrap/offline 均为 7z；bootstrap 附 Evergreen 引导器，offline 内嵌 Fixed Version，系统 Evergreen 优先。
-- macOS x64/arm64：DMG，两变体使用系统 WKWebView；Portable 构建验证另产未签名 .app.zip。
+- macOS x64/arm64：只发布 bootstrap DMG，统一使用系统 WKWebView；Portable 构建验证另产未签名 .app.zip。
 - Linux x86_64/aarch64：bootstrap 系统 WebKitGTK tar.zst；offline 自含 AppImage + tar.zst。
 
 **dev.0 已发布 Windows 包仍是 bootstrap ZIP / offline tar.zst。** 7z 是当前源码/下一轮发行约定，不能追记成已发布格式。最低版本、语言策略、逐文件校验和人工环境矩阵见 [05 册](docs/plan/05-packaging-release.md)。
 
 ## 9. CI 与发布
 
-`ci.yml` 执行 Node/Rust 门禁及 Windows/Linux 桌面测试；`portable-build.yml` 校验 macOS/Linux 双架构 8 个产物；`release.yml` 的全量 14 产物矩阵支持仅构建入口，v3 tag 才进入 draft 写入任务；`stale.yml` 保持维护语义。Action 使用已核验的稳定 v 数字标签；已运行结果见 [发布核对记录](docs/plan/records/RELEASE-2026-10-03.md)，不将新工作流源码检查当成 CI 通过。
+`ci.yml` 执行 Node/Rust 门禁及 Windows/Linux 桌面测试；`portable-build.yml` 校验 macOS/Linux 双架构 8 个产物；`release.yml` 的全量 12 产物矩阵支持仅构建入口，v3 tag 才进入 draft 写入任务；`stale.yml` 保持维护语义。Action 使用已核验的稳定 v 数字标签；首轮结果见 [发布核对记录](docs/plan/records/RELEASE-2026-10-03.md)，本轮桌面/缓存修复与 macOS 精简见 [CI 记录](docs/plan/records/CI-E2E-2026-10-03.md)，不将新工作流源码检查当成 CI 通过。
 
 PR/普通构建不发布；正式写 release 仅聚合 job 授权。不覆盖已发布版本；下一轮候选必须绑定最终提交、运行时版本、介质哈希和适用验收，不沿用另一构建的报告。
 
@@ -182,6 +182,6 @@ C01–C15、R01–R12、I01–I14 的类别约定和 CF/SC/EX/UI/PK 具体步骤
 - [x] dev.0 发布子集、CI 聚合和第一轮用户验证记录。
 - [ ] dev.1 最终归档：Windows/Linux x64 已复验，macOS 四 DMG 已原生构建；Linux ARM64 release 环境修复及全量聚合待新候选 CI（R7）。
 - [x] XML 独立解析和细分预算，故障/取消/关闭与 100k 回归（R3）。
-- [x] Windows/Linux ARM64 交叉打包（R4，运行免验）；本地 10 产物与边车集合/hash 通过，全量 14 产物 CI 配置已补齐。
+- [x] Windows/Linux ARM64 交叉打包（R4，运行免验）；本地 10 产物与边车集合/hash 通过，正式 CI 集合按 macOS 去重调整为 12 产物。
 - [ ] 全目标离线/运行时/路径/升级替换/清理/性能实机证据，关闭 G5/G6（R5）。
 - [ ] 签名渠道的签名/公证/离线 Gatekeeper（R6，受控环境后续项；当前未签名预发布单独说明）。

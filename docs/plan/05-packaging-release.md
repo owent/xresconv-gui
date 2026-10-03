@@ -4,16 +4,16 @@
 
 本册只维护当前约定。NSIS/DEB/RPM、tar.gz 和早期 Portable 范围已被用户的便携归档决策取代，实施/原型证据见 [P5 记录](records/README.md)、[P5-11](records/P5-11.md) 与 [发行审查](records/REVIEW-2026-09-29.md)。
 
-**第一轮 dev.0 已发布并由用户完成验证**，其 Windows 产物为 ZIP/tar.zst。当前 dev.1 Windows 约定为双 7z；首次发行的旧格式不能作为新格式验收。首轮 CI、本地最终包、当前 `9967c38` 的构建与修复证据分别见 [发布核对](records/RELEASE-2026-10-03.md) / [执行记录](records/EXECUTION-2026-10-03.md) / [CI 修复记录](records/CI-FIX-2026-10-03.md)，活动状态只维护在 08 册。
+**第一轮 dev.0 已发布并由用户完成验证**，其 Windows 产物为 ZIP/tar.zst。当前 dev.1 Windows 约定为双 7z；首次发行的旧格式不能作为新格式验收。首轮 CI、本地最终包和 ARM64 依赖修复见 [发布核对](records/RELEASE-2026-10-03.md) / [执行记录](records/EXECUTION-2026-10-03.md) / [CI 修复记录](records/CI-FIX-2026-10-03.md)；当前桌面/缓存修复与 macOS 发布精简见 [本轮记录](records/CI-E2E-2026-10-03.md)，活动状态只维护在 08 册。
 
 ## 目标、产物和身份
 
-`packaging/targets.json` 与 schema 是目标/manifest 唯一来源；`matrix.ts` 生成命名与精确集合。当前 12 目标/14 正式形态产物：
+`packaging/targets.json` 与 schema 是目标/manifest 唯一来源；`matrix.ts` 生成命名与精确集合。当前 12 个可构建目标中，10 个正式发行目标产生 12 个产物：
 
 | 平台/架构 | bootstrap | offline | 全量产物数 |
 | --- | --- | --- | --- |
 | Windows x64 / arm64 | 7z，系统 Evergreen + 包内引导器 | 7z，包内 Fixed Version，系统 Evergreen 优先 | 4 |
-| macOS x64 / arm64 | DMG，系统 WKWebView | DMG，系统 WKWebView | 4 |
+| macOS x64 / arm64 | DMG，系统 WKWebView | 不重复发布；本地/Portable 入口保留 | 2 |
 | Linux x86_64 / aarch64 | tar.zst，系统 WebKitGTK | AppImage + tar.zst，自含运行时闭包 | 6 |
 
 文件名为 `xresconv-gui-<version>-<os>-<arch>-<variant>.<ext>`，不带 distro 段；每个产物附 `.sha256`。版本与 Tauri/根 package 一致，OS/架构/triple 对应。拒绝重复、缺失、未知目标及穿越路径；敏感信息不回显。
@@ -48,9 +48,9 @@
 
 ## macOS
 
-最低 macOS 13.5；原生 x64/arm64 分别构建。两命名变体 `webviewStrategy=system-only`，使用系统 WKWebView，系统不足只能升级 OS，offline 不能补装独立 WKWebView。
+最低 macOS 13.5；原生 x64/arm64 分别构建。两命名变体 `webviewStrategy=system-only`，使用系统 WKWebView，系统不足只能升级 OS，offline 不能补装独立 WKWebView。两个变体的运行时负载没有差异；manifest 变体字段和构建元数据不构成独立运行时策略。
 
-Finder/终端/Applications、中文/空格/只读目录须正确定位 Resources、随包 Node 与各角色。正式 release CI 输出四种 DMG；Portable 构建验证用 `--portable --variant=offline` 输出未签名 `.app.zip`（ditto），它不验证 DMG 介质。
+Finder/终端/Applications、中文/空格/只读目录须正确定位 Resources、随包 Node 与各角色。正式 release CI 仅输出 x64/arm64 两个 bootstrap DMG；已发布旧产物不删除。本地 offline 目标及 Portable 的 `--portable --variant=offline` 未签名 `.app.zip`（ditto）兼容入口保留，Portable 不验证 DMG 介质。
 
 目前无苹果开发者证书，未签名开发预发布如实登记。签名渠道 R6 在受控环境按嵌套代码→app→介质顺序核验 entitlements/签名、公证/stapling 和断网首次 Gatekeeper；不以禁用保护替代。签名后不再 strip/改写可执行文件，最终哈希按签名后介质重算。
 
@@ -71,13 +71,15 @@ AppImage 构建环境须显式安装 `xdg-utils`：当前 Tauri bundler 会从 `
 | 入口 | 当前范围 | 出口/边界 |
 | --- | --- | --- |
 | ci.yml | Node/Rust 门禁，三引擎浏览器，Windows/Linux 真实桌面 | 不执行 macOS 真桌面或全目标离线 VM |
-| release.yml | Windows/Linux/macOS 双架构全量构建；Windows 双 7z、Linux 三产物、macOS 双 DMG | 12 目标→14 产物及边车；手动或 build/validate-* 分支仅核验/上传 Actions 产物，只有 v3 tag push 才创建 draft；源码已补齐，远端执行结果单独记录 |
+| release.yml | Windows/Linux/macOS 双架构全量构建；Windows 双 7z、Linux 三产物、macOS 每架构一个 bootstrap DMG | 10 发行目标→12 产物及边车；手动或 build/validate-* 分支仅核验/上传 Actions 产物，只有 v3 tag push 才创建 draft；远端执行结果单独记录 |
 | portable-build.yml | macOS 双架构 offline app.zip；Linux 双架构 bootstrap tar.zst + offline AppImage/tar.zst | 精确 8 产物；解包/manifest 身份/逐文件 hash/包内 Node，Linux 另验运行时；无 release 写权限 |
 | stale.yml | 既有 90 天/标签维护语义 | 最小 issues/PR 权限 |
 
-Action 使用已核验稳定 v 数字标签。先固定 Node/Corepack/Yarn 再缓存/immutable 安装；Rust 门禁使用 --locked，发行输入包含 Cargo.lock。production 与 E2E 构建分离；每个外部命令检查退出码，失败日志/截图/清理均留证据，不上传敏感配置。
+Action 使用已核验稳定 v 数字标签。Node 安装后调用仓库 `.github/actions/setup-yarn`：Yarn 4.18.1，`enableGlobalCache=false`，显式 archives 目录 `build/yarn-cache`；key 包含 OS/架构及 yarn.lock/.yarnrc.yml/package.json，restore 前缀只在同 OS/架构复用。始终执行 immutable 安装，成功后立即保存，后续测试失败不丢已下载缓存；不缓存 node_modules。
 
-`scripts/verify-release.ts --target=<os>/<distro-or-dash>/<arch>/<variant>` 的键集合与 build job 同步；已发布矩阵当前 distro 段为 `-`。不传 target 校验完整 14 产物；子集校验也必须集合相等，拒绝多余/缺失/错误边车，并计算实际 SHA-256。聚合通过证明当时构建产物，不替代完整实机/签名验收。
+Rust 门禁使用 --locked，发行输入包含 Cargo.lock。所有 rust-cache workspace 显式设 `. -> target`，质量/桌面/生产用途 key 分离；desktop 失败也保存依赖与 cargo bin，tauri-driver 固定为 2.1.0。APT 库正常安装，Windows msedgedriver 与实际 WebView2 精确匹配。缓存命中不是验证通过；每个外部命令检查退出码，失败日志/截图/清理均留证据，不上传敏感配置。
+
+`scripts/verify-release.ts --target=<os>/<distro-or-dash>/<arch>/<variant>` 的键集合与 build job 同步；发行矩阵当前 distro 段为 `-`。不传 target 校验完整 12 产物；子集校验也必须集合相等，拒绝多余/缺失/错误边车，并计算实际 SHA-256。macOS offline DMG 即使带正确 hash 也属于多余产物。聚合通过证明当时构建产物，不替代完整实机/签名验收。
 
 已有 tag 触发 release；发布权限仅聚合 job，PR 不接触签名密钥，不覆盖已发布版本。runner 无目标平台/干净状态时由维护者导入绑定 digest 的实机记录，不能用交叉编译代替。
 

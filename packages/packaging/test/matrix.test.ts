@@ -8,7 +8,7 @@ const VERSION = "3.0.0-dev.1";
 describe("buildMatrix (CI-06 aggregate input)", () => {
   it("yields one row per shipped artifact with full metadata", () => {
     const matrix = buildMatrix(realTargetsFile(), VERSION);
-    expect(matrix).toHaveLength(14);
+    expect(matrix).toHaveLength(12);
     for (const row of matrix) {
       expect(row.name.length).toBeGreaterThan(0);
       expect(row.sha256Name).toBe(`${row.name}.sha256`);
@@ -50,10 +50,10 @@ describe("buildMatrix (CI-06 aggregate input)", () => {
       .flatMap((t) => releaseArtifacts(t, VERSION).map((a) => a.name))
       .sort();
     expect(fromMatrix).toEqual(fromNaming);
-    expect(new Set(fromMatrix).size).toBe(14);
+    expect(new Set(fromMatrix).size).toBe(12);
   });
 
-  it("format counts: Windows 7z 4, dmg 4, AppImage 2, Linux tar.zst 4", () => {
+  it("format counts: Windows 7z 4, dmg 2, AppImage 2, Linux tar.zst 4", () => {
     const matrix = buildMatrix(realTargetsFile(), VERSION);
     const counts = new Map<string, number>();
     for (const row of matrix) {
@@ -61,7 +61,7 @@ describe("buildMatrix (CI-06 aggregate input)", () => {
     }
     expect(Object.fromEntries(counts)).toEqual({
       "7z": 4,
-      dmg: 4,
+      dmg: 2,
       appimage: 2,
       "tar.zst": 4,
     });
@@ -69,14 +69,12 @@ describe("buildMatrix (CI-06 aggregate input)", () => {
 });
 
 describe("selectMatrix (release CI built-subset verification)", () => {
-  // dev.0 的历史构建子集，保留对显式 --target 子集预检的验证。
+  // Explicit subset verification uses current shipped target keys.
   const CI_KEYS = [
     "windows/-/x64/bootstrap",
     "windows/-/x64/offline",
     "macos/-/x64/bootstrap",
-    "macos/-/x64/offline",
     "macos/-/arm64/bootstrap",
-    "macos/-/arm64/offline",
     "linux/-/x86_64/bootstrap",
     "linux/-/x86_64/offline",
   ];
@@ -90,9 +88,7 @@ describe("selectMatrix (release CI built-subset verification)", () => {
       "xresconv-gui-3.0.0-dev.1-linux-x86_64-offline.AppImage",
       "xresconv-gui-3.0.0-dev.1-linux-x86_64-offline.tar.zst",
       "xresconv-gui-3.0.0-dev.1-macos-arm64-bootstrap.dmg",
-      "xresconv-gui-3.0.0-dev.1-macos-arm64-offline.dmg",
       "xresconv-gui-3.0.0-dev.1-macos-x64-bootstrap.dmg",
-      "xresconv-gui-3.0.0-dev.1-macos-x64-offline.dmg",
       "xresconv-gui-3.0.0-dev.1-windows-x64-bootstrap.7z",
       "xresconv-gui-3.0.0-dev.1-windows-x64-offline.7z",
     ]);

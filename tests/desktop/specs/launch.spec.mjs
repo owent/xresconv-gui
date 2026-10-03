@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { waitForAppTitle } from "../readiness.mjs";
 
 
 const withEmptyState = process.env.XRESCONV_E2E_INPUT ? describe.skip : describe;
@@ -23,6 +24,7 @@ withEmptyState("xresconv-gui desktop skeleton", () => {
     await browser.switchToWindow(handles[0]);
   });
   it("creates the main window with the app title", async () => {
+    await waitForAppTitle(browser);
     const title = await browser.getTitle();
     assert.strictEqual(title, "xresconv-gui");
   });

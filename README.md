@@ -33,15 +33,17 @@
 Windows 包实际为 bootstrap `.zip` / offline `.tar.zst`；下文的双 `.7z` 是当前源码的下一轮发行格式。
 下载和解压时以对应 Release 的文件名为准；最新发布与验证范围见[发布核对记录](docs/plan/records/RELEASE-2026-10-03.md)。
 
-发行目标区分 **bootstrap** 和 **offline** 两种变体，文件名中以
+Windows/Linux 发行目标区分 **bootstrap** 和 **offline** 两种变体，文件名中以
 `-bootstrap` / `-offline` 区分（如 `xresconv-gui-<版本>-windows-x64-bootstrap.7z`、
 `xresconv-gui-<版本>-windows-x64-offline.7z`）。两者应用功能完全相同，
 区别仅在于对系统 WebView 运行时的准备方式：
 
 | 变体 | 体积 | WebView 运行时 | 适用场景 |
 | --- | --- | --- | --- |
-| **bootstrap** | 较小 | 复用系统运行时；缺失时 Windows 提示手动运行包内 WebView2 安装器，Linux 预检提示安装 WebKitGTK，macOS 需升级系统 | 有网络、系统已具备或可安装运行时 |
-| **offline** | 较大 | Windows 包内含 WebView2 Fixed Version，Linux 包内含 WebKitGTK 闭包；macOS 仍使用系统 WKWebView | 无法联网或缺少 Windows/Linux 运行时的机器 |
+| **bootstrap** | 较小 | 复用系统运行时；缺失时 Windows 提示手动运行包内 WebView2 安装器，Linux 预检提示安装 WebKitGTK | 有网络、系统已具备或可安装运行时 |
+| **offline** | 较大 | Windows 包内含 WebView2 Fixed Version，Linux 包内含 WebKitGTK 闭包 | 无法联网或缺少 Windows/Linux 运行时的机器 |
+
+macOS 使用系统 WKWebView，当前发行工作流仅提供每架构一个 **bootstrap DMG**，可离线运行；最低要求为 macOS 13.5，系统不足时须升级 OS。旧发行的 offline DMG 使用相同系统运行时，后续不重复发布。
 
 > 归档格式：Windows 两种变体均为 `.7z`，用 7-Zip 等兼容工具解压后运行；
 > Linux 提供 `.tar.zst`（用支持 zstd 的 tar 或 7-Zip 解压）和 offline AppImage；
@@ -51,7 +53,7 @@ Windows 包实际为 bootstrap `.zip` / offline `.tar.zst`；下文的双 `.7z` 
 
 + **大多数用户优先选 bootstrap**：体积小，现代 Windows 10/11 通常已预装
   WebView2、主流 Linux 桌面自带 WebKitGTK、macOS 使用系统 WKWebView，一般可直接运行。
-+ 目标机器 **无法联网**、位于隔离内网，或明确缺少对应运行时时选 **offline**，
++ Windows/Linux 目标机器 **无法联网**、位于隔离内网，或明确缺少对应运行时时选 **offline**，
   避免首次启动因缺少运行时而卡在联网引导步骤。
 + **macOS** 两种变体都只使用系统自带的 WKWebView（无独立可安装的 WebView 运行时）：
   bootstrap 在系统过旧时引导升级 macOS，offline 可在受支持系统（macOS 13.5+）上

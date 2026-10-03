@@ -105,7 +105,12 @@ export function releaseArtifacts(
   target: ReleaseTarget,
   version: string,
 ): Array<{ name: string; format: ArtifactFormat | PortableFormat }> {
-  if (target.os === "macos") return [{ name: artifactName(target, version), format: "dmg" }];
+  // Both macOS build variants use system WKWebView. Keep local/Portable
+  // compatibility, but publish one bootstrap DMG per architecture.
+  if (target.os === "macos")
+    return target.variant === "bootstrap"
+      ? [{ name: artifactName(target, version), format: "dmg" }]
+      : [];
   return portableFormats(target).map((format) => ({
     name: portableArtifactName(target, version, format),
     format,

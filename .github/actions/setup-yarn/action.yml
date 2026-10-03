@@ -1,0 +1,38 @@
+name: Install pinned Yarn dependencies
+description: Restore package archives, always install immutable, and save before later tests can fail.
+runs:
+  using: composite
+  steps:
+    - name: Restore Yarn package archives
+      id: yarn-cache
+      uses: actions/cache/restore@v6.1.0
+      with:
+        path: ${{ github.workspace }}/build/yarn-cache
+        key: yarn-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('yarn.lock', '.yarnrc.yml', 'package.json') }}
+        restore-keys: yarn-${{ runner.os }}-${{ runner.arch }}-
+    - name: Install immutable (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        corepack enable
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        corepack yarn install --immutable
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      env:
+        YARN_ENABLE_GLOBAL_CACHE: "false"
+        YARN_CACHE_FOLDER: ${{ github.workspace }}/build/yarn-cache
+    - name: Install immutable (POSIX)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        corepack enable
+        corepack yarn install --immutable
+      env:
+        YARN_ENABLE_GLOBAL_CACHE: "false"
+        YARN_CACHE_FOLDER: ${{ github.workspace }}/build/yarn-cache
+    - name: Save Yarn package archives after install
+      if: steps.yarn-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6.1.0
+      with:
+        path: ${{ github.workspace }}/build/yarn-cache
+        key: ${{ steps.yarn-cache.outputs.cache-primary-key }}

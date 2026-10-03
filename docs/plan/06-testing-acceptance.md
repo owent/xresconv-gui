@@ -49,7 +49,7 @@ Linux 权限用例须以普通用户运行，root/CAP_DAC_OVERRIDE 会绕过只�
 
 ### 交付与运行时类别 I01–I14
 
-每个正式支持的 OS × 发行版版本 × 架构 × bootstrap/offline 均执行下列适用用例；macOS 的系统 WebView 特例按05 册 macOS 约定验收。
+每个正式支持的 OS × 发行版版本 × 架构 × 发行变体均执行下列适用用例；Windows/Linux 覆盖 bootstrap/offline，macOS 只发布 bootstrap，系统 WebView 特例按 05 册约定验收。
 
 | 测试 ID | 初始状态/操作 | 必须断言 |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ EX05 不仅比较 exit code 或文件存在。确定性格式做字节比较；�
 | UI07 | 日志筛选/分页/复制、允许富文本、事件属性/script/dangerous URL | 正常显示保留，无 WebView 执行或 Tauri 越权 | F10、C13、R12 |
 | UI08 | 三平台真实 WebView、明暗主题、DPI/缩放/长中文、原生对话框/CLI | 布局、可访问性和启动参数一致，不依赖 CDN/开发服务器 | F11/F12、C14 |
 
-浏览器层使用 Playwright Chromium/WebKit/Firefox；真实应用层使用 WDIO Tauri service 的 embedded provider，覆盖三平台。官方目前提供测试专用 Rust 插件，必须用独立 feature 启用；production 包扫描和启动验证不得残留测试服务。[Tauri 测试文档](https://v2.tauri.app/develop/tests/webdriver/)、[WDIO Tauri](https://webdriver.io/docs/desktop-testing/tauri/)
+浏览器层使用 Playwright Chromium/WebKit/Firefox；当前真实应用层由 `tests/desktop/run.mjs` 管理外部 tauri-driver，WebdriverIO 直接连接它，再由 Windows msedgedriver / Linux WebKitWebDriver 驱动真实系统 WebView。CI 覆盖 Windows/Linux，macOS 留待单独验证；本仓库未使用 embedded provider 或测试专用 Rust 插件。上游另提供支持 macOS 的 embedded 方案，不能据此声称当前仓库覆盖三平台。[Tauri 测试文档](https://v2.tauri.app/develop/tests/webdriver/)、[WDIO Tauri](https://webdriver.io/docs/desktop-testing/tauri/)
 
 原生文件对话框可在大部分 E2E 中通过 adapter 注入选择结果，以保证稳定性，但这只能证明应用处理逻辑。每平台仍需一次真实系统对话框打开/选择/取消的自动化或人工记录；不能宣称 DOM 自动化完整覆盖系统窗口。
 
@@ -242,15 +242,17 @@ cleanupResult / retryHistory / unsupportedCases / verdict
 - P6-01 映射审查/14 项子场景补齐与 P6-03 Windows 100 轮泄漏循环已完成，见 [P6-01](records/P6-01.md)。
 - P6-02 自动化差分与真实项目已完成本机复验：八格式 JAR、官方 sample、五真实脚本；atsf4g-co 13 条目/26 任务/26 文件成功，见 [P6-06](records/P6-06.md)。
 - P6-05 Windows 本机大小/吞吐/交互门槛达标，P6-06 为本机范围汇总；不是全平台 G6。
-- dev.0 首次发布/第一轮用户验证与当前 HEAD Windows/Linux CI、macOS/Linux Portable 已核对，见 [发布记录](records/RELEASE-2026-10-03.md)。
-- 本轮 XML 隔离、Windows/Linux 门禁与最终包结果见 [执行记录](records/EXECUTION-2026-10-03.md)；P6-04、额外实机与签名范围集中至 [R2–R6](08-release-follow-up.md)，不维护第二份任务表。
+- dev.0 首次发布/第一轮用户验证见 [发布记录](records/RELEASE-2026-10-03.md)；9967c38 的 release 依赖失败见 [CI 修复记录](records/CI-FIX-2026-10-03.md)，651ea5e 的标题/Yarn 竞态及当前修复见 [桌面/缓存记录](records/CI-E2E-2026-10-03.md)。
+- XML 隔离、Windows/Linux 门禁与最终包结果见 [执行记录](records/EXECUTION-2026-10-03.md)；当前本地回归与两平台桌面见桌面/缓存记录；额外实机、签名与 CI 后续范围集中至 [08 册](08-release-follow-up.md)，不维护第二份任务表。
 
-## 当前自动化入口补充（2026-09-27）
+## 当前自动化入口补充（2026-10-04 核对）
 
 - 单元/契约入口保持 `corepack yarn test:unit` / `test:contracts`；本轮外层限时运行器及日志索引见审查记录。
 - `test:browser` 使用本次生产构建启动独占 preview，整体上限 10 分钟，结果写入 `build/browser-test-results/`。工作区测试覆盖详情、输出矩阵、事件、弹框、主题、大字号、窄窗口和 axe。
-- `test:desktop` 显式启动已安装的 tauri-driver / 原生 WebDriver，不隐式下载或附加测试插件。构建上限 30 分钟、驱动就绪 15 秒、每轮测试 5 分钟、连接 15 秒且不重试；结束回收所属进程树。
+- `test:desktop` 显式启动已安装的 tauri-driver / 原生 WebDriver，不隐式下载或附加测试插件。默认执行 `tauri build --debug --no-bundle`；构建上限 30 分钟、驱动就绪 15 秒、每轮测试 5 分钟；WDIO 建连超时 120 秒、重试次数 2，每项 Mocha 用例上限 60 秒。CI job 总上限 40 分钟；结束回收所属进程树。
+- CI 的 `desktop-e2e` 等待 Node/Rust 质量 job 通过后并行运行 Windows/Linux。安装驱动后，Windows 另验证控制台回归并以 medium integrity 运行测试，Linux 用 xvfb-run 提供虚拟显示。默认空会话 9 项、CLI 加载会话 4 项，共 13 项；不将 debug 应用测试当作最终归档/离线介质验收。
 - 桌面默认依次验证空会话、`tests/fixtures/config/tree-items.xml` 的首次 CLI 加载。测试前备份 exe 旁显示设置，每轮重置，最终恢复原字节；`XRESCONV_E2E_INPUT` 可覆盖加载文件，`XRESCONV_E2E_SKIP_BUILD=1` 只用于已确认匹配源码的本地二进制。
+- 首个标题用例经 `waitForAppTitle` 等待导航就绪（30 秒 / 100ms 轮询），再执行原有精确断言；永久空/错误标题仍失败，不添加 spec 重跑。就绪回归由 desktop-e2e workspace 的 `test` 纳入根 `test:unit`。
 - Edge WebDriver 的应用参数使用 `--input=路径`，不能拆成两个数组元素；浏览器标志应放 `webviewOptions.additionalBrowserArguments`。失败截图和 CLI/页面诊断保存在 `build/desktop-test-results/`。
 - 真实转换使用 `tests/fixtures/conversion/runtime.mts` 解析 JAR/样本；缺失时显式跳过，多个 JAR 不猜测版本。配置方法和实跑命令见 [转换测试说明](../../tests/fixtures/conversion/README.md)。统一入口 `corepack yarn test:conversion`（即 `node tests/conversion/run-e2e.mjs`；缺 JAR/样本 exit 2 显式退出，相邻 target 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`）。
 - Linux preflight 回归仅在 Linux 执行，mock sudo/ldconfig 后验证参数保真、分步安装与复检；不会安装系统包。Windows 跳过这两项必须保留在结果中。

@@ -2,7 +2,7 @@
 
 [执行索引](README.md) · [发行约定](05-packaging-release.md) · [测试约定](06-testing-acceptance.md)
 
-更新日期：2026-10-03。第一轮发布与用户验证已完成；后续工作依据当前源码与最终产物推进。活动状态只维护本册，主计划保留摘要；P0–P7 实施细节和历史限制见 [records](records/README.md)。
+更新日期：2026-10-04。第一轮发布与用户验证已完成；后续工作依据当前源码与最终产物推进。活动状态只维护本册，主计划保留摘要；P0–P7 实施细节和历史限制见 [records](records/README.md)。
 
 本轮执行边界（用户 2026-10-03 补充）：不创建或发布 Release；Linux 使用本地 WSL/Debian 验证；ARM64 交叉编译并打包，运行验证免验。证书签名及需要额外实机的人工矩阵不阻塞本轮代码、测试与本地产物交付，也不标为已经验证。
 
@@ -24,8 +24,8 @@
 ```mermaid
 flowchart TD
     Local[本轮 Windows/Linux 与 R3/R4 完成] --> Deliver[交付 10 个本地产物与记录 / 不发布]
-    Mac[R2 macOS 四个 DMG 原生构建完成] --> Full
-    Deliver --> Full[核验全量 14 产物集合]
+    Mac[R8 macOS 仅发布 bootstrap 双架构 DMG] --> Full
+    Deliver --> Full[核验全量 12 产物集合]
     Fix[R7 Linux ARM64 release 依赖修复] --> CI[新候选仅构建 / 不发布]
     CI --> Full
     R5[R5 额外实机矩阵 / 本轮外] --> Future[后续渠道验收]
@@ -36,7 +36,9 @@ flowchart TD
 
 | 任务 | 当前状态 | 前置与范围 | 完成条件 |
 | --- | --- | --- | --- |
-| R7 Linux ARM64 release 构建修复 | doing（本地修复完成，CI 待重验） | `9967c38` 的 release 缺 xdg-utils；同提交 Portable ARM64 三产物及逐文件验证已通过 | 补齐依赖与编译前检查；失败回归、打包单测/类型/工作流检查与 Ubuntu 双架构安装验证通过；修复提交后仅构建入口通过完整 14 产物聚合，不发布 |
+| R7 修复候选 CI 集成重验 | doing（本地完成，远端待新候选） | xdg-utils 修复已提交至 `651ea5e`；该提交 ci 第三次通过，但本轮 R8/R9 仍为未提交工作树 | 新候选仅构建入口通过完整 12 产物聚合；ci/portable 按新配置通过，核对 Yarn/Rust 缓存保存与后续命中；不发布、不重跑旧 tag 代替新候选 |
+| R8 macOS 发布去重 | done（源码与回归范围） | 两变体均使用系统 WKWebView；用户授权取消重复 offline 发布包 | 发布仅 bootstrap 双架构，精确聚合为 12 产物；本地/Portable 入口兼容，额外 offline DMG 拒绝回归通过；见 [本轮记录](records/CI-E2E-2026-10-03.md) |
+| R9 desktop-e2e 与缓存 | done（本地范围） | `651ea5e` 的标题竞态、Yarn 取消异常及缓存配置缺口有日志/源码证据 | Yarn 4.18.1、页面有界等待、Yarn/Rust 缓存及 tauri-driver 2.1.0；754 单测、Windows/Linux 各 13 桌面项及隔离全局镜像的禁网安装通过；远端缓存服务命中归 R7 |
 | R5 额外实机矩阵 | deferred（用户限定的本轮范围之外） | 干净 VM、额外 macOS/Windows/Linux 设备、完整桌面环境矩阵 | 下表保留后续验收口径；不阻塞本轮本地收尾，不冒充已关闭全矩阵 G5/G6；ARM64 运行本轮免验 |
 | R6 签名渠道 | deferred（需受控证书环境） | 当前无苹果开发者证书，沿用未签名开发预发布；确需签名渠道时安排维护者 | 应用/Node/原生模块/介质的签名、公证/stapling 与断网 Gatekeeper 通过；重新计算最终 digest，不沿用签名前介质 |
 
@@ -47,7 +49,7 @@ flowchart TD
 3. 核对 `runtime-manifest.json` 身份及每个文件的存在/大小/SHA-256；并行检查两变体公共业务负载与 Node/模块能力，单独登记不同运行时 payload。
 4. Windows：`7z t` 与解压往返；已有合格 Evergreen、缺失/过旧时 Fixed 回退；窗口 API 检查后台控制台、关闭/取消后的所属子树。缺 runtime 的干净 VM 分支归 R5，不能用当前开发机缓存替代。
 5. `verify:portable` 现支持 Windows 7z、macOS .app.zip、Linux tar.zst/AppImage；Windows 交叉包可用 `--static-only` 静态核验。CLI 不验证 DMG；macOS 仍要求原生构建环境。
-6. 聚合目录固定为 `build/release-artifacts/`；`RELEASE_VERSION` 与候选版本一致。`node scripts/verify-release.ts --target=…` 校验当前实际构建子集；不传 `--target` 按全量 14 产物校验。构建/解包/校验/桌面运行均限时并收尾。
+6. 聚合目录固定为 `build/release-artifacts/`；`RELEASE_VERSION` 与候选版本一致。`node scripts/verify-release.ts --target=…` 校验当前实际构建子集；不传 `--target` 按全量 12 产物校验。构建/解包/校验/桌面运行均限时并收尾。
 
 风险：dev.0 的 ZIP/tar.zst 证据不能覆盖新 7z；成功 CI 测试构建也不能覆盖最终介质。验证失败保留首轮输出，回退对应改动或使用已发布 dev.0 / 稳定 v2.6.0；不覆盖旧 release。
 

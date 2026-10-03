@@ -5,9 +5,9 @@ name: release
 # 内嵌 Fixed Version 运行时完全离线，用支持 7z 的工具解压，
 # 无安装器）；Linux = 发行版无关 tar.zst（bootstrap
 # 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
-# ——两者与 --portable 与否无关；macOS 保持 dmg 双变体（不签名——签名/公证
+# ——两者与 --portable 与否无关；macOS 仅 bootstrap dmg（不签名——签名/公证
 # 在受控发行环境后补，P5-07）。汇总 job 是唯一写 release 的入口，校验产物
-# 名集合与 targets.json 全量 14 产物完全相等后创建
+# 名集合与正式发行的全量 12 产物完全相等后创建
 # draft（不 overwrite，不自动发布）。
 # 旧 v2.x 标签不再触发（D1：旧架构 2.6.0 为终点版本）。
 
@@ -53,13 +53,16 @@ jobs:
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: corepack enable
       - name: Check 7-Zip
         shell: pwsh
         run: |
           7z i > $null
           if ($LASTEXITCODE -ne 0) { throw '7-Zip is required for Windows release archives' }
-      - run: corepack yarn install --immutable
+      - uses: ./.github/actions/setup-yarn
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: . -> target
+          key: release-windows-${{ matrix.arch }}-${{ matrix.variant }}
       - run: corepack yarn package:windows --variant=${{ matrix.variant }} --arch=${{ matrix.arch }}
       # actions/upload-artifact v7.0.1
       - uses: actions/upload-artifact@v7.0.1
@@ -102,8 +105,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev xdg-utils zstd
           test -x /usr/bin/xdg-open
-      - run: corepack enable
-      - run: corepack yarn install --immutable
+      - uses: ./.github/actions/setup-yarn
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: . -> target
+          key: release-linux-${{ matrix.arch }}
       - run: corepack yarn package:linux --variant=${{ matrix.variant }} --distro=${{ matrix.distro }} --arch=${{ matrix.arch }}
       # actions/upload-artifact v7.0.1
       - uses: actions/upload-artifact@v7.0.1
@@ -122,7 +128,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [bootstrap, offline]
+        # WKWebView is part of macOS; publish one DMG per architecture.
+        variant: [bootstrap]
         arch: [x64, arm64]
         include:
           - arch: x64
@@ -138,8 +145,11 @@ jobs:
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: corepack enable
-      - run: corepack yarn install --immutable
+      - uses: ./.github/actions/setup-yarn
+      - uses: Swatinem/rust-cache@v2.9.2
+        with:
+          workspaces: . -> target
+          key: release-macos-${{ matrix.arch }}
       # D5：x64/arm64 分别原生构建（runner 架构须匹配；arm64 用 macos arm64 runner）
       - run: corepack yarn package:macos --variant=${{ matrix.variant }} --arch=${{ matrix.arch }}
 
@@ -165,8 +175,7 @@ jobs:
       - uses: actions/setup-node@v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - run: corepack enable
-      - run: corepack yarn install --immutable
+      - uses: ./.github/actions/setup-yarn
       # actions/download-artifact v8.0.1
       - uses: actions/download-artifact@v8.0.1
         with:

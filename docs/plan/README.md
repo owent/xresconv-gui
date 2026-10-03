@@ -2,14 +2,14 @@
 
 [主计划](../../Plan.md) · [文档索引](../README.md) · [当前任务](08-release-follow-up.md)
 
-更新日期：2026-10-03。**dev.0 已发布并完成用户第一轮验证；本轮继续工作不发布。** 首轮产物见 [发布核对记录](records/RELEASE-2026-10-03.md)；既有本地门禁/最终包见 [执行记录](records/EXECUTION-2026-10-03.md)；当前 `9967c38` 的 CI/Portable、macOS DMG 及 Linux ARM64 release 失败修复见 [CI 修复记录](records/CI-FIX-2026-10-03.md)。P0–P7 的实施记录已收敛为索引，活动任务及本轮免验边界只维护于 [08 册](08-release-follow-up.md)。
+更新日期：2026-10-04。**dev.0 已发布并完成用户第一轮验证；本轮继续工作不发布。** 首轮产物见 [发布核对记录](records/RELEASE-2026-10-03.md)；既有本地门禁/最终包见 [执行记录](records/EXECUTION-2026-10-03.md)；Linux ARM64 依赖修复见 [CI 修复记录](records/CI-FIX-2026-10-03.md)；当前桌面/缓存修复与 macOS 发布精简见 [本轮记录](records/CI-E2E-2026-10-03.md)。P0–P7 的实施记录已收敛为索引，活动任务及本轮免验边界只维护于 [08 册](08-release-follow-up.md)。
 
 ## 阅读顺序与唯一维护位置
 
 | 文件 | 权威内容 | 何时读取 |
 | --- | --- | --- |
 | [主计划](../../Plan.md) | 目标、D1–D6、F01–F12、阶段摘要 | 任务启动 |
-| [08 发行后续任务](08-release-follow-up.md) | 活动任务 R1–R7、状态/前置/完成条件、人工清单 | 继续推进计划、更新进度 |
+| [08 发行后续任务](08-release-follow-up.md) | 任务 R1–R9、状态/前置/完成条件、人工清单 | 继续推进计划、更新进度 |
 | [01 基线与工具链](01-baseline-toolchain.md) | 历史基线入口、当前工具链与升级纪律 | 依赖/工具链/基线变化 |
 | [02 接口与脚本宿主](02-contracts-script-host.md) | IPC、脚本对象/生命周期、监督约定 | 接口/脚本/进程变化 |
 | [03 配置与转换内核](03-domain-conversion.md) | XML/include、事务、计划/Java/日志/取消 | 配置或转换变化 |
