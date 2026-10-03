@@ -15,6 +15,7 @@
 | R2 Windows/Linux x64 最终介质 | done（本机范围） | Windows 双 7z、Linux 三产物逐文件验证；Windows 与 Debian 的 bootstrap/offline 桌面各 13 项通过；运行时和 digest 见 [执行记录](records/EXECUTION-2026-10-03.md) |
 | R3 XML 解析隔离与细分预算 | done | Windows 739 / Linux 731 项通过；浏览器 24、Rust 19/Clippy、两平台真实 JAR 八格式差分通过；隔离/截止/取消/关闭/预算/100k 与加载订阅异常均有回归，设计移入执行记录 |
 | R4 ARM64 交叉打包 | done（运行免验） | Windows 双 7z、Linux bootstrap tar.zst 与 offline AppImage/tar.zst 均已生成；本地 8 目标 / 10 产物及 10 边车集合/hash 通过；ARM64 应用与包内 Node 未运行 |
+| R2 macOS 当前候选介质 | done（原生构建范围） | `9967c38` 的 release 四个 macOS DMG 构建/上传成功；全量 release 聚合被 Linux ARM64 失败阻断，macOS 实机/签名仍另验；见 [CI 修复记录](records/CI-FIX-2026-10-03.md) |
 
 用户未提供第一轮测试的逐平台/用例日志，因此这里只登记“用户确认第一轮完成”，不推断 Windows ARM64、离线 VM、macOS 实机或签名已通过。
 
@@ -23,9 +24,10 @@
 ```mermaid
 flowchart TD
     Local[本轮 Windows/Linux 与 R3/R4 完成] --> Deliver[交付 10 个本地产物与记录 / 不发布]
-    Auth[R2 macOS 原生构建授权] --> Mac[仅构建四个 DMG]
+    Mac[R2 macOS 四个 DMG 原生构建完成] --> Full
     Deliver --> Full[核验全量 14 产物集合]
-    Mac --> Full
+    Fix[R7 Linux ARM64 release 依赖修复] --> CI[新候选仅构建 / 不发布]
+    CI --> Full
     R5[R5 额外实机矩阵 / 本轮外] --> Future[后续渠道验收]
     R6[R6 签名渠道 / 本轮外] --> Future
 ```
@@ -34,7 +36,7 @@ flowchart TD
 
 | 任务 | 当前状态 | 前置与范围 | 完成条件 |
 | --- | --- | --- | --- |
-| R2 macOS 当前候选介质 | awaiting_authorization（缺原生主机） | Windows/Linux x64 部分已完成；macOS 双架构四 DMG 需原生 runner，临时构建分支授权尚未收到 | 仅构建工作流已通过 actionlint/12 目标映射检查；取得授权后运行并核对四 DMG 与全量 14 产物；不创建 tag/Release |
+| R7 Linux ARM64 release 构建修复 | doing（本地修复完成，CI 待重验） | `9967c38` 的 release 缺 xdg-utils；同提交 Portable ARM64 三产物及逐文件验证已通过 | 补齐依赖与编译前检查；失败回归、打包单测/类型/工作流检查与 Ubuntu 双架构安装验证通过；修复提交后仅构建入口通过完整 14 产物聚合，不发布 |
 | R5 额外实机矩阵 | deferred（用户限定的本轮范围之外） | 干净 VM、额外 macOS/Windows/Linux 设备、完整桌面环境矩阵 | 下表保留后续验收口径；不阻塞本轮本地收尾，不冒充已关闭全矩阵 G5/G6；ARM64 运行本轮免验 |
 | R6 签名渠道 | deferred（需受控证书环境） | 当前无苹果开发者证书，沿用未签名开发预发布；确需签名渠道时安排维护者 | 应用/Node/原生模块/介质的签名、公证/stapling 与断网 Gatekeeper 通过；重新计算最终 digest，不沿用签名前介质 |
 

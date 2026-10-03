@@ -13,9 +13,9 @@
 更新日期：2026-10-03。
 
 - **第一轮发布验证完成**：用户确认已发布 [v3.0.0-dev.0](https://github.com/owent/xresconv-gui/releases/tag/v3.0.0-dev.0) 并完成第一轮验证。API 核实为公开预发布（非 draft），对应提交 `990e5d2`，9 个产物 + 9 个 SHA-256 文件；发行与 CI 证据见 [发布核对记录](docs/plan/records/RELEASE-2026-10-03.md)。
-- **当前源码是 `3.0.0-dev.1`**：基底提交 `6b65026` 的 CI/Portable 已通过，未包含本轮未提交改动；本轮 Windows/Linux 门禁和 x64 最终包实测见 [执行记录](docs/plan/records/EXECUTION-2026-10-03.md)。Portable 不构建 Windows 7z 或 macOS DMG。
+- **当前源码是 `3.0.0-dev.1`，HEAD 为 `9967c38`**：该提交 CI/Portable 已通过；release 的 Windows、Linux x64 和 macOS 四 DMG 构建通过，Linux ARM64 因缺少 xdg-utils 失败，聚合未执行。本地修复与证据见 [CI 修复记录](docs/plan/records/CI-FIX-2026-10-03.md)，既有本地门禁/最终包见 [执行记录](docs/plan/records/EXECUTION-2026-10-03.md)。Portable 不构建 Windows 7z 或 macOS DMG。
 - P0–P4 的实施、P5 发行管线、P6 Windows x64 本机范围及 P7 旧架构切换已有证据；完整 G5/G6 跨平台实机验收仍未闭合。第一轮发布不自动覆盖后续代码、归档格式或运行时变更。
-- 本轮边界：不发布；Linux 使用 WSL/Debian，ARM64 交叉打包后运行免验。XML 隔离、Windows/Linux x64 最终包和门禁已有本轮证据；剩余任务及 macOS 原生构建前置只维护在 08 册。
+- 本轮边界：不发布；Linux 使用 WSL/Debian，ARM64 交叉打包后运行免验。XML 隔离、Windows/Linux x64 最终包和门禁已有本轮证据；macOS 原生构建已取得 CI 证据，发行矩阵重验等剩余任务只维护在 08 册。
 
 目标：Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程；保留 XML、CLI、转换、公开脚本接口和必要 Node 模块能力。脚本故障不得白屏、杀主进程或永久卡住任务；发行提供 bootstrap/offline 两种运行时策略。
 
@@ -151,7 +151,7 @@ PR/普通构建不发布；正式写 release 仅聚合 job 授权。不覆盖已
 | P0/P1 | 旧基线、D1–D6、Yarn/工具链、Node 工作区与桌面桥 | [01 册](docs/plan/01-baseline-toolchain.md)、P0/P1 records |
 | P2/P3 | 公开脚本约定、监督、配置/计划/Java/日志与真实 JAR 差分 | [02](docs/plan/02-contracts-script-host.md)/[03](docs/plan/03-domain-conversion.md)；XML 解析隔离另见 R3 |
 | P4 | React UI、虚拟化、三引擎及 Windows/Linux 桌面自动化 | [04 册](docs/plan/04-ui.md)；macOS 实机另验 |
-| P5 | 发行管线、基底提交的 macOS/Linux Portable、dev.0 子集与本轮 Windows/Linux 本地交付 | [05 册](docs/plan/05-packaging-release.md)、本轮执行记录；macOS 当前候选需原生构建 |
+| P5 | 发行管线、dev.0 子集、本地 Windows/Linux 交付与 dev.1 CI/Portable | [05 册](docs/plan/05-packaging-release.md)、本轮执行/CI 修复记录；macOS 四 DMG 已构建，全量 release 聚合待重验 |
 | P6 | Windows x64 功能/真实项目/性能/100 轮泄漏循环 | [P6-06](docs/plan/records/P6-06.md)；全矩阵 G5/G6 仍待实机 |
 | P7 | 旧架构移除、文档/回退交接、第一轮预发布 | [07 册](docs/plan/07-cutover.md)；正式全矩阵交付另验 |
 
@@ -180,7 +180,7 @@ C01–C15、R01–R12、I01–I14 的类别约定和 CF/SC/EX/UI/PK 具体步骤
 - [x] 新架构、唯一 JS 锁、契约/真实样本、公开脚本兼容、Windows 本机性能与恢复证据。
 - [x] README/CHANGELOG/AI 指引与 v2.6.0 回退路径；旧 Electron 架构已移除。
 - [x] dev.0 发布子集、CI 聚合和第一轮用户验证记录。
-- [ ] dev.1 最终归档：Windows/Linux x64 已复验，macOS 四 DMG 尚需原生构建（R2）。
+- [ ] dev.1 最终归档：Windows/Linux x64 已复验，macOS 四 DMG 已原生构建；Linux ARM64 release 环境修复及全量聚合待新候选 CI（R7）。
 - [x] XML 独立解析和细分预算，故障/取消/关闭与 100k 回归（R3）。
 - [x] Windows/Linux ARM64 交叉打包（R4，运行免验）；本地 10 产物与边车集合/hash 通过，全量 14 产物 CI 配置已补齐。
 - [ ] 全目标离线/运行时/路径/升级替换/清理/性能实机证据，关闭 G5/G6（R5）。

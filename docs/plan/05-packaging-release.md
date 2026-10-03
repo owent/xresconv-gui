@@ -4,7 +4,7 @@
 
 本册只维护当前约定。NSIS/DEB/RPM、tar.gz 和早期 Portable 范围已被用户的便携归档决策取代，实施/原型证据见 [P5 记录](records/README.md)、[P5-11](records/P5-11.md) 与 [发行审查](records/REVIEW-2026-09-29.md)。
 
-**第一轮 dev.0 已发布并由用户完成验证**，其 Windows 产物为 ZIP/tar.zst。当前 dev.1 Windows 约定为双 7z；首次发行的旧格式不能作为新格式验收。基底提交 CI 与本轮未提交源码的最终包证据分别见 [发布核对](records/RELEASE-2026-10-03.md) / [执行记录](records/EXECUTION-2026-10-03.md)，活动状态只维护在 08 册。
+**第一轮 dev.0 已发布并由用户完成验证**，其 Windows 产物为 ZIP/tar.zst。当前 dev.1 Windows 约定为双 7z；首次发行的旧格式不能作为新格式验收。首轮 CI、本地最终包、当前 `9967c38` 的构建与修复证据分别见 [发布核对](records/RELEASE-2026-10-03.md) / [执行记录](records/EXECUTION-2026-10-03.md) / [CI 修复记录](records/CI-FIX-2026-10-03.md)，活动状态只维护在 08 册。
 
 ## 目标、产物和身份
 
@@ -57,6 +57,8 @@ Finder/终端/Applications、中文/空格/只读目录须正确定位 Resources
 ## Linux
 
 发行无 distro 段；原生 x86_64/aarch64 在 Ubuntu 22.04 最老构建基线生成（glibc 2.35）。运行环境仍覆盖 D2：Ubuntu 22.04/24.04、Debian 12/13、Fedora 最近两个正式版本；GNOME/KDE、X11/Wayland 实机验证。
+
+AppImage 构建环境须显式安装 `xdg-utils`：当前 Tauri bundler 会从 `/usr/bin/xdg-open` 复制文件到 AppDir，不能依赖 runner 预装。release/portable 两入口在依赖安装后以 `test -x /usr/bin/xdg-open` 提前检查；缺失依赖回归与同提交 ARM64 Portable 成功对照见 CI 修复记录。
 
 - bootstrap tar.zst：裸程序/Node/app/manifest/preflight.sh 平铺；复用系统 WebKitGTK 4.1 ≥2.38。先经不依赖 GTK/WebKit 的 preflight 给缺库/安装指引，参数、cwd、退出码、信号保真；不自动永久修改软件源。
 - offline：自含 AppImage 与同闭包解包重压 tar.zst 并存；无缓存/无网络的最小/已更新桌面验证 GPU/EGL、字体、IME、媒体、D-Bus/portal 等集成，不以拷贝单个 webkit 库证明完整性。
