@@ -2,12 +2,15 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+const yarnVersion = /^yarn@(\d+\.\d+\.\d+)$/.exec(pkg.packageManager)?.[1];
+
 const expected = {
   node: {
     min: [24, 0, 0],
-    label: "Node.js >=24 (bundled sidecar target: 26.10.0 Current, compat baseline: 24.21.0 LTS)",
+    label: "Node.js >=24 (package.json engines; bundled runtime follows packaging/targets.json)",
   },
-  yarn: { exact: "4.18.0", label: "Yarn 4.18.0 (via corepack packageManager)" },
+  yarn: { exact: yarnVersion, label: `Yarn ${yarnVersion} (package.json packageManager)` },
   rust: { exact: "1.98.1", label: "Rust 1.98.1 (rust-toolchain.toml)" },
 };
 
@@ -35,7 +38,7 @@ try {
 }
 
 try {
-  const y = run("yarn", ["--version"]);
+  const y = run(process.platform === "win32" ? "corepack.cmd" : "corepack", ["yarn", "--version"]);
   check("yarn", y === expected.yarn.exact, `found ${y}, require ${expected.yarn.label}`);
 } catch (e) {
   check("yarn", false, `not runnable: ${String(e)}`);
@@ -50,10 +53,9 @@ try {
 }
 
 try {
-  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
   check(
     "packageManager",
-    pkg.packageManager === `yarn@${expected.yarn.exact}`,
+    yarnVersion !== undefined,
     `package.json packageManager=${pkg.packageManager}`,
   );
 } catch (e) {

@@ -524,7 +524,25 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       loadingConfig = true;
       const logCutoff = logLocalSeq;
       try {
-        const snapshot = await backendRpc<BackendSnapshot>("loadConfig", { path });
+        const deadline = Date.now() + STARTUP_RETRY_TIMEOUT_MS;
+        let snapshot: BackendSnapshot;
+        for (;;) {
+          if (epoch !== sessionEpoch) return false;
+          try {
+            snapshot = await backendRpc<BackendSnapshot>("loadConfig", { path });
+            break;
+          } catch (error) {
+            // BACKEND_NOT_READY 确认请求尚未执行；保持同一次加载和代际，
+            // 600ms 重试，30s 后显示错误。超时/断连/配置错误不重放。
+            if (
+              !isRetryableStartupError(describeError(error)) ||
+              Date.now() + STARTUP_RETRY_INTERVAL_MS > deadline
+            ) {
+              throw error;
+            }
+            await new Promise((resolve) => setTimeout(resolve, STARTUP_RETRY_INTERVAL_MS));
+          }
+        }
         if (epoch !== sessionEpoch) return false;
         storeSnapshot(snapshot, true, logCutoff);
         // 显示设置：记住上次转换列表（下次启动自动加载；无桥接时静默跳过）。

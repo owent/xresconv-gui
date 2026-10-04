@@ -7,8 +7,8 @@
  * 瞬态的：静默重试直到成功或超时，不作为可见错误弹出；业务错误
  * （CONFIG_ERROR/文件不存在等）不在此列，立即失败保持可见。
  *
- * 消费方：display-settings 自动加载重试、session-store initLogs 初始拉取重试
- * （两处共享同一判定，避免词表漂移）。
+ * 消费方：配置加载（手动与自动）、启动选择器和初始日志拉取。
+ * 共享同一判定，避免词表漂移。
  */
 export const STARTUP_RETRY_INTERVAL_MS = 600;
 export const STARTUP_RETRY_TIMEOUT_MS = 30_000;

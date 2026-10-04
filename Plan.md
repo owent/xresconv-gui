@@ -4,7 +4,7 @@
 
 ## 0. 执行入口与分册
 
-本文件只保留目标、稳定边界、功能编号和当前进度。接口/平台/测试细节由 [docs/plan 索引](docs/plan/README.md) 路由；已完成任务的实施过程与原始记录保留在 [records](docs/plan/records/README.md)。下一项工作直接读取 [发行后续任务](docs/plan/08-release-follow-up.md)。
+本文件只保留目标、稳定边界、功能编号和当前进度。接口/平台/测试细节由 [docs/plan 索引](docs/plan/README.md) 路由；已完成任务的实施过程与原始记录保留在 [records](docs/plan/records/README.md)。当前完成范围与后续任务入口见 [08 册](docs/plan/08-release-follow-up.md)。
 
 测试必须有超时及所属进程清理；临时产物放 `build/<task>/`。真实转换可复用相邻 xresloader 的 JAR/sample，但多 JAR 时须显式选择，不能猜测。
 
@@ -12,9 +12,10 @@
 
 更新日期：2026-10-04。
 
-- **实现、桌面自动化与完整介质构建已完成**：候选 `d61d639` 的 ci/Portable 和正式 12 产物/边车均通过；Windows/Linux/macOS x64/macOS arm64 桌面各 13 项通过，macOS 自动交互 R11 见 [CI 验收记录](docs/plan/records/MACOS-E2E-2026-10-04.md)，当前完整构建 R12 见 [最终核对](docs/plan/records/COMPLETION-2026-10-04.md)。
+- **当前执行计划全部完成，活动任务为零**：P0–P7、桌面自动化及完整介质构建已完成；R5 按用户限定的 Windows 本机和 WSL/Debian 范围验收完成，见 [本机验收](docs/plan/records/LOCAL-ACCEPTANCE-2026-10-04.md)。本轮修复手动配置加载启动竞态和 AppRun 测试偏好隔离，并重打 Windows/Linux 本地生产包；本地工作树与远端 CI 提交分别登记。
+- `d61d639` 的 ci/Portable、正式 12 产物/边车及 Windows/Linux/macOS x64/macOS arm64 各 13 项桌面交互通过；已完成 R11/R12 的原始记录见 [CI 验收](docs/plan/records/MACOS-E2E-2026-10-04.md)、[完整构建](docs/plan/records/COMPLETION-2026-10-04.md)。
 - **dev.0 第一轮验证、dev.1 发布已完成**。dev.1 标签为 `5909542`，公开资产仍为旧 14 产物集合；已下载的 Windows/macOS x64 bootstrap 包内提交为 `651ea5e`。标签、公开介质和当前候选分别取证，见 [发布核对](docs/plan/records/ACCEPTANCE-2026-10-04.md)。
-- P0–P7 的实施及已完成后续任务进入 records；尚待实机验收的范围只在 [08 册](docs/plan/08-release-follow-up.md) 维护。用户已移除证书签名验收，本轮不写 Release，Linux 用 WSL/Debian，ARM64 交叉包运行免验；范围调整与执行结果见最终核对。
+- 已完成过程进入 records；[08 册](docs/plan/08-release-follow-up.md)保留完成范围和唯一任务入口。其他环境实机验收及证书验收已按用户指令撤除，ARM64 交叉包运行免验；平台支持和构建约定仍保留，本轮不写 Release。
 
 目标：Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程；保留 XML、CLI、转换、公开脚本接口和必要 Node 模块能力。脚本故障不得白屏、杀主进程或永久卡住任务；Windows/Linux 发行提供 bootstrap/offline 两种运行时策略，macOS 统一使用系统 WKWebView。
 

@@ -81,7 +81,7 @@ Windows/Linux 当前为便携归档：I08 的升级/修复/卸载对应新目录
 | `packages/script-host/test` | 真实 Node worker 和监督进程集成 | 每例有外部截止与清理检查 |
 | `packages/backend/test` / `packages/guardian/test` | Node 业务、角色协议、监督与生命周期 | 独立进程故障注入；Node 单元/契约 job 无 Rust 依赖 |
 | `apps/desktop/test` / `tests/browser` / `tests/desktop` | 浏览器 adapter 测试 / 原生 Tauri 测试 | 报告分别标识，不混称桌面验收 |
-| 规划：隔离 VM/原生机验收记录（当前无 `tests/installers` runner） | R5 缺运行时、断网与目录替换/删除的测试记录 | 只允许显式隔离测试环境执行故障/卸载 |
+| `docs/plan/records` 与本轮 build 日志 | Windows/WSL 本机运行与原生交互已完成；隔离 VM、缺运行时/断网等额外实机验收已从计划撤除，当前无 `tests/installers` runner | 已执行结果和范围撤除分别记录；不得对宿主注入故障或卸载运行时 |
 
 每个 fixture 有 manifest：ID、内容哈希、来源、适用 OS/架构、关联 F/C/R/I、旧观察结果、新预期、归一化规则、清理方法。旧基线只通过人工审阅更新；测试程序不得失败后自动重写 expected。
 
@@ -178,7 +178,9 @@ EX05 检查 exit code、输出文件及内容一致性。确定性格式做字�
 
 浏览器层使用 Playwright Chromium/WebKit/Firefox；真实桌面层由 `tests/desktop/run.mjs` 管理应用/驱动及所属进程树。Windows/Linux 使用外部 tauri-driver 与 msedgedriver/WebKitWebDriver；macOS 使用 debug e2e feature 的嵌入驱动，直接连接系统 WKWebView，无业务 mock 插件。三平台四个 job 的实际 13 项结果见 [CI 验收](records/MACOS-E2E-2026-10-04.md)，当前配置/超时见下文自动化入口。[Tauri 测试文档](https://v2.tauri.app/develop/tests/webdriver/)、[WDIO 插件](https://webdriver.io/docs/desktop-testing/tauri/plugin-setup/)
 
-原生文件对话框可在大部分 E2E 中通过 adapter 注入选择结果，以保证稳定性，但这只能证明应用处理逻辑。每平台仍需一次真实系统对话框打开/选择/取消的自动化或人工记录；不能宣称 DOM 自动化完整覆盖系统窗口。
+原生文件对话框可在大部分 E2E 中通过 adapter 注入选择结果，以保证稳定性，但这只能证明应用处理逻辑。实际验收范围由 08 册登记；本轮 Windows/WSL 真实系统对话框打开/选择/取消、日志保存与清理已完成，见 [本机验收](records/LOCAL-ACCEPTANCE-2026-10-04.md)。其他环境的实机验收已由用户撤除；DOM 自动化的结果仍只覆盖页面交互。
+
+实机探针先核对 05 册的运行时选择策略与实际 GUI 路径，再检查可见窗口、返回路径入树和所属子树退出。发出消息或对话框关闭不足以判定通过；offline 在合格 Windows Evergreen 上复用系统运行时符合既定策略。
 
 ## 安装和产物用例
 
@@ -240,10 +242,11 @@ cleanupResult / retryHistory / unsupportedCases / verdict
 
 - P6-01 映射审查/14 项子场景补齐与 P6-03 Windows 100 轮泄漏循环已完成，见 [P6-01](records/P6-01.md)。
 - P6-02 自动化差分与真实项目已完成本机复验：八格式 JAR、官方 sample、五真实脚本；atsf4g-co 13 条目/26 任务/26 文件成功，见 [P6-06](records/P6-06.md)。
-- P6-05 Windows 本机大小/吞吐/交互指标达标，P6-06 汇总本机范围的结果；全平台 G6 需另行验收。
+- P6-05 Windows 本机大小/吞吐/交互指标达标，P6-06 汇总当时本机结果；本轮 G6 按用户确认的本机范围完成，见本机验收记录。
 - dev.0 首轮验证、dev.1 发布及 `5909542` 全量构建通过；标签/公开资产差异见 [发布核对](records/ACCEPTANCE-2026-10-04.md)。`d61d639` 的质量/三平台桌面与 Portable 结果见 [CI 验收](records/MACOS-E2E-2026-10-04.md)，两次候选分别取证。
 - XML 隔离、Windows/Linux 门禁与最终包结果见 [执行记录](records/EXECUTION-2026-10-03.md)；最终实机范围集中至 [08 册](08-release-follow-up.md)，证书相关验收已按用户要求撤除，不维护第二份任务表。
 - d61d639 正式 12 产物/边车、Windows 当前 bootstrap 13 项、Windows/WSL 真实 JAR 及各 9 项隔离/循环、ARM64 静态复验见 [最终核对](records/COMPLETION-2026-10-04.md)。隐藏原生窗口上的消息回调验证不构成 UI08 的可见窗口/原生输入验收；I09 仍按目录与资源定位检查。
+- Windows/WSL 当前两变体的可见原生对话框与生产包复验、配置启动等待、AppRun 测试偏好隔离见 [本机验收](records/LOCAL-ACCEPTANCE-2026-10-04.md)；历史未验环境已按用户指令撤出本轮计划。
 
 ## 当前自动化入口补充（2026-10-04 核对）
 
@@ -253,7 +256,7 @@ cleanupResult / retryHistory / unsupportedCases / verdict
 - 构建上限 30 分钟、驱动就绪 30 秒、每轮测试 5 分钟；WDIO 建连 120 秒/重试 2，每项 Mocha 60 秒，CI job 40 分钟。结束确认所属进程树回收，失败仍恢复显示设置。
 - CI 的 `desktop-e2e` 等待 Node/Rust 门禁后运行 Windows、Linux、macOS x64/arm64。Windows 保留控制台回归和 medium integrity，Linux 用 xvfb，macOS 用真实 WKWebView。空会话 9 项、CLI 加载 4 项，共 13 项；测试构建不替代最终归档/离线介质验收。
 - 嵌入 1.4.0 的 Element Click 仅调用 DOM click，指针动作缺 PointerEvent；实测无法驱动 React Aria 复选框。测试适配层补全 pointerdown/up 及鼠标序列，保留原勾选/反选断言；属于原生 WebView 内渲染器交互，不能据此声明 OS 输入、对话框或 Gatekeeper 已验。官方源码、失败追踪与修复验证见收尾记录。
-- 桌面默认依次验证空会话、`tests/fixtures/config/tree-items.xml` 的首次 CLI 加载。测试前备份 exe 旁显示设置，每轮重置，最终恢复原字节；`XRESCONV_E2E_INPUT` 可覆盖加载文件，`XRESCONV_E2E_SKIP_BUILD=1` 只用于已确认匹配源码的本地二进制。
+- 桌面默认依次验证空会话、`tests/fixtures/config/tree-items.xml` 的首次 CLI 加载。测试前备份真实 GUI exe 旁显示设置，每轮重置，最终恢复原字节；Linux offline 的 AppRun 需定位到 `usr/bin/xresconv-gui` 旁，避免遗留配置自动加载干扰检查。`XRESCONV_E2E_INPUT` 可覆盖加载文件，`XRESCONV_E2E_SKIP_BUILD=1` 只用于已确认匹配源码的本地二进制。
 - 首个标题用例经 `waitForAppTitle` 等待导航就绪（30 秒 / 100ms 轮询），再执行原有精确断言；永久空/错误标题仍失败，不添加 spec 重跑。就绪回归由 desktop-e2e workspace 的 `test` 纳入根 `test:unit`。
 - Edge WebDriver 的应用参数使用 `--input=路径`，不能拆成两个数组元素；浏览器标志应放 `webviewOptions.additionalBrowserArguments`。失败截图和 CLI/页面诊断保存在 `build/desktop-test-results/`。
 - 真实转换使用 `tests/fixtures/conversion/runtime.mts` 解析 JAR/样本；缺失时显式跳过，多个 JAR 不猜测版本。配置方法和实跑命令见 [转换测试说明](../../tests/fixtures/conversion/README.md)。统一入口 `corepack yarn test:conversion`（即 `node tests/conversion/run-e2e.mjs`；缺 JAR/样本 exit 2 显式退出，相邻 target 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`）。

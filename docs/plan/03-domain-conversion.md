@@ -2,7 +2,7 @@
 
 [执行索引](README.md) · [上一册](02-contracts-script-host.md) · [下一册](04-ui.md)
 
-对应 P3。业务内核采用 TypeScript，运行在独立 Node.js backend 中，不依赖 WebView；另一个 Node.js guardian 负责进程生命周期与超时。核心接口已实现，Windows 本机/真实 JAR 与 Windows/Linux CI 已有验证记录（见 [发布核对](records/RELEASE-2026-10-03.md)）；最终介质与全矩阵实机仍待验收；输出差异由固定旧版和 JAR 样例裁定；P0 已批准的缺陷修复按差异台账验收。
+对应 P3。业务内核采用 TypeScript，运行在独立 Node.js backend 中，不依赖 WebView；另一个 Node.js guardian 负责进程生命周期与超时。核心接口、真实 JAR 差分和用户确认范围内的本机验收已完成，见 [完整构建](records/COMPLETION-2026-10-04.md)、[本机验收](records/LOCAL-ACCEPTANCE-2026-10-04.md)。输出差异由固定旧版和 JAR 样例裁定；P0 已批准的缺陷修复按差异台账验收。
 
 ## 配置加载事务
 
@@ -97,7 +97,7 @@ Node.js 内部诊断与用户 log4js 日志区分，Tauri 原生诊断只记录�
 
 内存队列必须有界，超出 UI 容量的日志仍落盘并显示可加载范围。磁盘满/权限失败/日志服务挂起时，报告持久化失败并执行既定停止或降级策略；不得既承诺无损又默默丢弃，也不能让无限背压永久卡住转换取消。
 
-当前降级合同：在途 hook 数以日志容量为限，超限记录保留原文并累计 `hookSkippedCount`，可能先于仍在处理的 hook 落队；正常 hook 顺序保持，改写记录保留 `rawMessage`。独立 log4js 子进程限制配置 1 MiB、待发送记录 128 条、单条 256 KiB；超限明确报告未持久化。每个请求 5s 截止，shutdown 默认总预算 5s，终止后额外等待 close 最多 2s；超时/清理未确认均拒绝，不能报告成功 flush。持久化诊断跳过 hook 与落盘 sink，防止递归。此处是过载时的显式降级；持久化/轮转/分页及运行接线的已有测试见 [P6-01](records/P6-01.md)，最终平台/介质的 EX04 复验仍按 R2/R5 执行。
+当前降级合同：在途 hook 数以日志容量为限，超限记录保留原文并累计 `hookSkippedCount`，可能先于仍在处理的 hook 落队；正常 hook 顺序保持，改写记录保留 `rawMessage`。独立 log4js 子进程限制配置 1 MiB、待发送记录 128 条、单条 256 KiB；超限明确报告未持久化。每个请求 5s 截止，shutdown 默认总预算 5s，终止后额外等待 close 最多 2s；超时/清理未确认均拒绝，不能报告成功 flush。持久化诊断跳过 hook 与落盘 sink，防止递归。此处是过载时的显式降级；持久化/轮转/分页及运行接线的已有测试见 [P6-01](records/P6-01.md)，最终介质与本机范围的复验见 [完整构建](records/COMPLETION-2026-10-04.md)和[本机验收](records/LOCAL-ACCEPTANCE-2026-10-04.md)。
 
 ## 实施记录与后续验证
 

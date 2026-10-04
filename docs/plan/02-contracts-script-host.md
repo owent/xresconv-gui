@@ -159,6 +159,6 @@ backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java �
 
 P2 的协议、五入口、节点镜像、回调、资源限制、监督、动态模块与真实脚本差分已实施，各任务的验证记录见 [P2 records](records/README.md)、[P2-11](records/P2-11.md) 和 [P2-12](records/P2-12.md)。当前 Windows/Linux CI 与 macOS/Linux Portable 构建结果见 [发布核对记录](records/RELEASE-2026-10-03.md)。
 
-平台强杀/detached、macOS 实际清理与最终发行目录仍按 [R2/R5](08-release-follow-up.md) 验收；构建或单平台测试不扩大 D4 保证范围。取消/关闭等行为变更先补失败回归，再按 SC07/SC08/SC10/SC11 核验退出/清理与无重放。
+平台强杀/detached 与最终发行目录的已执行结果见 [完整构建](records/COMPLETION-2026-10-04.md)和[本机验收](records/LOCAL-ACCEPTANCE-2026-10-04.md)；其他环境实机清理验收已按用户指令撤除，构建或单平台测试不扩大 D4 保证范围。取消/关闭等行为变更先补失败回归，再按 SC07/SC08/SC10/SC11 核验退出/清理与无重放。
 
 Tauri 前端只启用所需窗口/命令能力，不授予任意 shell spawn；自定义命令仍必须自行校验状态和对象权限。测试能力使用显式名单，避免自动合并进发行能力。[Tauri Capabilities](https://v2.tauri.app/security/capabilities/)

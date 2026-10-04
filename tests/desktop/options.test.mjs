@@ -1,6 +1,36 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { driverProvider, desktopSessions, testBuildArgs } from './options.mjs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { driverProvider, desktopSessions, displaySettingsFile, testBuildArgs } from './options.mjs';
+
+test('AppRun settings belong beside the real GUI, preserving the launcher file', (t) => {
+  const base = fileURLToPath(new URL('../../build/desktop-options/', import.meta.url));
+  mkdirSync(base, { recursive: true });
+  const dir = mkdtempSync(path.join(base, 'appdir-'));
+  assert(dir.startsWith(base));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(path.join(dir, 'usr/bin'), { recursive: true });
+  writeFileSync(path.join(dir, 'usr/bin/xresconv-gui'), 'fixture GUI');
+  const launcherSettings = path.join(dir, 'display-settings.json');
+  const actualSettings = path.join(dir, 'usr/bin/display-settings.json');
+  writeFileSync(launcherSettings, 'unrelated launcher data');
+  const backup = Buffer.from('{"lastConfigFile":"用户配置.xml"}\n', 'utf8');
+  writeFileSync(actualSettings, backup);
+  const selected = displaySettingsFile(path.join(dir, 'AppRun'));
+  assert.equal(selected, actualSettings);
+  writeFileSync(selected, '{}\n');
+  assert.equal(readFileSync(launcherSettings, 'utf8'), 'unrelated launcher data');
+  writeFileSync(selected, backup);
+  assert.deepEqual(readFileSync(actualSettings), backup);
+});
+
+test('ordinary desktop executables keep settings next to the executable', () => {
+  const app = path.resolve('build/desktop-options/plain/xresconv-gui');
+  assert.equal(existsSync(path.join(path.dirname(app), 'usr/bin/xresconv-gui')), false);
+  assert.equal(displaySettingsFile(app), path.join(path.dirname(app), 'display-settings.json'));
+});
 
 test('macOS uses embedded WKWebView while existing platforms keep external drivers', () => {
   assert.equal(driverProvider('darwin'), 'embedded');

@@ -62,12 +62,13 @@ test("UI08-2 明暗主题：prefers-color-scheme 切换令牌", async ({ page })
 });
 
 test("UI08-3 无外部资源依赖：页面只加载同源资源（不依赖 CDN）", async ({ page }) => {
+  const origin = new URL(page.url()).origin;
   const sources: string[] = [];
   page.on("request", (request) => sources.push(request.url()));
   await page.reload();
   await expect(page.getByRole("heading", { name: "转换列表" })).toBeVisible();
   const foreign = sources.filter(
-    (url) => !url.startsWith("http://127.0.0.1:4173") && !url.startsWith("data:"),
+    (url) => !url.startsWith("data:") && new URL(url).origin !== origin,
   );
   expect(foreign, `外部资源请求: ${foreign.join(" | ")}`).toEqual([]);
 });

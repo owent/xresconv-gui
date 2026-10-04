@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createProcessScope } from '@xresconv/guardian';
-import { driverProvider, desktopSessions, testBuildArgs } from './options.mjs';
+import { driverProvider, desktopSessions, displaySettingsFile, testBuildArgs } from './options.mjs';
 
 const provider = driverProvider(process.platform, process.env.XRESCONV_E2E_DRIVER_PROVIDER);
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -88,7 +88,7 @@ try {
     scope.register(driver);
     await waitForDriver(driver, 'tauri-driver');
   }
-  settingsFile = path.join(path.dirname(exe), 'display-settings.json');
+  settingsFile = displaySettingsFile(exe);
   settings = existsSync(settingsFile) ? readFileSync(settingsFile) : null;
   // 每轮验证首次启动，不依赖开发者的上次配置；无论成功失败都恢复原始字节。
   const inputs = env.XRESCONV_E2E_INPUT ? [env.XRESCONV_E2E_INPUT] : ['', path.join(root, 'tests/fixtures/config/tree-items.xml')];

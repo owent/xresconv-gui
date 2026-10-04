@@ -2,6 +2,8 @@
 
 [返回执行计划](../README.md)
 
+计划完成：[2026-10-04 Windows/WSL 本机验收](LOCAL-ACCEPTANCE-2026-10-04.md)（用户收敛实机范围；配置启动竞态、工具链检查与 AppRun 测试隔离修复；Windows/Linux 本地生产包复验；R5 完成，活动任务为零，不发布）。
+
 最终核对：[2026-10-04 验收范围调整与完整构建](COMPLETION-2026-10-04.md)（用户移除证书验收；d61d639 的完整 12 产物/边车通过，不写 Release；Windows 正式 bootstrap 13 项及 Windows/WSL 真实 JAR 差分、各 9 项隔离/循环、ARM64 静态复验）。
 
 最新验收：[2026-10-04 macOS 双架构自动交互与计划收尾](MACOS-E2E-2026-10-04.md)（`d61d639` 的 ci/Portable 成功；四个桌面 job 各 13 项通过，Yarn 恢复及 Windows/Linux Rust 后续命中；R11 归档，当时的后续环境项见最终核对）。

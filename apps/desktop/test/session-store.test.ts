@@ -171,6 +171,86 @@ describe("session store (P4-03)", () => {
     expect(state.connection).toBe("degraded");
   });
 
+  it("手动加载在后端启动时保留请求，明确未执行的失败重试后成功", async () => {
+    vi.useFakeTimers();
+    try {
+      let attempts = 0;
+      routeRpc({
+        loadConfig: () => {
+          if (++attempts < 3) throw "guardian protocol violation: BACKEND_NOT_READY: starting";
+          return makeSnapshot();
+        },
+      });
+      const pending = useSessionStore.getState().loadConfig("D:/conf/convert_list.xml");
+      await vi.advanceTimersByTimeAsync(600);
+      expect(attempts).toBe(2);
+      expect(useSessionStore.getState().lastError).toBeNull();
+      expect(useSessionStore.getState().snapshot).toBeNull();
+      await vi.advanceTimersByTimeAsync(600);
+      await expect(pending).resolves.toBe(true);
+      expect(attempts).toBe(3);
+      expect(useSessionStore.getState().configPath).toBe("D:/conf/convert_list.xml");
+      expect(useSessionStore.getState().lastError).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("手动加载启动重试在 30 秒结束，并允许后续重新加载", async () => {
+    vi.useFakeTimers();
+    try {
+      routeRpc({
+        loadConfig: () => {
+          throw "BACKEND_NOT_READY: starting";
+        },
+      });
+      const pending = useSessionStore.getState().loadConfig("waiting.xml");
+      await vi.advanceTimersByTimeAsync(30_000);
+      await expect(pending).resolves.toBe(false);
+      expect(rpcCalls("loadConfig")).toHaveLength(51);
+      expect(useSessionStore.getState().lastError).toBe("BACKEND_NOT_READY: starting");
+      await loadFixture();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["BACKEND_TIMEOUT: reply lost", "BACKEND_DIED: channel closed"])(
+    "手动加载不重放可能已经执行的请求：%s",
+    async (error) => {
+      routeRpc({
+        loadConfig: () => {
+          throw error;
+        },
+      });
+      await expect(useSessionStore.getState().loadConfig("uncertain.xml")).resolves.toBe(false);
+      expect(rpcCalls("loadConfig")).toHaveLength(1);
+      expect(useSessionStore.getState().lastError).toBe(error);
+    },
+  );
+
+  it("手动加载的旧请求在会话改变后停止重试", async () => {
+    vi.useFakeTimers();
+    try {
+      routeRpc({
+        loadConfig: () => {
+          throw "BACKEND_NOT_READY: starting";
+        },
+      });
+      const pending = useSessionStore.getState().loadConfig("old.xml");
+      await vi.advanceTimersByTimeAsync(0);
+      resetSessionStore();
+      await loadFixture();
+      await vi.advanceTimersByTimeAsync(600);
+      await expect(pending).resolves.toBe(false);
+      expect(rpcCalls("loadConfig")).toHaveLength(2);
+      expect(useSessionStore.getState().configPath).toBe("D:/conf/convert_list.xml");
+      expect(useSessionStore.getState().lastError).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("toggleNode 发 select_node（缺省 selected = toggle），应用 stateChanges 并推进版本", async () => {
     await loadFixture();
     routeRpc({

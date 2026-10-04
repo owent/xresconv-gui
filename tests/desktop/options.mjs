@@ -1,3 +1,13 @@
+import path from 'node:path';
+import { existsSync } from 'node:fs';
+
+export function displaySettingsFile(application) {
+  const dir = path.dirname(application);
+  // Linux offline launcher execs usr/bin/xresconv-gui; current_exe() uses that path.
+  const appdirGui = path.join(dir, 'usr', 'bin', 'xresconv-gui');
+  return path.join(path.basename(application) === 'AppRun' && existsSync(appdirGui) ? path.dirname(appdirGui) : dir, 'display-settings.json');
+}
+
 /** Only the test binary contains an embedded driver. Published artifacts use external drivers. */
 export function driverProvider(platform, override) {
   const provider = override ?? (platform === 'darwin' ? 'embedded' : 'external');
