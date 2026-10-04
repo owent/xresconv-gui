@@ -5,7 +5,7 @@
  *   converting（既有 run.test.ts）/ after_hooks（本文件：in-flight hook
  *   完成后链中止，无迟到重放）；
  * - reset 是业务操作：先取消并等实际回收（runner 终止确认后 run 才 settle），
- *   再清运行期状态重新武装；幂等（同请求重投）；终态一次；
+ *   再清运行期状态重新武装；幂等（同请求重投）；结束状态只发布一次；
  * - dispose 幂等；有界等待，超时不冒充清理成功；
  * - 不自动重放：被取消 run 的 hook 不会在新 run 中再次执行（SC10）。
  *
@@ -58,7 +58,7 @@ describe("cancel/reset/close 统一收尾（EX03）", () => {
     await pool.shutdown();
   }, TEST_TIMEOUT_MS);
 
-  it("before_hooks 阶段取消：java 未派发、无 after 链、终态一次（EX03 补 before 阶段）", {
+  it("before_hooks 阶段取消：java 未派发、无 after 链、结束状态只发布一次（EX03 补 before 阶段）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const calls: JavaBatchOptions[] = [];
@@ -83,7 +83,7 @@ describe("cancel/reset/close 统一收尾（EX03）", () => {
     await session.dispose();
   });
 
-  it("after_hooks 阶段取消：in-flight hook 完成后链中止、无 AFTER2、终态一次", {
+  it("after_hooks 阶段取消：in-flight hook 完成后链中止、无 AFTER2、结束状态只发布一次", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const session = new ConversionSession({ pool, runner: okRunner([]) });
@@ -144,7 +144,7 @@ describe("cancel/reset/close 统一收尾（EX03）", () => {
     await session.dispose();
   });
 
-  it("reset 在终态/ready：幂等、不重复取消、runSeq 不被空转消耗", {
+  it("reset 在结束状态/ready：幂等、不重复取消、runSeq 不被空转消耗", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const session = new ConversionSession({ pool, runner: okRunner([]) });

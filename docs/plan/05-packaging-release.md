@@ -2,7 +2,7 @@
 
 [执行索引](README.md) · [上一册](04-ui.md) · [下一册](06-testing-acceptance.md) · [当前任务](08-release-follow-up.md)
 
-本册只维护当前约定。NSIS/DEB/RPM、tar.gz 和早期 Portable 范围已被用户的便携归档决策取代，实施/原型证据见 [P5 记录](records/README.md)、[P5-11](records/P5-11.md) 与 [发行审查](records/REVIEW-2026-09-29.md)。
+本册只维护当前约定。NSIS/DEB/RPM、tar.gz 和早期 Portable 范围已被用户的便携归档决策取代，实施与原型验证记录见 [P5 记录](records/README.md)、[P5-11](records/P5-11.md) 与 [发行审查](records/REVIEW-2026-09-29.md)。
 
 dev.0 首轮验证和 dev.1 发布均已完成。当前发行约定见下表；dev.1 公开资产仍保留旧 14 产物集合，与标签及最新 12 产物 CI 的身份差异见 [收尾记录](records/ACCEPTANCE-2026-10-04.md)。活动状态只维护在 08 册。
 
@@ -37,7 +37,7 @@ dev.0 首轮验证和 dev.1 发布均已完成。当前发行约定见下表；d
 - bootstrap 另附微软 `MicrosoftEdgeWebview2Setup.exe`。合格系统 Evergreen 直接复用；缺失/过旧时原生诊断指导用户手动运行引导器，不能把未完成系统安装当成功。
 - offline 另附 `webview2-runtime/` 与 `webview2-runtime-policy.json`。合格系统 Evergreen 优先，并清理继承的 `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`；缺失/过旧才指向包内 Fixed Version。Win10 Fixed≥120 的 AppContainer 读执行 ACL 必须幂等补齐；不可用时原生诊断退出。
 - 官方下载页 Fixed cab 链接按架构/版本解析，结构变化构建失败；缓存校验 MSCF/体积并以官方 `expand -F:*` 解包。最终候选须记录实际版本/来源/hash，安全更新随应用发行维护。
-- 两变体共用 GUI subsystem 桌面程序；guardian 用 CREATE_NO_WINDOW，受监督 Node 子进程用 windowsHide。窗口 API + 行为回归检查控制台，不能仅数 conhost。证据见 [控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
+- 两变体共用 GUI subsystem 桌面程序；guardian 用 CREATE_NO_WINDOW，受监督 Node 子进程用 windowsHide。窗口 API + 行为回归检查控制台，不能仅数 conhost。运行结果见 [控制台回归记录](records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 - 不能裁掉整个 Fixed runtime 后仍称完整 offline；它不带 bootstrapper。共享 Evergreen 不随删除应用目录卸载，UNC/企业策略/权限路径按官方分发边界单列验证。
 
 ### 7z 与语言策略
@@ -52,7 +52,7 @@ dev.0 首轮验证和 dev.1 发布均已完成。当前发行约定见下表；d
 
 Finder/终端/Applications、中文/空格/只读目录须正确定位 Resources、随包 Node 与各角色。正式 release CI 仅输出 x64/arm64 两个 bootstrap DMG；已发布旧产物不删除。本地 offline 目标及 Portable 的 `--portable --variant=offline` 未签名 `.app.zip`（ditto）兼容入口保留，Portable 不验证 DMG 介质。
 
-目前无苹果开发者证书，未签名开发预发布如实登记。签名渠道 R6 在受控环境按嵌套代码→app→介质顺序核验 entitlements/签名、公证/stapling 和断网首次 Gatekeeper；不以禁用保护替代。签名后不再 strip/改写可执行文件，最终哈希按签名后介质重算。
+当前提供未签名开发介质，manifest 如实登记。用户于 2026-10-04 从执行计划移除证书相关验收，依据见 [范围调整](records/COMPLETION-2026-10-04.md)；最终介质摘要、负载完整性、许可和生产能力隔离仍需校验。
 
 ## Linux
 
@@ -77,9 +77,9 @@ AppImage 构建环境须显式安装 `xdg-utils`：当前 Tauri bundler 会从 `
 
 Action 使用已核验稳定 v 数字标签。Node 安装后调用仓库 `.github/actions/setup-yarn`：Yarn 4.18.1，`enableGlobalCache=false`，显式 archives 目录 `build/yarn-cache`；key 包含 OS/架构及 yarn.lock/.yarnrc.yml/package.json，restore 前缀只在同 OS/架构复用。始终执行 immutable 安装，成功后立即保存，后续测试失败不丢已下载缓存；不缓存 node_modules。
 
-Rust 门禁使用 --locked，发行输入包含 Cargo.lock。所有 rust-cache workspace 显式设 `. -> target`，质量/桌面/生产用途 key 分离；desktop 失败也保存依赖与 cargo bin，tauri-driver 固定为 2.1.0。APT 库正常安装，Windows msedgedriver 与实际 WebView2 精确匹配。缓存命中不是验证通过；每个外部命令检查退出码，失败日志/截图/清理均留证据，不上传敏感配置。
+Rust 门禁使用 --locked，发行输入包含 Cargo.lock。所有 rust-cache workspace 显式设 `. -> target`，质量/桌面/生产用途 key 分离；desktop 失败也保存依赖与 cargo bin，tauri-driver 固定为 2.1.0。APT 库正常安装，Windows msedgedriver 与实际 WebView2 精确匹配。缓存命中后仍须运行验证；每个外部命令检查退出码，并保留失败日志、截图与清理结果，不上传敏感配置。
 
-`scripts/verify-release.ts --target=<os>/<distro-or-dash>/<arch>/<variant>` 的键集合与 build job 同步；发行矩阵当前 distro 段为 `-`。不传 target 校验完整 12 产物；子集校验也必须集合相等，拒绝多余/缺失/错误边车，并计算实际 SHA-256。macOS offline DMG 即使带正确 hash 也属于多余产物。聚合通过证明当时构建产物，不替代完整实机/签名验收。
+`scripts/verify-release.ts --target=<os>/<distro-or-dash>/<arch>/<variant>` 的键集合与 build job 同步；发行矩阵当前 distro 段为 `-`。不传 target 校验完整 12 产物；子集校验也必须集合相等，拒绝多余/缺失/错误边车，并计算实际 SHA-256。macOS offline DMG 即使带正确 hash 也属于多余产物。聚合通过证明当时构建产物，实机范围另按 08 册核对。
 
 已有 tag 触发 release；发布权限仅聚合 job，PR 不接触签名密钥。同 ref 发行串行执行，避免上传竞态。`verify-publication.ts` 上传前后复验本地集合/实际哈希及 GitHub assets API 摘要：已有同名异内容、多余资产或未知摘要均失败；完整同内容时只读结束，禁止将公开版本改成 draft；仅新版本或缺件且已有摘要相同的 draft 可上传。不能仅靠 `overwrite:false` 的“跳过同名”声称当前候选发布成功。
 
@@ -106,4 +106,4 @@ P5-01～P5-11 的实现与历史原型见 records，本轮本地产物与交叉�
 - [WebView2 分发](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)、[Tauri Windows](https://v2.tauri.app/distribute/windows-installer/)：运行时与旧安装器资料，当前使用便携归档。
 - [Tauri WebView](https://v2.tauri.app/reference/webview-versions/)、[macOS bundle](https://v2.tauri.app/distribute/macos-application-bundle/)。
 - [Tauri AppImage](https://v2.tauri.app/distribute/appimage/)、[Debian](https://v2.tauri.app/distribute/debian/)、[RPM](https://v2.tauri.app/distribute/rpm/)：Linux 打包/资源布局与历史原型依据。
-- [来源索引](../ai/source-index.md)：归档/语言策略、官方版本调研、发布 API 与本轮 CI 证据。
+- [来源索引](../ai/source-index.md)：归档/语言策略、官方版本调研、发布 API 与本轮 CI 验证结果。

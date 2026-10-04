@@ -35,8 +35,8 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 /**
- * 运行终态文案（P4-06，UI06）：区分实际阶段与已发生副作用，不假成功。
- * endPhase 来自终态 state_change 的 previous；缺失时退化为通用文案，不猜测阶段。
+ * 运行结果文案（P4-06，UI06）：区分实际阶段与已发生副作用，不假成功。
+ * endPhase 来自进入结束状态的 state_change 的 previous；缺失时退化为通用文案，不猜测阶段。
  * failedCount 混合计数（事件失败 +1 / Java 退出码累加），不伪造条目级明细
  * （stdin 批次协议无逐条确认，主计划 §7.2）。
  */

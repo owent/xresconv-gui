@@ -34,7 +34,7 @@ guardian 管理各进程作用域，backend 发起已校验的执行请求；每
 
 ## UI 经 Tauri 转发到 Node backend 的命令表
 
-命令不是泛用文件系统或 shell API。Tauri 只验证调用窗口/桥接白名单/envelope 上限；Node backend 用共享 Ajv 校验器验证业务参数、会话、revision 和状态。guardian 按通道角色限制执行能力；业务校验不能只留在前端。
+命令只提供白名单内的业务操作。Tauri 只验证调用窗口/桥接白名单/envelope 上限；Node backend 用共享 Ajv 校验器验证业务参数、会话、revision 和状态。guardian 按通道角色限制执行能力；业务校验不能只留在前端。
 
 | 拟定命令 | 输入 | 返回与效果 |
 | --- | --- | --- |
@@ -45,12 +45,12 @@ guardian 管理各进程作用域，backend 发起已校验的执行请求；每
 | `settings_apply` | revision、允许编辑的业务字段 | 校验后更新运行参数，不修改原 XML 文件 |
 | `conversion_preview` | revision、selectionVersion | 冻结候选 plan、参数摘要和可执行/阻塞原因 |
 | `conversion_start` | planId、客户端请求 ID | runId；同请求重复投递不得启动两次 |
-| `conversion_cancel` | runId、reason | 进入 Cancelling；终态事件在实际清理后发送 |
+| `conversion_cancel` | runId、reason | 进入 Cancelling；结束状态事件在实际清理后发送 |
 | `custom_action_start` | revision、buttonId、requestId | 动作链 ID；不接收任意 JS 源码字符串 |
 | `dialog_respond` | callbackToken、generation、选择 | 恰好一次回调；过期 token 返回明确错误 |
 | `logs_read` | runId、cursor、limit | 有界分页及下一游标；原始/展示日志可区分 |
 
-事件至少包括配置提交/失败、选择变化、运行阶段/终态、日志批次、弹框请求、worker 失效和环境诊断。UI 断连后先拿快照再订阅/补齐事件，使用水位序号消除订阅竞态；有缺口则重同步，不能盲目重复应用差量。
+事件至少包括配置提交/失败、选择变化、运行阶段/结束状态、日志批次、弹框请求、worker 失效和环境诊断。UI 断连后先拿快照再订阅/补齐事件，使用水位序号消除订阅竞态；有缺口则重同步，不能盲目重复应用差量。
 
 ## Tauri/Node 与 Node/Node 的私有协议
 
@@ -90,7 +90,7 @@ Node 路径由已校验的发行 manifest 和应用资源目录确定；绝不�
 | 入口 | 当前已核实行为 | 新宿主必须验证 |
 | --- | --- | --- |
 | set_name | 每 item 新 VM、新 `data={}`；含 item_data、日志和弹框；**未注入 require、resolve/reject**；无 VM timeout | 不擅自增加 Node 权限；正常 item 修改提交；异常前部分修改与超时无法取回修改的处理分别记录 |
-| before / after | 每次事件新 data；注入 require、resolve/reject、选择对象和 run_seq；顺序 Promise 链 | before 失败不转换；after 失败有后处理终态；保留计划在 before 之前构造的时点 |
+| before / after | 每次事件新 data；注入 require、resolve/reject、选择对象和 run_seq；顺序 Promise 链 | before 失败不转换；after 失败时报告后处理失败状态；保留计划在 before 之前构造的时点 |
 | button script | data 来自按钮对象，同按钮多个 action/多次调用共享；按钮上下文 global_options 与运行事件来源不同 | 同按钮引用一致、不同按钮不串状态；字段类型不能按 README 擅自统一 |
 | on_append_log | 转换建立 append_log_context 后才执行；同条日志的多个 hook 共用 VM 和 log_object；带递归 guard | 调用范围、顺序、修改可见性、错误后剩余 hook 的行为和原始日志可追踪 |
 
@@ -135,13 +135,13 @@ sequenceDiagram
         Backend-->>UI: 经 guardian 转发状态事件
     else 超时或桌面层/业务服务失联
         Guard->>JS: 终止所属进程树
-        Guard-->>UI: 终态或关闭清理记录
+        Guard-->>UI: 运行结束状态或关闭清理记录
     end
 ```
 
 监督责任由独立 Node guardian 承担，不编写 Rust guardian。它只处理短时有界消息与异步进程 IO，不导入业务解析或脚本模块；业务服务卡住时，其 watchdog 仍可终止相关作用域。Tauri 桌面层独立检测 guardian 失联并显示错误，不能把故障弹框也依赖失联服务。
 
-backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java 并通知桌面层；只允许显式新建会话恢复，不自动重放旧任务。guardian 自身退出/被杀：桌面层调用已验证的生命周期适配回收其作用域，若无法证明完整清理就报告失败且阻塞该平台验收。纯 Node 的跨平台进程树/资源能力不是先验保证。
+backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java 并通知桌面层；只允许显式新建会话恢复，不自动重放旧任务。guardian 自身退出/被杀：桌面层调用已验证的生命周期适配回收其作用域，若无法证明完整清理就报告失败且阻塞该平台验收。纯 Node 的跨平台进程树管理与资源限制能力须分别实测。
 
 监督进程仅从继承的控制句柄/受控私有通道接受启动描述，业务脚本不能提交任意系统 PID 作为 kill 目标。登记原生进程句柄或包含启动标识的所有权信息，避免 PID 重用误杀无关进程。父端死亡以句柄/管道关闭及必要的系统机制检测，不只轮询 PID 存在。
 
@@ -151,13 +151,13 @@ backend 异常退出/失联：guardian 停止派发、终止所属脚本/Java �
 | Linux | Node guardian + 所属进程组，必要时现成系统资源机制；适配父端失联 | 不承诺普通进程组拦截 setsid/double-fork；资源能力、cgroup 可用性按实际环境报告 |
 | macOS | Node guardian + 进程组/现成生命周期适配，父端失联清理 | 不照搬 Linux cgroup；不为单个平台恢复整套 Rust 监督框架 |
 
-取消流程：停止新派发 → 撤销回调/操作权限 → 请求正常退出 → 宽限截止后强制终止 → 核验退出、管道关闭与所属子树 → 发布终态。Node 的 killed 标记/kill 返回和 AbortSignal 不能替代退出证据；区分 spawn error、exit、close、disconnect，避免重复收尾。[Node 子进程语义](https://nodejs.org/api/child_process.html)、[Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
+取消流程：停止新派发 → 撤销回调/操作权限 → 请求正常退出 → 宽限截止后强制终止 → 核验退出、管道关闭与所属子树 → 发布结束状态。Node 的 killed 标记/kill 返回和 AbortSignal 不能替代退出确认；区分 spawn error、exit、close、disconnect，避免重复收尾。[Node 子进程语义](https://nodejs.org/api/child_process.html)、[Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
 
 脚本有文件/外部命令副作用时不自动重试。worker 崩溃不能恢复任意闭包和模块状态；展示受影响会话及运行结果需核验的信息。D4 已定：脚本可信，允许文件系统与外部进程能力；验收边界是故障隔离（不得白屏/杀主进程/卡死任务）与 IPC 授权，受限能力模式降级为可选增强；Node VM/Permission Model 不提供所需的完整恶意代码边界。[Node VM](https://nodejs.org/api/vm.html)、[Node 权限模型](https://nodejs.org/api/permissions.html)
 
-## 实施证据与剩余边界
+## 实施记录与剩余边界
 
-P2 的协议、五入口、节点镜像、回调、资源限制、监督、动态模块与真实脚本差分已实施，逐任务证据见 [P2 records](records/README.md)、[P2-11](records/P2-11.md) 和 [P2-12](records/P2-12.md)。当前 Windows/Linux CI 与 macOS/Linux Portable 构建结果见 [发布核对记录](records/RELEASE-2026-10-03.md)。
+P2 的协议、五入口、节点镜像、回调、资源限制、监督、动态模块与真实脚本差分已实施，各任务的验证记录见 [P2 records](records/README.md)、[P2-11](records/P2-11.md) 和 [P2-12](records/P2-12.md)。当前 Windows/Linux CI 与 macOS/Linux Portable 构建结果见 [发布核对记录](records/RELEASE-2026-10-03.md)。
 
 平台强杀/detached、macOS 实际清理与最终发行目录仍按 [R2/R5](08-release-follow-up.md) 验收；构建或单平台测试不扩大 D4 保证范围。取消/关闭等行为变更先补失败回归，再按 SC07/SC08/SC10/SC11 核验退出/清理与无重放。
 

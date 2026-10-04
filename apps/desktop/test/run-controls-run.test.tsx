@@ -129,7 +129,7 @@ describe("RunControls 运行控制门禁（P4-06）", () => {
     }
   });
 
-  it("终态（failed/succeeded/cancelled）：开始/预览可用，取消禁用", async () => {
+  it("结束状态（failed/succeeded/cancelled）：开始/预览可用，取消禁用", async () => {
     await loadFixture();
     render(<RunControls />);
     for (const state of ["failed", "succeeded", "cancelled"]) {
@@ -231,7 +231,7 @@ describe("RunControls 开始/取消 RPC 流程（P4-06，EX03 前端侧）", () 
     expect(buttonEnabled("开始转换")).toBe(true);
   });
 
-  it("取消：cancel RPC 后显示等待清理；终态事件清除", async () => {
+  it("取消：cancel RPC 后显示等待清理；结束状态事件清除", async () => {
     await loadFixture(makeSnapshot("converting", 3));
     routeRpc({
       cancel: () => ({ state: "converting" }),
@@ -246,7 +246,7 @@ describe("RunControls 开始/取消 RPC 流程（P4-06，EX03 前端侧）", () 
       expect(screen.getByRole("status", { name: "运行状态" }).textContent).toContain("取消中"),
     );
 
-    // backend 清理完成：终态 state_change + run_end。
+    // backend 清理完成：进入结束状态的 state_change + run_end。
     recordTerminalState("cancelled", "converting");
     recordRunEnd(summaryText({ state: "cancelled" }));
 
@@ -333,7 +333,7 @@ describe("运行结果文案（P4-06，UI06：区分实际阶段与已发生副�
     expect(region.textContent).not.toContain("失败");
   });
 
-  it("终态事件缺失（run_end 无前置 state_change）：退化为通用文案，不猜测阶段", async () => {
+  it("结束状态事件缺失（run_end 无前置 state_change）：退化为通用文案，不猜测阶段", async () => {
     await loadFixture();
     render(<RunControls />);
     recordRunEnd(summaryText({ state: "failed", failedCount: 2, taskCount: 5 }));
@@ -406,7 +406,7 @@ describe("store 运行语义（P4-06）", () => {
     expect(useSessionStore.getState().cancelRequested).toBe(false);
   });
 
-  it("cancelRequested 由终态 state_change 清除（run_end 缺失也不卡显示）", async () => {
+  it("cancelRequested 由进入结束状态的 state_change 清除（run_end 缺失也不卡显示）", async () => {
     await loadFixture(makeSnapshot("converting", 1));
     routeRpc({ cancel: () => ({ state: "converting" }) });
     await useSessionStore.getState().cancelRun();

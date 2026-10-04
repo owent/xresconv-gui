@@ -2,11 +2,11 @@
 
 [执行索引](README.md) · [下一册](02-contracts-script-host.md) · [当前任务](08-release-follow-up.md)
 
-P0/P1 实施已完成；旧基线、语言迁移和工具链批次不再列为活动任务。原始观察/命令/限制见 [records 索引](records/README.md) 的 P0-01～P0-08、P1-00～P1-09；当前平台构建/门禁证据见 [发布核对记录](records/RELEASE-2026-10-03.md)。
+P0/P1 实施已完成；旧基线、语言迁移和工具链批次不再列为活动任务。原始观察/命令/限制见 [records 索引](records/README.md) 的 P0-01～P0-08、P1-00～P1-09；当前平台构建/检查结果见 [发布核对记录](records/RELEASE-2026-10-03.md)。
 
 ## 基线入口与维护
 
-| 证据 | 用途 |
+| 验证记录 | 用途 |
 | --- | --- |
 | [P0-01](records/P0-01.md)、[P0-04](records/P0-04.md)、[P0-05](records/P0-05.md) | 旧工作树、真实 GUI/JAR、体积和性能；版本与原始口径固定 |
 | [P0-02](records/P0-02.md)、[P0-03](records/P0-03.md)、[P0-08](records/P0-08.md) | F01–F12 数据、五入口/对象/回调/data、源码与 README 差异 |
@@ -36,7 +36,7 @@ P0/P1 实施已完成；旧基线、语言迁移和工具链批次不再列为�
 | Node | 通道/官方归档/哈希/支持系统/架构/原生模块 ABI；不静默改发行目标 |
 | Tauri/Rust | CLI/JS API/插件兼容、MSRV/feature/triple；原生传递依赖按上游契约更新 |
 | Actions | 稳定 v 数字 tag、action.yml runtime、runner/权限/嵌套 uses；当前工作流用版本标签 |
-| 系统与打包工具 | SDK/编译器/7-Zip/zstd/WebView、macOS bundle/签名工具；Linux 最老构建基线 |
+| 系统与打包工具 | SDK/编译器/7-Zip/zstd/WebView、macOS bundle 工具；Linux 最老构建基线 |
 
 已有 `scripts/check-toolchain.mjs` 检查本机 Node/Yarn/Rust/packageManager。完整版本/兼容报告仍须查询相应官方来源；其 Node 展示标签仍含历史 Current 候选，随包目标以 targets.json 为准；它不自动升级，也不证明全部框架/Action 为当前最新。历史选型快照见 [来源索引](../ai/source-index.md)，发行冻结前重新核验易变事实。
 

@@ -74,7 +74,7 @@ describe("loadConfig + set_name", () => {
     const session = new ConversionSession({ pool });
     await expect(session.loadConfig(fixture("missing-file.xml"))).rejects.toThrow();
     expect(session.getState()).toBe("failed");
-    // 终态后可重新加载（terminal → loading → ready）。
+    // 运行结束后可重新加载（terminal → loading → ready）。
     const config = await session.loadConfig(fixture("set-name.xml"));
     expect(session.getState()).toBe("ready");
     expect(flattenTreeItems(config.tree).length).toBe(2);

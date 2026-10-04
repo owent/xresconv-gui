@@ -4,7 +4,7 @@ description: "Use When: creating, updating, or auditing AI agent configuration i
 license: MIT
 metadata:
   owner: project-ai-maintainers
-  last-reviewed: 2026-09-30
+  last-reviewed: "2026-10-04"
 ---
 
 # AI Agent 配置维护
@@ -34,7 +34,7 @@ metadata:
 ## Resources
 
 - [references/tool-compatibility.md](references/tool-compatibility.md)：文件选择决策表 + 各 AI 工具（Claude Code、Copilot、OpenCode、Kilo、Pi、Oh My Pi、Command Code、Zoo、OpenClaw、Hermes、Devin、Antigravity）当前配置目录约定。**新增任何工具专属文件前必读**。
-- [references/writing-rules.md](references/writing-rules.md)：AGENTS.md / CLAUDE.md / SKILL.md / 自定义 Agent 的写作规则与模板。**撰写内容前必读**。
+- [references/writing-rules.md](references/writing-rules.md)：研发用语、句式关系，以及 AGENTS.md / CLAUDE.md / SKILL.md / 自定义 Agent 的写作规则与模板。**撰写内容前必读**；普通文档任务由 AGENTS.md 按需引导到通用约定。
 - [references/trigger-evaluation.md](references/trigger-evaluation.md)：Skill 触发评估流程与标注查询集。**新增/修改 Skill 后必读**。
 - `docs/ai/source-index.md`：来源与复核节奏登记处，每次维护后更新。
 

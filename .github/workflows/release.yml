@@ -5,8 +5,8 @@ name: release
 # 内嵌 Fixed Version 运行时完全离线，用支持 7z 的工具解压，
 # 无安装器）；Linux = 发行版无关 tar.zst（bootstrap
 # 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
-# ——两者与 --portable 与否无关；macOS 仅 bootstrap dmg（不签名——签名/公证
-# 在受控发行环境后补，P5-07）。汇总 job 是唯一写 release 的入口，校验产物
+# ——两者与 --portable 与否无关；macOS 仅 bootstrap dmg（未签名；用户已从
+# 执行计划移除证书验收）。汇总 job 是唯一写 release 的入口，校验产物
 # 名集合与正式发行的全量 12 产物完全相等后创建
 # draft（不 overwrite，不自动发布）。
 # 旧 v2.x 标签不再触发（D1：旧架构 2.6.0 为终点版本）。

@@ -4,7 +4,7 @@
 
 ## 0. 执行入口与分册
 
-本文件只保留目标、稳定边界、功能编号和当前进度。接口/平台/测试细节由 [docs/plan 索引](docs/plan/README.md) 路由；已完成任务的实施过程与原始证据保留在 [records](docs/plan/records/README.md)。下一项工作直接读取 [发行后续任务](docs/plan/08-release-follow-up.md)。
+本文件只保留目标、稳定边界、功能编号和当前进度。接口/平台/测试细节由 [docs/plan 索引](docs/plan/README.md) 路由；已完成任务的实施过程与原始记录保留在 [records](docs/plan/records/README.md)。下一项工作直接读取 [发行后续任务](docs/plan/08-release-follow-up.md)。
 
 测试必须有超时及所属进程清理；临时产物放 `build/<task>/`。真实转换可复用相邻 xresloader 的 JAR/sample，但多 JAR 时须显式选择，不能猜测。
 
@@ -12,9 +12,9 @@
 
 更新日期：2026-10-04。
 
-- **dev.0 第一轮验证、dev.1 发布已完成**，由用户确认并经 API 核实。dev.1 标签为 `5909542`；该提交 ci/Portable/release 均通过，含 macOS 双架构原生构建和完整 12 产物聚合。
-- **公开资产与标签身份不同**：dev.1 保留 14 产物及边车，下载的 Windows/macOS x64 bootstrap 清单均为 `651ea5e`；新构建上传跳过了已有同名资产。证据、修复和逐项验收见 [收尾记录](docs/plan/records/ACCEPTANCE-2026-10-04.md)，不能将这些资产记成 `5909542`。
-- P0–P7 的实施及已完成后续任务归档至 records；活动状态唯一维护于 [08 册](docs/plan/08-release-follow-up.md)。本轮不写 Release，Linux 用 WSL/Debian，ARM64 交叉包运行免验；额外实机和证书环境的 G5/G6 边界如实保留。
+- **实现、桌面自动化与完整介质构建已完成**：候选 `d61d639` 的 ci/Portable 和正式 12 产物/边车均通过；Windows/Linux/macOS x64/macOS arm64 桌面各 13 项通过，macOS 自动交互 R11 见 [CI 验收记录](docs/plan/records/MACOS-E2E-2026-10-04.md)，当前完整构建 R12 见 [最终核对](docs/plan/records/COMPLETION-2026-10-04.md)。
+- **dev.0 第一轮验证、dev.1 发布已完成**。dev.1 标签为 `5909542`，公开资产仍为旧 14 产物集合；已下载的 Windows/macOS x64 bootstrap 包内提交为 `651ea5e`。标签、公开介质和当前候选分别取证，见 [发布核对](docs/plan/records/ACCEPTANCE-2026-10-04.md)。
+- P0–P7 的实施及已完成后续任务进入 records；尚待实机验收的范围只在 [08 册](docs/plan/08-release-follow-up.md) 维护。用户已移除证书签名验收，本轮不写 Release，Linux 用 WSL/Debian，ARM64 交叉包运行免验；范围调整与执行结果见最终核对。
 
 目标：Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程；保留 XML、CLI、转换、公开脚本接口和必要 Node 模块能力。脚本故障不得白屏、杀主进程或永久卡住任务；Windows/Linux 发行提供 bootstrap/offline 两种运行时策略，macOS 统一使用系统 WKWebView。
 
@@ -36,7 +36,7 @@
 | D4 | 可信脚本 + 故障隔离；允许本地文件/模块/进程，不声称防恶意沙箱 |
 | D5 | macOS 13.5+，系统 WKWebView；系统不足引导升级，无独立 WKWebView 离线安装器 |
 
-决策证据见 [P0-06](docs/plan/records/P0-06.md) 和 [当前发行约定](docs/plan/05-packaging-release.md)。
+决策依据见 [P0-06](docs/plan/records/P0-06.md) 和 [当前发行约定](docs/plan/05-packaging-release.md)。
 
 ### 2.3 D6：业务统一 Node.js
 
@@ -50,7 +50,7 @@ React 19 / TypeScript / Vite；React Aria Components、Zustand、TanStack Virtua
 
 ### 3.2 版本规则
 
-当前锁定值以 `package.json` / `yarn.lock` / `Cargo.lock` 为准，运行时目标以 `packaging/targets.json` 为准（当前 Node 24）。Yarn 4 是唯一 JS 包管理器。发行冻结前复查官方稳定版本、engines/peer/MSRV、目标平台与兼容证据；升级按批次验证，不在构建中自动升级业务依赖。版本来源与旧调研快照见 [来源索引](docs/ai/source-index.md)，不把历史 “latest” 当当前结论。
+当前锁定值以 `package.json` / `yarn.lock` / `Cargo.lock` 为准，运行时目标以 `packaging/targets.json` 为准（当前 Node 24）。Yarn 4 是唯一 JS 包管理器。发行冻结前复查官方稳定版本、engines/peer/MSRV、目标平台与兼容性验证结果；升级按批次验证，不在构建中自动升级业务依赖。版本来源与旧调研快照见 [来源索引](docs/ai/source-index.md)，不把历史 “latest” 当当前结论。
 
 ## 4. 架构与职责
 
@@ -74,7 +74,7 @@ backend 拥有配置 revision、选择、计划和运行状态；UI 只持快照
 
 ### 4.3 业务流
 
-加载候选配置 → 原子提交 → 冻结计划 → before → 转换 → after → 唯一终态；失败/取消必须收尾，副作用不自动重放。计划冻结时点、批次完成和日志边界见 [03 册](docs/plan/03-domain-conversion.md)。
+加载候选配置 → 原子提交 → 冻结计划 → before → 转换 → after → 本次运行结果（只确认一次）；失败/取消必须收尾，副作用不自动重放。计划冻结时点、批次完成和日志边界见 [03 册](docs/plan/03-domain-conversion.md)。
 
 ## 5. 功能保留与 UI
 
@@ -117,7 +117,7 @@ guardian 的外部截止不依赖 worker 事件循环；取消/超时/关闭/宿
 
 ### 7.1 配置
 
-严格 UTF-8/XML、实体/CDATA/include/路径语义及事务提交见 [03 册](docs/plan/03-domain-conversion.md)。XML 解析已迁入受 ProcessScope 监督的独立 Node helper，具有外部截止、取消、关闭回收与节点/脚本文本独立预算；100k 候选跨进程回归通过，完成证据见 [执行记录](docs/plan/records/EXECUTION-2026-10-03.md)。
+严格 UTF-8/XML、实体/CDATA/include/路径语义及事务提交见 [03 册](docs/plan/03-domain-conversion.md)。XML 解析已迁入受 ProcessScope 监督的独立 Node helper，具有外部截止、取消、关闭回收与节点/脚本文本独立预算；100k 候选跨进程回归通过，完成记录见 [执行记录](docs/plan/records/EXECUTION-2026-10-03.md)。
 
 ### 7.2 Java
 
@@ -139,22 +139,13 @@ guardian 的外部截止不依赖 worker 事件循环；取消/超时/关闭/宿
 
 ## 9. CI 与发布
 
-`ci.yml` 执行 Node/Rust、三引擎浏览器及三平台桌面测试；`portable-build.yml` 校验 macOS/Linux 双架构 8 个产物；`release.yml` 精确校验 12 产物，只有 v3 tag 才可能写 draft。上传前后核对既有资产摘要；公开版本一致时只读结束，不一致时失败。当前实现与实际运行边界见 [收尾记录](docs/plan/records/ACCEPTANCE-2026-10-04.md)。
+`ci.yml` 执行 Node/Rust、三引擎浏览器及三平台桌面测试；`portable-build.yml` 校验 macOS/Linux 双架构 8 个产物；`release.yml` 精确校验 12 产物，只有 v3 tag 才可能写 draft。上传前后核对既有资产摘要；公开版本一致时只读结束，不一致时失败。当前 CI 验证结果见 [验收记录](docs/plan/records/MACOS-E2E-2026-10-04.md)，发布身份防护见 [前次收尾](docs/plan/records/ACCEPTANCE-2026-10-04.md)。
 
 PR/普通构建不发布；正式写 release 仅聚合 job 授权。不覆盖已发布版本；下一轮候选必须绑定最终提交、运行时版本、介质哈希和适用验收，不沿用另一构建的报告。
 
-## 10. 阶段完成与下一步
+## 10. 阶段记录与环境后续项
 
-| 阶段 | 已完成范围 | 证据/剩余边界 |
-| --- | --- | --- |
-| P0/P1 | 旧基线、D1–D6、Yarn/工具链、Node 工作区与桌面桥 | [01 册](docs/plan/01-baseline-toolchain.md)、P0/P1 records |
-| P2/P3 | 公开脚本约定、监督、配置/计划/Java/日志与真实 JAR 差分 | [02](docs/plan/02-contracts-script-host.md)/[03](docs/plan/03-domain-conversion.md)；XML 解析隔离另见 R3 |
-| P4 | React UI、虚拟化、三引擎及 Windows/Linux 桌面自动化 | [04 册](docs/plan/04-ui.md)；macOS 实机另验 |
-| P5 | 发行管线、本地交付、dev.1 全量 CI/Portable 与 macOS 原生构建 | [05 册](docs/plan/05-packaging-release.md)、[收尾记录](docs/plan/records/ACCEPTANCE-2026-10-04.md)；公开资产身份另验 |
-| P6 | Windows x64 功能/真实项目/性能/100 轮泄漏循环 | [P6-06](docs/plan/records/P6-06.md)；全矩阵 G5/G6 仍待实机 |
-| P7 | 旧架构移除、文档/回退交接、第一轮预发布 | [07 册](docs/plan/07-cutover.md)；正式全矩阵交付另验 |
-
-活动任务、前置条件、完成判据和更新位置唯一维护于 [08 册](docs/plan/08-release-follow-up.md)。已完成 P0–P7 子任务不再重复铺开；历史来源和限制保留在记录中。
+P0–P7 的实施和 R1–R4、R7–R11 的完成过程按阶段保存在 [records 索引](docs/plan/records/README.md)，不再在主计划重复完成表。模块分册保留现行接口/平台/测试约定；最终验收的范围、前置条件和完成判据只维护于 [08 册](docs/plan/08-release-follow-up.md)。
 
 ## 11. 测试与验收
 
@@ -166,9 +157,9 @@ PR/普通构建不发布；正式写 release 仅聚合 job 授权。不覆盖已
 
 C01–C15、R01–R12、I01–I14 的类别约定和 CF/SC/EX/UI/PK 具体步骤集中到 [06 册](docs/plan/06-testing-acceptance.md)，编号保留不变。
 
-### 11.5 性能与质量门槛
+### 11.5 性能与质量要求
 
-同口径 Windows x64 bootstrap 较旧版至少减小 50%；关键交互 p95 <100ms；同 JAR/负载吞吐 ≥旧版 90%；100 次循环无累计孤儿/句柄泄漏。Windows 本机证据见 [P6-05](docs/plan/records/P6-05.md)，不得外推其他平台。offline 单列运行时成本；冷/热启动、进程树内存和异常样本如实报告。
+同口径 Windows x64 bootstrap 较旧版至少减小 50%；关键交互 p95 <100ms；同 JAR/负载吞吐 ≥旧版 90%；100 次循环无累计孤儿/句柄泄漏。Windows 本机测试记录见 [P6-05](docs/plan/records/P6-05.md)，不得外推其他平台。offline 单列运行时成本；冷/热启动、进程树内存和异常样本如实报告。
 
 ### 11.6 当前命令
 
@@ -176,4 +167,4 @@ C01–C15、R01–R12、I01–I14 的类别约定和 CF/SC/EX/UI/PK 具体步骤
 
 ## 12. 交付核对
 
-已完成的实现、XML 隔离、x64 最终包、ARM64 交叉包和 dev.1 CI 证据见 records。macOS 新交互测试、公开资产身份防护及受控环境后续项只在 [08 册](docs/plan/08-release-follow-up.md) 更新；不再重复完成清单。
+本轮交付记录集中在 [records](docs/plan/records/README.md)，包含 XML 隔离、x64 最终包、ARM64 交叉包、发布身份防护及三平台桌面自动化。最终验收按 [08 册](docs/plan/08-release-follow-up.md) 的用户确认范围执行，后续候选绑定新的提交与介质摘要。

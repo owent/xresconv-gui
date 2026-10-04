@@ -24,8 +24,8 @@
  * - 退出码：failed_count += 每进程 failedTaskCount（=exitCode，main.js:2175-2176，
  *   Main.java:407 约定）。
  * - 取消（BD-O6，新能力）：冻结派发（不再 invoke 新 hook / 不 spawn java）、
- *   AbortSignal 中止在途 java（runner 侧 SIGTERM→宽限→SIGKILL），终态 cancelled
- *   只进入一次（状态机 assertTransition + 会话终态吸收）。worker 在途 invoke
+ *   AbortSignal 中止在途 java（runner 侧 SIGTERM→宽限→SIGKILL），结束状态 cancelled
+ *   只进入一次（状态机 assertTransition + 会话忽略本次运行结束后的重复状态更新）。worker 在途 invoke
  *   不杀（共享池），由其 timeout 兜底。
  *
  * 日志：进程启动（module=work_dir，main.js:2125-2137）、每任务派发
@@ -55,7 +55,7 @@ import type { LogHookRunner, LogObject, LogPipeline } from "./log-pipeline.ts";
 /** Java 批量执行器（默认 guardian runJavaBatch，测试可注入 fake）。 */
 export type JavaRunner = (options: JavaBatchOptions) => Promise<JavaBatchResult>;
 
-/** 一次转换运行的终态摘要。 */
+/** 一次转换运行的结果摘要。 */
 export interface RunSummary {
   readonly runSeq: number;
   readonly state: "succeeded" | "failed" | "cancelled";
@@ -96,7 +96,7 @@ export interface RunOptions {
   /** 取消信号（会话 cancel() 触发）；runner 侧中止用同一信号。 */
   readonly signal: AbortSignal;
   readonly isCancelRequested: () => boolean;
-  /** 状态迁移（会话实现：终态吸收 + assertTransition）。 */
+  /** 状态迁移（会话忽略本次运行结束后的重复更新，其余变更由 assertTransition 校验）。 */
   readonly transition: (to: RunState) => void;
   /**
    * 在途 on_append_log invocation id 集合（会话持有）：hook 内 log_* 产出的
@@ -350,7 +350,7 @@ async function runShard(
 
 /**
  * 执行一次转换运行。永不因业务失败 reject（对齐旧版 conv_start 全 catch），
- * 终态与计数体现在返回值与状态机迁移中。
+ * 运行结果与计数体现在返回值与状态机迁移中。
  */
 export async function runConversion(options: RunOptions): Promise<RunSummary> {
   const startedAt = Date.now();

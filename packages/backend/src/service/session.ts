@@ -186,7 +186,7 @@ export class ConversionSession {
   }
 
   /**
-   * 加载配置（P3-03）：idle/ready/终态 → loading → ready；解析硬错误 → failed 并抛出。
+   * 加载配置（P3-03）：idle/ready/结束状态 → loading → ready；解析硬错误 → failed 并抛出。
    * set_name 整合由 load-config.ts 完成（错误/超时记诊断、加载继续）。
    */
   async loadConfig(configPath: string): Promise<ParsedConfig> {
@@ -301,7 +301,7 @@ export class ConversionSession {
   }
 
   /**
-   * 执行一次转换运行（P3-08）。要求已加载配置；终态后再运行先经
+   * 执行一次转换运行（P3-08）。要求已加载配置；运行结束后再运行先经
    * loading→ready 重新武装（BD-O14；状态机不允许 terminal→before_hooks 直达）。
    *
    * selection 缺省时从会话树状态派生（P2-05：脚本/矩阵资格造成的最新勾选）。
@@ -733,7 +733,7 @@ export class ConversionSession {
     hook.enabled = enabled;
   }
 
-  /** 严格迁移：非法跳转（含终态再迁出之外的违规）由 assertTransition 抛出。 */
+  /** 严格校验状态变更：所有跳转（含运行结束后重新加载）均由 assertTransition 检查。 */
   private transition(to: RunState): void {
     assertTransition(this.state, to);
     const previous = this.state;
@@ -742,7 +742,7 @@ export class ConversionSession {
   }
 
   /**
-   * run 流程用迁移：终态吸收，避免重复收尾；非终态非法跳转仍由 assertTransition 抛出。
+   * run 流程的状态变更：本次运行结束后忽略迟到或重复更新，避免重复收尾；运行期间的非法跳转仍由 assertTransition 抛出。
    */
   private transitionSoft(to: RunState): void {
     if (isTerminal(this.state)) {

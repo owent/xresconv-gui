@@ -85,7 +85,7 @@ describe("runConversion", () => {
     expect(afterIdx).toBeGreaterThan(dispatchIdx);
     expect(doneIdx).toBeGreaterThan(afterIdx);
 
-    // 终态后重跑：loading→ready 重新武装（BD-O14）。
+    // 运行结束后重跑：loading→ready 重新武装（BD-O14）。
     const rerun = await session.runConversion(selectAll(config));
     expect(rerun.state).toBe("succeeded");
     expect(rerun.runSeq).toBe(2);
@@ -269,7 +269,7 @@ describe("runConversion", () => {
     }
   });
 
-  it("取消：运行中 cancel → 终态 cancelled 恰好一次、java abort 生效、无 All jobs done（BD-O6）", {
+  it("取消：运行中 cancel → 结束状态 cancelled 恰好一次、java abort 生效、无 All jobs done（BD-O6）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const runnerCalls: JavaBatchOptions[] = [];

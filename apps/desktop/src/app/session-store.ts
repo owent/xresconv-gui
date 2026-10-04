@@ -74,7 +74,7 @@ export interface PreviewState {
 }
 
 /**
- * 最近一次运行的终态记录（P4-06，UI06）：run_end 摘要 + 终态迁移来源阶段。
+ * 最近一次运行的结果记录（P4-06，UI06）：run_end 摘要 + 运行结束前的阶段。
  * endPhase 取 state_change.previous（事件按序先于 run_end 到达）；事件缺失时为
  * null，文案退化为通用描述，不猜测阶段。
  */
@@ -187,11 +187,11 @@ interface SessionData {
   /** P4-06：run RPC 在途（双击防护）。 */
   runStarting: boolean;
   settingsPending: number;
-  /** P4-06：已请求取消、等待后端清理（终态事件清除；EX03 重复取消幂等）。 */
+  /** P4-06：已请求取消、等待后端清理（结束状态事件清除；EX03 重复取消幂等）。 */
   cancelRequested: boolean;
-  /** 最近一次运行终态记录（P4-06，UI06）；新 run 成功启动时清除。 */
+  /** 最近一次运行结果记录（P4-06，UI06）；新 run 成功启动时清除。 */
   lastRun: RunRecord | null;
-  /** 终态 state_change 的 previous；由同一次运行的 run_end 消费。 */
+  /** 进入结束状态的 state_change 的 previous；由同一次运行的 run_end 消费。 */
   pendingEndPhase: string | null;
   /** 日志窗口（P4-07，UI07）。 */
   logs: LogWindowState;
@@ -218,7 +218,7 @@ interface SessionActions {
    * 重同步快照（状态权威来自 backend，防事件迟到窗口）并清除上次运行记录。
    */
   startRun: () => Promise<boolean>;
-  /** 取消当前运行（P4-06，EX03）：置 cancelRequested 直到终态事件（重复取消幂等）。 */
+  /** 取消当前运行（P4-06，EX03）：置 cancelRequested 直到结束状态事件（重复取消幂等）。 */
   cancelRun: () => Promise<boolean>;
   /** 初始拉取日志窗口（P4-07）：getLogs 最新页；幂等（initialized 闸）。 */
   initLogs: () => Promise<void>;
@@ -651,7 +651,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       try {
         const { runSeq } = await backendRpc<{ runSeq: number }>("run");
         if (epoch !== sessionEpoch) return false;
-        // 新运行开始：上次终态记录与取消标记失效（run_end 只针对当前运行）；
+        // 新运行开始：上次运行结果记录与取消标记失效（run_end 只针对当前运行）；
         // 运行日志显示面重置（2026-09-26 四轮：每次开始转换从干净日志追加）。
         logWindowEpoch++;
         set((state) => ({
@@ -675,7 +675,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       try {
         await backendRpc<{ state: string }>("cancel");
         if (epoch !== sessionEpoch) return false;
-        // 等待清理标记：终态 state_change / run_end / 新 run 启动时清除。
+        // 等待清理标记：进入结束状态的 state_change / run_end / 新 run 启动时清除。
         set({ cancelRequested: true });
         return true;
       } catch (error) {
@@ -1033,8 +1033,8 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
               next.snapshot = { ...state.snapshot, state: payload.state };
             }
             if (typeof payload.state === "string" && RUN_TERMINAL_STATES.has(payload.state)) {
-              // 记录终态来源阶段（同一次运行的 run_end 消费）；清理标记无论
-              // run_end 是否到达都不能卡住（EX03：终态只发布一次）。
+              // 记录运行结束前的阶段（同一次运行的 run_end 消费）；清理标记无论
+              // run_end 是否到达都不能卡住（EX03：结束状态只发布一次）。
               next.pendingEndPhase = ["before_hooks", "converting", "after_hooks"].includes(
                 payload.previous ?? "",
               )

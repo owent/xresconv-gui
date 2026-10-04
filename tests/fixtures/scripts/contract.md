@@ -4,7 +4,7 @@
 
 ## 0. 解析层事实（影响所有脚本）
 
-- 配置 XML 不是被 XML 解析器解析，而是被 jQuery 按 **HTML** 模式解析（`src/main.js:1198` `$(context)`）。后果：
+- 旧版配置 XML 由 jQuery 按 **HTML** 模式解析（`src/main.js:1198` `$(context)`）。后果：
   - 标签名/属性名大小写按 HTML 规则处理；未知元素保留。
   - `<![CDATA[...]]>` 在 HTML 解析下是 bogus comment，脚本文本语义 `[待运行验证]`。
   - 脚本通过 `$(dom).html()` 取文本（`src/main.js:1470` 等）。**已运行验证**（P0-04，probe + fault-log-storm + 官方 sample.xml 对照）：

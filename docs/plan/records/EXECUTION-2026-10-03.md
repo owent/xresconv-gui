@@ -85,4 +85,4 @@ Linux 全量测试实际命令为 `corepack yarn workspaces foreach -A --include
 
 另从官方 npm 发布包核对 Koffi 3.3.1 的 macOS 双架构 .node：dist.integrity 通过，两文件确为对应薄 Mach-O 64，避免凭经验假设新增头检查能兼容。原始头、SHA 与来源在任务目录 darwin-addon-headers.json；未构建或执行 macOS 应用。
 
-计划及分册精简后，17 个修改 Markdown 已检查固定 D1–D6/F/C/R/I 编号、298 个本地引用和原始来源保留；17 个仓库文件及本地交付索引 markdownlint 零告警，git diff --check 通过。AGENTS 更新 Windows 校验入口及交叉构建稳定约束，CLAUDE/Skills 无需复制这些实现细节；临时工具适配留在条件化发行文档与记录。已清理本轮工作副本/解包目录/停止容器、卸载 bind、移除临时 binfmt 规则；保留缓存、工具与证据有本地索引。
+计划及分册精简后，17 个修改 Markdown 已检查固定 D1–D6/F/C/R/I 编号、298 个本地引用和原始来源保留；17 个仓库文件及本地交付索引 markdownlint 零告警，git diff --check 通过。AGENTS 更新 Windows 校验入口及交叉构建稳定约束，CLAUDE/Skills 无需复制这些实现细节；临时工具适配留在条件化发行文档与记录。已清理本轮工作副本/解包目录/停止容器、卸载 bind、移除临时 binfmt 规则；保留缓存、工具与验证记录均有本地索引。

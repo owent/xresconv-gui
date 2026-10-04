@@ -101,7 +101,7 @@ describeLoaded("tree selection and layout with a loaded config", () => {
       },
       { timeout: 30_000, timeoutMsg: "expected an honest failure summary" },
     );
-    // 终态后按钮恢复可再次运行（不永久卡住）。
+    // 运行结束后按钮恢复可再次运行（不永久卡住）。
     await browser.waitUntil(async () => start.isEnabled(), { timeout: 10_000 });
   });
 });

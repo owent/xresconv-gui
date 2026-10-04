@@ -27,14 +27,15 @@
 
 ## 已完成任务迁入
 
-| 任务 | 已完成范围 | 证据 |
+| 任务 | 已完成范围 | 验证记录 |
 | --- | --- | --- |
 | R1 发布/计划核对 | dev.0 用户首轮及 API、计划分册精简；dev.1 发布/标签/CI/包内身份复核 | 本记录及前次 RELEASE 记录 |
 | R2 最终介质 | Windows/Linux x64 本机双变体逐文件与桌面各 13 项；macOS 双架构原生构建 | EXECUTION 记录；5909542 release/Portable |
 | R3 XML 隔离 | 独立 helper、外部截止/取消/关闭/独立预算/100k 回归，Windows/Linux 门禁及真实 JAR | EXECUTION 记录，相关源码/回归 |
 | R4 ARM64 | Windows 双 7z、Linux bootstrap tar.zst 与 offline AppImage/tar.zst；构建/静态核验完成，运行免验 | EXECUTION 记录、全量 CI |
 | R7 CI 集成 | 5909542 首次 ci/Portable/release 均成功；12 正式产物和 8 Portable 集合；Linux Yarn 恢复、Windows Yarn 保存；两平台 Rust cache 上传完成 | 三 run 与 desktop 原始日志；后续 Rust 命中单独复核 |
-| R8/R9 | macOS 正式仅 bootstrap 双 DMG 的配置、标题有界就绪/Yarn 取消补丁、缓存路径/保存与固定驱动 | CI-E2E 记录及本记录的远端证据 |
+| R8/R9 | macOS 正式仅 bootstrap 双 DMG 的配置、标题有界就绪/Yarn 取消补丁、缓存路径/保存与固定驱动 | CI-E2E 记录及本记录的远端验证记录 |
+| R10 发布身份防护 | 公开资产 API/下载/边车核对；上传前后摘要门禁、5 回归与本地质量验证 | 本记录、release-publication/verify-publication 实现与测试 |
 
 ## 本轮验证与修改
 
@@ -48,8 +49,10 @@
 
 下载 Windows/macOS 包逐文件验证分别为 1241/1240 文件，大小/SHA-256 全部匹配，GUI/Node 的 PE/Mach-O 架构匹配；Windows 包内 Node 24.21.0 实跑，macOS 包内 Node 24.19.0 仅静态读取，未在 Windows 执行。平台实际运行输入版本分别记录。
 
-## 远端执行边界
+## 首次本地收尾时的远端执行边界
 
-新 macOS 双架构交互 workflow 尚未执行。推送隔离 `build/validate-*` 分支的动作被自动审批拒绝：审查认为用户之前的“不发布”限制未授权上传尚未提交源码，须明确批准远端代码写入。没有绕过、推送分支、创建 tag 或修改公开 release；本地代码、回归、文档和可审阅候选准备继续完成。批准后可触发只读权限的 ci/构建任务，完整 macOS 实机/签名范围仍不由这次自动化覆盖。
+本节保留首次收尾时的限制。后续用户自行提交/推送 d61d639，macOS 双架构 CI 各 13 项通过，R11 已完成，见 [后续验收](MACOS-E2E-2026-10-04.md)。
 
-原始证据与哈希/输入清单：`build/final-acceptance-20261004/`。本机没有 macOS；新 Mac CI 及额外原生对话框/证书/干净 VM 的实际结果单独登记，不以测试配置代替通过。
+当时 macOS 双架构交互 workflow 尚未执行。推送隔离 `build/validate-*` 分支的动作被自动审批拒绝：审查认为用户之前的“不发布”限制未授权上传尚未提交源码，须明确批准远端代码写入。没有绕过、推送分支、创建 tag 或修改公开 release；本地代码、回归、文档和可审阅候选准备继续完成。完整 macOS 实机/签名范围不由自动化覆盖。
+
+原始记录与哈希/输入清单：`build/final-acceptance-20261004/`。本机没有 macOS；新 Mac CI 及额外原生对话框/证书/干净 VM 的实际结果单独登记，不以测试配置代替通过。

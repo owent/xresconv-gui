@@ -2,7 +2,7 @@
 
 [执行索引](README.md) · [上一册](02-contracts-script-host.md) · [下一册](04-ui.md)
 
-对应 P3。业务内核采用 TypeScript，运行在独立 Node.js backend 中，不依赖 WebView；另一个 Node.js guardian 负责进程生命周期与超时。核心接口已实现，Windows 本机/真实 JAR 与 Windows/Linux CI 已有证据（见 [发布核对](records/RELEASE-2026-10-03.md)）；最终介质与全矩阵实机仍待验收；输出差异由固定旧版和 JAR 样例裁定；P0 已批准的缺陷修复按差异台账验收。
+对应 P3。业务内核采用 TypeScript，运行在独立 Node.js backend 中，不依赖 WebView；另一个 Node.js guardian 负责进程生命周期与超时。核心接口已实现，Windows 本机/真实 JAR 与 Windows/Linux CI 已有验证记录（见 [发布核对](records/RELEASE-2026-10-03.md)）；最终介质与全矩阵实机仍待验收；输出差异由固定旧版和 JAR 样例裁定；P0 已批准的缺陷修复按差异台账验收。
 
 ## 配置加载事务
 
@@ -36,7 +36,7 @@
 
 当前读取预算为单文件 64 MiB、总量 128 MiB、include 深度 64/文件数 1024；另限累计 100 万 XML 元素、元素深度 100（保持锁定 parser 的原有默认）、单脚本 1 MiB/累计 8 MiB。严格 UTF-8 且只允许一个 `root` 文档根；以 realpath 判重/循环，声明路径继续决定相对路径。非法/溢出的 hook timeout 诊断并回退 30000ms（合法范围 1–2147481647ms，预留 guardian 宽限）。
 
-业务加载经 `config/isolated-loader.ts` 在独立 Node helper 完成同步 XML 校验/解析和候选构建；ProcessScope 监督，外部 30 秒截止覆盖启动、读取、解析和有界帧传输，超时/取消/异常后确认回收再返回。关闭会话等待活动解析结束；取消或失败保留旧候选，完整返回后才执行原有 set_name 和提交。`parseXmlConfig` 保留为 helper 内及纯解析测试入口。响应性、100k 跨进程传输、独立预算与事务回归见 `packages/backend/test/config-isolation.test.ts` / `service/load-config.test.ts`；完成证据见 [执行记录](records/EXECUTION-2026-10-03.md)。
+业务加载经 `config/isolated-loader.ts` 在独立 Node helper 完成同步 XML 校验/解析和候选构建；ProcessScope 监督，外部 30 秒截止覆盖启动、读取、解析和有界帧传输，超时/取消/异常后确认回收再返回。关闭会话等待活动解析结束；取消或失败保留旧候选，完整返回后才执行原有 set_name 和提交。`parseXmlConfig` 保留为 helper 内及纯解析测试入口。响应性、100k 跨进程传输、独立预算与事务回归见 `packages/backend/test/config-isolation.test.ts` / `service/load-config.test.ts`；完成记录见 [执行记录](records/EXECUTION-2026-10-03.md)。
 
 ## 选择与转换计划
 
@@ -60,7 +60,7 @@ before 中修改 item/node 的可见性拆成三项验收：当前已构造命�
 - stdin 参数按 JAR 的 token parser 编码，行分隔与字符串内容分别处理；不借用 Bash/PowerShell/Windows 命令行转义器。
 - 测试空参数、空格、制表符、单/双引号、两类引号同时出现、反斜杠、换行、非 BMP、前导短横线。
 - parser 无法无损表示的输入在预览阶段明确阻塞，或使用已验证的逐任务 argv fallback。fallback 增加进程启动开销，必须计入性能报告。
-- 调试展示字符串不重新作为执行参数；日志中显示的漂亮命令不构成协议证据。
+- 调试展示字符串不重新作为执行参数；协议参数以实际传入的参数数组或 stdin 数据为准。
 
 ### 调度算法
 
@@ -68,11 +68,11 @@ before 中修改 item/node 的可见性拆成三项验收：当前已构造命�
 2. backend 确定每批任务顺序，经 guardian 的限定协议启动 Java 并登记所有权；spawn 失败不计为一次成功转换。调度策略留在 backend，guardian 只执行已验证的进程规格和生命周期操作。
 3. 一侧按背压写 stdin，另一侧持续读取 stdout/stderr；不能等待读完日志才继续写，也不能无限缓存全部日志。
 4. 写完该批关闭 stdin；等待进程退出、输出流 EOF/限定收尾、子树回收。
-5. 汇总批次终态。只有全部成功且未取消才执行成功路径的 after；错误、信号和 IO 故障不能只靠 `code > 0` 判断。
+5. 汇总各批次的执行结果。只有全部成功且未取消才执行成功路径的 after；错误、信号和 IO 故障不能只靠 `code > 0` 判断。
 
-有限分片优先保证可追踪，再测吞吐；如静态分片失衡，可设计有限批次继续派发，但完成边界仍是批次进程终止，不是任意日志块。stdin 上游累计退出码可能截断，不能将退出码当作可靠失败条目数。无逐任务确认时显示“已提交/批次成功或失败/条目结果未知”。
+有限分片优先保证可追踪，再测吞吐；如静态分片失衡，可设计有限批次继续派发，完成状态仍须等批次进程终止后确认。stdin 上游累计退出码可能截断，不能将退出码当作可靠失败条目数。无逐任务确认时显示“已提交/批次成功或失败/条目结果未知”。
 
-Node.js 的 `error`、`exit`、`close` 和流关闭分别登记，统一收敛为一次终态；`kill()` 返回成功不表示进程或子树已经退出。退出后仍需限定日志收尾时间，避免继承管道的后代永久阻塞 EOF。guardian 对 backend 的健康监督独立运行，backend 卡死后停止所属运行并清理其脚本与 Java 子树；不得自动重放已有文件副作用的任务。
+Node.js 的 `error`、`exit`、`close` 和流关闭分别登记，结束状态只确认一次；`kill()` 返回成功不表示进程或子树已经退出。退出后仍需限定日志收尾时间，避免继承管道的后代永久阻塞 EOF。guardian 对 backend 的健康监督独立运行，backend 卡死后停止所属运行并清理其脚本与 Java 子树；不得自动重放已有文件副作用的任务。
 
 ## 状态机和取消
 
@@ -99,8 +99,8 @@ Node.js 内部诊断与用户 log4js 日志区分，Tauri 原生诊断只记录�
 
 当前降级合同：在途 hook 数以日志容量为限，超限记录保留原文并累计 `hookSkippedCount`，可能先于仍在处理的 hook 落队；正常 hook 顺序保持，改写记录保留 `rawMessage`。独立 log4js 子进程限制配置 1 MiB、待发送记录 128 条、单条 256 KiB；超限明确报告未持久化。每个请求 5s 截止，shutdown 默认总预算 5s，终止后额外等待 close 最多 2s；超时/清理未确认均拒绝，不能报告成功 flush。持久化诊断跳过 hook 与落盘 sink，防止递归。此处是过载时的显式降级；持久化/轮转/分页及运行接线的已有测试见 [P6-01](records/P6-01.md)，最终平台/介质的 EX04 复验仍按 R2/R5 执行。
 
-## 实施证据与后续验证
+## 实施记录与后续验证
 
-配置/include/事务、选择与输出矩阵、计划冻结、Java 编码/批次/取消、独立日志 sink 和八格式真实 JAR 差分的实施证据见 [P3 records](records/README.md)、[P3-10](records/P3-10.md) 与 [P6-06](records/P6-06.md)。
+配置/include/事务、选择与输出矩阵、计划冻结、Java 编码/批次/取消、独立日志 sink 和八格式真实 JAR 差分的实施记录见 [P3 records](records/README.md)、[P3-10](records/P3-10.md) 与 [P6-06](records/P6-06.md)。
 
 独立解析/预算的本轮实现与 Windows/Linux 回归见 [执行记录](records/EXECUTION-2026-10-03.md)。任何配置/执行器修改重跑 CF01–CF06、SC02/SC11、EX01–EX05 受影响用例与固定 JAR 对照。回退对应模块/批次，保留旧 golden，不修改上游协议掩盖适配问题。未知格式、事件或选择器差异不得静默忽略。

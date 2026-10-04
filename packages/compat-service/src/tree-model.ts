@@ -153,7 +153,7 @@ export class SelectionTree {
     const tracker = new ChangeTracker();
     // fixSelection3AfterClick（ft-all.js:1041-1058）。fancytree 的 visit 不含自身，
     // 但 clicked 节点随后被 fixSelection3FromEndNodes 的 _walk 覆盖定稿；此处直接
-    // 让级联覆盖自身，终态等价且变更集能正确包含 clicked 节点（backend 盖章依据）。
+    // 让级联覆盖自身，最终选择状态相同，且变更集能正确包含 clicked 节点（供 backend 确认选择变更）。
     this.visitState(node, (child) => {
       // 2026-09-27：级联不改写 unselectable 节点（fancytree `unselectableIgnore`
       // 语义）——矩阵屏蔽项保持未选；旧 GUI 的 auto_select 记忆+屏蔽意图明确

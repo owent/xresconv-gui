@@ -124,7 +124,7 @@
       "fixtures": ["conversion/（固定 JAR+样本）"],
       "source_anchors": ["src/main.js:2118-2237 (进程池)", "src/main.js:2149-2189 (退出归并)", "src/main.js:2719 (重置=窗口 reload)"],
       "old_observation": "verified: LIFO 派发（嵌套数组→升级表→人物表）；stdout/stderr data 事件驱动下一条派发；exit/error/close 去重；exit code 累计进 failed_count；事件顺序 before→convert→after，转换失败则 after 不执行",
-      "expected_new": "并发、失败累计、重置清理进程树；终态明确",
+      "expected_new": "并发、失败累计、重置清理进程树；结束状态明确",
       "diff_ids": ["BD-03", "BD-06"],
       "normalization": [],
       "gaps": ["重置/取消后 Java 孤儿进程未实测（渲染崩溃后 electron 孤儿进程已观察到 2 例）"]

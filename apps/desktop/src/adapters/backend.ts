@@ -121,7 +121,7 @@ export interface PreviewResult {
 /**
  * 运行状态词表（镜像 backend domain/run-state.ts RunState）。
  * 活动运行三态（before_hooks/converting/after_hooks）允许 cancel/重复 cancel；
- * 终态三态（succeeded/failed/cancelled）允许再次 run/reset。
+ * 三种结束状态（succeeded/failed/cancelled）允许再次 run/reset。
  */
 export type RunStateLike =
   | "idle"
@@ -141,7 +141,7 @@ export const RUN_ACTIVE_STATES: ReadonlySet<string> = new Set([
   "after_hooks",
 ]);
 
-/** 终态（run 允许自终态再次启动；reset 自终态重新武装）。 */
+/** 运行结束状态（run 可再次启动；reset 为下一次运行清理状态）。 */
 export const RUN_TERMINAL_STATES: ReadonlySet<string> = new Set([
   "succeeded",
   "failed",

@@ -42,7 +42,7 @@
 
 ## 目录结构
 
-- `apps/desktop/`、`packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`、`src-tauri/`、`tests/`：当前实现（D6，接口/平台/测试约定由 `docs/plan/README.md` 路由，完成证据见 `docs/plan/records/`）
+- `apps/desktop/`、`packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`、`src-tauri/`、`tests/`：当前实现（D6，接口/平台/测试约定由 `docs/plan/README.md` 路由，完成记录见 `docs/plan/records/`）
 
 - `docs/`：文档截图、图标、自定义选择器示例 `custom-selector.json`
 - `.github/workflows/`：CI（ci.yml 质量与桌面测试；release.yml 构建与 draft 聚合；stale.yml）
@@ -113,9 +113,11 @@
 
 ## 文档、路线图与执行计划
 
+文档、注释和回复使用自然、具体的研发用语，少用无必要的否定对照；撰写或修订时按需读取[写作规则](.agents/skills/ai-agent-maintenance/references/writing-rules.md)的术语与句式约定。
+
 每次任务结束前判断是否需更新：`AGENTS.md`、`CLAUDE.md`、`.agents/skills/`、自定义 Agent/prompt/workflow、`docs/` 模块文档、`docs/ai/source-index.md`、部署配置、`roadmap/`（存在时）、测试说明与故障排查文档。
 
-推进或维护执行计划时，先读 `Plan.md` 与 `docs/plan/README.md`，再按任务加载分册。活动任务状态唯一维护在 `docs/plan/08-release-follow-up.md`；完成过程进入 records，模块文档保留约定与证据链接。更新发布进度须分别核对 tag、下载包内 sourceCommit/摘要和当前候选提交；同名资产跳过不证明上传了当前构建。已完成任务移入 records，不把 CI/本机通过外推为全矩阵验收。
+推进或维护执行计划时，先读 `Plan.md` 与 `docs/plan/README.md`，再按任务加载分册。活动任务状态唯一维护在 `docs/plan/08-release-follow-up.md`；完成过程进入 records，模块文档保留约定与验证记录链接。更新发布进度须分别核对 tag、下载包内 sourceCommit/摘要和当前候选提交；同名资产跳过不证明上传了当前构建。已完成任务移入 records，不把 CI/本机通过外推为全矩阵验收。
 
 文档组织要求：
 
