@@ -242,15 +242,17 @@ cleanupResult / retryHistory / unsupportedCases / verdict
 - P6-01 映射审查/14 项子场景补齐与 P6-03 Windows 100 轮泄漏循环已完成，见 [P6-01](records/P6-01.md)。
 - P6-02 自动化差分与真实项目已完成本机复验：八格式 JAR、官方 sample、五真实脚本；atsf4g-co 13 条目/26 任务/26 文件成功，见 [P6-06](records/P6-06.md)。
 - P6-05 Windows 本机大小/吞吐/交互门槛达标，P6-06 为本机范围汇总；不是全平台 G6。
-- dev.0 首次发布/第一轮用户验证见 [发布记录](records/RELEASE-2026-10-03.md)；9967c38 的 release 依赖失败见 [CI 修复记录](records/CI-FIX-2026-10-03.md)，651ea5e 的标题/Yarn 竞态及当前修复见 [桌面/缓存记录](records/CI-E2E-2026-10-03.md)。
+- dev.0 首轮验证、dev.1 发布及 `5909542` 全量 CI 通过；标签/公开资产差异与当前测试结果见 [收尾记录](records/ACCEPTANCE-2026-10-04.md)，历史修复过程见 records 索引。
 - XML 隔离、Windows/Linux 门禁与最终包结果见 [执行记录](records/EXECUTION-2026-10-03.md)；当前本地回归与两平台桌面见桌面/缓存记录；额外实机、签名与 CI 后续范围集中至 [08 册](08-release-follow-up.md)，不维护第二份任务表。
 
 ## 当前自动化入口补充（2026-10-04 核对）
 
 - 单元/契约入口保持 `corepack yarn test:unit` / `test:contracts`；本轮外层限时运行器及日志索引见审查记录。
 - `test:browser` 使用本次生产构建启动独占 preview，整体上限 10 分钟，结果写入 `build/browser-test-results/`。工作区测试覆盖详情、输出矩阵、事件、弹框、主题、大字号、窄窗口和 axe。
-- `test:desktop` 显式启动已安装的 tauri-driver / 原生 WebDriver，不隐式下载或附加测试插件。默认执行 `tauri build --debug --no-bundle`；构建上限 30 分钟、驱动就绪 15 秒、每轮测试 5 分钟；WDIO 建连超时 120 秒、重试次数 2，每项 Mocha 用例上限 60 秒。CI job 总上限 40 分钟；结束回收所属进程树。
-- CI 的 `desktop-e2e` 等待 Node/Rust 质量 job 通过后并行运行 Windows/Linux。安装驱动后，Windows 另验证控制台回归并以 medium integrity 运行测试，Linux 用 xvfb-run 提供虚拟显示。默认空会话 9 项、CLI 加载会话 4 项，共 13 项；不将 debug 应用测试当作最终归档/离线介质验收。
+- `test:desktop` Windows/Linux 使用已安装的 tauri-driver / 原生驱动；macOS 默认嵌入 `tauri-plugin-wdio-webdriver` 1.4.0 standalone。两者均构建 debug/no-bundle；嵌入模式额外显式 `--features e2e`，每个 spec 独立应用和进程树，生产 release + e2e 拒绝编译。`XRESCONV_E2E_DRIVER_PROVIDER=embedded` 可在 Windows/Linux 验证相同入口，不隐式安装工具或下载插件版本。
+- 构建上限 30 分钟、驱动就绪 30 秒、每轮测试 5 分钟；WDIO 建连 120 秒/重试 2，每项 Mocha 60 秒，CI job 40 分钟。结束确认所属进程树回收，失败仍恢复显示设置。
+- CI 的 `desktop-e2e` 等待 Node/Rust 门禁后运行 Windows、Linux、macOS x64/arm64。Windows 保留控制台回归和 medium integrity，Linux 用 xvfb，macOS 用真实 WKWebView。空会话 9 项、CLI 加载 4 项，共 13 项；测试构建不替代最终归档/离线介质验收。
+- 嵌入 1.4.0 的 Element Click 仅调用 DOM click，指针动作缺 PointerEvent；实测无法驱动 React Aria 复选框。测试适配层补全 pointerdown/up 及鼠标序列，保留原勾选/反选断言；属于原生 WebView 内渲染器交互，不能据此声明 OS 输入、对话框或 Gatekeeper 已验。官方源码、失败追踪与修复验证见收尾记录。
 - 桌面默认依次验证空会话、`tests/fixtures/config/tree-items.xml` 的首次 CLI 加载。测试前备份 exe 旁显示设置，每轮重置，最终恢复原字节；`XRESCONV_E2E_INPUT` 可覆盖加载文件，`XRESCONV_E2E_SKIP_BUILD=1` 只用于已确认匹配源码的本地二进制。
 - 首个标题用例经 `waitForAppTitle` 等待导航就绪（30 秒 / 100ms 轮询），再执行原有精确断言；永久空/错误标题仍失败，不添加 spec 重跑。就绪回归由 desktop-e2e workspace 的 `test` 纳入根 `test:unit`。
 - Edge WebDriver 的应用参数使用 `--input=路径`，不能拆成两个数组元素；浏览器标志应放 `webviewOptions.additionalBrowserArguments`。失败截图和 CLI/页面诊断保存在 `build/desktop-test-results/`。

@@ -10,12 +10,11 @@
 
 ## 1. 当前状态、目标与边界
 
-更新日期：2026-10-03。
+更新日期：2026-10-04。
 
-- **第一轮发布验证完成**：用户确认已发布 [v3.0.0-dev.0](https://github.com/owent/xresconv-gui/releases/tag/v3.0.0-dev.0) 并完成第一轮验证。API 核实为公开预发布（非 draft），对应提交 `990e5d2`，9 个产物 + 9 个 SHA-256 文件；发行与 CI 证据见 [发布核对记录](docs/plan/records/RELEASE-2026-10-03.md)。
-- **当前源码是 `3.0.0-dev.1`，HEAD 为 `9967c38`**：该提交 CI/Portable 已通过；release 的 Windows、Linux x64 和 macOS 四 DMG 构建通过，Linux ARM64 因缺少 xdg-utils 失败，聚合未执行。本地修复与证据见 [CI 修复记录](docs/plan/records/CI-FIX-2026-10-03.md)，既有本地门禁/最终包见 [执行记录](docs/plan/records/EXECUTION-2026-10-03.md)。Portable 不构建 Windows 7z 或 macOS DMG。
-- P0–P4 的实施、P5 发行管线、P6 Windows x64 本机范围及 P7 旧架构切换已有证据；完整 G5/G6 跨平台实机验收仍未闭合。第一轮发布不自动覆盖后续代码、归档格式或运行时变更。
-- 本轮边界：不发布；Linux 使用 WSL/Debian，ARM64 交叉打包后运行免验。XML 隔离、Windows/Linux x64 最终包和门禁已有本轮证据；macOS 原生构建已取得 CI 证据，发行矩阵重验等剩余任务只维护在 08 册。
+- **dev.0 第一轮验证、dev.1 发布已完成**，由用户确认并经 API 核实。dev.1 标签为 `5909542`；该提交 ci/Portable/release 均通过，含 macOS 双架构原生构建和完整 12 产物聚合。
+- **公开资产与标签身份不同**：dev.1 保留 14 产物及边车，下载的 Windows/macOS x64 bootstrap 清单均为 `651ea5e`；新构建上传跳过了已有同名资产。证据、修复和逐项验收见 [收尾记录](docs/plan/records/ACCEPTANCE-2026-10-04.md)，不能将这些资产记成 `5909542`。
+- P0–P7 的实施及已完成后续任务归档至 records；活动状态唯一维护于 [08 册](docs/plan/08-release-follow-up.md)。本轮不写 Release，Linux 用 WSL/Debian，ARM64 交叉包运行免验；额外实机和证书环境的 G5/G6 边界如实保留。
 
 目标：Tauri 2 桌面层 + 系统 WebView + 独立 Node.js 业务进程；保留 XML、CLI、转换、公开脚本接口和必要 Node 模块能力。脚本故障不得白屏、杀主进程或永久卡住任务；Windows/Linux 发行提供 bootstrap/offline 两种运行时策略，macOS 统一使用系统 WKWebView。
 
@@ -47,7 +46,7 @@
 
 ### 3.1 选定方案
 
-React 19 / TypeScript / Vite；React Aria Components、Zustand、TanStack Virtual；CSS tokens/组件样式。Node backend、guardian、script-host、compat-service 分离；JSON Schema → TS/Ajv 为唯一业务契约源。业务质量入口为 Biome/tsc/Vitest，桌面检查为 Playwright、WDIO + 外部 tauri-driver，Rust 仅检查桌面层。
+React 19 / TypeScript / Vite；React Aria Components、Zustand、TanStack Virtual；CSS tokens/组件样式。Node backend、guardian、script-host、compat-service 分离；JSON Schema → TS/Ajv 为唯一业务契约源。业务质量入口为 Biome/tsc/Vitest，桌面检查为 Playwright、WDIO（Windows/Linux 外部驱动，macOS 显式 debug 测试 feature 的嵌入驱动），Rust 仅检查桌面层。
 
 ### 3.2 版本规则
 
@@ -118,7 +117,7 @@ guardian 的外部截止不依赖 worker 事件循环；取消/超时/关闭/宿
 
 ### 7.1 配置
 
-严格 UTF-8/XML、实体/CDATA/include/路径语义及事务提交见 [03 册](docs/plan/03-domain-conversion.md)。XML 解析已迁入受 ProcessScope 监督的独立 Node helper，具有外部截止、取消、关闭回收与节点/脚本文本独立预算；100k 候选跨进程回归通过，最终平台进度见 [R3](docs/plan/08-release-follow-up.md)。
+严格 UTF-8/XML、实体/CDATA/include/路径语义及事务提交见 [03 册](docs/plan/03-domain-conversion.md)。XML 解析已迁入受 ProcessScope 监督的独立 Node helper，具有外部截止、取消、关闭回收与节点/脚本文本独立预算；100k 候选跨进程回归通过，完成证据见 [执行记录](docs/plan/records/EXECUTION-2026-10-03.md)。
 
 ### 7.2 Java
 
@@ -130,7 +129,7 @@ guardian 的外部截止不依赖 worker 事件循环；取消/超时/关闭/宿
 
 ## 8. 运行时与发行矩阵
 
-`packaging/targets.json` 定义 12 个可构建目标；正式发行选择 10 个目标、12 个产物，macOS 不重复发布 offline DMG。当前工作流源码与精确聚合集合同步，执行结果见 08 册。dev.0 实际发布仍是 8 目标/9 产物子集；支持目标与已发布子集分别验收。
+`packaging/targets.json` 定义 12 个可构建目标；正式发行选择 10 个目标、12 个产物，macOS 不重复发布 offline DMG。当前精确 CI 集合已验证；dev.0 发布为 9 产物，dev.1 公开资产仍保留旧 14 产物集合。构建、发布资产和实机验收分别登记。
 
 - Windows x64/ARM64：bootstrap/offline 均为 7z；bootstrap 附 Evergreen 引导器，offline 内嵌 Fixed Version，系统 Evergreen 优先。
 - macOS x64/arm64：只发布 bootstrap DMG，统一使用系统 WKWebView；Portable 构建验证另产未签名 .app.zip。
@@ -140,7 +139,7 @@ guardian 的外部截止不依赖 worker 事件循环；取消/超时/关闭/宿
 
 ## 9. CI 与发布
 
-`ci.yml` 执行 Node/Rust 门禁及 Windows/Linux 桌面测试；`portable-build.yml` 校验 macOS/Linux 双架构 8 个产物；`release.yml` 的全量 12 产物矩阵支持仅构建入口，v3 tag 才进入 draft 写入任务；`stale.yml` 保持维护语义。Action 使用已核验的稳定 v 数字标签；首轮结果见 [发布核对记录](docs/plan/records/RELEASE-2026-10-03.md)，本轮桌面/缓存修复与 macOS 精简见 [CI 记录](docs/plan/records/CI-E2E-2026-10-03.md)，不将新工作流源码检查当成 CI 通过。
+`ci.yml` 执行 Node/Rust、三引擎浏览器及三平台桌面测试；`portable-build.yml` 校验 macOS/Linux 双架构 8 个产物；`release.yml` 精确校验 12 产物，只有 v3 tag 才可能写 draft。上传前后核对既有资产摘要；公开版本一致时只读结束，不一致时失败。当前实现与实际运行边界见 [收尾记录](docs/plan/records/ACCEPTANCE-2026-10-04.md)。
 
 PR/普通构建不发布；正式写 release 仅聚合 job 授权。不覆盖已发布版本；下一轮候选必须绑定最终提交、运行时版本、介质哈希和适用验收，不沿用另一构建的报告。
 
@@ -151,7 +150,7 @@ PR/普通构建不发布；正式写 release 仅聚合 job 授权。不覆盖已
 | P0/P1 | 旧基线、D1–D6、Yarn/工具链、Node 工作区与桌面桥 | [01 册](docs/plan/01-baseline-toolchain.md)、P0/P1 records |
 | P2/P3 | 公开脚本约定、监督、配置/计划/Java/日志与真实 JAR 差分 | [02](docs/plan/02-contracts-script-host.md)/[03](docs/plan/03-domain-conversion.md)；XML 解析隔离另见 R3 |
 | P4 | React UI、虚拟化、三引擎及 Windows/Linux 桌面自动化 | [04 册](docs/plan/04-ui.md)；macOS 实机另验 |
-| P5 | 发行管线、dev.0 子集、本地 Windows/Linux 交付与 dev.1 CI/Portable | [05 册](docs/plan/05-packaging-release.md)、本轮执行/CI 修复记录；macOS 四 DMG 已构建，全量 release 聚合待重验 |
+| P5 | 发行管线、本地交付、dev.1 全量 CI/Portable 与 macOS 原生构建 | [05 册](docs/plan/05-packaging-release.md)、[收尾记录](docs/plan/records/ACCEPTANCE-2026-10-04.md)；公开资产身份另验 |
 | P6 | Windows x64 功能/真实项目/性能/100 轮泄漏循环 | [P6-06](docs/plan/records/P6-06.md)；全矩阵 G5/G6 仍待实机 |
 | P7 | 旧架构移除、文档/回退交接、第一轮预发布 | [07 册](docs/plan/07-cutover.md)；正式全矩阵交付另验 |
 
@@ -177,11 +176,4 @@ C01–C15、R01–R12、I01–I14 的类别约定和 CF/SC/EX/UI/PK 具体步骤
 
 ## 12. 交付核对
 
-- [x] 新架构、唯一 JS 锁、契约/真实样本、公开脚本兼容、Windows 本机性能与恢复证据。
-- [x] README/CHANGELOG/AI 指引与 v2.6.0 回退路径；旧 Electron 架构已移除。
-- [x] dev.0 发布子集、CI 聚合和第一轮用户验证记录。
-- [ ] dev.1 最终归档：Windows/Linux x64 已复验，macOS 四 DMG 已原生构建；Linux ARM64 release 环境修复及全量聚合待新候选 CI（R7）。
-- [x] XML 独立解析和细分预算，故障/取消/关闭与 100k 回归（R3）。
-- [x] Windows/Linux ARM64 交叉打包（R4，运行免验）；本地 10 产物与边车集合/hash 通过，正式 CI 集合按 macOS 去重调整为 12 产物。
-- [ ] 全目标离线/运行时/路径/升级替换/清理/性能实机证据，关闭 G5/G6（R5）。
-- [ ] 签名渠道的签名/公证/离线 Gatekeeper（R6，受控环境后续项；当前未签名预发布单独说明）。
+已完成的实现、XML 隔离、x64 最终包、ARM64 交叉包和 dev.1 CI 证据见 records。macOS 新交互测试、公开资产身份防护及受控环境后续项只在 [08 册](docs/plan/08-release-follow-up.md) 更新；不再重复完成清单。

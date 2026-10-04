@@ -36,7 +36,7 @@
 
 当前读取预算为单文件 64 MiB、总量 128 MiB、include 深度 64/文件数 1024；另限累计 100 万 XML 元素、元素深度 100（保持锁定 parser 的原有默认）、单脚本 1 MiB/累计 8 MiB。严格 UTF-8 且只允许一个 `root` 文档根；以 realpath 判重/循环，声明路径继续决定相对路径。非法/溢出的 hook timeout 诊断并回退 30000ms（合法范围 1–2147481647ms，预留 guardian 宽限）。
 
-业务加载经 `config/isolated-loader.ts` 在独立 Node helper 完成同步 XML 校验/解析和候选构建；ProcessScope 监督，外部 30 秒截止覆盖启动、读取、解析和有界帧传输，超时/取消/异常后确认回收再返回。关闭会话等待活动解析结束；取消或失败保留旧候选，完整返回后才执行原有 set_name 和提交。`parseXmlConfig` 保留为 helper 内及纯解析测试入口。响应性、100k 跨进程传输、独立预算与事务回归见 `packages/backend/test/config-isolation.test.ts` / `service/load-config.test.ts`；最终平台进度见 [R3](08-release-follow-up.md)。
+业务加载经 `config/isolated-loader.ts` 在独立 Node helper 完成同步 XML 校验/解析和候选构建；ProcessScope 监督，外部 30 秒截止覆盖启动、读取、解析和有界帧传输，超时/取消/异常后确认回收再返回。关闭会话等待活动解析结束；取消或失败保留旧候选，完整返回后才执行原有 set_name 和提交。`parseXmlConfig` 保留为 helper 内及纯解析测试入口。响应性、100k 跨进程传输、独立预算与事务回归见 `packages/backend/test/config-isolation.test.ts` / `service/load-config.test.ts`；完成证据见 [执行记录](records/EXECUTION-2026-10-03.md)。
 
 ## 选择与转换计划
 

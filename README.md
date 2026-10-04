@@ -348,8 +348,8 @@ corepack yarn typecheck     # 全 workspace TypeScript
 corepack yarn test:unit     # Node/前端单元（backend/guardian/contracts/ipc/packaging/script-host/desktop）
 corepack yarn test:contracts
 corepack yarn test:browser  # Playwright 三引擎（chromium/firefox/webkit）
-corepack yarn test:desktop  # 桌面 E2E（tauri-driver；Windows 另需 MSEDGEDRIVER_PATH 指向与
-                            # WebView2 运行时版本匹配的 msedgedriver.exe）
+corepack yarn test:desktop  # Windows/Linux：tauri-driver；Windows 另设 MSEDGEDRIVER_PATH，
+                            # 与 WebView2 版本匹配；macOS：debug e2e feature 嵌入 WKWebView 驱动
 corepack yarn test:conversion  # 真实 JAR 八格式 stdin vs argv 差分（相邻 ../xresloader/target
                                # 有多个匹配 JAR 时须显式 XRESCONV_TEST_JAR，缺件 exit 2）
 corepack yarn check:shell   # Tauri 桌面层 clippy（-D warnings）

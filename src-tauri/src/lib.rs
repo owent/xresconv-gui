@@ -5,6 +5,9 @@
 //! (packages/backend, packages/guardian). This crate only keeps the window,
 //! native dialogs, CLI parsing and the minimal bridge commands.
 
+#[cfg(all(feature = "e2e", not(debug_assertions)))]
+compile_error!("The e2e WebDriver server is forbidden in production builds");
+
 use serde::Serialize;
 use tauri::Manager;
 use tauri_plugin_cli::CliExt;
@@ -240,7 +243,10 @@ async fn write_display_settings(
 pub fn run() {
     // P5-03：任何 WebView 创建前的原生运行时预检（PK02：先检查后 GUI）。
     ensure_webview2_or_exit();
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(all(feature = "e2e", debug_assertions))]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+    builder
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

@@ -8,12 +8,15 @@ const exe = process.env.XRESCONV_E2E_APP ?? path.join(root, "target", "debug", p
 const port = Number(process.env.XRESCONV_E2E_DRIVER_PORT);
 if (!Number.isInteger(port) || port <= 0) throw new Error("Use tests/desktop/run.mjs to start an owned driver");
 const input = process.env.XRESCONV_E2E_INPUT;
+const embedded = process.env.XRESCONV_E2E_DRIVER_PROVIDER === "embedded";
+const specs = (process.env.XRESCONV_E2E_SPECS ?? (input ? "tree-select" : "launch,p4-ui")).split(",");
+if (specs.some((spec) => !["launch", "p4-ui", "tree-select"].includes(spec))) throw new Error("Unknown desktop E2E spec");
 
 export const config = {
   runner: "local",
   hostname: "127.0.0.1",
   port,
-  specs: (input ? ["tree-select"] : ["launch", "p4-ui"]).map((name) => path.join(here, "specs", `${name}.spec.mjs`)),
+  specs: specs.map((name) => path.join(here, "specs", `${name}.spec.mjs`)),
   maxInstances: 1,
   logLevel: "warn",
   framework: "mocha",
@@ -26,7 +29,7 @@ export const config = {
   connectionRetryCount: 2,
   capabilities: [{
     maxInstances: 1,
-    "tauri:options": { application: exe, ...(input ? { args: [`--input=${input}`] } : {}) },
+    ...(embedded ? {} : { "tauri:options": { application: exe, ...(input ? { args: [`--input=${input}`] } : {}) } }),
   }],
   afterTest: async (test, _context, { passed }) => {
     if (passed) return;

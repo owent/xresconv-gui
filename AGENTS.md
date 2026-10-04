@@ -38,7 +38,7 @@
 - 常用命令：
   - 开发运行：`yarn dev:desktop`（tauri dev，前端热更新）
   - 构建桌面应用：`yarn build:desktop`
-- 新架构（Tauri 桌面层 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，需 tauri-driver + 匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn test:conversion`（真实 JAR 八格式 stdin vs argv 差分；相邻 `../xresloader/target` 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`，缺件 exit 2 显式退出）、`yarn check:shell` / `yarn test:shell`（Tauri 桌面层的 Cargo 检查）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → 平台归档 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（`verify:portable` 支持 Windows 7z、macOS .app.zip 与 Linux tar.zst/AppImage；Windows 交叉包可用 --static-only；macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows 双变体=7z（bootstrap 附 WebView2 bootstrapper，offline 内嵌 Fixed Version；构建需 7-Zip，用户需支持 7z 的解压工具；语言策略见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与运行时约定见 05 册，同系统跨架构打包须显式 --cross --arch=…，目标 Node/原生模块不得用宿主版本替代；后续验收见 08 册）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
+- 新架构（Tauri 桌面层 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，Windows/Linux 用 tauri-driver；macOS 用仅 debug e2e feature 的嵌入驱动；Windows 需匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn test:conversion`（真实 JAR 八格式 stdin vs argv 差分；相邻 `../xresloader/target` 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`，缺件 exit 2 显式退出）、`yarn check:shell` / `yarn test:shell`（Tauri 桌面层的 Cargo 检查）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → 平台归档 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（`verify:portable` 支持 Windows 7z、macOS .app.zip 与 Linux tar.zst/AppImage；Windows 交叉包可用 --static-only；macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows 双变体=7z（bootstrap 附 WebView2 bootstrapper，offline 内嵌 Fixed Version；构建需 7-Zip，用户需支持 7z 的解压工具；语言策略见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与运行时约定见 05 册，同系统跨架构打包须显式 --cross --arch=…，目标 Node/原生模块不得用宿主版本替代；后续验收见 08 册）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
 
 ## 目录结构
 
@@ -53,6 +53,7 @@
 
 - 用户自定义脚本在独立 Node worker 中执行，可信脚本可访问本地模块与进程；故障隔离不等于防恶意沙箱。保持 `resolve()`/`reject()` 和弹框回调约定，不向脚本提供 DOM/jQuery/Electron。详见 `docs/plan/02-contracts-script-host.md`。
 - GUI 与文件编码统一 UTF-8；Windows 默认 GBK，文件名建议全英文（见 README“注意事项”）。
+- 桌面 E2E 的 `e2e` feature 含可执行任意页面 JS 的 localhost WebDriver，只允许 debug 测试构建；release + e2e 编译拒绝。测试构建不得代替公开介质或原生系统对话框验收。
 - src-tauri 中被 `#[cfg(test)]` 测试引用的模块不得触碰 tauri/wry 运行时类型（如 `AppHandle`/`Emitter`）：测试 exe 无 SxS manifest，经 Drop glue 保留 wry 对话框代码会导入 comctl32 v6 专有符号，进程加载即 0xc0000139。事件出口用注入闭包（P4-02 `EventSink`，诊断工具 `build/tools/check-imports.mjs`）。
 - Windows 发行版的 Tauri 桌面程序使用 GUI subsystem；启动 Node guardian 必须经 `windowless_process` 设置 `CREATE_NO_WINDOW`，受监督子进程必须经 `ProcessScope.decorateSpawnOptions` 设置 `windowsHide`。仅数 `conhost.exe` 不足以判断是否弹窗；回归见 `gui_shell_does_not_create_a_guardian_console` 和 [发行包实测](docs/plan/records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
 
@@ -114,7 +115,7 @@
 
 每次任务结束前判断是否需更新：`AGENTS.md`、`CLAUDE.md`、`.agents/skills/`、自定义 Agent/prompt/workflow、`docs/` 模块文档、`docs/ai/source-index.md`、部署配置、`roadmap/`（存在时）、测试说明与故障排查文档。
 
-推进或维护执行计划时，先读 `Plan.md` 与 `docs/plan/README.md`，再按任务加载分册。活动任务状态唯一维护在 `docs/plan/08-release-follow-up.md`；完成过程进入 records，模块文档保留约定与证据链接。更新发布进度须分别核对已发布 tag/产物和当前候选提交，不把首轮发布、CI 构建或本机通过外推为全矩阵验收。
+推进或维护执行计划时，先读 `Plan.md` 与 `docs/plan/README.md`，再按任务加载分册。活动任务状态唯一维护在 `docs/plan/08-release-follow-up.md`；完成过程进入 records，模块文档保留约定与证据链接。更新发布进度须分别核对 tag、下载包内 sourceCommit/摘要和当前候选提交；同名资产跳过不证明上传了当前构建。已完成任务移入 records，不把 CI/本机通过外推为全矩阵验收。
 
 文档组织要求：
 

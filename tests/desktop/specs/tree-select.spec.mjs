@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { clickCheckboxLabel } from "../interactions.mjs";
 
 /**
  * 2026-09-26 用户反馈验证：树形条目可勾选/反选、树撑满左列、文字省略、
@@ -32,7 +33,7 @@ describeLoaded("tree selection and layout with a loaded config", () => {
     const before = await checkbox.isSelected();
 
     await browser.execute((el) => el.scrollIntoView({ block: "center" }), checkboxLabel);
-    await checkboxLabel.click();
+    await clickCheckboxLabel(browser, checkboxLabel);
 
     // 快照回写后勾选态翻转(applyOps → stateChanges → 本地树更新)
     await browser.waitUntil(

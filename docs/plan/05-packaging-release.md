@@ -4,7 +4,7 @@
 
 本册只维护当前约定。NSIS/DEB/RPM、tar.gz 和早期 Portable 范围已被用户的便携归档决策取代，实施/原型证据见 [P5 记录](records/README.md)、[P5-11](records/P5-11.md) 与 [发行审查](records/REVIEW-2026-09-29.md)。
 
-**第一轮 dev.0 已发布并由用户完成验证**，其 Windows 产物为 ZIP/tar.zst。当前 dev.1 Windows 约定为双 7z；首次发行的旧格式不能作为新格式验收。首轮 CI、本地最终包和 ARM64 依赖修复见 [发布核对](records/RELEASE-2026-10-03.md) / [执行记录](records/EXECUTION-2026-10-03.md) / [CI 修复记录](records/CI-FIX-2026-10-03.md)；当前桌面/缓存修复与 macOS 发布精简见 [本轮记录](records/CI-E2E-2026-10-03.md)，活动状态只维护在 08 册。
+dev.0 首轮验证和 dev.1 发布均已完成。当前发行约定见下表；dev.1 公开资产仍保留旧 14 产物集合，与标签及最新 12 产物 CI 的身份差异见 [收尾记录](records/ACCEPTANCE-2026-10-04.md)。活动状态只维护在 08 册。
 
 ## 目标、产物和身份
 
@@ -70,7 +70,7 @@ AppImage 构建环境须显式安装 `xdg-utils`：当前 Tauri bundler 会从 `
 
 | 入口 | 当前范围 | 出口/边界 |
 | --- | --- | --- |
-| ci.yml | Node/Rust 门禁，三引擎浏览器，Windows/Linux 真实桌面 | 不执行 macOS 真桌面或全目标离线 VM |
+| ci.yml | Node/Rust 门禁，三引擎浏览器，Windows/Linux 外部驱动、macOS 双架构 WKWebView 测试构建 | macOS 仅 debug e2e feature；不替代公开 DMG、原生对话框或全目标离线 VM |
 | release.yml | Windows/Linux/macOS 双架构全量构建；Windows 双 7z、Linux 三产物、macOS 每架构一个 bootstrap DMG | 10 发行目标→12 产物及边车；手动或 build/validate-* 分支仅核验/上传 Actions 产物，只有 v3 tag push 才创建 draft；远端执行结果单独记录 |
 | portable-build.yml | macOS 双架构 offline app.zip；Linux 双架构 bootstrap tar.zst + offline AppImage/tar.zst | 精确 8 产物；解包/manifest 身份/逐文件 hash/包内 Node，Linux 另验运行时；无 release 写权限 |
 | stale.yml | 既有 90 天/标签维护语义 | 最小 issues/PR 权限 |
@@ -81,7 +81,9 @@ Rust 门禁使用 --locked，发行输入包含 Cargo.lock。所有 rust-cache w
 
 `scripts/verify-release.ts --target=<os>/<distro-or-dash>/<arch>/<variant>` 的键集合与 build job 同步；发行矩阵当前 distro 段为 `-`。不传 target 校验完整 12 产物；子集校验也必须集合相等，拒绝多余/缺失/错误边车，并计算实际 SHA-256。macOS offline DMG 即使带正确 hash 也属于多余产物。聚合通过证明当时构建产物，不替代完整实机/签名验收。
 
-已有 tag 触发 release；发布权限仅聚合 job，PR 不接触签名密钥，不覆盖已发布版本。runner 无目标平台/干净状态时由维护者导入绑定 digest 的实机记录，不能用交叉编译代替。
+已有 tag 触发 release；发布权限仅聚合 job，PR 不接触签名密钥。同 ref 发行串行执行，避免上传竞态。`verify-publication.ts` 上传前后复验本地集合/实际哈希及 GitHub assets API 摘要：已有同名异内容、多余资产或未知摘要均失败；完整同内容时只读结束，禁止将公开版本改成 draft；仅新版本或缺件且已有摘要相同的 draft 可上传。不能仅靠 `overwrite:false` 的“跳过同名”声称当前候选发布成功。
+
+runner 无目标平台/干净状态时由维护者导入绑定 digest 的实机记录，不能用交叉编译代替。生产构建无 WebDriver 依赖；显式 e2e 只允许 debug，release + e2e 编译拒绝。
 
 ## Portable 构建验证与后续验收
 

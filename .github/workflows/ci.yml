@@ -9,8 +9,9 @@ name: ci
 
 on:
   push:
-    branches: [dev, master]
+    branches: [dev, master, "build/validate-*"]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -101,9 +102,7 @@ jobs:
   #（wry#1782 / MicrosoftEdge/WebView2Feedback#5645，官方 test-api-e2e 同因
   # 采用 gsudo 降为 medium integrity 运行）。app 本体 guardian/backend 一直
   # 正常也由此解释。
-  # macOS 不在本矩阵：tauri-driver 无 darwin WKWebView WebDriver（上游官方
-  # test-api-e2e 以 CrabNebula 商业服务绕道，本仓库不引入）；按用户决策延后
-  # 至 mac 实机验收（P5-09，tests/desktop/run.mjs 对 darwin fail-closed）。
+  # macOS 使用 test-only embedded WebDriver，真实 WKWebView；正式发行禁用。
   desktop-e2e:
     name: desktop e2e (${{ matrix.os }})
     needs: [quality-node, quality-shell]
@@ -113,6 +112,8 @@ jobs:
         include:
           - os: windows-latest
           - os: ubuntu-latest
+          - os: macos-15-intel
+          - os: macos-15
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     steps:
@@ -146,6 +147,7 @@ jobs:
           corepack yarn workspace @xresconv/guardian exec vitest run test/process-tree.test.ts -t 'scoped subprocesses cannot open a visible Windows console'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Install tauri-driver
+        if: runner.os != 'macOS'
         run: cargo install tauri-driver --version 2.1.0 --locked
       - name: Locate msedgedriver (Windows)
         if: runner.os == 'Windows'
@@ -174,6 +176,9 @@ jobs:
         if: runner.os == 'Linux'
         # Linux 无显示服务器：xvfb-run 提供虚拟 X（wdio tauri-service 需要真实窗口）。
         run: xvfb-run -a corepack yarn test:desktop
+      - name: Desktop E2E (WKWebView, embedded test driver)
+        if: runner.os == 'macOS'
+        run: corepack yarn test:desktop
       - name: Diagnose app launch (Windows)
         # DevToolsActivePort 排查：直接运行 debug exe 8s 捕获自身输出
         #（预检/guardian 启动失败会在 stderr 现形）。非致命。
