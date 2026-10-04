@@ -1,7 +1,7 @@
 use std::process::Command;
 
-/// A GUI-subsystem parent otherwise causes Windows to allocate a new console
-/// for its console-subsystem Node child. Keep stdin/stdout pipes unchanged.
+///A GUI-subsystem parent otherwise causes Windows to allocate a new console
+///for its console-subsystem Node child. Keep stdin/stdout pipes unchanged.
 #[cfg(windows)]
 pub fn configure_background_command(command: &mut Command) {
     use std::os::windows::process::CommandExt;

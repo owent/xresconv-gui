@@ -1,8 +1,8 @@
 /**
- * P2-02 进程树作用域测试（SC07/SC08）：真实子进程，无 mock。
- * - terminate 回收登记进程及其子孙（close 事件确认，非 kill 返回值）。
- * - Windows job-object：宿主被 SIGKILL 后由内核回收整树（KILL_ON_JOB_CLOSE）。
- * - taskkill 回退后端同样完成树终止。
+ *  进程树作用域测试：真实子进程，无 mock。
+ * terminate 回收登记进程及其子孙（close 事件确认，非 kill 返回值）。
+ * Windows job-object：宿主被 SIGKILL 后由内核回收整树（KILL_ON_JOB_CLOSE）。
+ * taskkill 回退后端同样完成树终止。
  * 所有等待均有显式上限。
  */
 import { type SpawnOptions, spawn } from "node:child_process";
@@ -74,7 +74,7 @@ async function spawnTree(scope: ProcessScope): Promise<[number, number]> {
   return [child.pid, grandchildPid];
 }
 
-describe("process tree scope (P2-02)", () => {
+describe("process tree scope", () => {
   it.skipIf(process.platform !== "win32")(
     "scoped subprocesses cannot open a visible Windows console",
     async () => {

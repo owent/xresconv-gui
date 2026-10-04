@@ -1,29 +1,21 @@
-# 界面素材索引（3.0 新版）
+# 界面素材
 
-本目录保存 3.0 新界面的 README 展示素材，均为**真实发行包实拍**（非设计稿）：
-2026-09-30 采集于 Windows x64、bootstrap 变体解压布局、应用版本 3.0.0-dev.1。
+本目录保存应用界面的截图与动图，首页及用户文档通过相对路径引用。
 
-| 文件 | 内容 | 采集方式 |
-| --- | --- | --- |
-| `workflow.gif` | 转换流程：全选 → 开始转换 → on_before_convert 确认弹窗 → 真实 xresloader 转换日志 → 成功结果 | 演示配置（官方样本表格，bin+lua 双输出矩阵） |
-| `theme-ui.gif` | 显示设置 → 暗色主题切换 → 条目搜索过滤 | 真实工程配置加载态 |
-| `main-light.png` | 转换成功后的主界面（亮色，含运行结果与日志） | 同 workflow 演示配置 |
-| `script-dialog.png` | on_before_convert 中 alert_warning 的确认弹窗 | 同上 |
-| `real-project-light.png` / `real-project-dark.png` | 真实工程（atsf4g-co 生成配置）加载后的亮/暗主界面 | 8 分组树与双输出矩阵 |
-| `details.png` | 详细配置对话框（转表工具/目录/协议等） | 真实工程配置 |
-| `output-matrix.png` | 输出矩阵与重命名规则面板 | 真实工程配置 |
+| 文件 | 内容 |
+| --- | --- |
+| [workflow.gif](workflow.gif) | 选择、转换前确认、转换日志与结果 |
+| [theme-ui.gif](theme-ui.gif) | 显示设置、主题切换与搜索 |
+| [main-light.png](main-light.png) | 亮色主界面与日志 |
+| [script-dialog.png](script-dialog.png) | 脚本确认弹窗 |
+| [real-project-light.png](real-project-light.png) / [real-project-dark.png](real-project-dark.png) | 工程配置的亮色和暗色界面 |
+| [details.png](details.png) | 工具、目录与协议详情 |
+| [output-matrix.png](output-matrix.png) | 输出矩阵与重命名 |
 
 ## 更新方法
 
-素材由脚本自动采集（WebView2 CDP 驱动真实应用 + ffmpeg 合成 GIF），不在 UI 改版后手工截图：
+使用当前应用加载可公开的配置与样本，截图覆盖主界面、设置、输出矩阵和脚本弹窗。转换演示使用真实 JAR 与表格，将输出重定向到 `build/<task-name>`，避免修改业务目录。
 
-1. 构建发行布局：`corepack yarn package:windows --portable --variant=bootstrap`，
-   解压 `build/dist/*bootstrap.7z` 到 `build/p6-05/run2/xresconv-gui/`；
-2. 采集：`node build/p6-media/capture2.mjs`（产物在 `build/p6-media/media2/`，
-   含 10fps 截帧目录与 still 图片）；
-3. 合成 GIF：ffmpeg 调色板两步法（960 宽、8fps，命令见 `build/p6-media/README.md`）；
-4. 复制到本目录并按上表命名，README 引用路径不变。
+可以通过桌面 WebDriver 或显式启用的 WebView2 调试接口采集帧，再用 ffmpeg 调色板流程生成 GIF。采集脚本、帧与中间文件仅放 `build/<task-name>`，完成后清理。截图中的路径、日志和数据需去除敏感内容。
 
-演示配置为 `build/p6-media/demo.xml`（真实 JAR + 官方样本表格，输出重定向到
-`build/p6-media/out/`）；真实工程配置位于相邻 atsf4g-co 仓库（只加载与界面操作，
-不执行写盘转换）。
+复制最终素材到本目录，保持文件名与引用一致，并检查亮暗主题、字号、布局和图片尺寸。媒体使用 Git LFS，构建与预览前执行 git lfs pull。

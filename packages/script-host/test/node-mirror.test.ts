@@ -1,6 +1,6 @@
 /**
- * NodeMirror 单元测试（P2-05）：别名恒等、同步方法、有序 ops、D3 排除诊断。
- * 合同：tests/fixtures/scripts/contract.md §6、docs/plan/records/P0-08.md §8。
+ * NodeMirror 单元测试：别名恒等、同步方法、有序 ops、 排除诊断。
+ * 合同：tests/fixtures/scripts/contract.md 、docs/development/testing.md 。
  */
 
 import type { TreeSnapshot } from "@xresconv/compat-service";
@@ -113,7 +113,7 @@ function makeSnapshot(): TreeSnapshot {
   };
 }
 
-describe("别名恒等与初始状态（P0-08 §8）", () => {
+describe("别名恒等与初始状态", () => {
   it("item.ft_node === node、node.data.item === item、node.key === item.id", () => {
     const mirror = buildMirror(makeSnapshot());
     expect(mirror.version).toBe(7);
@@ -128,7 +128,7 @@ describe("别名恒等与初始状态（P0-08 §8）", () => {
     expect(node.isSelected()).toBe(true);
   });
 
-  it("folder 节点无 data 字段（main.js:1447-1454）；根节点 key 为 root_1", () => {
+  it("folder 节点无 data 字段；根节点 key 为 root_1", () => {
     const mirror = buildMirror(makeSnapshot());
     const node = mirror.selectedNodes[0] as AnyNode;
     const folderNode = node.getParent() as AnyNode;
@@ -156,7 +156,7 @@ describe("同步方法与有序 ops", () => {
     const node = mirror.selectedNodes[0] as AnyNode;
     const folderNode = node.getParent() as AnyNode;
     folderNode.setSelected(true);
-    // 2026-09-27 新语义：unselectable 的 banana 不被级联改写（屏蔽项绝不
+    // unselectable 的 banana 不被级联改写（屏蔽项绝不
     // 进入选择集）；可选子项被级联选中。
     const banana = folderNode.getChildren()?.[1] as AnyNode;
     expect(banana.isSelected()).toBe(false);
@@ -212,7 +212,7 @@ describe("同步方法与有序 ops", () => {
   });
 });
 
-describe("D3 排除接口诊断", () => {
+describe("排除接口诊断", () => {
   it("排除方法调用抛错并记一次 D3_EXCLUDED diagnostic op", () => {
     const mirror = buildMirror(makeSnapshot());
     const node = mirror.selectedNodes[0] as AnyNode;
@@ -245,7 +245,7 @@ describe("D3 排除接口诊断", () => {
     expect(diagnostics[0]).toMatchObject({ code: "D3_DIRECT_NODE_WRITE" });
   });
 
-  it("render() 是 no-op（BD-S15）；toString/JSON 序列化不崩溃", () => {
+  it("render 是 no-op；toString/JSON 序列化不崩溃", () => {
     const mirror = buildMirror(makeSnapshot());
     const node = mirror.selectedNodes[0] as AnyNode;
     expect(node.render()).toBeUndefined();
@@ -256,7 +256,7 @@ describe("D3 排除接口诊断", () => {
   });
 });
 
-describe("只读模式（on_append_log，BD-S16）", () => {
+describe("只读模式（on_append_log)", () => {
   it("读取/导航可用；修改方法 no-op 并记 D3_READ_ONLY", () => {
     const mirror = buildMirror(makeSnapshot(), { readonly: true });
     const node = mirror.selectedNodes[0] as AnyNode;

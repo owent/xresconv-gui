@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 
 export function displaySettingsFile(application) {
   const dir = path.dirname(application);
-  // Linux offline launcher execs usr/bin/xresconv-gui; current_exe() uses that path.
+  // Linux offline launcher execs usr/bin/xresconv-gui; current_exe uses that path.
   const appdirGui = path.join(dir, 'usr', 'bin', 'xresconv-gui');
   return path.join(path.basename(application) === 'AppRun' && existsSync(appdirGui) ? path.dirname(appdirGui) : dir, 'display-settings.json');
 }

@@ -15,7 +15,7 @@ function expectFailure(fn: () => unknown, code: PackagingErrorCode): PackagingEr
   throw new Error(`expected PackagingError(${code}), but nothing was thrown`);
 }
 
-describe("PK01 negative paths", () => {
+describe("negative paths", () => {
   it("duplicate target (same os/distro/arch/variant) fails", () => {
     const targets = cloneTargets();
     const first = targets[0];
@@ -67,7 +67,7 @@ describe("PK01 negative paths", () => {
     expectFailure(() => validateTargetSemantics([bad]), "UNKNOWN_TARGET");
   });
 
-  it.each(["ia32", "x86", "armv7l"])("forbidden 32-bit arch %s is rejected (D1)", (arch) => {
+  it.each(["ia32", "x86", "armv7l"])("forbidden 32-bit arch %s is rejected", (arch) => {
     const base = pickTarget((t) => t.os === "windows");
     const bad = { ...base, arch };
     expectFailure(
@@ -101,7 +101,7 @@ describe("PK01 negative paths", () => {
     expect(error.message).toContain("webview2-fixed-runtime");
   });
 
-  it("macOS with a webview version floor fails coherence (gate is osVersionRange, D5)", () => {
+  it("macOS with a webview version floor fails coherence (gate is osVersionRange)", () => {
     const base = pickTarget((t) => t.os === "macos");
     const bad: ReleaseTarget = { ...base, minimumWebview: "17.0" };
     expectFailure(() => validateTargets(asData([bad])), "INCOHERENT_TARGET");

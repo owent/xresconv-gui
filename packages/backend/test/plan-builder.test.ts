@@ -1,7 +1,7 @@
 /**
- * 转换计划构建测试（P3-05）。自造 ParsedConfig 对象（不经 XML）。
- * 行为锚点：main.js:1898-2048 命令生成顺序与默认值、main.js:1012-1032 资格过滤、
- * main.js:2068-2085 xresloader 存在性检查、main.js:2092 派发顺序（新版 FIFO，BD-P1）。
+ * 转换计划构建测试。自造 ParsedConfig 对象（不经 XML）。
+ * 行为锚点： 命令生成顺序与默认值、 资格过滤、
+ *  xresloader 存在性检查、 派发顺序（ FIFO，BD)。
  */
 function at<T>(arr: readonly T[], i: number): T {
   const v = arr[i];
@@ -29,7 +29,7 @@ beforeAll(() => {
   workDir = mkdtempSync(path.join(tmpdir(), "xresconv-plan-builder-"));
   jarPath = path.join(workDir, "xresloader.jar");
   writeFileSync(jarPath, "fake jar for existence check");
-  // P4-04a：workDir 覆盖测试用的子目录（内含另一份 fake jar）。
+  // workDir 覆盖测试用的子目录（内含另一份 fake jar）。
   subDir = path.join(workDir, "sub");
   mkdirSync(subDir);
   writeFileSync(path.join(subDir, "sub.jar"), "fake jar in sub dir");
@@ -76,7 +76,7 @@ function makeConfig(partial: Partial<ParsedConfig> = {}): ParsedConfig {
   };
 }
 
-describe("buildConversionPlan: 命令顺序与默认值（main.js:1955-2043）", () => {
+describe("buildConversionPlan: 命令顺序与默认值", () => {
   it("全局前缀顺序：-p → -a → globalOptions 原样 → -f×N → -d×N", () => {
     const config = makeConfig({
       proto: "protobuf",
@@ -142,7 +142,7 @@ describe("buildConversionPlan: 命令顺序与默认值（main.js:1955-2043）",
       { items: [makeItem({ file: "a", scheme: "s" })] },
       overrides,
     );
-    // 单类型模式：rename 默认取矩阵首条（main.js:1420-1422）
+    // 单类型模式：rename 默认取矩阵首条
     expect(at(plan.tasks, 0).argv).toEqual([
       "-p",
       "capnproto",
@@ -159,7 +159,7 @@ describe("buildConversionPlan: 命令顺序与默认值（main.js:1955-2043）",
     ]);
   });
 
-  it("overrides 空串 = 用户清空：不发 -p，且输出目录为空时不发 -o（BD-P3）", () => {
+  it("overrides 空串 = 用户清空：不发 -p，且输出目录为空时不发 -o", () => {
     const config = makeConfig({ proto: "protobuf" });
     const plan = buildConversionPlan(
       config,
@@ -170,7 +170,7 @@ describe("buildConversionPlan: 命令顺序与默认值（main.js:1955-2043）",
     expect(at(plan.tasks, 0).argv).not.toContain("-o");
   });
 
-  it("item options value 原样片段经同形 tokenizer 切分（main.js:2027-2031）", () => {
+  it("item options value 原样片段经同形 tokenizer 切分", () => {
     const item = makeItem({
       file: "a",
       scheme: "s",
@@ -195,7 +195,7 @@ describe("buildConversionPlan: 命令顺序与默认值（main.js:1955-2043）",
     ]);
   });
 
-  it("schemeData 分支：每 key 每 value 一条 -m k=v（main.js:2036-2043）", () => {
+  it("schemeData 分支：每 key 每 value 一条 -m k=v", () => {
     const item = makeItem({
       name: "ds",
       schemeData: {
@@ -216,7 +216,7 @@ describe("buildConversionPlan: 命令顺序与默认值（main.js:1955-2043）",
     ]);
   });
 
-  it("任务顺序 FIFO（BD-P1：旧版 LIFO pop，main.js:2092）", () => {
+  it("任务顺序 FIFO(LIFO pop)", () => {
     const items = [
       makeItem({ name: "first", file: "1.xlsx", scheme: "s1" }),
       makeItem({ name: "second", file: "2.xlsx", scheme: "s2" }),
@@ -226,7 +226,7 @@ describe("buildConversionPlan: 命令顺序与默认值（main.js:1955-2043）",
   });
 });
 
-describe("buildConversionPlan: 矩阵资格过滤（main.js:1012-1032、1333-1338）", () => {
+describe("buildConversionPlan: 矩阵资格过滤(1333-1338）", () => {
   const matrix = [
     makeRule({ type: "lua", tags: ["server"] }),
     makeRule({ type: "json", classes: ["client"] }),
@@ -264,7 +264,7 @@ describe("buildConversionPlan: 矩阵资格过滤（main.js:1012-1032、1333-133
     expect(at(plan.tasks, 0).argv).toContain("xml");
   });
 
-  it("矩阵模式输出目录回退：规则无 output_dir 时用全局（main.js:1930、2021-2025）", () => {
+  it("矩阵模式输出目录回退：规则无 output_dir 时用全局(2021-2025）", () => {
     const config = makeConfig({
       outputDir: "global-out",
       outputMatrix: [
@@ -279,7 +279,7 @@ describe("buildConversionPlan: 矩阵资格过滤（main.js:1012-1032、1333-133
   });
 });
 
-describe("buildConversionPlan: xresloader 存在性检查（main.js:2068-2085）", () => {
+describe("buildConversionPlan: xresloader 存在性检查", () => {
   it("相对路径缺失 → PlanBuildError XRESLOADER_NOT_FOUND 含下载链接与上下文", () => {
     const config = makeConfig({ xresloaderPath: "no-such.jar" });
     const err = (() => {
@@ -318,8 +318,8 @@ describe("buildConversionPlan: xresloader 存在性检查（main.js:2068-2085）
   });
 });
 
-describe("buildConversionPlan: overrides 扩展字段（P4-04a）", () => {
-  it("workDir 覆盖：相对路径按入口文件目录解析（main.js:1900-1906），jar 存在性随新目录", () => {
+describe("buildConversionPlan: overrides 扩展字段", () => {
+  it("workDir 覆盖：相对路径按入口文件目录解析，jar 存在性随新目录", () => {
     const plan = buildConversionPlan(
       makeConfig({ xresloaderPath: "sub.jar" }),
       { items: [makeItem({ file: "a", scheme: "s" })] },
@@ -447,7 +447,7 @@ describe("buildConversionPlan: overrides 扩展字段（P4-04a）", () => {
   });
 });
 
-describe("resolveEffectiveSettings（P4-04a 表单有效值快照）", () => {
+describe("resolveEffectiveSettings（ 表单有效值快照）", () => {
   it("缺省全回退配置；单类型模式 type/rename 取矩阵首条", () => {
     const config = makeConfig({
       proto: "protobuf",
@@ -465,8 +465,8 @@ describe("resolveEffectiveSettings（P4-04a 表单有效值快照）", () => {
       proto: "protobuf",
       dataVersion: "1.0.0.0",
       outputDir: "cfg-out",
-      rename: "/rule$/", // 单类型模式：rename 取矩阵首条（main.js:1420-1422）
-      type: "lua", // 单类型模式：type 取矩阵首条（main.js:1397-1402）
+      rename: "/rule$/", // 单类型模式：rename 取矩阵首条
+      type: "lua", // 单类型模式：type 取矩阵首条
       protoFile: ["cfg.pb"],
       dataSrcDir: ["cfg-data"],
       matrix: config.outputMatrix,

@@ -24,7 +24,7 @@ export const config = {
   mochaOpts: { timeout: 60_000 },
   // CI 首个 session（WebKitWebDriver 拉起 app + xvfb 软渲染冷启动）实测 ~30s+
   //（71e7ddb 绿运行 17:08:56 RUNNING → 17:09:31 PASSED）；15s/0 会把慢但正常
-  // 的建会话误杀为 "Request timed out"（92fa6e8 ubuntu E2E 三连红，P5-11）。
+  // 的建会话误杀为 "Request timed out"（92fa6e8 ubuntu E2E 三连红)。
   connectionRetryTimeout: 120_000,
   connectionRetryCount: 2,
   capabilities: [{

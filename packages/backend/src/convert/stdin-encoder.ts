@@ -1,5 +1,5 @@
 /**
- * xresloader stdin 协议编码器（P3-06）。
+ * xresloader stdin 协议编码器。
  *
  * xresloader 以 `--stdin` 启动后逐行读取命令，每行经固定 tokenizer 切分为 argv：
  * `Pattern.compile("('[^']*')|(\"[^\"]*\")|(\\S+)", MULTILINE|CASE_INSENSITIVE)`
@@ -7,10 +7,10 @@
  * 空 token 直接丢弃（Main.java:363-365），无转义机制；一行一命令（Main.java:352、401）。
  *
  * 本模块提供两个方向：
- * - {@link encodeTaskLine}：argv → 单行文本（保证经上述 tokenizer 还原为原 argv）。
- * - {@link tokenizeStdinLine}：同形 JS 移植的 tokenizer，用于把旧版"原始命令片段"
- *   （global/item `<option>` 的 value，main.js:1962-1966、2027-2031 原样拼接进命令串）
- *   切成 argv token。计划构建器消费它，保证与旧版"拼接后由 Java 切分"语义一致。
+ * {@link encodeTaskLine}：argv → 单行文本（保证经上述 tokenizer 还原为原 argv）。
+ * {@link tokenizeStdinLine}：同形 JS 移植的 tokenizer，用于把"原始命令片段"
+ *   （global/item `<option>` 的 value，、2027-2031 原样拼接进命令串）
+ *   切成 argv token。计划构建器消费它，保证与"拼接后由 Java 切分"语义一致。
  */
 
 /** tokenizer 同形移植（Main.java:344-345）。MULTILINE/CASE_INSENSITIVE 对该模式无实际影响。 */
@@ -58,11 +58,11 @@ export class StdinEncodeError extends Error {
 
 /**
  * 编码单个 token，对齐 Main.java tokenizer 的还原能力：
- * - 含 `"` 不含 `'` → 单引号包裹；
- * - 含 `'` 不含 `"` → 双引号包裹；
- * - 两者都含、含 \r/\n、或为空串 → 抛 {@link StdinEncodeError}
+ * 含 `"` 不含 `'` → 单引号包裹；
+ * 含 `'` 不含 `"` → 双引号包裹；
+ * 两者都含、含 \r/\n、或为空串 → 抛 {@link StdinEncodeError}
  *   （tokenizer 无转义机制；空 token 会被 Main.java:363-365 丢弃导致 argv 错位）；
- * - 其余含空白 → 双引号包裹；无空白无引号 → 原样（bare）。
+ * 其余含空白 → 双引号包裹；无空白无引号 → 原样（bare）。
  */
 export function encodeToken(token: string): string {
   if (token.length === 0) {
@@ -102,7 +102,7 @@ export function encodeTaskLine(argv: string[]): string {
 
 /**
  * 不经 stdin 的逐任务 argv 回退命令：不可编码输入时由调用方改为
- * `spawn("java", buildArgvFallbackCommand(...))` 直接传 argv（无 tokenizer 限制）。
+ * `spawn("java", buildArgvFallbackCommand)` 直接传 argv（无 tokenizer 限制）。
  */
 export function buildArgvFallbackCommand(
   javaArgs: string[],

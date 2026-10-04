@@ -1,13 +1,13 @@
 /**
- * P5-02：发行布局组装器（assembleRuntimeLayout）结构层测试。
+ * 发行布局组装器（assembleRuntimeLayout）结构层测试。
  *
- * 覆盖 PK07 本机部分：
- * - 单份 Node 获取校验：--version 实测精确版本/major 匹配 target、sha256
+ * 覆盖  本机部分：
+ * 单份 Node 获取校验：--version 实测精确版本/major 匹配 target、sha256
  *   强校验（正/负例）、ABI 实测；布局中仅一份 Node 二进制。
- * - 三角色 JS 打包为纯 JS bundle；生产 npm 闭包裁剪（不复制开发机
+ * 三角色 JS 打包为纯 JS bundle；生产 npm 闭包裁剪（不复制开发机
  *   node_modules 全集）；contracts schema 落位。
- * - runtime-manifest.json 过 P5-01 schema + PK01 lint；moduleTreeHash
- *   跨组装确定（两变体共享模块树哈希的机制基础，05-book Windows 规则 4）。
+ * runtime-manifest.json 过  schema +  lint；moduleTreeHash
+ *   跨组装确定（两变体共享模块树哈希的机制基础，模块文档 Windows 规则 4）。
  *
  * 全链行为验证（staged guardian→backend→worker→脚本 require npm 包）在
  * release-chain.test.ts。
@@ -31,7 +31,7 @@ const REPO_URL = "https://github.com/xresloader/xresconv-gui.git";
 /** 固定 testedAt：确定性用例要求同输入 → 同 manifest。 */
 const VERIFICATION_REPORT = {
   result: "pass",
-  reportPath: "docs/plan/records/P5-02.md",
+  reportPath: "docs/development/packaging.md",
   testedAt: "2026-09-25T00:00:00Z",
 } as const;
 
@@ -52,7 +52,7 @@ function assembleTo(outDir: string): Promise<RuntimeManifest> {
       source: `local-test-copy:node-v${process.versions.node}-${process.platform}-${process.arch}`,
       expectedSha256: nodeSha256,
     },
-    appVersion: "3.0.0-dev.1",
+    appVersion: "3.0.0",
     sourceCommit: SAMPLE_COMMIT,
     repositorySnapshot: { repository: REPO_URL, dirty: false },
     verificationReport: VERIFICATION_REPORT,
@@ -120,12 +120,12 @@ describe("collectProductionSeeds", () => {
   });
 });
 
-describe("assembleRuntimeLayout（PK07 本机部分）", () => {
+describe("assembleRuntimeLayout（ 本机部分）", () => {
   let installDir: string;
   let manifest: RuntimeManifest;
 
   beforeAll(async () => {
-    // PK07：安装路径含中文与空格。
+    // 安装路径含中文与空格。
     installDir = path.join(tmpBase, "安装 目录");
     manifest = await assembleTo(installDir);
   }, ASSEMBLE_TIMEOUT_MS);
@@ -145,12 +145,12 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
     ]) {
       expect(fs.existsSync(path.join(installDir, ...rel.split("/"))), rel).toBe(true);
     }
-    // 单份 Node：全布局只有一份 Node 二进制，不重复嵌入（PK07）。
+    // 单份 Node：全布局只有一份 Node 二进制，不重复嵌入。
     const nodeBinaries = manifest.files.filter((f) => f.origin.startsWith("node-dist:"));
     expect(nodeBinaries.map((f) => f.path)).toEqual([
       `runtime/${process.platform === "win32" ? "node.exe" : "node"}`,
     ]);
-    // 三角色 bundle 是纯 JS 产物（非 TS 源复制；机制依据 P2-10）；
+    // 三角色 bundle 是纯 JS 产物（非 TS 源复制；机制依据 ）；
     // contracts 落位 = schema/*.json + 合成的 package.json。
     for (const f of manifest.files.filter((f) => f.origin.startsWith("build:@xresconv/"))) {
       const isBundle = f.path.endsWith(".mjs");
@@ -176,7 +176,7 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
     ]) {
       expect(npmOrigins).toContain(expected);
     }
-    // P2-10 实测同种子闭包为 50 包量级；上限兜底防全集复制回归。
+    //  实测同种子闭包为 50 包量级；上限兜底防全集复制回归。
     expect(npmOrigins.size).toBeLessThan(100);
   });
 
@@ -186,7 +186,7 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
     const fromDisk = JSON.parse(
       fs.readFileSync(path.join(installDir, "runtime-manifest.json"), "utf8"),
     ) as unknown;
-    // validateRuntimeManifest 默认跑 PK01 lint（无绝对路径/密钥）。
+    // validateRuntimeManifest 默认跑  lint（无绝对路径/密钥）。
     expect(() => validateRuntimeManifest(fromDisk)).not.toThrow();
     expect(manifest.nodeVersion).toBe(process.versions.node);
     expect(manifest.nodeHash.sha256).toBe(nodeSha256);
@@ -236,7 +236,7 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
             source: "local-test-copy",
             expectedSha256: "0".repeat(64),
           },
-          appVersion: "3.0.0-dev.1",
+          appVersion: "3.0.0",
           sourceCommit: SAMPLE_COMMIT,
           repositorySnapshot: { repository: REPO_URL, dirty: false },
           verificationReport: VERIFICATION_REPORT,
@@ -251,7 +251,7 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
           target: { ...target, nodeVersion: "22" },
           outDir: wrongMajorDir,
           node: { path: process.execPath, source: "local-test-copy" },
-          appVersion: "3.0.0-dev.1",
+          appVersion: "3.0.0",
           sourceCommit: SAMPLE_COMMIT,
           repositorySnapshot: { repository: REPO_URL, dirty: false },
           verificationReport: VERIFICATION_REPORT,
@@ -277,7 +277,7 @@ describe("assembleRuntimeLayout（PK07 本机部分）", () => {
           target: otherArch,
           outDir: path.join(tmpBase, "wrong-arch"),
           node: { path: process.execPath, source: "local-test-copy" },
-          appVersion: "3.0.0-dev.1",
+          appVersion: "3.0.0",
           sourceCommit: SAMPLE_COMMIT,
           repositorySnapshot: { repository: REPO_URL, dirty: false },
           verificationReport: VERIFICATION_REPORT,

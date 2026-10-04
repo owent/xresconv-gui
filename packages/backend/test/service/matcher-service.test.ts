@@ -1,12 +1,12 @@
 /**
- * 隔离 matcher 服务（P2-08 剩余，SC09/EX04 匹配维度）：
- * - 语义等价差分：exact/glob/regex/非法回退/空规则 × 输入，隔离结果与进程内
+ * 隔离 matcher 服务（ 剩余，/ 匹配维度）：
+ * 语义等价差分：exact/glob/regex/非法回退/空规则 × 输入，隔离结果与进程内
  *   buildMatchStringRule 逐对一致；
- * - 灾难性 regex（ReDoS）：deadline 内失败（MatcherTimeoutError）、worker
+ * 灾难性 regex（ReDoS）：deadline 内失败（MatcherTimeoutError）、worker
  *   销毁补员、后续请求正常；挂起期间主进程事件循环与日志服务不受影响；
- * - worker 中途死亡 → 在途请求确定失败 + 补员可用；
- * - SelectionRuleService：by_schemes/by_sheets 与 resolveSelectorItems 逐例
- *   一致；超时规则 fail-closed + 诊断（BD-M4）。
+ * worker 中途死亡 → 在途请求确定失败 + 补员可用；
+ * SelectionRuleService：by_schemes/by_sheets 与 resolveSelectorItems 逐例
+ *   一致；超时规则 fail-closed + 诊断。
  *
  * 真实子进程、显式有界超时、无协议 mock。
  */
@@ -167,7 +167,7 @@ describe("SelectionRuleService 隔离选择器", () => {
     await service.shutdown();
   });
 
-  it("超时规则 fail-closed + 诊断（BD-M4），其余规则不受影响", {
+  it("超时规则 fail-closed + 诊断，其余规则不受影响", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const diags: string[] = [];
@@ -189,7 +189,7 @@ describe("SelectionRuleService 隔离选择器", () => {
       log: (m) => diags.push(m),
     });
     expect(isolated.map((item) => item.name)).toEqual(["b"]);
-    expect(diags.some((m) => m.includes("BD-M4"))).toBe(true);
+    expect(diags.some((m) => m.includes("matcher timeout"))).toBe(true);
     await service.shutdown();
   });
 });

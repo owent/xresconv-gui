@@ -2,12 +2,12 @@
  * Guardian: child-process lifetime ownership with external hard deadlines.
  *
  * The guardian never runs user scripts, XML parsing, regex or custom log
- * appenders itself (Plan.md §6.4). It owns spawn/kill/deadline so a blocked
+ * appenders itself (docs/development/README.md ). It owns spawn/kill/deadline so a blocked
  * backend or worker event loop cannot delay termination.
  *
- * 终止路径经 process-tree.ts（P2-02）覆盖整棵进程树：Windows Job Object /
+ * 终止路径经 process-tree.ts覆盖整棵进程树：Windows Job Object /
  * taskkill 回退，POSIX 进程组。资源限额、IPC 路由另见
- * 02-contracts-script-host.md 的 P2 清单。
+ * 02-contracts-script-host.md 的  清单。
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
@@ -31,7 +31,7 @@ export class SpawnError extends Error {
 
   constructor(program: string, cause: unknown) {
     // 把底层 code/message 并入文本：发行包日志只保留 message（无 cause 序列化），
-    // ENOENT/EPERM/EACCES 等关键差异不能丢（P6 真实应用采集实测踩坑）。
+    // 保留 ENOENT、EPERM、EACCES 等具体错误供诊断。
     const detail =
       cause instanceof Error
         ? `${cause.message} [${String((cause as NodeJS.ErrnoException).code ?? cause.name)}]`
@@ -56,7 +56,7 @@ export interface RunOptions {
   env?: NodeJS.ProcessEnv;
   /** Hard wall-clock deadline; the process tree is killed and reaped on expiry. */
   deadlineMs: number;
-  /** 进程树作用域（P2-02）；缺省时本次运行自建。 */
+  /** 进程树作用域；缺省时本次运行自建。 */
   scope?: ProcessScope;
 }
 

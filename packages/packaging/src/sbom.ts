@@ -1,12 +1,12 @@
 /**
- * SPDX 2.3 SBOM 生成（P5-07，PK08 部分）与大小分解报告（P5-09）。
+ * SPDX 2.3 SBOM 生成(部分）与大小分解报告。
  *
- * 输入是 P5-02 runtime-manifest（files[] 已含 size/sha256/origin/license——
+ * 输入是  runtime-manifest（files[] 已含 size/sha256/origin/license——
  * 单一事实源）；SBOM 按聚合粒度输出：
- * - 应用自身（origin `build:*`）→ 一个包；
- * - Node 发行二进制（origin `node-dist`）→ 一个包（版本=manifest.nodeVersion）；
- * - 每个 npm 依赖（origin `npm:<name>@<version>`）→ 一个包（license 传播）。
- * 不引入新的事实来源；签名证据字段由受控发行环境后补（P5-07 全量属彼处）。
+ * 应用自身（origin `build:*`）→ 一个包；
+ * Node 发行二进制（origin `node-dist`）→ 一个包（版本=manifest.nodeVersion）；
+ * 每个 npm 依赖（origin `npm:<name>@<version>`）→ 一个包（license 传播）。
+ * 不引入新的事实来源；签名证据字段由受控发行环境后补（ 全量属彼处）。
  */
 
 import { createHash } from "node:crypto";
@@ -146,7 +146,7 @@ export function buildSpdx(manifest: RuntimeManifest, createdIso: string): SpdxDo
   };
 }
 
-/** P5-09 大小分解：按 origin 类别汇总（node-dist / build / npm）+ 总量。 */
+/** 大小分解：按 origin 类别汇总（node-dist / build / npm）+ 总量。 */
 export interface SizeBreakdown {
   categories: { category: string; fileCount: number; bytes: number }[];
   totalFiles: number;

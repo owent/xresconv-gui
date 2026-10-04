@@ -1,5 +1,5 @@
 /**
- * Manifest hygiene lint (PK01): a runtime manifest must never carry
+ * Manifest hygiene lint: a runtime manifest must never carry
  * developer-machine absolute paths or secrets. Heuristic by design; the
  * release pipeline fails on any finding.
  */

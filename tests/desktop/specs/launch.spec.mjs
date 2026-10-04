@@ -4,9 +4,11 @@ import { waitForAppTitle } from "../readiness.mjs";
 
 const withEmptyState = process.env.XRESCONV_E2E_INPUT ? describe.skip : describe;
 
-/** 运行日志聚合文本（.log-row 行拼接）。
+/**
+ *  运行日志聚合文本(log-row 行拼接）。
  *  经 browser.execute 在页面内读取：WebdriverIO 的 $$ 在 WebKitGTK 驱动下
- *  返回不可迭代对象（CI 实证 "object is not iterable"），execute 对所有驱动一致。 */
+ *  返回不可迭代对象（CI 实证 "object is not iterable"），execute 对所有驱动一致。
+ */
 async function logText() {
   return browser.execute(() =>
     Array.from(document.querySelectorAll(".log-row"))
@@ -29,7 +31,7 @@ withEmptyState("xresconv-gui desktop skeleton", () => {
     assert.strictEqual(title, "xresconv-gui");
   });
 
-  // 2026-09-26 三轮改版：顶部状态条移除，环境/版本/Java 调试信息进运行日志
+  // 顶部状态条移除，环境/版本/Java 调试信息进运行日志
   // （[GUI] 前缀本地行）；握手断言改为读日志聚合文本。
   it("completes the shell -> guardian -> backend handshake in the real webview", async () => {
     await browser.waitUntil(

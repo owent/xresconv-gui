@@ -1,13 +1,13 @@
 /**
- * Backend 进程监督（P2-09，SC10/SC11 backend 侧）：真实 fork 子进程。
+ * Backend 进程监督(backend 侧）：真实 fork 子进程。
  *
- * - 握手 + 心跳 + 干净 shutdown（stats/RTT 真实样本）；
- * - backend 被杀 → died 事件、整树回收（孙进程死亡实证）、**不自动重放**、
- *   显式 restart() 换新代际恢复；
- * - backend 卡死（不应答心跳）→ 截止判死 + 整树终止；
- * - 伪造身份（握手自称 script-worker）→ 判死，不 ready（SC11 身份绑定通道）；
- * - 通道主动 disconnect → 判死清理；
- * - 宿主 SIGKILL → 内核级整树回收（win32 Job Object；POSIX 边界见记录）。
+ * 握手 + 心跳 + 干净 shutdown（stats/RTT 真实样本）；
+ * backend 被杀 → died 事件、整树回收（孙进程死亡实证）、**不自动重放**、
+ *   显式 restart 换新代际恢复；
+ * backend 卡死（不应答心跳）→ 截止判死 + 整树终止；
+ * 伪造身份（握手自称 script-worker）→ 判死，不 ready（ 身份绑定通道）；
+ * 通道主动 disconnect → 判死清理；
+ * 宿主 SIGKILL → 内核级整树回收（win32 Job Object；POSIX 边界见记录）。
  *
  * 全部显式有界超时；不 mock 协议。
  */
@@ -69,7 +69,7 @@ function makeSupervisor(
   return supervisor;
 }
 
-describe("BackendSupervisor（P2-09）", () => {
+describe("BackendSupervisor", () => {
   it("握手 + 心跳 + stats + 干净 shutdown", { timeout: TEST_TIMEOUT_MS }, async () => {
     const events: BackendSupervisorEvent[] = [];
     const supervisor = makeSupervisor(events);
@@ -145,7 +145,7 @@ describe("BackendSupervisor（P2-09）", () => {
     await supervisor.shutdown();
   });
 
-  it("伪造身份：握手自称 script-worker → 判死不 ready（SC11）", {
+  it("伪造身份：握手自称 script-worker → 判死不 ready", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const events: BackendSupervisorEvent[] = [];
@@ -205,7 +205,7 @@ describe("BackendSupervisor（P2-09）", () => {
       stderr += chunk;
     });
     const guardianPid = guardian.pid;
-    // 声明 65MB 的帧头（超出 P4-08 上调后的 64MB 上限；分配前拒绝）。
+    // 声明 65MB 的帧头（超出 64MB 上限；分配前拒绝）。
     const head = Buffer.alloc(4);
     head.writeUInt32BE(65 * 1024 * 1024, 0);
     guardian.stdin?.write(head);
@@ -236,7 +236,7 @@ describe("BackendSupervisor（P2-09）", () => {
       expect(pidAlive(grandchildPid)).toBe(true);
 
       process.kill(host.pid as number, "SIGKILL");
-      // 宿主无法自行上报；由独立测试进程观察回收证据（SC11 要求）。
+      // 宿主无法自行上报；由独立测试进程观察回收证据（ 要求）。
       await waitUntil(() => !pidAlive(backendPid), "backend reclaimed after host SIGKILL");
       await waitUntil(() => !pidAlive(grandchildPid), "grandchild reclaimed after host SIGKILL");
     },

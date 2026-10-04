@@ -1,5 +1,6 @@
 import { Button } from "react-aria-components";
 import { RUN_ACTIVE_STATES, RUN_TERMINAL_STATES, type RunStateLike } from "../adapters/backend";
+import { translate as t, useI18n } from "../i18n";
 import { Icon } from "./Icon";
 import { type RunRecord, useSessionStore } from "./session-store";
 
@@ -22,94 +23,89 @@ const STATE_TONES: Record<string, string> = {
   cancelled: "warning",
 };
 
-const STATE_LABELS: Record<string, string> = {
-  idle: "空闲",
-  ready: "就绪",
-  loading: "加载中",
-  before_hooks: "前置钩子执行中",
-  converting: "转换中",
-  after_hooks: "后置钩子执行中",
-  succeeded: "已完成",
-  failed: "失败",
-  cancelled: "已取消",
-};
+function stateLabels(): Record<string, string> {
+  return {
+    idle: t("state.idle"),
+    ready: t("state.ready"),
+    loading: t("state.loading"),
+    before_hooks: t("state.before_hooks"),
+    converting: t("state.converting"),
+    after_hooks: t("state.after_hooks"),
+    succeeded: t("state.succeeded"),
+    failed: t("state.failed"),
+    cancelled: t("state.cancelled"),
+  };
+}
 
 /**
- * 运行结果文案（P4-06，UI06）：区分实际阶段与已发生副作用，不假成功。
+ * 运行结果文案：区分实际阶段与已发生副作用，不假成功。
  * endPhase 来自进入结束状态的 state_change 的 previous；缺失时退化为通用文案，不猜测阶段。
  * failedCount 混合计数（事件失败 +1 / Java 退出码累加），不伪造条目级明细
- * （stdin 批次协议无逐条确认，主计划 §7.2）。
  */
 function describeRun(run: RunRecord): { tone: "ok" | "error" | "info"; lines: string[] } {
-  const count = `失败计数 ${run.failedCount}`;
+  const params = {
+    run: run.runSeq,
+    tasks: run.taskCount,
+    failures: t("run.failureCount", { count: run.failedCount }),
+  };
   switch (run.state) {
     case "succeeded":
       return {
         tone: "ok",
-        lines: [
-          `第 ${run.runSeq} 次运行已完成：提交 ${run.taskCount} 个任务，耗时 ${(
-            run.durationMs / 1000
-          ).toFixed(1)} 秒`,
-        ],
+        lines: [t("run.completed", { ...params, seconds: (run.durationMs / 1000).toFixed(1) })],
       };
     case "cancelled":
       return {
         tone: "info",
         lines: [
           run.endPhase === "before_hooks"
-            ? `第 ${run.runSeq} 次运行已取消：前置事件阶段取消，未启动转换`
+            ? t("run.cancelBefore", params)
             : run.endPhase === "converting"
-              ? `第 ${run.runSeq} 次运行已取消：转换阶段取消，已提交的任务中止，已生成的输出保留`
+              ? t("run.cancelConvert", params)
               : run.endPhase === "after_hooks"
-                ? `第 ${run.runSeq} 次运行已取消：后处理阶段取消，转换输出已生成`
-                : `第 ${run.runSeq} 次运行已取消`,
+                ? t("run.cancelAfter", params)
+                : t("run.cancelled", params),
         ],
       };
     case "failed":
       if (run.endPhase === "before_hooks") {
         return {
           tone: "error",
-          lines: [`第 ${run.runSeq} 次运行失败：前置事件执行失败，未启动转换（${count}）`],
+          lines: [t("run.failBefore", params)],
         };
       }
       if (run.endPhase === "converting" && run.taskCount === 0) {
         return {
           tone: "error",
-          lines: [`第 ${run.runSeq} 次运行失败：转换计划构建失败，未启动转换（${count}）`],
+          lines: [t("run.failPlan", params)],
         };
       }
       if (run.endPhase === "converting") {
         return {
           tone: "error",
-          lines: [
-            `第 ${run.runSeq} 次运行失败：转换批次存在失败（已提交 ${run.taskCount} 个任务，${count}）`,
-            "详见日志",
-          ],
+          lines: [t("run.failConvert", params), t("run.seeLogs")],
         };
       }
       if (run.endPhase === "after_hooks") {
         return {
           tone: "error",
-          lines: [
-            `第 ${run.runSeq} 次运行后处理失败：转换已完成并生成输出，但 on_after_convert 事件失败（${count}）`,
-          ],
+          lines: [t("run.failAfter", params)],
         };
       }
       return {
         tone: "error",
-        lines: [
-          `第 ${run.runSeq} 次运行失败：${count}${run.taskCount > 0 ? `（已提交 ${run.taskCount} 个任务）` : ""}`,
-        ],
+        lines: [run.taskCount > 0 ? t("run.failedWithTasks", params) : t("run.failed", params)],
       };
   }
 }
 
 /**
- * 运行控制与摘要（F08）：预览、取消和开始转换；开始转换固定最右。
+ * 运行控制与摘要：预览、取消和开始转换；开始转换固定最右。
  * 预览结果只写入运行日志（本地证据行），不再占独立结果区。
  * 开始/取消门禁由后端状态机决定。
  */
 export function RunControls() {
+  const { locale } = useI18n();
   const snapshot = useSessionStore((state) => state.snapshot);
   const preview = useSessionStore((state) => state.preview);
   const runPreview = useSessionStore((state) => state.runPreview);
@@ -129,7 +125,7 @@ export function RunControls() {
     hasConfig && !BUSY_STATES.has(state ?? "") && preview.status !== "loading" && !settingsPending;
   const canStart = hasConfig && (state === "ready" || terminal) && !runStarting && !settingsPending;
   const canCancel = active;
-  const stateText = state === null ? "未加载配置" : (STATE_LABELS[state] ?? state);
+  const stateText = state === null ? t("run.noConfig") : (stateLabels()[state] ?? state);
 
   const runResult = lastRun === null ? null : describeRun(lastRun);
 
@@ -138,40 +134,44 @@ export function RunControls() {
       const preview = useSessionStore.getState().preview;
       if (!ok && preview.status !== "error") return;
       if (preview.result === null) {
-        // 预览失败也只进日志（2026-09-26 四轮：结果统一输出到运行日志框）。
-        const message = preview.error ?? "预览失败";
+        // 预览失败也只进日志。
+        const message = preview.error ?? t("preview.failed");
         appendLocalLog(
-          `预览失败：${message}${
-            message.startsWith("XRESLOADER_NOT_FOUND")
-              ? "（请在“详细配置”中填写有效的转表工具 xresloader JAR 路径）"
-              : ""
-          }`,
+          t("preview.error", {
+            message,
+            hint: message.startsWith("XRESLOADER_NOT_FOUND") ? t("preview.jarHint") : "",
+          }),
           "error",
         );
         return;
       }
       const result = preview.result;
       appendLocalLog(
-        `预览：${String(result.plan.taskCount)} 个任务（选中 ${String(
-          result.selectionCount,
-        )} 条目）；执行目录 ${result.plan.workDir}；转表工具 ${result.plan.xresloaderPath}`,
+        t("preview.summary", {
+          tasks: result.plan.taskCount,
+          selected: result.selectionCount,
+          directory: result.plan.workDir,
+          jar: result.plan.xresloaderPath,
+        }),
         "notice",
       );
       for (const conflict of result.conflicts) {
         appendLocalLog(
-          `预览发现重复转换任务：条目 ${conflict.items.join("、")} 按相同的输出类型、目录和重命名规则生成了多个任务（输出目录 ${
-            conflict.outputDir || "（默认）"
-          }；重命名 ${conflict.rename || "（无）"}）。请检查输出矩阵规则。`,
+          t("preview.conflict", {
+            items: conflict.items.join(locale.startsWith("zh") ? "、" : ", "),
+            directory: conflict.outputDir || t("common.default"),
+            rename: conflict.rename || t("common.none"),
+          }),
           "warning",
         );
       }
       const shown = result.plan.tasks.slice(0, PREVIEW_TASK_LOG_LIMIT);
       for (const task of shown) {
-        appendLocalLog(`预览任务：${task.display}`, "info");
+        appendLocalLog(t("preview.task", { command: task.display }), "info");
       }
       if (result.plan.taskCount > shown.length) {
         appendLocalLog(
-          `预览任务仅列出前 ${String(shown.length)} 条，共 ${String(result.plan.taskCount)} 条`,
+          t("preview.limit", { shown: shown.length, total: result.plan.taskCount }),
           "info",
         );
       }
@@ -181,13 +181,13 @@ export function RunControls() {
   return (
     <div className="panel run-controls">
       <fieldset className="run-buttons">
-        <legend className="visually-hidden">运行控制</legend>
+        <legend className="visually-hidden">{t("run.controls")}</legend>
         <div className="run-button-row">
           <Button isDisabled={!canPreview} onPress={onPreview}>
-            预览
+            {t("run.preview")}
           </Button>
           <Button isDisabled={!canCancel} onPress={() => void cancelRun()}>
-            取消
+            {t("common.cancel")}
           </Button>
           <Button
             className="btn-primary btn-run btn-run--primary"
@@ -195,21 +195,21 @@ export function RunControls() {
             onPress={() => void startRun()}
           >
             <Icon name="play" />
-            开始转换
+            {t("run.start")}
           </Button>
         </div>
-        <p role="status" aria-label="运行状态" className="run-summary run-summary--inline">
+        <p role="status" aria-label={t("run.status")} className="run-summary run-summary--inline">
           <span className={`state-chip state-chip--${STATE_TONES[state ?? "idle"] ?? "muted"}`}>
             {stateText}
-            {cancelRequested && canCancel ? "·取消中" : ""}
+            {cancelRequested && canCancel ? t("run.cancelling") : ""}
           </span>
           {runResult !== null && (
             <span
               role="status"
-              aria-label="运行结果"
+              aria-label={t("run.result")}
               className={`run-result run-result--${runResult.tone}`}
             >
-              {runResult.lines.join("；")}
+              {runResult.lines.join(locale.startsWith("zh") ? "；" : "; ")}
             </span>
           )}
         </p>

@@ -1,12 +1,12 @@
 /**
- * BackendRpcApp 业务 RPC 面测试（P4-02）。
+ * BackendRpcApp 业务 RPC 面测试。
  *
  * 真实 ScriptWorkerPool（worker 真进程）+ 注入 fake Java runner；每个用例
  * 自建 pool（app 拥有池生命周期：start/dispose）。全部显式有界超时。
  *
  * 覆盖：loadConfig/reload/getSnapshot/applyOps（版本闸）/run/respondDialog/
  * cancel/reset 正路，与 UNKNOWN_METHOD/INVALID_PARAMS/INVALID_STATE/CONFIG_ERROR
- * 错误码路径；P4-04a：updateSettings（白名单/合并/reload 清空/矩阵资格重估/
+ * 错误码路径；：updateSettings（白名单/合并/reload 清空/矩阵资格重估/
  * 运行中拒绝）、preview（未加载/jar 缺失 XRESLOADER_NOT_FOUND/冲突检出）、
  * run 使用会话持有的 overrides。
  */
@@ -79,7 +79,7 @@ function firstItemNode(snap: BackendSnapshot) {
   }
 }
 
-describe("BackendRpcApp（P4-02）", () => {
+describe("BackendRpcApp", () => {
   it("loadConfig→getSnapshot：set_name 经真实 worker 生效；reload 重载", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
@@ -167,7 +167,7 @@ describe("BackendRpcApp（P4-02）", () => {
     expect(request.dialog.content).toBe("探针内容");
     expect(request.dialog.buttons).toEqual(["yes", "no"]);
 
-    // 未知 token：迟到/来路不明应答按 SC06 丢弃，非协议错误。
+    // 未知 token：迟到/来路不明应答按  丢弃，非协议错误。
     const late = (await app.handleRpc("respondDialog", {
       token: "no-such-token",
       choice: "yes",
@@ -192,7 +192,7 @@ describe("BackendRpcApp（P4-02）", () => {
     );
   });
 
-  it("getLogs：返回最新日志窗口（含 seq/droppedCount/capacity）；limit 校验（P4-07）", {
+  it("getLogs：返回最新日志窗口（含 seq/droppedCount/capacity）；limit 校验", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const { app, events } = makeApp({ runner: okRunner([]) });
@@ -216,7 +216,7 @@ describe("BackendRpcApp（P4-02）", () => {
       capacity: number;
     };
     expect(logs.entries.length).toBeGreaterThan(0);
-    // set-name.xml 未配置 JAR：计划构建失败分支（BD-O8），收尾文案为失败变体。
+    // set-name.xml 未配置 JAR：计划构建失败分支，收尾文案为失败变体。
     expect(logs.entries.some((entry) => entry.text.includes("All jobs done"))).toBe(true);
     // seq 单调（UI 游标去重依据）。
     const seqs = logs.entries.map((entry) => entry.seq);
@@ -345,7 +345,7 @@ describe("BackendRpcApp（P4-02）", () => {
       app.handleRpc("updateSettings", { fields: { workDir: 123 } }),
       "INVALID_PARAMS",
     );
-    // 多值字段错类型（含旧版 JSON 串编码形态——不复活）
+    // 多值字段错类型（含 JSON 串编码形态——不复活）
     await expectRpcError(
       app.handleRpc("updateSettings", { fields: { protoFile: '["a.pb"]' } }),
       "INVALID_PARAMS",
@@ -524,7 +524,7 @@ describe("BackendRpcApp（P4-02）", () => {
     expect(preview.conflicts).toEqual([]);
   });
 
-  it("preview：同一条目按相同 (type,outputDir,rename) 生成多个任务才检出冲突；不同条目同目录+重命名不误报（2026-09-26 四轮修正）", {
+  it("preview：同一条目按相同 (type,outputDir,rename) 生成多个任务才检出冲突；不同条目同目录+重命名不误报", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const { app } = makeApp();

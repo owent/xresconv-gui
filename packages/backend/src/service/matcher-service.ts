@@ -1,21 +1,4 @@
-/**
- * 隔离 matcher 服务（P2-08 剩余项）：把选择器/规则的 RegExp/minimatch 求值
- * 放进可终止的独立 worker 进程，灾难性 regex（ReDoS）不再阻塞 backend 事件
- * 循环——日志服务、取消与健康检查在同进程保持响应（Plan 03 §日志/§选择与转换
- * 计划："可能长时间运行的正则仍须在可终止进程中执行"、"异常 regex 在可终止
- * 任务中执行，不能阻塞日志服务"）。
- *
- * 设计：
- * - 单 worker（CPU 求值无并行收益；串行队列保持语义简单），挂死/死亡后补员；
- * - 每个请求独立 deadline（默认 2000ms）：超时 → 整树终止 worker（ProcessScope）
- *   → 该请求以 MatcherTimeoutError 拒绝 → 补员，后续请求不受影响；
- * - 协议为 backend 内部帧通道（matcher-worker.mjs，非跨角色契约）；
- * - 语义与进程内 buildMatchStringRule 完全一致（worker 复用同一实现），
- *   差分由测试逐对断言。
- *
- * BD-M4（新）：隔离域求值超时 → 该规则按"不匹配任何输入"处理（fail-closed）
- * + 诊断；旧版等价场景是渲染进程白屏卡死。由 SelectionRuleService 落实。
- */
+/** 模式匹配在可终止的独立进程执行，复用 compat-service 匹配语义。超时规则按不匹配处理并记录诊断。 */
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -139,7 +122,7 @@ export class MatcherService {
 
   /**
    * 批量求值：同一条规则对 inputs 顺序求值（worker 内编译一次并复用
-   * buildMatchStringRule，旧版懒缓存语义等价）。超时/死亡只拒绝本请求。
+   * buildMatchStringRule，懒缓存语义等价）。超时/死亡只拒绝本请求。
    */
   matchBatch(rule: string, inputs: readonly string[]): Promise<boolean[]> {
     if (this.shuttingDown || this.queued >= 128) {

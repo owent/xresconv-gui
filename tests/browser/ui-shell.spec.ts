@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 /**
- * 浏览器层 E2E（P4-08，UI08）：生产构建在三引擎的骨架渲染、明暗主题与
+ * 浏览器层 E2E：生产构建在三引擎的骨架渲染、明暗主题与
  * 可访问性基线。浏览器无 Tauri 桥接（isTauri=false）：适配层按设计降级
  * （事件空订阅、桥接探测失败可见），不得抛未捕获异常或白屏。
  */
@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
     if (message.type() !== "error") return;
     const text = message.text();
     // Firefox 对对象参数（适配层 .catch(console.error) 的降级 Error 对象）的
-    // text() 为 "JSHandle@object"；真实未捕获异常由 pageerror 覆盖。
+    // text 为 "JSHandle@object"；真实未捕获异常由 pageerror 覆盖。
     if (/^JSHandle@/.test(text) || EXPECTED_DEGRADE.test(text)) return;
     unexpectedErrors.push(`console.error: ${text}`);
   });
@@ -31,7 +31,7 @@ test.afterEach(async ({ page }) => {
   expect(errors, `unexpected errors: ${errors.join(" | ")}`).toEqual([]);
 });
 
-test("UI08-1 骨架渲染：全部主区域可见，无白屏/未捕获异常", async ({ page }) => {
+test("骨架渲染：全部主区域可见，无白屏/未捕获异常", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "转换列表" })).toBeVisible();
   await expect(page.getByText("运行日志").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "开始转换" })).toBeVisible();
@@ -42,7 +42,7 @@ test("UI08-1 骨架渲染：全部主区域可见，无白屏/未捕获异常", 
   await expect(page.getByRole("status").or(page.getByText(/环境|后端/)).first()).toBeVisible();
 });
 
-test("UI08-2 明暗主题：prefers-color-scheme 切换令牌", async ({ page }) => {
+test("明暗主题：prefers-color-scheme 切换令牌", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   const lightBg = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim(),
@@ -61,7 +61,7 @@ test("UI08-2 明暗主题：prefers-color-scheme 切换令牌", async ({ page })
   expect(scheme).toContain("dark");
 });
 
-test("UI08-3 无外部资源依赖：页面只加载同源资源（不依赖 CDN）", async ({ page }) => {
+test("无外部资源依赖：页面只加载同源资源（不依赖 CDN）", async ({ page }) => {
   const origin = new URL(page.url()).origin;
   const sources: string[] = [];
   page.on("request", (request) => sources.push(request.url()));
@@ -73,7 +73,7 @@ test("UI08-3 无外部资源依赖：页面只加载同源资源（不依赖 CDN
   expect(foreign, `外部资源请求: ${foreign.join(" | ")}`).toEqual([]);
 });
 
-test("UI08-4 可访问性基线：axe 无 serious/critical 违规", async ({ page }) => {
+test("可访问性基线：axe 无 serious/critical 违规", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "转换列表" })).toBeVisible();
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag21a", "wcag2aa"])
@@ -95,7 +95,7 @@ test("UI08-4 可访问性基线：axe 无 serious/critical 违规", async ({ pag
   ).toEqual([]);
 });
 
-test("UI08-5 高 DPI 与窄窗口：布局不崩溃（200% 缩放、小视口）", async ({ page }) => {
+test("高 DPI 与窄窗口：布局不崩溃（200% 缩放、小视口）", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 600 });
   await expect(page.getByRole("heading", { name: "转换列表" })).toBeVisible();
   await expect(page.getByRole("button", { name: "开始转换" })).toBeVisible();
@@ -106,8 +106,8 @@ test("UI08-5 高 DPI 与窄窗口：布局不崩溃（200% 缩放、小视口）
   expect(overflow).toBeLessThanOrEqual(2);
 });
 
-// UI08 真实 200% DPI：deviceScaleFactor=2 模拟（此前仅小视口，名实不符——P6-01 登记）。
-test.describe("UI08-5b 真实 200% 缩放", () => {
+// deviceScaleFactor=2 验证真实 200% DPI 渲染。
+test.describe("-5b 真实 200% 缩放", () => {
   test.use({ deviceScaleFactor: 2 });
   test("deviceScaleFactor=2：DPR=2 下布局与可访问名保持", async ({ page }) => {
     expect(await page.evaluate(() => window.devicePixelRatio)).toBe(2);

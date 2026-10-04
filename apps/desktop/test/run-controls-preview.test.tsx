@@ -86,20 +86,20 @@ async function loadFixture(snapshot: BackendSnapshot = makeSnapshot()): Promise<
   );
 }
 
-/** 日志聚合文本（预览结果 2026-09-26 四轮起只写入运行日志）。 */
+/** 日志聚合文本（预览结果 起只写入运行日志）。 */
 async function logText(): Promise<string> {
   const log = await screen.findByRole("log", { name: "日志列表" });
   return log.textContent ?? "";
 }
 
-describe("RunControls 预览（P4-04b，UI04）", () => {
+describe("RunControls 预览", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
     mockedInvoke.mockReset();
   });
 
-  it("未加载配置时预览、开始、取消均禁用（P4-06）", () => {
+  it("未加载配置时预览、开始、取消均禁用", () => {
     render(
       <>
         <RunControls />
@@ -133,7 +133,7 @@ describe("RunControls 预览（P4-04b，UI04）", () => {
     expect(text).toContain("D:/conf");
     expect(text).toContain("预览任务：");
     expect(text).toContain('t "bin"');
-    // 不再有独立预览结果面板（2026-09-26 四轮）。
+    // 不再有独立预览结果面板。
     expect(screen.queryByRole("region", { name: "预览结果" })).toBeNull();
     expect(useSessionStore.getState().preview.status).toBe("ok");
   });

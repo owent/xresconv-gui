@@ -1,8 +1,8 @@
 /**
- * 弹框回调注册表与失效逻辑（P2-06 / SC06）：真实 worker 子进程，无协议 mock。
+ * 弹框回调注册表与失效逻辑：真实 worker 子进程，无协议 mock。
  *
- * 覆盖：TTL 过期自动收尾（BD-W10）、worker 死亡时在途弹框失效、
- * dismissPendingDialogs 显式代际收尾、过期/迟到应答不执行（SC06）。
+ * 覆盖：TTL 过期自动收尾、worker 死亡时在途弹框失效、
+ * dismissPendingDialogs 显式代际收尾、过期/迟到应答不执行。
  * worker 侧的回调次数/顺序/exactly-once 在 script-host 的 worker.test.ts（l/o/p）。
  */
 
@@ -55,9 +55,9 @@ async function waitUntil(cond: () => boolean, label: string, timeoutMs = WAIT_MS
   }
 }
 
-describe("dialog registry (P2-06)", () => {
+describe("dialog registry", () => {
   it(
-    "a. TTL 过期：自动按 null 应答（BD-W10），通知失效，迟到应答不执行",
+    "a. TTL 过期：自动按 null 应答，通知失效，迟到应答不执行",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1, dialogTimeoutMs: 150 });
       const invalidated: { env: Envelope; reason: string }[] = [];
@@ -86,7 +86,7 @@ describe("dialog registry (P2-06)", () => {
         expect(invalidated[0]?.reason).toContain("auto-dismissed");
         expect(invalidated[0]?.env.payload.token).toBe(invokePayloadToken(pending[0]?.env));
 
-        // 迟到应答必须被丢弃（SC06：过期回调不执行）。
+        // 迟到应答必须被丢弃(过期回调不执行）。
         pending[0]?.respond("yes");
         const result = await resultPromise;
         expect(result.outcome).toBe("rejected");
@@ -120,7 +120,7 @@ describe("dialog registry (P2-06)", () => {
         await pool.start();
         const oldPid = pool.stats()[0]?.pid;
         // 弹框挂起；invoke 级 400ms 超时 < worker 外层兜底（3000ms+grace）→
-        // guardian 判超时并销毁 worker（BD-W3），在途弹框随之失效。
+        // guardian 判超时并销毁 worker，在途弹框随之失效。
         const invoke = makeInvoke({ timeout_ms: 3000 });
         const resultPromise = pool.invoke(invoke, { timeoutMs: 400 });
         await waitUntil(() => pending.length === 1, "dialog_request arrived");
@@ -130,7 +130,7 @@ describe("dialog registry (P2-06)", () => {
 
         // 迟到应答丢弃（worker 已死，不应答不崩溃）。
         pending[0]?.respond("yes");
-        // 池补员后可继续服务（BD-W3）。
+        // 池补员后可继续服务。
         await waitUntil(
           () => pool.stats().length === 1 && pool.stats()[0]?.pid !== oldPid,
           "worker replenished",
@@ -168,7 +168,7 @@ describe("dialog registry (P2-06)", () => {
         expect(dismissed).toBe(2);
         expect(invalidated).toEqual(["test reload", "test reload"]);
 
-        // 已 dismiss 的弹框再应答无效（SC06）；两个 invoke 都在自身 wall-clock 收尾。
+        // 已 dismiss 的弹框再应答无效；两个 invoke 都在自身 wall-clock 收尾。
         pending[0]?.respond("yes");
         pending[1]?.respond("no");
         const [res1, res2] = await Promise.all([r1, r2]);

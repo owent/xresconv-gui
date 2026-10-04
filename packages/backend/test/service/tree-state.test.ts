@@ -1,9 +1,9 @@
 /**
- * SessionTreeState 单元测试（P2-05 后端半区）。
+ * SessionTreeState 单元测试（ 后端半区）。
  *
- * 覆盖：构建/快照往返（旧版 item_data 载荷形状）、ops 应用与版本失配整批拒绝、
- * set_fields 旧版字段翻译（scheme_data→schemeData、id/ft_node 跳过）、
- * 矩阵资格（main.js:1050-1108 禁用/恢复分支）。
+ * 覆盖：构建/快照往返（ item_data 载荷形状）、ops 应用与版本失配整批拒绝、
+ * set_fields 字段翻译（scheme_data→schemeData、id/ft_node 跳过）、
+ * 矩阵资格（ 禁用/恢复分支）。
  * NodeMirror 侧的镜像/别名/诊断覆盖在 @xresconv/script-host 的 node-mirror.test.ts。
  */
 
@@ -75,7 +75,7 @@ describe("SessionTreeState", () => {
     expect(state.buildSnapshot().nodes[0]).toMatchObject({ selected: true, partsel: true });
     expect(state.getSelectedItems()).toHaveLength(2);
   });
-  it("构建：快照节点为旧版载荷形状（snake_case、id、无 ft_node），版本从 1 起", () => {
+  it("构建：快照节点为载荷形状（snake_case、id、无 ft_node），版本从 1 起", () => {
     const config = makeConfig([
       {
         kind: "category",
@@ -148,7 +148,7 @@ describe("SessionTreeState", () => {
     expect(flattenTreeItems(config.tree)[0]?.name).toBe("a");
   });
 
-  it("set_fields 翻译旧版字段名；id/ft_node 被跳过；null 删键", () => {
+  it("set_fields 翻译字段名；id/ft_node 被跳过；null 删键", () => {
     const config = makeConfig([{ kind: "item", item: makeItem("a") }]);
     const state = new SessionTreeState(config);
     const v = state.buildSnapshot().version;
@@ -224,7 +224,7 @@ describe("SessionTreeState", () => {
     state.applyMatrixEligibility(matrix, true);
     expect(state.getSelectedItems().map((item) => item.name)).toEqual(["tagged"]);
 
-    // 用户切出多输出项（main.js:1087-1108 enable 分支）：plain 恢复可勾选，
+    // 用户切出多输出项（ enable 分支）：plain 恢复可勾选，
     // 并按记忆的 auto_select（加载期记忆为 false）保持未勾选
     state.applyMatrixEligibility(matrix, false);
     snapshot = state.buildSnapshot();
@@ -233,7 +233,7 @@ describe("SessionTreeState", () => {
     expect(snapshot.nodes[0]?.selected).toBe(true);
   });
 
-  it("矩阵屏蔽项不被父级级联/select_all 选中（2026-09-27 用户反馈回归）", () => {
+  it("矩阵屏蔽项不被父级级联/select_all 选中", () => {
     const keep = makeItem("keep", { classes: ["ok"] });
     const blocked = makeItem("blocked");
     const matrix = [{ tags: [], classes: ["ok"], type: "bin" }];
@@ -296,7 +296,7 @@ describe("SessionTreeState", () => {
     let node = state.buildSnapshot().nodes[0];
     expect(node?.unselectable).toBe(true);
     expect(node?.selected).toBe(false);
-    // 恢复：auto_select 记忆为 true → 重新勾选（main.js:1105）
+    // 恢复：auto_select 记忆为 true → 重新勾选
     state.applyMatrixEligibility(strict, false);
     node = state.buildSnapshot().nodes[0];
     expect(node?.unselectable).toBe(false);

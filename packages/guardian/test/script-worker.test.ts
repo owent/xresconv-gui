@@ -1,6 +1,6 @@
 /**
- * End-to-end tests for ScriptWorkerPool (P2-01): every case runs the real
- * P2-03 worker (packages/script-host/bin/worker.mjs) as a child process via
+ * End-to-end tests for ScriptWorkerPool: every case runs the real
+ *  worker (packages/script-host/bin/worker.mjs) as a child process via
  * the pool; only test g substitutes a fixture worker that speaks the frame
  * protocol and then poisons it. No protocol mocks. Every wait is bounded by
  * an explicit timeout constant (real subprocess = real clock; fake timers
@@ -127,7 +127,7 @@ const ALERT_ORDER_SOURCE = [
   "});",
 ].join("\n");
 
-describe("ScriptWorkerPool (P2-01)", () => {
+describe("ScriptWorkerPool", () => {
   it(
     "a. start handshakes health; set_name sample resolves with field ops",
     async () => {
@@ -256,14 +256,14 @@ describe("ScriptWorkerPool (P2-01)", () => {
   );
 
   it(
-    "d2. an async death loop (while(true) in a timer callback) is cut by the external WORKER_TIMEOUT (SC07, 06 册样例)",
+    "d2. an async death loop (while(true) in a timer callback) is cut by the external WORKER_TIMEOUT (06 册样例)",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1 });
       try {
         await pool.start();
         const oldPid = pool.stats()[0]?.pid;
         // 事件循环被回调内同步死循环阻塞：vm timeout 与 worker 自身定时器都
-        // 无法触发，唯一存活边界是池级外部硬截止（BD-01）。
+        // 无法触发，唯一存活边界是池级外部硬截止。
         const stuck = makeInvoke({
           source: 'require("node:timers").setTimeout(function () { while (true) {} }, 0);',
           timeout_ms: 5000,
@@ -353,7 +353,7 @@ describe("ScriptWorkerPool (P2-01)", () => {
           "worker-fault diag",
         );
         expect((fault as WorkerDiag).line).toContain("invalid envelope");
-        // Fault policy: discard, NO replenish (BD-W1) — invoke must fail fast, never hang.
+        // Fault policy: discard, NO replenish — invoke must fail fast, never hang.
         await expectInvokeError(pool.invoke(makeInvoke({})), "NO_WORKER_AVAILABLE");
         expect(pool.stats()).toHaveLength(0);
       } finally {

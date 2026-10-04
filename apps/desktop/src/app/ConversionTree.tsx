@@ -11,23 +11,23 @@ import {
   Virtualizer,
 } from "react-aria-components";
 import type { TreeNodeKey, TreeNodeSnap } from "../adapters/backend";
+import { translate as t, useI18n } from "../i18n";
 import { HookControls } from "./HookControls";
 import { useSessionStore } from "./session-store";
 import { TreeToolbar } from "./TreeToolbar";
 
 /**
- * 左侧转换树区域（F02 条目树、F03 三态勾选/级联/全选；P4-08 起虚拟化）。
+ * 左侧转换树：虚拟化条目和三态级联勾选。
  * React Aria Tree 渲染 store 中的后端树快照；勾选状态以后端为准
  * （isSelected/isIndeterminate 受控，onChange 只发 select_node op），
- * 不引入 Fancytree；React Aria 自带 selection 不等于 selectMode:3，
- * 故 selectionMode="none"，勾选语义全部走 backend ops（04-ui §树）。
+ * React Aria selection 与转换选择独立，selectionMode="none"，勾选走 backend ops。
  *
- * 虚拟化（P4-08，UI03）：官方模式 —— Virtualizer + ListLayout 包裹 Tree，
+ * 虚拟化：官方模式 —— Virtualizer + ListLayout 包裹 Tree，
  * 节点经 items/childItems 动态集合提供（collapsed 子树不渲染）。10k/100k
  * 节点只渲染可见窗口；选择/三态权威在后端快照，与渲染窗口无关。
  *
  * 键盘：上下/左右/Home/End 由 React Aria 提供；Space 切换焦点节点勾选、
- * 双击切换为旧版行为；unselectable 节点可聚焦但不可勾选。
+ * 双击切换为行为；unselectable 节点可聚焦但不可勾选。
  * 注意：RAC filterDOMProps 只透传指针/鼠标事件（onFocus/onKeyDown 会被剥掉），
  * 焦点跟踪与 Space 处理挂在本组件自有 wrapper 上，经行元素 data-key 还原节点
  * 身份（RAC useSelectableItem 无条件渲染 data-key）。
@@ -84,6 +84,7 @@ const TREE_LEVEL_INDENT_PX = 18;
 
 /** 单个树行（动态集合 render item）：子级经嵌套 Collection 延迟提供。 */
 function TreeNodeRow({ node, level }: { node: TreeNodeSnap; level: number }) {
+  useI18n();
   const store = useSessionStore.getState;
   return (
     <TreeItem
@@ -103,27 +104,35 @@ function TreeNodeRow({ node, level }: { node: TreeNodeSnap; level: number }) {
             ) : (
               <span className="tree-chevron-spacer" aria-hidden="true" />
             )}
-            {/* fancytree 三态语义：全选目录 partsel 也为 true（“有牵连”）——
-                半选（mixed）仅当 partsel 且未全选；全选目录与条目一律 ✓。 */}
+            {/*
+             *  fancytree 三态语义：全选目录 partsel 也为 true（“有牵连”）——
+             *                 半选（mixed）仅当 partsel 且未全选；全选目录与条目一律 ✓。
+             */}
             <Checkbox
               className="tree-checkbox"
               aria-label={
-                node.unselectable ? `选择 ${node.title}（不可勾选）` : `选择 ${node.title}`
+                node.unselectable
+                  ? t("tree.selectDisabled", { title: node.title })
+                  : t("tree.select", { title: node.title })
               }
               isSelected={node.selected}
               isIndeterminate={node.partsel && !node.selected}
               isDisabled={node.unselectable}
               onChange={() => void store().toggleNode(node.key)}
             >
-              {/* 可见方框（RAC 把原生 input 藏进 VisuallyHidden；自定义 className
-                  还会替换默认 react-aria-Checkbox 类——方框必须是真实子元素，
-                  否则 label 零尺寸不可点击）。 */}
+              {/*
+               *  可见方框（RAC 把原生 input 藏进 VisuallyHidden；自定义 className
+               *                   还会替换默认 react-aria-Checkbox 类——方框必须是真实子元素，
+               *                   否则 label 零尺寸不可点击）。
+               */}
               <span className="checkbox-mark" aria-hidden="true" />
             </Checkbox>
             <span className="tree-node-title" title={node.tooltip}>
               {node.title}
             </span>
-            {node.unselectable ? <span className="tree-node-hint">不可勾选</span> : null}
+            {node.unselectable ? (
+              <span className="tree-node-hint">{t("tree.unselectable")}</span>
+            ) : null}
           </span>
         )}
       </TreeItemContent>
@@ -137,6 +146,7 @@ function TreeNodeRow({ node, level }: { node: TreeNodeSnap; level: number }) {
 }
 
 export function ConversionTree() {
+  useI18n();
   const [rowHeight, setRowHeight] = useState(TREE_ROW_HEIGHT);
   const tree = useSessionStore((state) => state.snapshot?.tree ?? null);
   const lastError = useSessionStore((state) => state.lastError);
@@ -202,7 +212,7 @@ export function ConversionTree() {
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      // Space 切换焦点节点勾选（旧版语义）；焦点在复选框/按钮上时由控件原生处理。
+      // Space 切换焦点节点勾选（语义）；焦点在复选框/按钮上时由控件原生处理。
       if (event.key !== " ") {
         return;
       }
@@ -249,7 +259,7 @@ export function ConversionTree() {
   }
 
   return (
-    <aside className="panel conversion-tree" aria-label="转换列表">
+    <aside className="panel conversion-tree" aria-label={t("tree.title")}>
       <TreeToolbar hitCount={searching && filtered !== null ? filtered.hits : null} />
       {lastError !== null ? (
         <p role="alert" className="tree-error">
@@ -258,14 +268,19 @@ export function ConversionTree() {
       ) : null}
       {filtered === null ? (
         <>
-          <div role="tree" aria-label="转换条目" aria-busy="true" className="tree-placeholder" />
-          <p className="empty-state">尚未加载配置；加载后在此显示分类与转换条目树。</p>
+          <div
+            role="tree"
+            aria-label={t("tree.items")}
+            aria-busy="true"
+            className="tree-placeholder"
+          />
+          <p className="empty-state">{t("tree.empty")}</p>
         </>
       ) : (
         <div ref={scopeRef} className="tree-keyboard-scope">
           <Virtualizer layout={ListLayout} layoutOptions={{ rowHeight }} shouldObserveItemSize>
             <Tree
-              aria-label="转换条目"
+              aria-label={t("tree.items")}
               className="conversion-tree-view"
               selectionMode="none"
               items={filtered.nodes}
@@ -281,8 +296,10 @@ export function ConversionTree() {
           </Virtualizer>
         </div>
       )}
-      {/* 树 footer：转换事件开关（布局对照旧版 conv_list_event_group_wrapper；
-          无 hook 时不渲染，不占位）。 */}
+      {/*
+       *  树 footer：转换事件开关（布局对照 conv_list_event_group_wrapper；
+       *           无 hook 时不渲染，不占位）。
+       */}
       <HookControls />
     </aside>
   );

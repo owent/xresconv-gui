@@ -1,8 +1,8 @@
 /**
- * DialogHost 测试（P4-05b，SC06/UI05 脚本弹框）。
+ * DialogHost 测试(脚本弹框）。
  *
  * dialog_request → RAC Modal（title/content/buttons）；yes/no/ok/ESC 的
- * choice 语义（ok 与 ESC 都最终化为 null——BD-06 ESC 不回调缺陷不复活）；
+ * choice 语义（ok 与 ESC 都最终化为 null—— ESC 不回调缺陷不复活）；
  * dialog_invalidate 移出队列且不应答；多个弹框逐队展示；应答在途禁用按钮。
  */
 
@@ -47,7 +47,7 @@ function respondCalls(): Record<string, unknown>[] {
     .map(([, args]) => args?.params as Record<string, unknown>);
 }
 
-describe("DialogHost（P4-05b，SC06）", () => {
+describe("DialogHost", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();

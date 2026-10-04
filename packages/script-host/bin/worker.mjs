@@ -2,7 +2,7 @@
 // fd1 is the framed IPC channel (@xresconv/ipc). Redirect every console method
 // to fd2 BEFORE loading the worker so stray console.* calls in this process can
 // never corrupt outbound frames. User scripts do NOT get console injected at
-// all (legacy parity, P0-08 §2); this guard covers worker-internal code only.
+// all (script contract); this guard covers worker-internal code only.
 import { Console } from "node:console";
 
 globalThis.console = new Console({ stdout: process.stderr, stderr: process.stderr });

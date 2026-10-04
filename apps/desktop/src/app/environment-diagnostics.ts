@@ -1,20 +1,10 @@
 import { useEffect } from "react";
 import { backendRpc, onBackendEvent } from "../adapters/backend";
 import { getAppInfo, getBackendHealth, getCliMatches } from "../adapters/tauri";
+import { getLocale, translate as t } from "../i18n";
 import { useSessionStore } from "./session-store";
 
-/**
- * 环境诊断 → 运行日志（2026-09-26 用户反馈：主面板上方不要冗余状态行，
- * 调试信息放运行日志框）。取代旧 EnvironmentStatus 状态条：
- * - 启动时记录：应用版本/协议、启动参数、guardian/backend 健康、Java 运行时
- *   （与旧版 conv_env_check 一致：java 版本进日志，检查经 backend checkJava RPC，
- *   与实际转换用同一解析，显示与执行一致）。
- * - backend-supervisor ready/died 事件后重查健康与 Java 并记录状态迁移。
- * - Java 不满足时以 warning 记录问题与推荐发行版（不再占主界面横幅）。
- *
- * 副作用经模块级 started 标记只跑一次（StrictMode 双挂载不重复记录；
- * 桥接命令本身经 adapters 在途去重）。
- */
+/** 将应用、后端和 Java 环境诊断写入运行日志，失败时保留明确修复信息。 */
 
 /** checkJava 结果（镜像 backend java-env.ts JavaCheckResult + downloadHints）。 */
 interface JavaStatus {
@@ -38,15 +28,19 @@ function logHealth(): void {
   getBackendHealth()
     .then((health) => {
       append(
-        `后端状态：guardian ${health.ok ? "ok" : "failed"} · node ${health.node} · pid ${String(health.pid)}` +
-          (health.backend
+        t("diagnostics.health", {
+          status: health.ok ? "ok" : "failed",
+          node: health.node,
+          pid: health.pid,
+          backend: health.backend
             ? ` · backend ${health.backend.state} · pid ${health.backend.pid ?? "—"} · generation ${String(health.backend.generation)}`
-            : ""),
+            : "",
+        }),
         health.ok && health.backend?.state === "ready" ? "info" : "warning",
       );
     })
     .catch((error: unknown) => {
-      append(`后端状态检查失败：${String(error)}`, "warning");
+      append(t("diagnostics.healthError", { error: String(error) }), "warning");
     });
 }
 
@@ -56,16 +50,24 @@ function logJava(): void {
     .then((java) => {
       if (java.ok) {
         append(
-          `Java 环境：${(java.versionText.split("\n")[0] ?? "").trim()}${javaSourceLabel(java.executable.source)}`,
+          t("diagnostics.java", {
+            version: (java.versionText.split("\n")[0] ?? "").trim(),
+            source: javaSourceLabel(java.executable.source),
+          }),
           "notice",
         );
         return;
       }
-      append(`Java 环境不满足：${java.problem ?? "Java 运行时不满足要求"}`, "warning");
       append(
-        `请安装 64 位的 JRE 或 JDK 8 或以上（可用环境变量 XRESCONV_JAVA 指定 java 路径、JAVA_HOME 指定 JDK 目录），推荐发行版：${java.downloadHints
-          .map((hint) => hint.name)
-          .join("、")}`,
+        t("diagnostics.javaError", { problem: java.problem ?? t("diagnostics.javaProblem") }),
+        "warning",
+      );
+      append(
+        t("diagnostics.javaInstall", {
+          distributions: java.downloadHints
+            .map((hint) => hint.name)
+            .join(getLocale().startsWith("zh") ? "、" : ", "),
+        }),
         "warning",
       );
     })
@@ -91,14 +93,14 @@ function startDiagnostics(): void {
       append(`${info.name} v${info.version} · protocol v${String(info.protocol_version)}`, "info");
     })
     .catch((error: unknown) => {
-      append(`读取应用信息失败：${String(error)}`, "warning");
+      append(t("diagnostics.appError", { error: String(error) }), "warning");
     });
 
   getCliMatches()
     .then((matches) => {
       const keys = Object.keys(matches);
       if (keys.length === 0) return;
-      append(`启动参数：${JSON.stringify(matches)}`, "info");
+      append(t("diagnostics.cli", { args: JSON.stringify(matches) }), "info");
     })
     .catch(() => {
       /* 无启动参数/读取失败不打扰 */
@@ -126,11 +128,11 @@ export function useEnvironmentDiagnostics(): void {
   }, []);
 }
 
-/** 输出矩阵概要行（2026-09-26 五轮：加载后日志重置需补写关键配置信息）。 */
+/** 输出矩阵概要行。 */
 function matrixSummaryLines(config: Record<string, unknown> | null): string[] {
   const matrix = config?.outputMatrix;
   if (!Array.isArray(matrix) || matrix.length === 0) {
-    return ["输出矩阵：未配置（默认单类型输出）"];
+    return [t("diagnostics.noMatrix")];
   }
   return matrix.map((rule, index) => {
     const typed = (rule ?? {}) as {
@@ -141,7 +143,7 @@ function matrixSummaryLines(config: Record<string, unknown> | null): string[] {
       classes?: unknown;
     };
     const parts: string[] = [
-      `type=${typeof typed.type === "string" && typed.type !== "" ? typed.type : "（默认）"}`,
+      `type=${typeof typed.type === "string" && typed.type !== "" ? typed.type : t("common.default")}`,
     ];
     if (Array.isArray(typed.tags) && typed.tags.length > 0) {
       parts.push(`tag=${typed.tags.join(" ")}`);
@@ -153,14 +155,14 @@ function matrixSummaryLines(config: Record<string, unknown> | null): string[] {
       parts.push(`rename=${typed.rename}`);
     }
     if (typeof typed.outputDir === "string" && typed.outputDir !== "") {
-      parts.push(`目录=${typed.outputDir}`);
+      parts.push(t("diagnostics.matrixDir", { directory: typed.outputDir }));
     }
-    return `输出矩阵 #${String(index + 1)}：${parts.join("；")}`;
+    return t("diagnostics.matrix", { count: index + 1, rules: parts.join("; ") });
   });
 }
 
 /**
- * 加载后日志摘要（2026-09-26 五轮用户需求）：loadConfig/reload 成功会重置
+ * 加载后日志摘要：loadConfig/reload 成功会重置
  * 运行日志显示面——重置后补写启动同款 Java 环境信息与本次配置的输出矩阵
  * 概要。触发点 store.configLoadSeq（仅加载成功 +1；ops/run 的重同步不动）。
  */

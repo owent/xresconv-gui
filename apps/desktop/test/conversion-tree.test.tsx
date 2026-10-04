@@ -168,7 +168,7 @@ function checkboxOf(title: string): HTMLInputElement {
   }) as HTMLInputElement;
 }
 
-describe("ConversionTree (P4-03)", () => {
+describe("ConversionTree", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     unlistenSpy.mockClear();
@@ -221,7 +221,7 @@ describe("ConversionTree (P4-03)", () => {
     expect(applyOpsPayloads(invoke)[0]).toEqual([{ v: 1, op: "select_node", key: 2 }]);
     await waitFor(() => expect(checkboxOf("beta").checked).toBe(true));
     expect(useSessionStore.getState().snapshot?.tree?.version).toBe(2);
-    // 2026-09-26 五轮：全选目录 partsel=true（fancytree“有牵连”语义）但显示为
+    // 全选目录 partsel=true（fancytree“有牵连”语义）但显示为
     // 全选 ✓——isIndeterminate 仅在未全选时为 true。
     const category = checkboxOf("基础分类");
     expect(category.checked).toBe(true);
@@ -246,7 +246,7 @@ describe("ConversionTree (P4-03)", () => {
 
     await waitFor(() => expect(applyOpsPayloads(invoke)).toHaveLength(2));
     expect(applyOpsPayloads(invoke)[0]).toEqual([{ v: 1, op: "select_all" }]);
-    // 第一批应用后版本推进到 2，第二批携带新版本（版本闸）
+    // 第一批应用后版本推进到 2，第二批携带本（版本闸）
     expect(applyOpsPayloads(invoke)[1]).toEqual([{ v: 2, op: "select_none" }]);
   });
 
@@ -293,7 +293,7 @@ describe("ConversionTree (P4-03)", () => {
     const user = userEvent.setup();
 
     // 点击行文本使行获得焦点（user-event 会上溯到最近可聚焦祖先 = 行），再按空格
-    // 标题点击=切换(fancytree 点行语义);本用例聚焦用 row.focus() 不产生 op。
+    // 标题点击=切换(fancytree 点行语义);本用例聚焦用 row.focus 不产生 op。
     (screen.getByText("beta").closest('[role="row"]') as HTMLElement | null)?.focus();
     await user.keyboard(" ");
 
@@ -301,7 +301,7 @@ describe("ConversionTree (P4-03)", () => {
     expect(applyOpsPayloads(invoke)[0]).toEqual([{ v: 1, op: "select_node", key: 2 }]);
   });
 
-  it("ArrowDown/ArrowUp 在行间移动焦点，纯导航不产生选择 ops（UI03）", async () => {
+  it("ArrowDown/ArrowUp 在行间移动焦点，纯导航不产生选择 ops", async () => {
     const invoke = await loadFixture();
     routeRpc(invoke, { applyOps: () => okReport() });
     render(<ConversionTree />);
@@ -320,7 +320,7 @@ describe("ConversionTree (P4-03)", () => {
     expect(applyOpsPayloads(invoke)).toHaveLength(0);
   });
 
-  it("双击切换勾选（旧版行为；净效果=切换一次）", async () => {
+  it("双击切换勾选（行为；净效果=切换一次）", async () => {
     const invoke = await loadFixture();
     routeRpc(invoke, { applyOps: () => okReport() });
     render(<ConversionTree />);
@@ -386,7 +386,7 @@ describe("ConversionTree (P4-03)", () => {
         <ItemDetails />
       </>,
     );
-    // 标题点击=切换(fancytree 点行语义);本用例聚焦用 row.focus() 不产生 op。
+    // 标题点击=切换(fancytree 点行语义);本用例聚焦用 row.focus 不产生 op。
     (screen.getByText("beta").closest('[role="row"]') as HTMLElement | null)?.focus();
 
     const details = screen.getByRole("group", { name: "条目详情" });
@@ -407,7 +407,7 @@ describe("ConversionTree (P4-03)", () => {
     const user = userEvent.setup();
 
     // 初始：cat:basic 展开（快照 expanded=true）。标题现在也是按钮(点行切换勾选)，
-    // 收起必须点 chevron（.tree-chevron），不再按名称匹配。
+    // 收起必须点 chevron(tree-chevron），不再按名称匹配。
     expect(screen.getByText("alpha")).toBeTruthy();
     const chevron = document.querySelector('[data-key="cat:basic"] .tree-chevron');
     expect(chevron).not.toBeNull();
@@ -463,7 +463,7 @@ describe("backend 事件订阅（StrictMode 约束）", () => {
   });
 });
 
-describe("ConversionTree 虚拟化（P4-08，UI03）", () => {
+describe("ConversionTree 虚拟化", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     unlistenSpy.mockClear();

@@ -1,37 +1,10 @@
-/**
- * 日志管线（P2-08 backend 侧 + P3-09）。
- *
- * 对齐旧版 logger_append_*（main.js:166-330）：
- * - 级别→样式：info→alert-secondary（main.js:245）、notice→alert-primary（main.js:263）、
- *   warning→alert-warning（main.js:283）、error→alert-danger（main.js:304）。
- * - 渲染形态 text = `[module]: message`（main.js:216-226 的 innerText），写 log4js 用同一文本
- *   （main.js:247-257 等 `log.<level>(ret.innerText)`）。
- * - Error 实例一律重路由为 error 级并取 stack（main.js:238-244 等）。
- * - on_append_log：同一条日志按文档序经过全部启用 hook，log_object（{message, module_name,
- *   style}，main.js:169-174）贯穿——前一 hook 的 set_log_fields 合并进后一 hook 输入；
- *   hook 异常 → 剩余 hook 跳过、已改字段保留（main.js:205-212）。hook 仅在
- *   append_log_context 窗口（conv_start 链期间，main.js:2299/2424）生效，由调用方
- *   设置/清除 {@link LogPipeline.hookRunner}。
- * - 递归保护：hook 内 log_* 产出不再进入 hook 链。旧版用同步 guard 布尔
- *   （main.js:182/214）；新版 hook 经 worker IPC 异步执行，由调用方按 invocation_id
- *   判定并传 `bypassHooks`（BD-O11）。
- *
- * 与旧版的结构性差异（BD-O10）：旧版无界 DOM 追加；新版内存队列为有界环形
- * （默认 {@link DEFAULT_LOG_CAPACITY}），溢出丢弃最老并累计 droppedCount，同时向
- * 监听器/落盘 sink 直发一条 "LOG" 诊断（诊断本身不进队列，避免递归驱逐）。
- * log4js 在独立进程落盘；队列或单条大小超限会诊断未落盘，不能承诺过载时完整日志。
- *
- * hook 处理是异步 IPC：append() 经尾链串行化，保证条目按到达顺序进 hook 链并按序
- * 落队；hook 队列溢出的条目保留原文并立即落队，可能先于在途 hook；
- * bypass 的条目（hook 内产出）立即落队——与旧版一致（hook 内日志先于
- * 被 hook 的日志渲染，main.js:182-214）。
- */
+/** 日志管线：保留原始消息，按序处理钩子，为内存窗口分配 seq，并独立提交持久化 sink。递归和过载时明确绕过钩子并记录诊断。 */
 
 import { formatUnknownError } from "./format.ts";
 
 export type LogLevel = "info" | "notice" | "warning" | "error";
 
-/** 级别→旧版 Bootstrap 样式（main.js:245/263/283/304）。 */
+/** 级别→ Bootstrap 样式。 */
 const LEVEL_STYLE: Record<LogLevel, string> = {
   info: "alert-secondary",
   notice: "alert-primary",
@@ -44,15 +17,15 @@ export interface LogEntry {
   readonly message: string;
   /** Original text before the script hook (for diagnostics and export). */
   readonly rawMessage: string;
-  /** 模块名；缺省为 ""（main.js:171 `module_name || ""`）。 */
+  /** 模块名；缺省为 ""（ `module_name || ""`）。 */
   readonly moduleName: string;
-  /** 旧版样式类名（alert-*），hook 可改写。 */
+  /** 样式类名（alert-*），hook 可改写。 */
   readonly style: string;
   readonly level: LogLevel;
   /** 渲染形态 `[module]: message`（module 为空时仅 message），与写 log4js 的文本一致。 */
   readonly text: string;
   /**
-   * 队列内单调游标（P4-07）：仅经 {@link LogPipeline.commit} 落队的条目携带；
+   * 队列内单调游标：仅经 {@link LogPipeline.commit} 落队的条目携带；
    * 直发监听器/sink 的溢出诊断不占 seq（不进队列、与 getLogs 无交集）。
    * UI 据此对 getLogs 初始填充与事件流做幂等去重。
    */
@@ -60,7 +33,7 @@ export interface LogEntry {
 }
 
 /**
- * on_append_log 的可改日志对象（main.js:169-174 的 log_object）。
+ * on_append_log 的可改日志对象（ 的 log_object）。
  * hook 可能写入任意 JSON 值/删键，字段统一为 unknown，落队时归一化为 string。
  */
 export interface LogObject {
@@ -89,7 +62,7 @@ export interface AppendLogOptions {
   bypassSinks?: boolean;
 }
 
-/** 内存队列默认容量（BD-O10）。 */
+/** 内存队列默认容量。 */
 export const DEFAULT_LOG_CAPACITY = 10000;
 
 interface NormalizedLog {
@@ -106,9 +79,9 @@ function buildEntry(log: NormalizedLog): LogEntry {
 
 export class LogPipeline {
   readonly capacity: number;
-  /** 因溢出被丢弃的最老条目总数（BD-O10）。 */
+  /** 因溢出被丢弃的最老条目总数。 */
   droppedCount = 0;
-  /** on_append_log 链执行器；非 null 即 append_log_context 窗口（main.js:2299/2424）。 */
+  /** on_append_log 链执行器；非 null 即 append_log_context 窗口。 */
   hookRunner: LogHookRunner | null = null;
 
   private entries: LogEntry[] = [];
@@ -116,7 +89,7 @@ export class LogPipeline {
   private readonly sinks = new Set<(entry: LogEntry) => void>();
   private tail: Promise<unknown> = Promise.resolve();
   private pendingHooks = 0;
-  /** 队列内单调游标（P4-07）；直发诊断不消耗。 */
+  /** 队列内单调游标；直发诊断不消耗。 */
   private nextSeq = 0;
   hookSkippedCount = 0;
 
@@ -142,7 +115,7 @@ export class LogPipeline {
     return [...this.entries];
   }
 
-  /** 最新 limit 条（最老在前）；limit 缺省全量、越界夹取（P4-07 getLogs 底座）。 */
+  /** 最新 limit 条（最老在前）；limit 缺省全量、越界夹取（ getLogs 底座）。 */
   getRecent(limit?: number): LogEntry[] {
     const bound = Math.max(0, Math.floor(limit ?? this.entries.length));
     if (bound === 0) return [];
@@ -150,7 +123,7 @@ export class LogPipeline {
     return this.entries.slice(this.entries.length - bound);
   }
 
-  /** seq < beforeSeq 的最新 limit 条（最老在前；UI 滚动加载历史，P4-07）。 */
+  /** seq < beforeSeq 的最新 limit 条（最老在前；UI 滚动加载历史)。 */
   getRecentBefore(beforeSeq: number, limit?: number): LogEntry[] {
     const bound = Math.max(0, Math.floor(limit ?? this.entries.length));
     if (bound === 0) return [];
@@ -168,7 +141,7 @@ export class LogPipeline {
   }
 
   append(input: AppendLogInput, options?: AppendLogOptions): Promise<LogEntry> {
-    // Error 实例一律重路由 error（main.js:238-244 等）。
+    // Error 实例一律重路由 error（ 等）。
     let level = input.level;
     let message: string;
     if (input.message instanceof Error) {
@@ -205,7 +178,7 @@ export class LogPipeline {
       return Promise.resolve(entry);
     }
 
-    // 尾链串行化：日志按到达顺序逐条进 hook 链（旧版同步执行天然有序）。
+    // 尾链串行化：日志按到达顺序逐条进 hook 链（同步执行天然有序）。
     this.pendingHooks++;
     const processed: Promise<LogEntry> = this.tail.then(async () => {
       const logObject: LogObject = {
@@ -287,18 +260,18 @@ export class LogPipeline {
       try {
         listener(entry);
       } catch {
-        // 监听器（UI）故障不阻断日志管线。
+        //日志管线：保留原始消息，按序处理钩子，为内存窗口分配 seq，并独立提交持久化 sink。递归和过载时明确绕过钩子并记录诊断。
       }
     }
     if (bypassSinks) return;
     for (const sink of this.sinks) {
       try {
         // sink 可能返回 Promise（log4js 异步落盘）：异步拒绝同样不能逃逸成
-        // unhandled rejection 杀死 backend（EX04：只读/不可写日志文件场景）。
+        // unhandled rejection 杀死 backend(只读/不可写日志文件场景）。
         // 持久化失败的可观测性走 sink 自身的 onDiagnostic 通道（session 接线）。
         void Promise.resolve(sink(entry)).catch(() => {});
       } catch {
-        // 落盘故障不阻断日志管线。
+        //日志管线：保留原始消息，按序处理钩子，为内存窗口分配 seq，并独立提交持久化 sink。递归和过载时明确绕过钩子并记录诊断。
       }
     }
   }

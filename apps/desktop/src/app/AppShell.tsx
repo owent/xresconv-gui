@@ -1,3 +1,4 @@
+import { translate as t, useI18n } from "../i18n";
 import { ConversionSettings } from "./ConversionSettings";
 import { ConversionTree } from "./ConversionTree";
 import { CustomActionBar } from "./CustomActionBar";
@@ -10,12 +11,9 @@ import { RunControls } from "./RunControls";
 import { useBackendEvents } from "./use-backend-events";
 import { useCliCustomSelectors } from "./use-cli-custom-selectors";
 
-/**
- * 顶部文件工具栏、中部树与日志工作区、底部运行操作。
- * 详情和显示设置按需打开；环境诊断写入运行日志。
- * 各区域与 F01–F12 的映射见 ./feature-map.ts。
- */
+/** 桌面工作区布局，组合配置、树、运行控制、日志和弹窗。 */
 export function AppShell() {
+  useI18n();
   useBackendEvents();
   useCliCustomSelectors();
   useDisplaySettings();
@@ -32,7 +30,7 @@ export function AppShell() {
             <h1>
               xresconv<span className="brand-suffix">gui</span>
             </h1>
-            <p>配置转换工作台</p>
+            <p>{t("app.subtitle")}</p>
           </div>
         </div>
         <ConversionSettings />

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "packaging-targets",
   "title": "PackagingTargets",
-  "description": "Release build-input matrix (build side, P5-01). One entry per release target of xresconv-gui; a target may ship several artifacts (see @xresconv/packaging matrix). Scope frozen by decisions D1 (64-bit only, docs/plan/records/P0-06.md) and the portable-archive decision: Windows ships bootstrap/offline 7z archives (no installer; WebView2 Evergreen plus an in-archive bootstrapper sidecar or bundled Fixed Version runtime), Linux ships distro-independent tar.zst archives (offline also as AppImage; no deb/rpm), macOS keeps the dmg installer. This file holds build-time identity/policy only; fields that can only be filled at build time (appVersion, sourceCommit, hashes, files, signingEvidence, buildToolchain, repositorySnapshot, verificationReport) live in the artifact-side runtime-manifest.json (schema packaging-runtime-manifest). Semantic rules (duplicates, baseline set equality, per-os strategy coherence) are enforced by @xresconv/packaging on top of this structural schema.",
+  "description": "Build-input matrix for supported 64-bit targets. Windows provides bootstrap/offline 7z, Linux tar.zst and offline AppImage, and macOS DMG. Build-time target identity and runtime policy live here; app version, source commit, hashes, files, signing and verification evidence belong to runtime-manifest.json. Packaging validates exact target sets and coherent per-OS strategies.",
   "type": "object",
   "required": ["schemaVersion", "targets"],
   "additionalProperties": false,
@@ -45,11 +45,11 @@
         "osVersionRange": {
           "type": "string",
           "minLength": 1,
-          "description": "Supported OS version range for this target. windows: Windows build range (>=10.0.17763 = Windows 10 1809, WebView2-capable floor; calibrated in P5-03). macos: macOS version range (>=13.5 per D5). linux: the oldest supported baseline of the D2 set (>=22.04, i.e. Ubuntu 22.04 / glibc 2.35 floor); artifacts are distro-independent, the value only pins the build/verify baseline."
+          "description": "Supported OS version range for this target. windows: Windows build range (>=10.0.17763 = Windows 10 1809, WebView2-capable floor; calibrated in ). macos: macOS version range (>=13.5 per ). linux: the oldest supported baseline of the  set (>=22.04, i.e. Ubuntu 22.04 / glibc 2.35 floor); artifacts are distro-independent, the value only pins the build/verify baseline."
         },
         "arch": {
           "enum": ["x64", "arm64", "x86_64", "aarch64"],
-          "description": "Machine architecture. windows/macos use Node-style names (x64, arm64); linux uses triple-style names (x86_64, aarch64) - narrowed per os by the conditional rules below. 32-bit values (ia32, x86, armv7l) are deliberately absent (D1)."
+          "description": "Machine architecture. windows/macos use Node-style names (x64, arm64); linux uses triple-style names (x86_64, aarch64) - narrowed per os by the conditional rules below. 32-bit values (ia32, x86, armv7l) are deliberately absent."
         },
         "variant": {
           "enum": ["bootstrap", "offline"],
@@ -68,11 +68,11 @@
             "webkitgtk-system",
             "webkitgtk-bundled"
           ],
-          "description": "WebView provisioning strategy; the os/variant-coherent value is enforced semantically by @xresconv/packaging. windows bootstrap: webview2-evergreen (system Evergreen runtime expected, shell preflights it and guides to the in-archive bootstrapper when missing). windows offline: webview2-fixed-runtime (Fixed Version runtime bundled in the archive as webview2-runtime/; at startup the shell prefers the system Evergreen runtime and only falls back to the bundled one — via WEBVIEW2_BROWSER_EXECUTABLE_FOLDER plus the Win10 AppContainer ACL — when the system runtime is missing or too old). macos: system-only (WKWebView ships with the OS, D5). linux bootstrap: webkitgtk-system (WebKitGTK 4.1 from the distro, preflight.sh guides). linux offline: webkitgtk-bundled (WebKitGTK/GTK and transitive deps carried in the self-contained package)."
+          "description": "WebView provisioning strategy; the os/variant-coherent value is enforced semantically by @xresconv/packaging. windows bootstrap: webview2-evergreen (system Evergreen runtime expected, shell preflights it and guides to the in-archive bootstrapper when missing). windows offline: webview2-fixed-runtime (Fixed Version runtime bundled in the archive as webview2-runtime/; at startup the shell prefers the system Evergreen runtime and only falls back to the bundled one — via WEBVIEW2_BROWSER_EXECUTABLE_FOLDER plus the Win10 AppContainer ACL — when the system runtime is missing or too old). macos: system-only (WKWebView ships with the OS). linux bootstrap: webkitgtk-system (WebKitGTK 4.1 from the distro, preflight.sh guides). linux offline: webkitgtk-bundled (WebKitGTK/GTK and transitive deps carried in the self-contained package)."
         },
         "minimumWebview": {
           "type": ["string", "null"],
-          "description": "Minimum acceptable webview version gate. windows: WebView2 runtime floor 120.0.0 (frontend build target chrome120 in apps/desktop/vite.config.ts). macos: null (no separate webview version; the osVersionRange floor is the gate, D5). linux: WebKitGTK library floor 2.38 (API 4.1; feature gate calibrated on clean VMs in P5-05/P5-06)."
+          "description": "Minimum acceptable webview version gate. windows: WebView2 runtime floor 120.0.0 (frontend build target chrome120 in apps/desktop/vite.config.ts). macos: null (no separate webview version; the osVersionRange floor is the gate). linux: WebKitGTK library floor 2.38 (API 4.1; feature gate calibrated on clean VMs in)."
         },
         "nodeVersion": {
           "type": "string",

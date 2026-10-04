@@ -1,4 +1,4 @@
-// Fake script worker for P2-01 test g: completes a VALID health handshake,
+// Fake script worker for  test g: completes a VALID health handshake,
 // then emits a frame whose JSON is not a valid envelope. The guardian pool
 // must discard this worker (fault, no replenish) without crashing.
 import { Buffer } from "node:buffer";

@@ -12,9 +12,11 @@ import type {
 /** Semver with optional prerelease; also what CI tags use. No path separators possible. */
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
-/** macOS is the last installer-format target (2026-09-28 portable-archive
+/**
+ *  macOS is the last installer-format target ( portable-archive
  * decision: Windows/Linux ship portable archives only, so no nsis/deb/rpm
- * installer naming exists anymore). */
+ * installer naming exists anymore).
+ */
 export function formatFor(target: ReleaseTarget): ArtifactFormat {
   if (target.os === "macos") return "dmg";
   throw new PackagingError(
@@ -41,14 +43,16 @@ function artifactBase(target: ReleaseTarget, version: string): string {
   return `xresconv-gui-${version}-${target.os}-${target.arch}-${target.variant}`;
 }
 
-/** Portable（非安装器）交付形态（2026-09-28 用户决策：Release 一律 portable
+/**
+ *  Portable（非安装器）交付形态（ 用户决策：Release 一律 portable
  * 归档——Linux 不再出 deb/rpm，Windows 不再出安装器）。macOS portable = 未
  * 签名 .app（ditto 压缩 .app.zip）；Windows bootstrap/offline 均为 7z
  * （bootstrap 附 WebView2 bootstrapper；offline 内嵌 Fixed Version，
  * 解压后双击应用；目标机须有支持 7z 的解压工具）；
  * Linux bootstrap = 系统 WebKitGTK tar.zst（发行版无关，preflight.sh 探测/
- * 指引）；Linux offline = 自含 AppImage + 同闭包 tar.zst（用户 2026-09-27
- * 决策：与 AppImage 并存；压缩格式按 2026-09-28 决策为 zstd）。 */
+ * 指引）；Linux offline = 自含 AppImage + 同闭包 tar.zst（用户
+ * 决策：与 AppImage 并存；压缩格式按  决策为 zstd）。
+ */
 export function portableFormats(target: ReleaseTarget): PortableFormat[] {
   if (target.os === "macos") return ["app.zip"];
   if (target.os === "windows") return ["7z"];
@@ -63,8 +67,10 @@ const PORTABLE_EXTENSIONS: Record<PortableFormat, string> = {
   "tar.zst": "tar.zst",
 };
 
-/** Portable 产物名：一律不带 distro 段（产物发行版无关，构建基线记录在包内
- * manifest 而非文件名）。非法目标先过 portableFormats 校验（fail-closed）。 */
+/**
+ *  Portable 产物名：一律不带 distro 段（产物发行版无关，构建基线记录在包内
+ * manifest 而非文件名）。非法目标先过 portableFormats 校验（fail-closed）。
+ */
 export function portableArtifactName(
   target: ReleaseTarget,
   version: string,
@@ -99,8 +105,10 @@ export function portableArtifactNames(file: TargetsFile, version: string): strin
   return [...names].sort();
 }
 
-/** One shipped release artifact of a target: macOS ships its dmg installer;
- * Windows/Linux ship the portable archive forms (one row per artifact). */
+/**
+ *  One shipped release artifact of a target: macOS ships its dmg installer;
+ * Windows/Linux ship the portable archive forms (one row per artifact).
+ */
 export function releaseArtifacts(
   target: ReleaseTarget,
   version: string,
@@ -125,7 +133,7 @@ function compareKeys(a: string, b: string): number {
 }
 
 /**
- * Full release matrix for CI-06: one serializable row per shipped artifact
+ * Full release matrix for : one serializable row per shipped artifact
  * (a two-artifact target like linux/offline yields two rows), sorted by
  * identity key then name, each with its SHA-256 sidecar name. The aggregate
  * job compares the built artifact name set against these names for exact set
@@ -167,7 +175,7 @@ export function buildMatrix(file: TargetsFile, version: string): MatrixArtifact[
 }
 
 /**
- * The subset of the full matrix a release CI run actually builds (CI-06
+ * The subset of the full matrix a release CI run actually builds (
  * transitional state: release.yml covers the native-runner targets). Keys are
  * targetKey strings, passed one per --target flag by scripts/verify-release.ts
  * and kept in sync with the build-job matrices in release.yml. One key may

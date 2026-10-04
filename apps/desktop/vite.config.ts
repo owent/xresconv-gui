@@ -5,7 +5,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   // Relative asset URLs: the production build is served from the Tauri
-  // custom protocol, not from a web server root (P1-05).
+  // custom protocol, not from a web server root.
   base: "./",
   clearScreen: false,
   server: {

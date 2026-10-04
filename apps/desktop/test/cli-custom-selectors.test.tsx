@@ -1,5 +1,5 @@
 /**
- * CLI 自定义选择器接线测试（P4-05b，F11）。
+ * CLI 自定义选择器接线测试。
  *
  * collectCustomSelectorFiles：--custom-selector/--custom-button 值形态归一
  * （string | string[] | 缺失/非法过滤）；useCliCustomSelectors：启动时一次性
@@ -58,7 +58,7 @@ describe("collectCustomSelectorFiles", () => {
   });
 });
 
-describe("useCliCustomSelectors（P4-05b）", () => {
+describe("useCliCustomSelectors", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();

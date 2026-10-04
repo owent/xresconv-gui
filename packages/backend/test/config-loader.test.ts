@@ -32,7 +32,7 @@ describe("parseXmlConfig: 最小配置与默认值", () => {
     expect(cfg.proto).toBeUndefined();
     expect(cfg.outputMatrix).toEqual([]);
     expect(cfg.globalOptions).toEqual([]);
-    // 初始隐含 JVM 参数（main.js:931）
+    // 初始隐含 JVM 参数
     expect(cfg.javaOptions).toEqual(["-Dfile.encoding=UTF-8"]);
     expect(cfg.defaultScheme).toEqual([]);
     expect(cfg.gui).toEqual({
@@ -54,22 +54,22 @@ describe("parseXmlConfig: 最小配置与默认值", () => {
   });
 });
 
-describe("parseXmlConfig: global 标签映射（P0-08 §1.2）", () => {
+describe("parseXmlConfig: global 标签映射", () => {
   it("② 全标签映射、别名等价、空值过滤、累积与替换", async () => {
     const cfg = await parseXmlConfig(fx("global-all.xml"));
     expect(cfg.workDir).toBe("work");
     expect(cfg.workDirSourceDir).toBe(FIXTURES);
     expect(resolveWorkDir(cfg)).toBe(path.resolve(FIXTURES, "work"));
     expect(cfg.xresloaderPath).toBe("jar/x.jar");
-    // proto_file 多值累积（main.js:1232-1233）
+    // proto_file 多值累积
     expect(cfg.protoFile).toEqual(["a.pb", "b.pb"]);
     expect(cfg.outputDir).toBe("out");
     expect(cfg.dataVersion).toBe("1.2.3");
-    // data_src_dir / data_source_dir 完全等价别名；空标签重置但空值不入列（main.js:1238-1244）
+    // data_src_dir / data_source_dir 完全等价别名；空标签重置但空值不入列
     expect(cfg.dataSrcDir).toEqual(["ds1", "ds2"]);
     expect(cfg.rename).toBe("/a/b/");
     expect(cfg.proto).toBe("protobuf");
-    // ③ output_type 矩阵：rename trim、output_dir 不 trim、tags/classes 空白切分（main.js:1262-1276）
+    // ③ output_type 矩阵：rename trim、output_dir 不 trim、tags/classes 空白切分
     expect(cfg.outputMatrix).toEqual([
       {
         type: "bin",
@@ -79,24 +79,24 @@ describe("parseXmlConfig: global 标签映射（P0-08 §1.2）", () => {
         classes: ["c1", "c2"],
       },
     ]);
-    // option：name/desc 缺省回退 value（main.js:1277-1283）
+    // option：name/desc 缺省回退 value
     expect(cfg.globalOptions).toEqual([
       { name: "n1", desc: "d1", value: "v1" },
       { name: "v-only", desc: "v-only", value: "v-only" },
     ]);
-    // java_option：空值忽略（main.js:1284-1285）
+    // java_option：空值忽略
     expect(cfg.javaOptions).toEqual(["-Dfile.encoding=UTF-8", "-Xmx1g"]);
-    // default_scheme：同名累积、空 name 忽略（main.js:1286-1295）
+    // default_scheme：同名累积、空 name 忽略
     expect(cfg.defaultScheme).toEqual([
       { name: "KeyRow", value: "2" },
       { name: "KeyRow", desc: "第二行", value: "3" },
     ]);
-    // 未识别标签进 diagnostics（旧版静默忽略，BD-C6）
+    // 未识别标签进 diagnostics（静默忽略)
     expect(cfg.diagnostics).toHaveLength(1);
     expect(cfg.diagnostics[0]?.tag).toBe("unknown_tag");
   });
 
-  it("⑩ 大小写不匹配的标签仅进 diagnostics（BD-C5）", async () => {
+  it("⑩ 大小写不匹配的标签仅进 diagnostics", async () => {
     const cfg = await parseXmlConfig(fx("case-tags.xml"));
     expect(cfg.workDir).toBeUndefined();
     expect(cfg.protoFile).toEqual([]);
@@ -104,21 +104,21 @@ describe("parseXmlConfig: global 标签映射（P0-08 §1.2）", () => {
   });
 });
 
-describe("parseXmlConfig: include 合并（P3-02）", () => {
+describe("parseXmlConfig: include 合并", () => {
   it("④ 确定性合并：父覆盖子标量、数组累积、矩阵按文件重写", async () => {
     const cfg = await parseXmlConfig(fx("include-parent.xml"));
-    // DFS 文档顺序：子先应用，父最后（BD-C1）
+    // DFS 文档顺序：子先应用，父最后
     expect(cfg.loadedFiles).toEqual([
       path.resolve(fx("include-child.xml")),
       path.resolve(fx("include-parent.xml")),
     ]);
     // 父覆盖子（DOM 级标量）
     expect(cfg.workDir).toBe("parent-work");
-    // 父含 proto_file 标签 → 整体替换子值（main.js:1298-1305）
+    // 父含 proto_file 标签 → 整体替换子值
     expect(cfg.protoFile).toEqual(["parent.pb"]);
     // 父未设置 output_dir → 子值保留
     expect(cfg.outputDir).toBe("child-out");
-    // 父无 output_type → 矩阵被重写为空（main.js:1319-1429 每文件重写）
+    // 父无 output_type → 矩阵被重写为空（ 每文件重写）
     expect(cfg.outputMatrix).toEqual([]);
     // 数组类累积不覆盖
     expect(cfg.globalOptions.map((o) => o.value)).toEqual(["child-opt", "parent-opt"]);
@@ -127,7 +127,7 @@ describe("parseXmlConfig: include 合并（P3-02）", () => {
     expect(items(cfg.tree).map((n) => n.item.name)).toEqual(["子项", "父项"]);
   });
 
-  it("④b 两级 include 链 A→B→C：深度优先到达 C、合并顺序与覆盖语义保持（CF02）", async () => {
+  it("④b 两级 include 链 A→B→C：深度优先到达 C、合并顺序与覆盖语义保持（）", async () => {
     const cfg = await parseXmlConfig(fx("include-chain-a.xml"));
     // DFS 文档顺序：最深子先应用，入口最后。
     expect(cfg.loadedFiles).toEqual([
@@ -168,7 +168,7 @@ describe("parseXmlConfig: include 合并（P3-02）", () => {
     expect((err as ConfigError).details?.path).toBe(path.resolve(fx("d-shared.xml")));
   });
 
-  it("⑥ 同文件不同拼写（./ 前缀）判重 → INCLUDE_DUPLICATE（规范化键，BD-C2）", async () => {
+  it("⑥ 同文件不同拼写(/ 前缀）判重 → INCLUDE_DUPLICATE（规范化键)", async () => {
     const err = await parseXmlConfig(fx("include-dup.xml")).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ConfigError);
     expect((err as ConfigError).code).toBe("INCLUDE_DUPLICATE");
@@ -182,7 +182,7 @@ describe("parseXmlConfig: include 合并（P3-02）", () => {
     expect((err as ConfigError).details?.path).toBe(path.resolve(fx("no-such-file.xml")));
   });
 
-  it("中文/空格目录的相对 include（CF03 路径变体之一）", async () => {
+  it("中文/空格目录的相对 include（ 路径变体之一）", async () => {
     const cfg = await parseXmlConfig(fx("include-spaced.xml"));
     expect(cfg.loadedFiles).toEqual([
       path.resolve(FIXTURES, "子 目录", "包含 文件.xml"),
@@ -193,7 +193,7 @@ describe("parseXmlConfig: include 合并（P3-02）", () => {
     expect(resolveWorkDir(cfg)).toBe(path.resolve(FIXTURES, "子 目录", "含空格目录"));
   });
 
-  it("非 BMP（emoji）目录/文件名的相对 include（CF03 路径变体）", async () => {
+  it("非 BMP（emoji）目录/文件名的相对 include（ 路径变体）", async () => {
     const cfg = await parseXmlConfig(fx("include-emoji.xml"));
     expect(cfg.loadedFiles).toEqual([
       path.resolve(FIXTURES, "包📦目录", "包含🎬文件.xml"),
@@ -203,7 +203,7 @@ describe("parseXmlConfig: include 合并（P3-02）", () => {
     expect(items(cfg.tree).map((n) => n.item.name)).toEqual(["非BMP条目"]);
   });
 
-  it("入口相对路径按进程 cwd 解析、与配置目录无关（CF03：变更启动 cwd 等价验证）", async () => {
+  it("入口相对路径按进程 cwd 解析、与配置目录无关（：变更启动 cwd 等价验证）", async () => {
     // 在子进程里以 fixture 目录为 cwd 加载相对入口，断言解析出的绝对路径一致。
     // vitest 进程内 chdir 会污染同 worker 的其他用例，故用独立子进程（spawnSync）。
     const entry = "include-emoji.xml";
@@ -222,7 +222,7 @@ describe("parseXmlConfig: include 合并（P3-02）", () => {
   });
 });
 
-describe("parseXmlConfig: 严格 XML 与实体（BD-07）", () => {
+describe("parseXmlConfig: 严格 XML 与实体", () => {
   it("⑦ 非法 XML → INVALID_XML 带 line/column", async () => {
     const err = await parseXmlConfig(fx("invalid.xml")).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ConfigError);
@@ -242,17 +242,17 @@ describe("parseXmlConfig: 严格 XML 与实体（BD-07）", () => {
   });
 });
 
-describe("parseXmlConfig: gui 块（P0-08 §1.5）", () => {
+describe("parseXmlConfig: gui 块", () => {
   it("⑧ 脚本文本原样保留（CDATA/实体解码）、timeout、enabled 开关", async () => {
     const cfg = await parseXmlConfig(fx("gui.xml"));
-    // set_name 后写覆盖 + diagnostic（BD-C7）；CDATA 内 < > & 原样保留、不 trim
+    // set_name 后写覆盖 + diagnostic；CDATA 内 < > & 原样保留、不 trim
     expect(cfg.gui.setName?.filename).toBe(path.resolve(fx("gui.xml")));
     expect(cfg.gui.setName?.source).toContain("item_data.file.length > 0");
     expect(cfg.gui.setName?.source.startsWith("\n")).toBe(true);
     expect(cfg.diagnostics.some((d) => d.tag === "set_name")).toBe(true);
 
     const [anon, named] = cfg.gui.onBeforeConvert;
-    // 无 name → 布尔 enabled，默认 true，timeout 默认 30000（main.js:1490-1494）
+    // 无 name → 布尔 enabled，默认 true，timeout 默认 30000
     expect(anon?.enabled).toBe(true);
     expect(anon?.timeoutMs).toBe(30000);
     expect(anon?.toggle).toBeUndefined();
@@ -261,18 +261,18 @@ describe("parseXmlConfig: gui 块（P0-08 §1.5）", () => {
     expect(named?.source).toContain("if (a > 0 && b < 2)");
     expect(named?.timeoutMs).toBe(15000);
     expect(named?.filename).toBe(path.resolve(fx("gui.xml")));
-    // checked="false" → 不勾选；mutable="no" → 不可改（main.js:1135-1167）
+    // checked="false" → 不勾选；mutable="no" → 不可改
     expect(named?.enabled).toBe(false);
     expect(named?.toggle).toEqual({ name: "命名事件", checked: false, mutable: false });
 
-    // 非法 timeout 回退 30000 + diagnostic（BD-C8）
+    // 非法 timeout 回退 30000 + diagnostic
     expect(cfg.gui.onAfterConvert[0]?.timeoutMs).toBe(30000);
     expect(cfg.diagnostics.some((d) => d.message.includes("timeout"))).toBe(true);
 
     // checked="0" → false
     expect(cfg.gui.onAppendLog[0]?.enabled).toBe(false);
 
-    // script：CDATA 原文、匿名 name ""、workDir 解析期快照（main.js:1598）
+    // script：CDATA 原文、匿名 name ""、workDir 解析期快照
     const s1 = cfg.gui.scripts.s1;
     expect(s1?.source).toBe("if (a < 1 && b > 2) { resolve(); }");
     expect(s1?.timeoutMs).toBe(5000);
@@ -282,7 +282,7 @@ describe("parseXmlConfig: gui 块（P0-08 §1.5）", () => {
   });
 });
 
-describe("parseXmlConfig: item/scheme_data（P0-08 §8、main.js:1610-1700）", () => {
+describe("parseXmlConfig: item/scheme_data", () => {
   it("⑫ file+scheme 直存、DataSource 特例、default_scheme 补缺、分类挂载", async () => {
     const cfg = await parseXmlConfig(fx("items.xml"));
     const roots = cfg.tree;
@@ -294,32 +294,32 @@ describe("parseXmlConfig: item/scheme_data（P0-08 §8、main.js:1610-1700）", 
     const itemA = items(c2?.children ?? [])[0]?.item;
     const [itemB, itemC, itemD] = items(roots).map((n) => n.item);
 
-    // file+scheme 直存（main.js:1616-1617）；tags/classes 切分
+    // file+scheme 直存；tags/classes 切分
     expect(itemA?.file).toBe("a.xlsx");
     expect(itemA?.scheme).toBe("sch_a");
     expect(itemA?.tags).toEqual(["t1", "t2"]);
     expect(itemA?.classes).toEqual(["client"]);
     expect(itemA?.desc).toBe("表A");
-    // 无自有 scheme → default_scheme 补缺（main.js:1689-1692）
+    // 无自有 scheme → default_scheme 补缺
     expect(itemA?.schemeData.KeyRow).toEqual(["2"]);
     expect(itemA?.schemeData.MacroSource).toEqual(["res.xlsx|macro|2,1"]);
 
-    // DataSource 特例：| 切分回填 file、不设置 scheme（main.js:1671-1685）；scheme 值不 trim 原文入列
+    // DataSource 特例：| 切分回填 file、不设置 scheme；scheme 值不 trim 原文入列
     expect(itemB?.file).toBe("b.xlsx");
     expect(itemB?.scheme).toBeUndefined();
     expect(itemB?.schemeData.DataSource).toEqual(["b.xlsx|sheet1|3,1"]);
     expect(itemB?.schemeData.ProtoName).toEqual(["pb", "pb2"]);
     expect(itemB?.schemeData.KeyRow).toEqual(["2"]);
-    // item option：value trim、name/desc 原样（main.js:1652-1658）
+    // item option：value trim、name/desc 原样
     expect(itemB?.options).toEqual([{ name: "on", desc: "od", value: "ov" }]);
 
-    // item 自有 scheme 永远优先于 default_scheme；datasource 大小写不敏感（main.js:1671）
+    // item 自有 scheme 永远优先于 default_scheme；datasource 大小写不敏感
     expect(itemC?.schemeData.KeyRow).toEqual(["9"]);
     expect(itemC?.schemeData.datasource).toEqual(["onlyfile.xlsx"]);
     expect(itemC?.file).toBe("onlyfile.xlsx");
     expect(itemC?.schemeData.MacroSource).toEqual(["res.xlsx|macro|2,1"]);
 
-    // cat 未命中 cat_map → 挂根（main.js:1771-1776）
+    // cat 未命中 cat_map → 挂根
     expect(itemD?.name).toBe("表D");
     expect(itemD?.cat).toBe("missing");
   });
@@ -383,7 +383,7 @@ describe("parseXmlConfig: 官方 sample（xresloader/xresconv-conf）", () => {
     ]);
   });
 
-  it("⑨ sample_include.xml 加载：include 合并、父覆盖子、gui 被重建清空（BD-C13）", async () => {
+  it("⑨ sample_include.xml 加载：include 合并、父覆盖子、gui 被重建清空", async () => {
     const cfg = await parseXmlConfig(fx("official-sample-include.xml"));
     expect(cfg.loadedFiles).toEqual([
       path.resolve(fx("official-sample.xml")),
@@ -401,7 +401,7 @@ describe("parseXmlConfig: 官方 sample（xresloader/xresconv-conf）", () => {
       "--validator-rules custom_validator.yaml",
       "--pretty 2",
     ]);
-    // 旧版每文件清空重建 gui：入口文件无 gui 块 → 子文件 gui 被清空（忠实保留，BD-C13）
+    // 每文件清空重建 gui：入口文件无 gui 块 → 子文件 gui 被清空（忠实保留，BD)
     expect(cfg.gui.setName).toBeUndefined();
     expect(cfg.gui.onBeforeConvert).toEqual([]);
     expect(cfg.gui.scripts).toEqual({});

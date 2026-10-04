@@ -1,13 +1,13 @@
-//! 壳↔guardian 长驻通道（P4-02）：spawn 长驻 guardian 进程，stdin/stdout
-//! 走 @xresconv/ipc 字节帧协议（4 字节大端长度 + UTF-8 JSON，1MiB 上限，
-//! 超限预分配前拒绝）。Rust 壳只转发帧，不含业务逻辑（D6）。
+//! 壳↔guardian 长驻通道：spawn 长驻 guardian 进程，stdin/stdout
+//! 走 @xresconv/ipc 字节帧协议（4 字节大端长度 + UTF-8 JSON，64MiB 上限，
+//! 超限预分配前拒绝）。Rust 壳只转发帧，不含业务逻辑。
 //!
 //! 契约（与 packages/guardian/bin/service.mjs 对齐）：
-//! - 出站 envelope：{protocol_version:1, kind, id, role:"shell", payload}；
-//! - 入站：kind "health"（握手/应答）、"rpc_result"（in_reply_to 匹配）、
+//! 出站 envelope：{protocol_version:1, kind, id, role:"shell", payload}；
+//! 入站：kind "health"（握手/应答）、"rpc_result"（in_reply_to 匹配）、
 //!   "event"（reader 线程直接 emit `xresconv-event` 到前端）、"fault"；
-//! - guardian EOF/毒帧/死亡 → 通道判死：全部待决请求按错误结算，发
-//!   `xresconv-guardian-dead` 事件；壳可显式重启（不自动重放在途请求，SC10）。
+//! guardian EOF/毒帧/死亡 → 通道判死：全部待决请求按错误结算，发
+//!   `xresconv-guardian-dead` 事件；壳可显式重启（不自动重放在途请求)。
 //!
 //! 分发模型：reader 线程直接 demux——in_reply_to 命中待决表的帧送入对应
 //! oneshot；其余帧（事件/无主回复）转前端事件流。请求路径不会吞事件。
@@ -21,14 +21,14 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-/// 与 packages/ipc/src/index.ts 的 DEFAULT_MAX_FRAME_BYTES 一致（P4-08 上调
-/// 64MiB：100k 节点快照 ~37.5MB JSON；仍为分配前硬上限，毒帧 fail-closed）。
+// 与 packages/ipc/src/index.ts 的 DEFAULT_MAX_FRAME_BYTES 一致（
+///64MiB：100k 节点快照 ~37.5MB JSON；仍为分配前硬上限，毒帧 fail-closed）。
 const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
-/// 握手/健康检查上界：必须覆盖 guardian 启动 + backend fork + 监督握手。
+///握手/健康检查上界：必须覆盖 guardian 启动 + backend fork + 监督握手。
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
-/// 单次 RPC 默认上界（loadConfig 等大负载由调用方显式放宽）。
+///单次 RPC 默认上界（loadConfig 等大负载由调用方显式放宽）。
 const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(60);
-/// 关闭时给 guardian 自清子树的宽限。
+///关闭时给 guardian 自清子树的宽限。
 const REAP_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug)]
@@ -52,7 +52,7 @@ impl std::fmt::Display for ChannelError {
 
 pub type ChannelResult<T> = Result<T, ChannelError>;
 
-/// 帧编码：4 字节大端长度 + UTF-8 JSON。超限在写前拒绝。
+///帧编码：4 字节大端长度 + UTF-8 JSON。超限在写前拒绝。
 pub fn encode_frame(value: &Value) -> ChannelResult<Vec<u8>> {
     let body = serde_json::to_vec(value).map_err(|e| ChannelError::Protocol(e.to_string()))?;
     if body.len() > MAX_FRAME_BYTES {
@@ -89,7 +89,7 @@ struct Outbound {
     shutdown: bool,
 }
 
-/// A bounded writer queue keeps pipe backpressure outside the request deadline path.
+///A bounded writer queue keeps pipe backpressure outside the request deadline path.
 fn spawn_writer(
     mut stdin: impl Write + Send + 'static,
     pending: PendingMap,
@@ -112,14 +112,14 @@ fn spawn_writer(
     tx
 }
 
-/// 事件出口：壳侧注入（tauri emit），测试注入 None。
-/// 关键：本模块不得引用 tauri 类型——否则 unit test exe 经 AppHandle 的
-/// Drop glue 保留 wry 窗口/对话框代码，导入 comctl32 v6 专有符号
-/// （TaskDialogIndirect），而无 manifest 的测试 exe 绑定 System32 v5.82，
-/// 进程加载即 STATUS_ENTRYPOINT_NOT_FOUND（P4-02 实测定位）。
+///事件出口：壳侧注入（tauri emit），测试注入 None。
+///关键：本模块不得引用 tauri 类型——否则 unit test exe 经 AppHandle 的
+///Drop glue 保留 wry 窗口/对话框代码，导入 comctl32 v6 专有符号
+///（TaskDialogIndirect），而无 manifest 的测试 exe 绑定 System32 v5.82，
+// 进程加载即 STATUS_ENTRYPOINT_NOT_FOUND（ 实测定位）。
 pub type EventSink = Arc<dyn Fn(&str, Value) + Send + Sync>;
 
-/// reader 线程：解析帧并 demux。死亡时结算全部待决请求。
+///reader 线程：解析帧并 demux。死亡时结算全部待决请求。
 fn spawn_reader(
     mut stdout: impl Read + Send + 'static,
     pending: PendingMap,
@@ -176,7 +176,7 @@ fn spawn_reader(
                     if env.get("in_reply_to").is_some() {
                         continue;
                     }
-                    // 事件帧与无主回复统一转前端事件流（UI 故障可见，SC11）。
+                    // 事件帧与无主回复统一转前端事件流（UI 故障可见)。
                     if let Some(sink) = &sink {
                         let kind = env.get("kind").and_then(Value::as_str).unwrap_or("unknown");
                         let payload = env.get("payload").cloned().unwrap_or(Value::Null);
@@ -196,7 +196,7 @@ fn spawn_reader(
     });
 }
 
-/// 壳 CLI 的 --log-configure 值（lib.rs setup 解析后注入；None=未提供）。
+///壳 CLI 的 --log-configure 值（lib.rs setup 解析后注入；None=未提供）。
 static LOG_CONFIGURE: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
 
 pub fn set_guardian_log_configure(path: Option<String>) {
@@ -215,10 +215,10 @@ pub struct GuardianClient {
     shutdown_lock: Mutex<()>,
 }
 
-/// P5-03/P5-04 发布布局自定位：安装根下 `runtime/node(.exe)` +
-/// `app/guardian/service.mjs` 俱在视为发行布局。Windows/Linux 安装根 = exe
-/// 同级（NSIS/DEB resources 落位）；macOS .app 的资源在 `Contents/Resources`
-/// 而 exe 在 `Contents/MacOS`，因此额外探测 exe 目录的 `../Resources`。
+/// 发布布局自定位：安装根下 `runtime/node(exe)` +
+///`app/guardian/service.mjs` 俱在视为发行布局。Windows/Linux 安装根 = exe
+///同级（NSIS/DEB resources 落位）；macOS .app 的资源在 `Contents/Resources`
+///而 exe 在 `Contents/MacOS`，因此额外探测 exe 目录的 `../Resources`。
 fn release_layout_paths(
     install_root: &std::path::Path,
 ) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
@@ -232,18 +232,18 @@ fn release_layout_paths(
     (node.is_file() && entry.is_file()).then_some((node, entry))
 }
 
-/// Tauri deb/rpm/AppImage 的发行负载落位：`/usr/share/<productName>`（经
-/// `bundle.linux.{deb,rpm,appimage}.files` 映射）。不能放 `usr/lib/<productName>`
-/// ——linuxdeploy 会把 AppDir/usr/lib 下所有 ELF 递归 patchelf+strip，破坏
-/// manifest 逐文件哈希；也不能放 `/opt`——AppImage 打包仅拷贝 data/usr 子树。
-/// 须与 tauri.conf.json 的 productName 一致；本模块测试不得触碰 tauri 运行时
-/// 类型（P4-02 约束），故用常量。
+///Tauri deb/rpm/AppImage 的发行负载落位：`/usr/share/<productName>`（经
+///`bundle.linux.{deb,rpm,appimage}.files` 映射）。不能放 `usr/lib/<productName>`
+/// linuxdeploy 会把 AppDir/usr/lib 下所有 ELF 递归 patchelf+strip，破坏
+///manifest 逐文件哈希；也不能放 `/opt`——AppImage 打包仅拷贝 data/usr 子树。
+///须与 tauri.conf.json 的 productName 一致；本模块测试不得触碰 tauri 运行时
+// 类型（ 约束），故用常量。
 const LINUX_RESOURCE_DIR_NAME: &str = "xresconv-gui";
 
-/// exe 所在目录可用的安装根候选：exe 同级（Windows NSIS 与发行目录）、
-/// `../Resources`（macOS .app：Contents/MacOS → Contents/Resources）、
-/// `../share/<productName>`（Linux deb/rpm 与 AppImage：exe 在 `<prefix>/usr/bin`，
-/// 负载在 `<prefix>/usr/share/<productName>`）。
+///exe 所在目录可用的安装根候选：exe 同级（Windows NSIS 与发行目录）、
+///`../Resources`（macOS .app：Contents/MacOS → Contents/Resources）、
+///`../share/<productName>`（Linux deb/rpm 与 AppImage：exe 在 `<prefix>/usr/bin`，
+///负载在 `<prefix>/usr/share/<productName>`）。
 fn release_layout_candidates(exe_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut roots = vec![exe_dir.to_path_buf()];
     if let Some(parent) = exe_dir.parent() {
@@ -254,8 +254,8 @@ fn release_layout_candidates(exe_dir: &std::path::Path) -> Vec<std::path::PathBu
 }
 
 impl GuardianClient {
-    /// spawn 长驻 guardian 并完成握手（首帧必须 role=guardian 的 health）。
-    /// `sink` 存在时事件帧直接转发（壳侧注入 tauri emit）；测试可传 None。
+    ///spawn 长驻 guardian 并完成握手（首帧必须 role=guardian 的 health）。
+    ///`sink` 存在时事件帧直接转发（壳侧注入 tauri emit）；测试可传 None。
     pub fn start(sink: Option<EventSink>) -> ChannelResult<Self> {
         // 解析顺序：显式 env → 发布布局（Windows/Linux NSIS exe 同级；macOS
         // ../Resources；Linux deb/rpm 与 AppImage ../share/<product>）→ 开发态
@@ -304,7 +304,7 @@ impl GuardianClient {
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit());
         crate::windowless_process::configure_background_command(&mut command);
-        // F10/F11：--log-configure 由壳 CLI 解析后经 env 接力给 guardian → backend。
+        // log-configure 由壳 CLI 解析后经 env 接力给 guardian → backend。
         if let Some(path) = guardian_log_configure() {
             command.env("XRESCONV_LOG_CONFIGURE", path);
         }
@@ -370,8 +370,8 @@ impl GuardianClient {
             .map_err(|e| ChannelError::Io(format!("writer unavailable: {e}")))
     }
 
-    /// 请求/应答：注册待决 → 写帧 → 有界等待。in_reply_to 由 reader 精确
-    /// 路由；事件帧不经过本路径。fault 应答按 Protocol 错误结算。
+    ///请求/应答：注册待决 → 写帧 → 有界等待。in_reply_to 由 reader 精确
+    ///路由；事件帧不经过本路径。fault 应答按 Protocol 错误结算。
     fn request(
         &self,
         kind: &str,
@@ -429,12 +429,12 @@ impl GuardianClient {
         outcome
     }
 
-    /// 健康检查（kind "health"）。
+    ///健康检查（kind "health"）。
     pub fn health(&self) -> ChannelResult<Value> {
         self.request("health", json!({}), &["health"], HANDSHAKE_TIMEOUT)
     }
 
-    /// 业务 RPC（P4-02）：kind "rpc"，应答 kind "rpc_result"。
+    // 业务 RPC：kind "rpc"，应答 kind "rpc_result"。
     pub fn backend_rpc(
         &self,
         method: &str,
@@ -462,7 +462,7 @@ impl GuardianClient {
         }
     }
 
-    /// 显式关闭：发 shutdown，宽限内等退出，超时强杀（guardian 自清子树）。
+    ///显式关闭：发 shutdown，宽限内等退出，超时强杀（guardian 自清子树）。
     pub fn shutdown(&self) -> ChannelResult<()> {
         let _guard = self
             .shutdown_lock
@@ -518,12 +518,12 @@ impl GuardianClient {
 
 impl Drop for GuardianClient {
     fn drop(&mut self) {
-        // 壳退出 → stdin 关闭 → guardian EOF 自清子树（P2-09）；这里兜底强杀。
+        // 壳退出 → stdin 关闭 → guardian EOF 自清子树；这里兜底强杀。
         let _ = self.shutdown();
     }
 }
 
-/// Tauri 托管状态：通道可重建（backend/guardian 故障后 UI 显式触发）。
+///Tauri 托管状态：通道可重建（backend/guardian 故障后 UI 显式触发）。
 pub struct GuardianState {
     client: Mutex<Option<Arc<GuardianClient>>>,
     sink: Option<EventSink>,
@@ -539,8 +539,8 @@ impl GuardianState {
         }
     }
 
-    /// 取活通道；无则建立。死亡判定发生在请求路径（Dead 错误）；
-    /// 调用方收到 Dead 后应显式 restart（不自动重放在途请求，SC10）。
+    ///取活通道；无则建立。死亡判定发生在请求路径（Dead 错误）；
+    // 调用方收到 Dead 后应显式 restart（不自动重放在途请求)。
     pub fn ensure(&self) -> ChannelResult<Arc<GuardianClient>> {
         let mut slot = self
             .client
@@ -555,7 +555,7 @@ impl GuardianState {
         Ok(Arc::clone(slot.as_ref().expect("checked above")))
     }
 
-    /// 显式重启：关闭旧通道（子树自清）后清空槽位；下次 ensure 重建。
+    ///显式重启：关闭旧通道（子树自清）后清空槽位；下次 ensure 重建。
     pub fn restart(&self) -> ChannelResult<()> {
         let mut slot = self
             .client
@@ -579,7 +579,7 @@ impl GuardianState {
         Ok(())
     }
 
-    /// 在活通道上执行操作（ensure + 借用）。
+    ///在活通道上执行操作（ensure + 借用）。
     pub fn with_client<T>(
         &self,
         f: impl FnOnce(&GuardianClient) -> ChannelResult<T>,
@@ -653,8 +653,8 @@ mod tests {
         assert!(rejected);
     }
 
-    /// P5-03：发布布局自定位——runtime/node(.exe) + app/guardian/service.mjs
-    /// 俱在才命中；缺任一则回退（不误判半份布局）。只依赖 std。
+    /// 发布布局自定位——runtime/node(exe) + app/guardian/service.mjs
+    ///俱在才命中；缺任一则回退（不误判半份布局）。只依赖 std。
     #[test]
     fn release_layout_detects_complete_tree_only() {
         let dir = std::env::temp_dir().join("xresconv-release-layout-test");
@@ -677,7 +677,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// macOS .app 形态：资源在 `../Resources`（exe 位于 Contents/MacOS）。
+    ///macOS .app 形态：资源在 `../Resources`（exe 位于 Contents/MacOS）。
     #[test]
     fn release_layout_candidates_cover_macos_resources() {
         let base = std::env::temp_dir().join("xresconv-release-mac-test");
@@ -700,9 +700,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
-    /// Linux deb/rpm 与 AppImage 形态：exe 在 `usr/bin`（AppImage 为
-    /// `<AppDir>/usr/bin`），负载经 `bundle.linux.*.files` 落位
-    /// `usr/share/<productName>`（linuxdeploy 会改写 usr/lib 下 ELF，P5-11）。
+    ///Linux deb/rpm 与 AppImage 形态：exe 在 `usr/bin`（AppImage 为
+    ///`<AppDir>/usr/bin`），负载经 `bundle.linux.*.files` 落位
+    // `usr/share/<productName>`（linuxdeploy 会改写 usr/lib 下 ELF)。
     #[test]
     fn release_layout_candidates_cover_linux_resource_dir() {
         let base = std::env::temp_dir().join("xresconv-release-linux-test");
@@ -812,7 +812,7 @@ mod tests {
         client.shutdown().expect("clean shutdown");
     }
 
-    /// 从 exe 位置向上找 workspace 根（含 packages/guardian/bin/service.mjs）。
+    ///从 exe 位置向上找 workspace 根（含 packages/guardian/bin/service.mjs）。
     fn workspace_root() -> std::path::PathBuf {
         let rel = std::path::Path::new("packages")
             .join("guardian")
@@ -830,7 +830,7 @@ mod tests {
         }
     }
 
-    /// 有界等 backend ready（health.backend.state；guardian 握手先于 backend 就绪）。
+    ///有界等 backend ready（health.backend.state；guardian 握手先于 backend 就绪）。
     fn wait_backend_ready(client: &GuardianClient) {
         for _ in 0..200 {
             let health = client.health().expect("health while waiting ready");

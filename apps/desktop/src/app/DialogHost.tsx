@@ -1,28 +1,32 @@
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
+import { translate as t, useI18n } from "../i18n";
 import type { PendingDialog } from "./session-store";
 import { useSessionStore } from "./session-store";
 
 /**
- * 弹框宿主（F09 alert_warning/alert_error，P4-05b 接入，SC06）。
+ * alert_warning / alert_error 弹框宿主。
  *
- * - 数据源为 store.pendingDialogs（dialog_request 进队 / dialog_invalidate 出队）；
+ * 数据源为 store.pendingDialogs（dialog_request 进队 / dialog_invalidate 出队）；
  *   同一时刻只展示队首一个，应答/失效后下一个再显示——逐框应答保留
  *   yes/no/on_close 回调语义（不把回调简化成普通 toast）。
- * - 按钮语义：yes → choice "yes"；no → "no"；ok（alert_error）→ null（仅关闭，
- *   旧版无回调，main.js:861-877）；ESC/遮罩关闭 → null（on_close 回调，
- *   BD-06：ESC 也必须最终化，否则脚本挂起）。
- * - 应答在途（answering）禁用按钮：已应答不可再点（P2-06 遗留项）；
+ * 按钮语义：yes → choice "yes"；no → "no"；ok（alert_error）→ null（仅关闭，
+ *   无回调)；ESC/遮罩关闭 → null（on_close 回调，
+ *   ESC 也必须最终化，否则脚本挂起）。
+ * 应答在途（answering）禁用按钮，防止重复应答；
  *   worker 失效的弹框由 dialog_invalidate 移除，不会点到过期回调。
  */
 
-/** 按钮词 → 应答 choice 与显示文案（旧版 bootstrap 按钮是/否/好）。 */
-const BUTTON_META: Record<string, { choice: "yes" | "no" | null; label: string }> = {
-  yes: { choice: "yes", label: "是" },
-  no: { choice: "no", label: "否" },
-  ok: { choice: null, label: "好" },
-};
+/** 按钮词对应的应答 choice 与显示文案。 */
+function buttonMeta(): Record<string, { choice: "yes" | "no" | null; label: string }> {
+  return {
+    yes: { choice: "yes", label: t("dialog.yes") },
+    no: { choice: "no", label: t("dialog.no") },
+    ok: { choice: null, label: t("dialog.ok") },
+  };
+}
 
 function ScriptDialog({ dialog }: { dialog: PendingDialog }) {
+  useI18n();
   const respondDialog = useSessionStore((state) => state.respondDialog);
   const respond = (choice: "yes" | "no" | null) => {
     void respondDialog(dialog.token, choice);
@@ -39,12 +43,15 @@ function ScriptDialog({ dialog }: { dialog: PendingDialog }) {
       }}
     >
       <Modal className="confirm-modal">
-        <Dialog aria-label={dialog.title || "脚本弹框"} className="confirm-dialog script-dialog">
+        <Dialog
+          aria-label={dialog.title || t("dialog.title")}
+          className="confirm-dialog script-dialog"
+        >
           <Heading slot="title">{dialog.title}</Heading>
           <p className="script-dialog-content">{dialog.content}</p>
           <div className="confirm-actions">
             {buttons.map((button) => {
-              const meta = BUTTON_META[button] ?? { choice: null, label: button };
+              const meta = buttonMeta()[button] ?? { choice: null, label: button };
               return (
                 <Button
                   key={button}

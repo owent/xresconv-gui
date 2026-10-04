@@ -1,10 +1,10 @@
 /**
- * P2-02/P2-07 故障注入与 P2-10 模块兼容测试：真实 worker 进程，无 mock。
- * - R03：脚本内 require("node:process").exit()、小堆内存耗尽只杀对应 worker，
+ * 故障注入与  模块兼容测试：真实 worker 进程，无 mock。
+ * ：脚本内 require("node:process").exit、小堆内存耗尽只杀对应 worker，
  *   池补员后可继续服务；未注入的 process 全局保持 ReferenceError 语义。
- * - R09：日志风暴期间控制通道不丢帧、调用正常完成。
- * - R02+R08：卡死 worker 被池终止时，其派生的孙进程随进程树一并回收。
- * - P2-10：adm-zip / compressing round-trip 与原生模块（koffi，Node-API）
+ * ：日志风暴期间控制通道不丢帧、调用正常完成。
+ * +：卡死 worker 被池终止时，其派生的孙进程随进程树一并回收。
+ * ：adm-zip / compressing round-trip 与原生模块（koffi，Node-API）
  *   在 worker 沙箱内经锚定 require 实际可用。
  * 所有等待均有显式上限（真实子进程 = 真实时钟，不用 fake timers）。
  */
@@ -68,7 +68,7 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-describe("fault injection (R02/R03/R08/R09)", () => {
+describe("fault injection", () => {
   it(
     'script "process" global is not injected and stays a ReferenceError',
     async () => {
@@ -117,13 +117,13 @@ describe("fault injection (R02/R03/R08/R09)", () => {
   );
 
   it(
-    "process.abort() crashes only that worker; the pool replenishes",
+    "process.abort crashes only that worker; the pool replenishes",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1 });
       try {
         await pool.start();
         const oldPid = pool.stats()[0]?.pid;
-        // abort() 立即产生不可捕获的原生崩溃（覆盖 R03 的可控原生崩溃分支）。
+        // abort 立即产生不可捕获的原生崩溃（覆盖  的可控原生崩溃分支）。
         const err = await expectInvokeError(
           pool.invoke(makeInvoke({ source: 'require("node:process").abort();' })),
           "WORKER_EXIT",
@@ -143,7 +143,7 @@ describe("fault injection (R02/R03/R08/R09)", () => {
   );
 
   it(
-    "a log storm neither loses the control channel nor blocks completion (R09)",
+    "a log storm neither loses the control channel nor blocks completion",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1 });
       let stormLogs = 0;
@@ -174,7 +174,7 @@ describe("fault injection (R02/R03/R08/R09)", () => {
   );
 
   it(
-    "destroying a stuck worker reaps its spawned grandchild via the process tree (R02+R08)",
+    "destroying a stuck worker reaps its spawned grandchild via the process tree (+)",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1 });
       let grandchildPid: number | undefined;
@@ -221,7 +221,7 @@ describe("fault injection (R02/R03/R08/R09)", () => {
   );
 });
 
-describe("packaged module compatibility (P2-10)", () => {
+describe("packaged module compatibility", () => {
   it(
     "adm-zip round-trips a buffer inside the worker sandbox",
     async () => {

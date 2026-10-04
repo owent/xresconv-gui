@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { Button } from "react-aria-components";
 import type { CustomSelectorViewLike } from "../adapters/backend";
+import { translate as t, useI18n } from "../i18n";
 import { useSessionStore } from "./session-store";
 
 /**
- * 自定义按钮区（F04 选择器、F05 动作链、F09 script 入口，P4-05b 接入）。
+ * 自定义选择器、动作链和脚本按钮。
  * 数据来自快照 customSelectors（CLI --custom-selector/--custom-button 经
- * setCustomSelectors 进后端；视图语义见 P4-05a 记录）：
- * - 有 action → 动作链（reload/select_all/unselect_all/script:name 顺序执行，
+ * setCustomSelectors 进后端）：
+ * 有 action → 动作链（reload/select_all/unselect_all/script:name 顺序执行，
  *   失败中止并记 CUSTOM SELECTOR 日志）；
- * - 无 action → 匹配切换（有未选中 → 全选匹配项，否则全取消；main.js:416-428）；
- * - 错误条目不渲染按钮（旧版仅记日志，main.js:753-767；后端加载时已记）。
+ * 无 action → 匹配切换（有未选中 → 全选匹配项，否则全取消)；
+ * 错误条目不渲染按钮，后端加载时记录诊断日志。
  */
 
-/** 旧版 bootstrap 按钮样式词表（main.js:718-736 availableStyles）。 */
+/** 配置可用的按钮样式词表。 */
 const KNOWN_STYLES = new Set([
   "outline-primary",
   "outline-secondary",
@@ -34,9 +35,9 @@ const KNOWN_STYLES = new Set([
 ]);
 
 /**
- * style 原值 → 本地语义类（main.js:775-792）：白名单内（大小写不敏感）映射为
+ * style 原值 → 本地语义类：白名单内（大小写不敏感）映射为
  * custom-btn--<style>；缺省/未知值回退——有 action → outline-dark，
- * 否则 outline-secondary。旧版白名单校验恒真缺陷（B6）不复活：未知值不原样进 class。
+ * 否则 outline-secondary。白名单校验恒真缺陷（B6）不复活：未知值不原样进 class。
  */
 function styleClass(view: { hasAction: boolean; style: string | null }): string {
   const style = view.style?.toLowerCase() ?? null;
@@ -48,7 +49,7 @@ function styleClass(view: { hasAction: boolean; style: string | null }): string 
 
 function CustomButton({ view }: { view: CustomSelectorViewLike & { name: string } }) {
   const invokeCustomButton = useSessionStore((state) => state.invokeCustomButton);
-  // 本地在途标记：连点不并发放大同一次点击链（旧版按钮点击无禁用，但链内动作顺序执行）。
+  // 本地在途标记：连点不并发放大同一次点击链（按钮点击无禁用，但链内动作顺序执行）。
   const [pending, setPending] = useState(false);
   return (
     <Button
@@ -65,19 +66,20 @@ function CustomButton({ view }: { view: CustomSelectorViewLike & { name: string 
 }
 
 export function CustomActionBar() {
+  useI18n();
   const customSelectors = useSessionStore((state) => state.snapshot?.customSelectors ?? null);
   const buttons = (customSelectors ?? []).filter(
     (view): view is CustomSelectorViewLike & { name: string } => view.name !== null,
   );
 
-  // 自适应（2026-09-26 用户需求）：未定义任何选择器/按钮时不占位渲染。
+  // 自适应：未定义任何选择器/按钮时不占位渲染。
   if (buttons.length === 0) {
     return null;
   }
 
   return (
-    <section className="panel custom-action-bar" aria-label="自定义按钮">
-      <h2 className="panel-title">自定义按钮</h2>
+    <section className="panel custom-action-bar" aria-label={t("custom.title")}>
+      <h2 className="panel-title">{t("custom.title")}</h2>
       <div className="custom-btn-group">
         {buttons.map((view) => (
           <CustomButton key={view.name} view={view} />

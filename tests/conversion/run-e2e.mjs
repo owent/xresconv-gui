@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * P3-10 G3 差分证据：新栈（tokenize → encodeTaskLine → runJavaBatch stdin）vs
+ *   差分证据：stdin（tokenize → encodeTaskLine → runJavaBatch stdin）vs
  * 基线（同一 argv 逐条直接 spawn java，不经 stdin），逐文件 SHA-256 对比。
  *
  * 任务选自 sample/gen_sample_output.ps1 的 $TASK_LINES（$proto_dir→输出目录、
@@ -8,14 +8,14 @@
  * 输出类型、-s/-m 直给与 -m k=v 两种形态、-n 正则重命名、--pretty/--validator-rules
  * 等 flag 与 UeCfg-CodeOutput C++ 代码树生成。
  *
- * 归一化规则（C15 口径，窄范围、不掩盖业务差异）：UnreaImportSettings.json 是
+ * 归一化规则（ 口径，窄范围、不掩盖业务差异）：UnreaImportSettings.json 是
  * xresloader 生成的 UE 导入辅助清单，其 Filenames 嵌入输出根目录的绝对路径
  * （已实测：同 JAR 同参数仅 -o 不同即产生此唯一差异）。两路径输出根必然不同，
  * 因此仅对该文件把自身输出根的绝对路径替换为 `{OUT}` 后再比对；其余所有文件
  * （含 ArrInArrCfg.json 等业务产物）按字节 SHA-256 严格比对。
  *
  * 退出码：0=全部 MATCH；1=存在差异或任务失败；2=jar/sample 缺失（不伪造通过）；3=总超时 600s。
- * 差异证据：status!=MATCH 时把差异文件复制到 build/g3-e2e/diff-evidence/{A,B}/ 再清理临时目录。
+ * 差异证据：status!=MATCH 时把差异文件复制到 报告目录的 diff-evidence/{A,B}/ 再清理临时目录。
  *
  * 用法：node tests/conversion/run-e2e.mjs
  */
@@ -40,9 +40,9 @@ const REPORT_PATH = path.join(REPORT_DIR, "report.json");
 
 // 选自 gen_sample_output.ps1 $TASK_LINES（行号为该文件行号）；{OUT} 替换为各路径输出目录。
 // 两处适配（均不改变被测语义）：
-// - 每条追加 `-a 1.0.0.0`：缺省数据版本带秒级时间戳（data_ver=2.23.7.<yyyyMMddHHmmss>，
+// 每条追加 `-a 1.0.0.0`：缺省数据版本带秒级时间戳（data_ver=2.23.7.<yyyyMMddHHmmss>，
 //   实测跨进程差 1 秒即 hash 不同），ps1:86 官方做法即全局 `--data-version 1.0.0.0`。
-// - js 任务用 ps1:42（-s/-m scheme_kind + amd export）而非 ps1:41（DataSource|role，
+// js 任务用 ps1:42(s/-m scheme_kind + amd export）而非 ps1:41（DataSource|role，
 //   实测 sheet "role" 不存在、官方样例此线亦失败）；-m k=v 形态由 xml/bin 两条覆盖。
 const TASKS = [
   {
@@ -145,7 +145,7 @@ async function javaVersion() {
 async function main() {
   for (const required of [JAR, SAMPLE_DIR, path.join(SAMPLE_DIR, "proto_v2/kind.pb"), path.join(SAMPLE_DIR, XLSX)]) {
     if (!existsSync(required)) {
-      console.error(`[G3-E2E] required artifact missing: ${required}`);
+      console.error(`[conversion-e2e] required artifact missing: ${required}`);
       process.exit(2);
     }
   }
@@ -166,7 +166,7 @@ async function main() {
 
   const diffFiles = [];
   try {
-    // 路径 A（新栈）：ps1 行 → tokenizeStdinLine（Main.java tokenizer 同形移植）→
+    // 路径 A（stdin）：ps1 行 → tokenizeStdinLine（Main.java tokenizer 同形移植）→
     // encodeTaskLine → runJavaBatch 单进程 stdin 批次。
     const encoded = TASKS.map((task) => {
       const argv = tokenizeStdinLine(task.line.replaceAll("{OUT}", outA));
@@ -238,9 +238,9 @@ async function main() {
     mkdirSync(REPORT_DIR, { recursive: true });
     writeFileSync(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`);
 
-    console.log(`[G3-E2E] report: ${REPORT_PATH}`);
+    console.log(`[conversion-e2e] report: ${REPORT_PATH}`);
     console.log(
-      `[G3-E2E] tasks=${TASKS.length} filesA=${report.summary.fileCountA} filesB=${report.summary.fileCountB} exitA=${resultA.exitCode} baselineFailuresB=${report.summary.baselineFailuresB}`,
+      `[conversion-e2e] tasks=${TASKS.length} filesA=${report.summary.fileCountA} filesB=${report.summary.fileCountB} exitA=${resultA.exitCode} baselineFailuresB=${report.summary.baselineFailuresB}`,
     );
     for (const file of allFiles) {
       const state = report.summary.files[file];
@@ -251,10 +251,10 @@ async function main() {
       }
     }
     if (report.summary.status !== "MATCH") {
-      console.error("[G3-E2E] DIFF detected");
+      console.error("[conversion-e2e] DIFF detected");
       process.exit(1);
     }
-    console.log("[G3-E2E] all MATCH");
+    console.log("[conversion-e2e] all MATCH");
     process.exit(0);
   } finally {
     if (diffFiles.length > 0) {
@@ -269,7 +269,7 @@ async function main() {
           }
         }
       }
-      console.error(`[G3-E2E] diff evidence saved under ${evidenceDir}`);
+      console.error(`[conversion-e2e] diff evidence saved under ${evidenceDir}`);
     }
     rmSync(outA, { recursive: true, force: true });
     rmSync(outB, { recursive: true, force: true });
@@ -277,12 +277,12 @@ async function main() {
 }
 
 const totalTimer = setTimeout(() => {
-  console.error(`[G3-E2E] total timeout ${TOTAL_TIMEOUT_MS}ms exceeded`);
+  console.error(`[conversion-e2e] total timeout ${TOTAL_TIMEOUT_MS}ms exceeded`);
   process.exit(3);
 }, TOTAL_TIMEOUT_MS);
 
 main().catch((err) => {
   clearTimeout(totalTimer);
-  console.error(`[G3-E2E] failed:`, err);
+  console.error(`[conversion-e2e] failed:`, err);
   process.exit(1);
 });

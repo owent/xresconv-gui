@@ -7,7 +7,7 @@ import {
   matchStringRule,
 } from "../src/index.ts";
 
-describe("matchStringRule (main.js:119-129)", () => {
+describe("matchStringRule", () => {
   it("both empty → true; exactly one empty → false", () => {
     expect(matchStringRule(undefined, undefined)).toBe(true);
     expect(matchStringRule(null, null)).toBe(true);
@@ -24,7 +24,7 @@ describe("matchStringRule (main.js:119-129)", () => {
     const fn = buildMatchStringRule("regex:\\.bin$");
     expect(matchStringRule(fn, "role.bin")).toBe(true);
     expect(matchStringRule(fn, "role.json")).toBe(false);
-    // A compiled fn is always truthy → empty input still fails (main.js:124).
+    // A compiled fn is always truthy → empty input still fails.
     expect(matchStringRule(fn, undefined)).toBe(false);
   });
 
@@ -34,7 +34,7 @@ describe("matchStringRule (main.js:119-129)", () => {
   });
 });
 
-describe("buildMatchStringRule empty rule (main.js:132-136)", () => {
+describe("buildMatchStringRule empty rule", () => {
   it("matches only empty input", () => {
     const fn = buildMatchStringRule(undefined);
     expect(fn(undefined)).toBe(true);
@@ -44,36 +44,36 @@ describe("buildMatchStringRule empty rule (main.js:132-136)", () => {
   });
 });
 
-describe("buildMatchStringRule regex branch (main.js:138-143)", () => {
+describe("buildMatchStringRule regex branch", () => {
   it("matches and rejects per the compiled RegExp", () => {
     const fn = buildMatchStringRule("regex:\\.bin$");
     expect(fn("role_cfg.bin")).toBe(true);
     expect(fn("role_cfg.json")).toBe(false);
   });
 
-  it("prefix check is case-insensitive (main.js:139)", () => {
+  it("prefix check is case-insensitive", () => {
     const fn = buildMatchStringRule("REGEX:\\.bin$");
     expect(fn("role_cfg.bin")).toBe(true);
     expect(fn("role_cfg.json")).toBe(false);
   });
 
-  it("rest is trimmed before compilation (main.js:140)", () => {
+  it("rest is trimmed before compilation", () => {
     const fn = buildMatchStringRule("regex:  \\.bin$  ");
     expect(fn("role_cfg.bin")).toBe(true);
   });
 
-  it("empty input is coerced to '' before matching (main.js:142)", () => {
+  it("empty input is coerced to '' before matching", () => {
     expect(buildMatchStringRule("regex:^$")(undefined)).toBe(true);
     expect(buildMatchStringRule("regex:bin")(undefined)).toBe(false);
   });
 
-  it("valid inline case-insensitive group (?i:...) works", () => {
+  it("valid inline case-insensitive group (?i:..) works", () => {
     const fn = buildMatchStringRule("regex:(?i:\\.BIN)$");
     expect(fn("role_cfg.bin")).toBe(true);
   });
 });
 
-describe("buildMatchStringRule glob branch (main.js:144-149)", () => {
+describe("buildMatchStringRule glob branch", () => {
   it("matches ** patterns with minimatch default options", () => {
     const fn = buildMatchStringRule("glob:**/*.xlsx");
     expect(fn("config/role.xlsx")).toBe(true);
@@ -81,20 +81,20 @@ describe("buildMatchStringRule glob branch (main.js:144-149)", () => {
     expect(fn("config/role.xlsm")).toBe(false);
   });
 
-  it("prefix check is case-insensitive; rest is trimmed (main.js:144-146)", () => {
+  it("prefix check is case-insensitive; rest is trimmed", () => {
     const fn = buildMatchStringRule("GLOB: *.xlsx ");
     expect(fn("role.xlsx")).toBe(true);
   });
 
   it("dotfiles: minimatch default (dot:false) — plain * does not match dotfile", () => {
-    // U5 (P0-08 附录 C) resolved as-is: minimatch 10.2.6 default options mean
+    // U5 ( 附录 C) resolved as-is: minimatch 10.2.6 default options mean
     // a pattern without a leading dot segment never matches a dotfile path.
     expect(matchStringRule("glob:*.bin", ".role.bin")).toBe(false);
     expect(matchStringRule("glob:.*.bin", ".role.bin")).toBe(true);
   });
 });
 
-describe("buildMatchStringRule exact branch (main.js:150-153)", () => {
+describe("buildMatchStringRule exact branch", () => {
   it("is case-sensitive", () => {
     const fn = buildMatchStringRule("Role");
     expect(fn("Role")).toBe(true);
@@ -108,7 +108,7 @@ describe("buildMatchStringRule exact branch (main.js:150-153)", () => {
   });
 });
 
-describe("buildMatchStringRule invalid rule fallback (main.js:155-162)", () => {
+describe("buildMatchStringRule invalid rule fallback", () => {
   it("invalid regex falls back to exact match on the FULL original rule string", () => {
     const diagnostics: unknown[] = [];
     // Bare (?i) is not valid JavaScript RegExp syntax.
@@ -121,7 +121,7 @@ describe("buildMatchStringRule invalid rule fallback (main.js:155-162)", () => {
     expect(diagnostics[1]).toBeInstanceOf(SyntaxError);
   });
 
-  it("omitted name logs only the exception (main.js:156-158)", () => {
+  it("omitted name logs only the exception", () => {
     const diagnostics: unknown[] = [];
     buildMatchStringRule("regex:(", undefined, (m) => diagnostics.push(m));
     expect(diagnostics).toHaveLength(1);
@@ -129,8 +129,8 @@ describe("buildMatchStringRule invalid rule fallback (main.js:155-162)", () => {
   });
 
   it("minimatch v10 is lenient: malformed braces compile and match literally", () => {
-    // Probed 2026-09-24: new Minimatch("a{") does NOT throw, so the glob
-    // branch never reaches the legacy fallback; the pattern matches the
+    // new Minimatch("a{") does NOT throw, so the glob
+    // 该 glob 模式有效，按 minimatch 的实际结果断言。
     // literal text. The try/catch fallback therefore only fires for regex.
     const diagnostics: unknown[] = [];
     const fn = buildMatchStringRule("glob:a{", undefined, (m) => diagnostics.push(m));
@@ -168,7 +168,7 @@ describe("matchGlob / matchRegex thin wrappers", () => {
   });
 });
 
-describe("matchClasses (main.js:1020-1028; tags fixed per BD-M1)", () => {
+describe("matchClasses (tags fixed per )", () => {
   it("any intersection passes", () => {
     expect(matchClasses(["a", "b"], ["c", "b"])).toBe(true);
     expect(matchClasses(["a"], ["a"])).toBe(true);

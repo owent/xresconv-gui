@@ -3,20 +3,20 @@ import { listen } from "@tauri-apps/api/event";
 import type { BackendRpc } from "@xresconv/contracts";
 
 /**
- * 业务 RPC 与事件适配层（P4-02 壳通道 ↔ backend，P4-03 前端接线）。
+ * 业务 RPC 与事件适配层（ 壳通道 ↔ backend， 前端接线）。
  *
- * 冻结契约（docs/plan/records/P4-02.md + packages/contracts/schema/backend-rpc.json）：
- * - 命令 `backend_rpc({method, params, timeout_ms?})`：resolve 为方法 result payload；
+ * 冻结契约（docs/development/testing.md + packages/contracts/schema/backend-rpc.json）：
+ * 命令 `backend_rpc({method, params, timeout_ms?})`：resolve 为方法 result payload；
  *   reject 为字符串 "CODE: message"（INVALID_PARAMS/INVALID_STATE/CONFIG_ERROR/
  *   BACKEND_NOT_READY/BACKEND_DIED/BACKEND_TIMEOUT 等）。
- * - 事件 `xresconv-event`：payload = {kind, payload}；kind="event" 时 payload 为
+ * 事件 `xresconv-event`：payload = {kind, payload}；kind="event" 时 payload 为
  *   backend 事件（source:"backend"，type: log/state_change/dialog_request/
  *   dialog_invalidate/run_end/diagnostic）。
- * - 事件 `xresconv-guardian-dead`：payload = {reason}。
+ * 事件 `xresconv-guardian-dead`：payload = {reason}。
  *
  * 快照/树形状镜像 backend SessionTreeState 输出（packages/backend/src/service/
  * tree-state.ts 与 rpc-app.ts 的冻结形状；desktop 不依赖 compat-service 包，
- * 此处类型即前端侧合同，契约漂移由 backend 测试与 P4-02 通道用例拦截）。
+ * 此处类型即前端侧合同，契约漂移由 backend 测试与  通道用例拦截）。
  */
 
 export type TreeNodeKey = string | number;
@@ -32,7 +32,7 @@ export interface TreeNodeSnap {
   partsel: boolean;
   expanded: boolean;
   autoSelect: boolean;
-  /** item 节点载荷（旧版 item_data 字段形状；category 节点缺省）。 */
+  /** item 节点载荷（ item_data 字段形状；category 节点缺省）。 */
   item?: Record<string, unknown>;
   children: TreeNodeSnap[];
 }
@@ -52,7 +52,7 @@ export interface OutputMatrixRuleLike {
 }
 
 /**
- * 表单有效值（镜像 backend plan-builder.ts EffectiveSettings，P4-04a）：
+ * 表单有效值（镜像 backend plan-builder.ts EffectiveSettings)：
  * 配置默认 ⊕ overrides 的全量字段；字符串字段无配置无覆盖时为 ""。
  */
 export interface EffectiveSettingsLike {
@@ -69,7 +69,7 @@ export interface EffectiveSettingsLike {
 }
 
 /**
- * 转换参数覆盖（镜像 backend plan-builder.ts ConversionOverrides，P4-04a）：
+ * 转换参数覆盖（镜像 backend plan-builder.ts ConversionOverrides)：
  * undefined = 配置默认；空串/空数组 = 用户清空生效。
  */
 export interface ConversionOverridesLike {
@@ -85,17 +85,17 @@ export interface ConversionOverridesLike {
   matrix?: OutputMatrixRuleLike[];
 }
 
-/** updateSettings 的 fields（P4-04b）：overrides 字段 + 会话级 parallelism（number, 1..16）。 */
+/** updateSettings 的 fields：overrides 字段 + 会话级 parallelism（number, 1..16）。 */
 export type SettingsFields = ConversionOverridesLike & { parallelism?: number };
 
-/** 表单设置视图（镜像 backend rpc-app.ts SettingsView；P4-04b 起含 parallelism）。 */
+/** 表单设置视图（镜像 backend rpc-app.ts SettingsView； 起含 parallelism）。 */
 export interface SettingsViewLike {
   overrides: ConversionOverridesLike;
   effective: EffectiveSettingsLike | null;
   parallelism: number;
 }
 
-/** preview 任务/冲突/结果（镜像 backend rpc-app.ts PreviewResult，P4-04a）。 */
+/** preview 任务/冲突/结果（镜像 backend rpc-app.ts PreviewResult)。 */
 export interface PreviewTaskLike {
   itemKey?: string;
   outputDir?: string;
@@ -148,7 +148,7 @@ export const RUN_TERMINAL_STATES: ReadonlySet<string> = new Set([
   "cancelled",
 ]);
 
-/** run_end 事件摘要（镜像 backend service/run.ts RunSummary，P4-06 消费）。 */
+/** run_end 事件摘要（镜像 backend service/run.ts RunSummary， 消费）。 */
 export interface RunSummaryLike {
   runSeq: number;
   state: "succeeded" | "failed" | "cancelled";
@@ -162,12 +162,12 @@ export interface RunSummaryLike {
 /** 日志级别（镜像 backend log-pipeline.ts LogLevel）。 */
 export type LogLevelLike = "info" | "notice" | "warning" | "error";
 
-/** 日志条目（镜像 backend log-pipeline.ts LogEntry，P4-07 消费）。 */
+/** 日志条目（镜像 backend log-pipeline.ts LogEntry， 消费）。 */
 export interface LogEntryLike {
   message: string;
   rawMessage: string;
   moduleName: string;
-  /** 旧版样式类名（alert-*；hook 可改写），UI 映射为语义色。 */
+  /** 样式类名（alert-*；hook 可改写），UI 映射为语义色。 */
   style: string;
   level: LogLevelLike;
   /** 渲染形态 `[module]: message`；复制/导出用同一文本。 */
@@ -176,19 +176,19 @@ export interface LogEntryLike {
   seq?: number;
 }
 
-/** getLogs 结果（镜像 backend rpc-app.ts rpcGetLogs，P4-07）。 */
+/** getLogs 结果（镜像 backend rpc-app.ts rpcGetLogs)。 */
 export interface GetLogsResult {
   entries: LogEntryLike[];
   droppedCount: number;
   capacity: number;
 }
 
-/** 自定义选择器/按钮视图（镜像 backend custom-selector.ts CustomSelectorView，P4-05a）。 */
+/** 自定义选择器/按钮视图（镜像 backend custom-selector.ts CustomSelectorView)。 */
 export type CustomSelectorViewLike =
   | { name: string; hasAction: boolean; defaultSelected: boolean; style: string | null }
   | { name: null; error: string };
 
-/** 事件 hook 的 UI 开关（镜像 backend config/model.ts EventToggle，P4-05b 消费）。 */
+/** 事件 hook 的 UI 开关（镜像 backend config/model.ts EventToggle， 消费）。 */
 export interface HookToggleLike {
   name: string;
   checked: boolean;
@@ -230,14 +230,13 @@ export function guiHooksOf(config: Record<string, unknown> | null): GuiHooksLike
 }
 
 /** gui hooks 三组与 setHookEnabled group 的对照（渲染顺序固定）。 */
-export const HOOK_GROUPS: readonly { group: HookGroup; key: keyof GuiHooksLike; label: string }[] =
-  [
-    { group: "before", key: "onBeforeConvert", label: "转表前事件（on_before_convert）" },
-    { group: "after", key: "onAfterConvert", label: "转表后事件（on_after_convert）" },
-    { group: "append_log", key: "onAppendLog", label: "日志事件（on_append_log）" },
-  ];
+export const HOOK_GROUPS: readonly { group: HookGroup; key: keyof GuiHooksLike }[] = [
+  { group: "before", key: "onBeforeConvert" },
+  { group: "after", key: "onAfterConvert" },
+  { group: "append_log", key: "onAppendLog" },
+];
 
-/** 脚本弹框载荷（镜像 script-host executor DialogRequestPayload，P2-06/P4-05b）。 */
+/** 脚本弹框载荷（镜像 script-host executor DialogRequestPayload)。 */
 export interface DialogPayloadLike {
   title?: string;
   content?: string;
@@ -251,7 +250,7 @@ export interface BackendSnapshot {
   tree: TreeSnap | null;
   selectedItems: unknown[];
   settings: SettingsViewLike;
-  /** P4-05a：自定义选择器/按钮视图（未 setCustomSelectors 时为 null）。 */
+  /** ：自定义选择器/按钮视图（未 setCustomSelectors 时为 null）。 */
   customSelectors: CustomSelectorViewLike[] | null;
 }
 
@@ -337,7 +336,7 @@ interface EventHub {
 /**
  * 每个事件名一条底层 listen，引用计数共享：React StrictMode 的 setup→cleanup→setup
  * 同步重放期间 listen Promise 尚未结算，第二个订阅复用同一 hub，整次双挂载只产生
- * 一次真实 listen；最后一个订阅者释放时调用 unlisten（docs/plan/04-ui.md §状态分层：
+ * 一次真实 listen；最后一个订阅者释放时调用 unlisten（docs/development/frontend.md §状态分层：
  * 重复挂载不能建立重复订阅，所有监听有释放句柄）。
  */
 const hubs = new Map<string, EventHub>();

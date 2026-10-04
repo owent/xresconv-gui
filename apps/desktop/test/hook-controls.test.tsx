@@ -1,5 +1,5 @@
 /**
- * HookControls 测试（P4-05b，UI05 hook checked/mutable；F09）。
+ * HookControls 测试(hook checked/mutable)。
  *
  * 命名 hook 渲染复选框（匿名不渲染）、mutable=false 禁用、切换经
  * setHookEnabled RPC 生效并就地回写快照；RPC 失败进 store.lastError。
@@ -58,13 +58,13 @@ function setHookEnabledCalls(): Record<string, unknown>[] {
     .map(([, args]) => args?.params as Record<string, unknown>);
 }
 
-describe("HookControls（P4-05b）", () => {
+describe("HookControls", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
   });
 
-  it("自适应：未加载配置/无命名 hook → 不渲染（2026-09-26 用户需求）", () => {
+  it("自适应：未加载配置/无命名 hook → 不渲染", () => {
     const view = render(<HookControls />);
     expect(view.container.firstChild).toBeNull();
 

@@ -1,8 +1,8 @@
 /**
- * LogPipeline 单元测试（P2-08 backend 侧）+ log4js 落盘用例。
+ * LogPipeline 单元测试（ backend 侧）+ log4js 落盘用例。
  *
- * 语义锚点：main.js:166-330（级别→样式、`[module]: message` 渲染、Error 重路由）、
- * main.js:841-859（log4js 配置与回退）、BD-O10（有界队列溢出策略）。
+ * 语义锚点：（级别→样式、`[module]: message` 渲染、Error 重路由）、
+ * （log4js 配置与回退）、（有界队列溢出策略）。
  */
 
 import { spawnSync } from "node:child_process";
@@ -29,7 +29,7 @@ afterAll(() => {
 });
 
 describe("LogPipeline", () => {
-  it("级别→样式映射与 [module]: message 渲染（main.js:245/263/283/304、216-226）", async () => {
+  it("级别→样式映射与 [module]: message 渲染(216-226）", async () => {
     const pipeline = new LogPipeline();
     const info = await pipeline.info("i", "M");
     const notice = await pipeline.notice("n", "M");
@@ -44,7 +44,7 @@ describe("LogPipeline", () => {
     expect(noModule.text).toBe("plain");
   });
 
-  it("Error 实例一律重路由 error 并取 stack（main.js:238-244）", async () => {
+  it("Error 实例一律重路由 error 并取 stack", async () => {
     const pipeline = new LogPipeline();
     const entry = await pipeline.notice(new Error("boom"), "M");
     expect(entry.level).toBe("error");
@@ -52,7 +52,7 @@ describe("LogPipeline", () => {
     expect(entry.message).toContain("boom");
   });
 
-  it("有界队列：溢出丢弃最老、droppedCount 累计、直发 LOG 诊断（BD-O10）", async () => {
+  it("有界队列：溢出丢弃最老、droppedCount 累计、直发 LOG 诊断", async () => {
     const pipeline = new LogPipeline({ capacity: 3 });
     const seen: LogEntry[] = [];
     pipeline.subscribe((entry) => seen.push(entry));
@@ -68,7 +68,7 @@ describe("LogPipeline", () => {
     expect(diagnostics[0]?.level).toBe("warning");
   });
 
-  it("队列条目带单调 seq；订阅事件与 getRecent 一致（P4-07 UI 游标去重依据）", async () => {
+  it("队列条目带单调 seq；订阅事件与 getRecent 一致（ UI 游标去重依据）", async () => {
     const pipeline = new LogPipeline({ capacity: 4 });
     const seen: LogEntry[] = [];
     pipeline.subscribe((entry) => seen.push(entry));
@@ -85,7 +85,7 @@ describe("LogPipeline", () => {
     expect(diagnostics.every((entry) => entry.seq === undefined)).toBe(true);
   });
 
-  it("getRecent(limit)：返回最新 limit 条；limit 缺省全量、越界夹取（P4-07）", async () => {
+  it("getRecent(limit)：返回最新 limit 条；limit 缺省全量、越界夹取", async () => {
     const pipeline = new LogPipeline({ capacity: 5 });
     for (let i = 0; i < 5; i++) {
       await pipeline.info(`m${i}`, "T");
@@ -117,8 +117,8 @@ describe("LogPipeline", () => {
 });
 
 describe("log4js sink", () => {
-  it("默认配置内联（P7）：无 configurePath 即可用，不再依赖外部文件", async () => {
-    const sink = createLog4jsSink({}); // 旧实现此处读 src/log4js.json（已删除）
+  it("默认配置内联：无 configurePath 即可用，不再依赖外部文件", async () => {
+    const sink = createLog4jsSink({}); // 此处读 src/log4js.json（已删除）
     const pipeline = new LogPipeline();
     pipeline.addSink((entry) => sink.append(entry));
     await pipeline.error("inline-default-probe", "INLINE");
@@ -213,7 +213,7 @@ describe("log4js sink", () => {
     expect(content).toContain("WARN");
   });
 
-  it("自定义配置失败 → 回退默认 src/log4js.json 并记诊断（main.js:844-854）", async () => {
+  it("自定义配置失败 → 回退默认 src/log4js.json 并记诊断", async () => {
     const dir = makeTmpDir();
     const sink = createLog4jsSink({ configurePath: path.join(dir, "missing.json") });
     expect(sink.diagnostic).not.toBeNull();
@@ -222,7 +222,7 @@ describe("log4js sink", () => {
     await sink.shutdown();
   });
 
-  it("EX04：maxLogSize 轮转生效——超限后生成 .1 备份且继续写入", { timeout: 30_000 }, async () => {
+  it("：maxLogSize 轮转生效——超限后生成 .1 备份且继续写入", { timeout: 30_000 }, async () => {
     const dir = makeTmpDir();
     const logFile = path.join(dir, "rotate.log");
     const configPath = path.join(dir, "log4js.json");
@@ -252,7 +252,7 @@ describe("log4js sink", () => {
     expect(main.length).toBeLessThanOrEqual(4096 + 512);
   });
 
-  it("EX04：只读日志文件——append 不抛给调用方，收尾有界不挂起", { timeout: 20_000 }, async () => {
+  it("：只读日志文件——append 不抛给调用方，收尾有界不挂起", { timeout: 20_000 }, async () => {
     const dir = makeTmpDir();
     const logFile = path.join(dir, "readonly.log");
     writeFileSync(logFile, "PRESERVE\n", "utf8");
@@ -269,16 +269,16 @@ describe("log4js sink", () => {
     const sink = createLog4jsSink({ configurePath: configPath });
     const pipeline = new LogPipeline();
     pipeline.addSink((entry) => sink.append(entry));
-    // 写失败不得抛给调用方，也不得逃逸成 unhandled rejection（EX04；emit 兜底）。
+    // 写失败不得抛给调用方，也不得逃逸成 unhandled rejection(emit 兜底）。
     const entry = await pipeline.info("denied-write", "RO");
     expect(entry.message).toBe("denied-write");
-    // 文档化契约：配置失败使 shutdown 拒绝（生产 dispose 按 EX04 捕获记诊断）。
+    // 文档化契约：配置失败使 shutdown 拒绝（生产 dispose 按  捕获记诊断）。
     await expect(sink.shutdown(2000)).rejects.toThrow(/configuration failed|EPERM/);
     chmodSync(logFile, 0o666);
     expect(readFileSync(logFile, "utf8")).toContain("PRESERVE");
   });
 
-  it("EX04：会话 dispose 容忍日志后端不可用——resolve 并记诊断，不使收尾失败", {
+  it("：会话 dispose 容忍日志后端不可用——resolve 并记诊断，不使收尾失败", {
     timeout: 30_000,
   }, async () => {
     const dir = makeTmpDir();
@@ -301,7 +301,7 @@ describe("log4js sink", () => {
       });
       await session.loadConfig(fixture("run-hooks.xml"));
       await session.pipeline.drain();
-      // dispose 必须 resolve（EX04：日志故障不阻断清理），并留下可见诊断。
+      // dispose 必须 resolve(日志故障不阻断清理），并留下可见诊断。
       await expect(session.dispose()).resolves.toBeUndefined();
       const messages = session.pipeline.snapshot().map((entry) => entry.message);
       expect(messages.some((m) => m.includes("log4js shutdown failed"))).toBe(true);

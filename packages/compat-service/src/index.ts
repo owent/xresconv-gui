@@ -1,35 +1,16 @@
-// Compatibility service: selector/string-rule matching primitives (P3-04 匹配原语).
-//
-// Ported from src/main.js (legacy renderer). Every semantic is anchored to the
-// original line numbers; behaviour deltas are recorded as BD-M* entries in
-// docs/plan/records/P3-04.md.
+// 共享三态选择与模式匹配实现，后端和脚本镜像复用相同语义。
 
 import { Minimatch, minimatch } from "minimatch";
 
 /** Compiled matcher produced by {@link buildMatchStringRule}. */
 export type MatchRuleFn = (input: string | undefined | null) => boolean;
 
-/**
- * Diagnostic sink for invalid rules. Legacy behaviour wrote two error log
- * lines (`${name} 的规则无效: ${rule}` then the compile exception) via
- * logger_append_error_message (main.js:156-159); the port injects a callback
- * instead so callers decide where diagnostics go (BD-M3).
- */
+/** 无效规则诊断通过注入回调交给调用方处理。 */
 export type RuleDiagnosticLogger = (message: string | unknown) => void;
 
 const noopLogger: RuleDiagnosticLogger = () => {};
 
-/**
- * main.js:119-129 (match_string_rule).
- *
- * Both empty → true; exactly one empty → false. `rule` may be either a raw
- * rule string or a compiled {@link MatchRuleFn} (legacy call sites pass the
- * lazily cached `*_fn` built by build_match_string_rule). Raw strings are
- * compiled on the spot via {@link buildMatchStringRule}.
- *
- * BD-M2: the legacy regex branch returned the match array / null; the port
- * coerces to boolean (truthiness semantics unchanged).
- */
+/** 规则可为原始文本或已编译的 MatchRuleFn，原始文本首次使用时编译。 */
 export function matchStringRule(
   rule: MatchRuleFn | string | undefined | null,
   input: string | undefined | null,
@@ -44,22 +25,7 @@ export function matchStringRule(
   return !!fn(input);
 }
 
-/**
- * main.js:131-163 (build_match_string_rule).
- *
- * - Empty rule → matches only empty input (main.js:132-136).
- * - Prefix "regex:" / "glob:" (prefix check case-insensitive, main.js:139/144)
- *   → `new RegExp(rest.trim())` / `new Minimatch(rest.trim())` with minimatch
- *   default options (main.js:140-146).
- * - Otherwise exact match against the **untrimmed** rule (main.js:148-152).
- * - Compile exception → diagnostic via `log` and **fallback to exact match
- *   against the full original rule string** (main.js:155-162).
- *
- * Compilation happens once at build time; the returned closure reuses the
- * compiled RegExp/Minimatch (legacy lazy-cache semantics: callers cache the
- * built fn on scheme_rule.file_fn / sheet_rule.file_fn, main.js:340-351,
- * 380-391, so repeated calls never recompile).
- */
+/** 编译匹配器复用已编译 RegExp/Minimatch。规则支持完全匹配、regex: 与 glob:，编译失败记录诊断并回退到原始规则文本匹配。 */
 export function buildMatchStringRule(
   rule: string | undefined | null,
   name?: string,
@@ -73,21 +39,21 @@ export function buildMatchStringRule(
     const lower = rule.toLowerCase();
     if (lower.startsWith("regex:")) {
       const regexRule = new RegExp(rule.substring(6).trim());
-      // main.js:141-143: legacy `(input || "").match(regex_rule)`; test() is
-      // the boolean equivalent (BD-M2).
+      //正则按字符串输入求值，空输入按空串处理。
+
       return (input) => regexRule.test(input || "");
     }
     if (lower.startsWith("glob:")) {
       const globRule = new Minimatch(rule.substring(5).trim());
-      // main.js:147-149 calls glob_rule.match(input) directly; the port
+      //  calls glob_rule.match(input) directly; the port
       // coerces empty input to "" (never matches a glob) instead of throwing.
       return (input) => globRule.match(input ?? "");
     }
-    // main.js:150-153: exact match, rule not trimmed. Legacy used `==`; both
+    // 输入与规则统一为字符串后进行完全匹配，规则保留首尾空白。
     // operands are strings here so `===` is identical.
     return (input) => input === rule;
   } catch (e) {
-    // main.js:155-162: log then fall back to exact match on the original rule.
+    // log then fall back to exact match on the original rule.
     if (name) {
       log(`${name} 的规则无效: ${rule}`);
     }
@@ -101,11 +67,7 @@ export function matchGlob(pattern: string, value: string): boolean {
   return minimatch(value, pattern);
 }
 
-/**
- * Thin regex wrapper kept from the skeleton. Mirrors the legacy fallback:
- * an invalid regex degrades to exact match against the original pattern
- * string (main.js:155-162).
- */
+/** 无效正则回退为原始模式文本的完全匹配。 */
 export function matchRegex(pattern: string, value: string): boolean {
   try {
     return new RegExp(pattern).test(value);
@@ -114,15 +76,7 @@ export function matchRegex(pattern: string, value: string): boolean {
   }
 }
 
-/**
- * main.js:1020-1028 (check_matrix_rule classes branch): any intersection
- * between rule classes and item classes passes.
- *
- * BD-M1: the legacy tags branch (main.js:1013-1019) referenced the undefined
- * free variable `output` and therefore always threw ReferenceError (P0-08
- * §1.4, defect B1). The port implements tags with the same intersection rule
- * as classes — call this function with tag arrays for tag matching.
- */
+/** 矩阵资格检查：class 或 tag 与条目对应集合有交集时通过。 */
 export function matchClasses(ruleClasses: string[], itemClasses: string[]): boolean {
   return ruleClasses.some((x) => itemClasses.some((y) => x === y));
 }

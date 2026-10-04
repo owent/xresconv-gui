@@ -1,7 +1,7 @@
-// Legacy sample (2.6.0 era): a <set_name> script that derives the item display
+// set_name 样本：从表格文件名和 scheme 派生显示名称。
 // name from the item's file basename and scheme. Runs synchronously once per
 // item; item_data is a live reference — assignments are what the tree shows
-// (tests/fixtures/scripts/contract.md §1). data is per-item scratch space and
+// (tests/fixtures/scripts/contract.md ). data is per-item scratch space and
 // must NOT leak into the next item.
 var base = item_data.file == null ? "" : String(item_data.file);
 var slash = Math.max(base.lastIndexOf("/"), base.lastIndexOf("\\"));

@@ -15,7 +15,7 @@ if (os.type().substr(0, 7).toLowerCase() == "windows") {
     exec.on("error", function(data) {
         log_error(data.toString());
         resolve();
-        // reject("执行失败" + data.toString());
+        // reject("执行失败" + data.toString);
     });
     exec.on("exit", function(code) {
         if (code === 0) {

@@ -1,9 +1,13 @@
+import { I18nProvider } from "react-aria-components";
 import { AppShell } from "./app/AppShell";
+import { useI18n } from "./i18n";
 
-/**
- * P4-01 页面骨架：区域划分与 F01–F12 映射见 src/app/feature-map.ts
- * 与 docs/plan/04-ui.md §页面和组件边界。真实数据接线在 P4-02+。
- */
+/** 应用入口，挂载 AppShell。组件边界见 docs/development/frontend.md。 */
 export function App() {
-  return <AppShell />;
+  const { locale } = useI18n();
+  return (
+    <I18nProvider locale={locale}>
+      <AppShell />
+    </I18nProvider>
+  );
 }

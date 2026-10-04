@@ -100,7 +100,7 @@ it("selects a fresh RPM and never renames stale or ambiguous output", () => {
 });
 
 it("parses Fixed Version runtime links from the download page HTML (u002F escapes, highest version per arch)", () => {
-  // 2026-09-28 实抓页面片段形态：链接以字面 \u002F 转义内嵌（无需 JS 渲染），
+  //  实抓页面片段形态：链接以字面 \u002F 转义内嵌（无需 JS 渲染），
   // 同架构多版本并存时取最高版本；裸斜杠链接同样接受。
   const html = [
     'x: "msedge.sf.dl.delivery.mp.microsoft.com\\u002Ffilestreamingservice\\u002Ffiles\\u002Fb82d47e8-d146-4563-94d1-3a3176b25c0a\\u002FMicrosoft.WebView2.FixedVersionRuntime.153.0.4234.48.x64.cab",',

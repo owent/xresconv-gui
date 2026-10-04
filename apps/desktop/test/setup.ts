@@ -2,10 +2,20 @@
  * vitest 全局 setup（apps/desktop）：
  * jsdom 没有 ResizeObserver——@tanstack/react-virtual 与 RAC Virtualizer 依赖
  * 它测量滚动容器；缺失时“挂载后新增日志”这类动态变更无法触发重测量，
- * getVirtualItems() 恒为空（2026-09-26 三轮改版：环境诊断日志在挂载后写入，
+ * getVirtualItems 恒为空（环境诊断日志在挂载后写入，
  * App 级测试需要看到日志行）。shim 立即回报固定视口（1024×768）触发首次
  * 测量；真实浏览器/WebView 不受影响。
  */
+import { beforeEach } from "vitest";
+import { resetLocalization } from "../src/i18n";
+
+// 既有组件用例固定中文；多语言用例通过显式设置覆盖。
+beforeEach(() => {
+  Object.defineProperty(navigator, "languages", { configurable: true, value: ["zh-CN"] });
+  Object.defineProperty(navigator, "language", { configurable: true, value: "zh-CN" });
+  resetLocalization();
+});
+
 class ResizeObserverShim {
   private readonly callback: ResizeObserverCallback;
 

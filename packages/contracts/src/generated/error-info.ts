@@ -14,7 +14,7 @@ export interface ErrorInfo {
    */
   message: string;
   /**
-   * Optional structured context (file, line, column, ...); any JSON value
+   * Optional structured context (file, line, column, .); any JSON value
    */
   details?: {
     [k: string]: unknown | undefined;

@@ -105,7 +105,7 @@ function answerUpdateSettings(snapshot: BackendSnapshot) {
   };
 }
 
-describe("ConversionSettings（P4-04b，UI04）", () => {
+describe("ConversionSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();

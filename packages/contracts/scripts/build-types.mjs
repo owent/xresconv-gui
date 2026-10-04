@@ -1,5 +1,5 @@
 // Generates TypeScript types from the hand-maintained JSON Schemas in
-// schema/ (single source of truth, D6). Never hand-edit src/generated/.
+// schema/ (single source of truth). Never hand-edit src/generated/.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

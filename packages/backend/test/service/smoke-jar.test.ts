@@ -1,9 +1,9 @@
 /**
- * 真实 JAR 冒烟（P3-08 全链：loadConfig → runConversion → 真实 runJavaBatch → 产物校验）。
+ * 真实 JAR 冒烟（ 全链：loadConfig → runConversion → 真实 runJavaBatch → 产物校验）。
  *
- * 使用本机真实构件（与 guardian java-runner 测试同路径，P3-05 记录）：
- * - JAR: XRESCONV_TEST_JAR 或 ../xresloader/target 中唯一 JAR
- * - 样本: XRESCONV_TEST_SAMPLE 或 ../xresloader/sample（work_dir 基准）
+ * 使用本机真实构件（与 guardian java-runner 测试同路径， 记录）：
+ * JAR: XRESCONV_TEST_JAR 或 ../xresloader/target 中唯一 JAR
+ * 样本: XRESCONV_TEST_SAMPLE 或 ../xresloader/sample（work_dir 基准）
  * 构件缺失时整组 skip。
  */
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -80,7 +80,7 @@ describe.skipIf(!HAS_JAR)("runConversion: 真实 JAR 冒烟", () => {
     expect(messages).toContain("All jobs done.");
   });
 
-  // P3-07/EX02：多分片真实 JVM 并发（补 P3-06 记录的"多分片真实 JVM 并发未实测"缺口）。
+  // 多分片真实 JVM 并发（补  记录的"多分片真实 JVM 并发未实测"缺口）。
   it("并发 4 真实 JVM：8 任务 → 4 分片，产物 8 件齐全，退出汇总一致", {
     timeout: SMOKE_TIMEOUT_MS,
   }, async () => {

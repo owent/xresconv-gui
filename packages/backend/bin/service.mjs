@@ -1,26 +1,26 @@
 #!/usr/bin/env node
-// P2-09：长驻 backend 服务入口（监督协议面）。guardian↔backend 走
-// child_process.fork 内置 IPC（可信角色，Plan 02 §59：明确 execPath/json
+// 长驻 backend 服务入口（监督协议面）。guardian↔backend 走
+// child_process.fork 内置 IPC（可信角色，接口文档
 // serialization；Ajv 不提供预分配长度防护——该保护只属于字节帧通道）。
-//
+
 // 监督协议：握手（首条 health）、health ping/pong、shutdown（有界收尾后退出）、
 // 通道断开（disconnect）自行退出。
-//
-// P4-02 业务面：kind "rpc"（payload 按 backend-rpc schema 校验）分发给
+
+//  业务面：kind "rpc"（payload 按 backend-rpc schema 校验）分发给
 // BackendRpcApp，回 kind "rpc_result"（in_reply_to=env.id）；app 事件
 // （log/state_change/dialog_*/run_end/diagnostic）包成 kind "event"
 // （source:"backend"）持续上报。未知 method/坏参数回 error 结果，不走 fault。
-//
-// 诊断走 fd2；send 回调只表示交付到通道，不当作对方已处理（SC11）。
-//
+
+// 诊断走 fd2；send 回调只表示交付到通道，不当作对方已处理。
+
 // 测试缝（仅 guardian/backend 测试使用）：
-// - XRESCONV_BACKEND_FAKE_HANG=1：不应答 health ping 与 rpc（模拟事件循环
+// XRESCONV_BACKEND_FAKE_HANG=1：不应答 health ping 与 rpc（模拟事件循环
 //   卡死——卡死的循环同样无法处理业务请求）。
-// - XRESCONV_BACKEND_TEST_GRANDCHILD_PID_FILE=<path>：spawn 长生子进程并
+// XRESCONV_BACKEND_TEST_GRANDCHILD_PID_FILE=<path>：spawn 长生子进程并
 //   写入其 pid，供整树回收断言。
-// - XRESCONV_BACKEND_TEST_DISCONNECT=1：握手后立即 process.disconnect()。
-// - XRESCONV_BACKEND_TEST_BAD_ROLE=1：握手伪装成 script-worker 角色。
-// - XRESCONV_BACKEND_TEST_RPC_DELAY_MS=<n>：rpc 回复延迟 n 毫秒（迟到回复
+// XRESCONV_BACKEND_TEST_DISCONNECT=1：握手后立即 process.disconnect。
+// XRESCONV_BACKEND_TEST_BAD_ROLE=1：握手伪装成 script-worker 角色。
+// XRESCONV_BACKEND_TEST_RPC_DELAY_MS=<n>：rpc 回复延迟 n 毫秒（迟到回复
 //   测试：guardian 侧超时后该回复必须被忽略）。
 import { spawn } from "node:child_process";
 import { Console } from "node:console";
@@ -76,7 +76,7 @@ function healthPayload() {
   };
 }
 
-// send 回调只表示交付到通道缓冲，不当作 guardian 已处理（SC11）。
+// send 回调只表示交付到通道缓冲，不当作 guardian 已处理。
 function send(kind, payload, extra = {}) {
   try {
     process.send(envelope(kind, payload, extra), undefined, undefined, (err) => {
@@ -87,14 +87,14 @@ function send(kind, payload, extra = {}) {
   }
 }
 
-// P5-02 发行接线：脚本模块锚点目录由 guardian 经 backendEnv 接力（发行
+//  发行接线：脚本模块锚点目录由 guardian 经 backendEnv 接力（发行
 // 布局自定位）；显式经 pool workerEnv 注入 worker——语义明确，不依赖逐层
 // 环境继承（XRESCONV_WORKER_ENTRY 由 pool 自身从环境读取，见 script-worker）。
 const workerEnv = {};
 if (process.env.XRESCONV_SCRIPT_MODULE_DIRS) {
   workerEnv.XRESCONV_SCRIPT_MODULE_DIRS = process.env.XRESCONV_SCRIPT_MODULE_DIRS;
 }
-// F10/F11：--log-configure 经壳 CLI 解析 → guardian env 接力至此（BD-O12 语义）。
+// log-configure 经壳 CLI 解析 → guardian env 接力至此（ 语义）。
 const log4jsConfigurePath =
   typeof process.env.XRESCONV_LOG_CONFIGURE === "string" &&
   process.env.XRESCONV_LOG_CONFIGURE.length > 0
@@ -104,7 +104,7 @@ const app = new BackendRpcApp({
   pool: new ScriptWorkerPool({ workerEnv }),
   log4jsConfigurePath,
 });
-// 事件面：log/state_change/dialog_*/run_end/diagnostic → kind "event"（P4-02）。
+// 事件面：log/state_change/dialog_*/run_end/diagnostic → kind "event"。
 app.onEvent((event) => {
   send("event", { source: "backend", ...event });
 });
@@ -147,7 +147,7 @@ async function handleRpc(env) {
 
 async function shutdownSelf(reason) {
   process.stderr.write(`[backend] shutdown: ${reason}\n`);
-  // 有界收尾：超期由 guardian 宽限后整树终止兜底（P2-09 合同）。
+  // 有界收尾：超期由 guardian 宽限后整树终止兜底（ 合同）。
   await Promise.race([
     app
       .dispose()

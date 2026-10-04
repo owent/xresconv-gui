@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "3.0.0-dev.1",
+  "version": "3.0.0",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI (Tauri 2 桌面层 + Node.js 业务进程)",
   "packageManager": "yarn@4.18.1",
@@ -33,7 +33,7 @@
     "package:windows": "node --experimental-strip-types scripts/package-windows.ts",
     "package:linux": "node --experimental-strip-types scripts/package-linux.ts",
     "package:macos": "node --experimental-strip-types scripts/package-macos.ts",
-    "lint": "biome check apps packages && markdownlint \"docs/plan/**/*.md\" \"Plan.md\"",
+    "lint": "biome check apps packages && markdownlint \"*.md\" \"docs/**/*.md\" \".agents/**/*.md\" \".github/actions/**/*.md\" \"tests/**/*.md\" && node --test tests/docs/check-docs.test.mjs && node scripts/check-docs.mjs",
     "typecheck": "yarn workspaces foreach -A --include '@xresconv/*' run typecheck",
     "test:unit": "yarn workspaces foreach -A --include '@xresconv/*' run test",
     "test:contracts": "yarn workspace @xresconv/contracts test",
@@ -42,7 +42,8 @@
     "test:browser": "yarn workspace @xresconv/desktop build && yarn workspace @xresconv/desktop exec playwright test",
     "test:desktop": "node tests/desktop/run.mjs",
     "test:conversion": "node tests/conversion/run-e2e.mjs",
-    "verify:portable": "node --experimental-strip-types scripts/verify-portable.ts"
+    "verify:portable": "node --experimental-strip-types scripts/verify-portable.ts",
+    "test:docs": "node --test tests/docs/check-docs.test.mjs"
   },
   "repository": {
     "type": "git",

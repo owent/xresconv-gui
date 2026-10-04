@@ -1,14 +1,14 @@
 /**
- * SelectionRuleService（P2-08/P3-04 整合）：选择器资格判定经隔离 matcher
+ * SelectionRuleService(整合）：选择器资格判定经隔离 matcher
  * 求值（MatcherService），灾难性 regex 不阻塞 backend 事件循环/日志服务。
  *
  * 语义与 domain/selection.ts 的 resolveSelectorItems 逐点一致（else-if 互斥、
  * 首条命中 break、DataSource `|` 切分、sheet 缺段按空串求值），只是求值改为
  * 按规则批量 round-trip：每条规则至多两轮批量（file 轮 → 条件 scheme/sheet
- * 轮），结果与逐项短路的旧版等价（匹配谓词是纯函数，只求值次数不同）。
+ * 轮），结果与逐项短路的等价（匹配谓词是纯函数，只求值次数不同）。
  *
- * BD-M4：隔离域求值超时 → 该规则 fail-closed（不匹配任何输入）+ 诊断；
- * 旧版等价场景是渲染进程白屏卡死。
+ * ：隔离域求值超时 → 该规则 fail-closed（不匹配任何输入）+ 诊断；
+ * 等价场景是渲染进程白屏卡死。
  */
 
 import type { TreeItem } from "../config/model.ts";
@@ -24,7 +24,7 @@ export interface IsolatedSelectorOptions {
   log?: (message: string) => void;
 }
 
-/** 逐条规则批量求值；超时 fail-closed（BD-M4），结构性失败上抛。 */
+/** 逐条规则批量求值；超时 fail-closed，结构性失败上抛。 */
 async function evalRule(
   matcher: MatcherService,
   rule: string | undefined,
@@ -39,14 +39,14 @@ async function evalRule(
     return await matcher.matchBatch(rule, inputs);
   } catch (err) {
     if (err instanceof MatcherTimeoutError) {
-      log?.(`matcher timeout, rule treated as matching nothing (BD-M4): ${rule.slice(0, 80)}`);
+      log?.(`matcher timeout, rule treated as matching nothing: ${rule.slice(0, 80)}`);
       return inputs.map(() => false);
     }
     throw err;
   }
 }
 
-/** by_schemes 求值（main.js:339-364 等价；file 必中、scheme 缺省或中、首条命中 break）。 */
+/** by_schemes 求值（ 等价；file 必中、scheme 缺省或中、首条命中 break）。 */
 async function evalSchemeRules(
   matcher: MatcherService,
   rules: readonly SelectorSchemeRule[],
@@ -92,7 +92,7 @@ async function evalSchemeRules(
   }
 }
 
-/** by_sheets 求值（main.js:375-407 等价；DataSource `|` 切分、sheet 缺段空串、任一命中即中）。 */
+/** by_sheets 求值（ 等价；DataSource `|` 切分、sheet 缺段空串、任一命中即中）。 */
 async function evalSheetRules(
   matcher: MatcherService,
   rules: readonly SelectorSheetRule[],

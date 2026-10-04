@@ -1,9 +1,10 @@
 import { Button } from "react-aria-components";
 import type { EffectiveSettingsLike, OutputMatrixRuleLike } from "../adapters/backend";
+import { translate as t, useI18n } from "../i18n";
 import { DraftField } from "./DraftField";
 import { useSessionStore } from "./session-store";
 
-/** 八种内置输出格式（旧版 output_type 下拉，index.html:146 附近）。 */
+/** 八种内置输出格式。 */
 const OUTPUT_FORMATS = [
   "bin",
   "lua",
@@ -19,9 +20,8 @@ const OUTPUT_FORMATS = [
 const BUSY_STATES = new Set(["loading", "before_hooks", "converting", "after_hooks"]);
 
 /**
- * 重命名预设目标后缀（旧版 conv_list_rename_samples 的目标侧）；源后缀由当前
- * 配置输出矩阵推导（缺省 .bin）。2026-09-26 四轮：重命名只保留在输出矩阵内
- * （详情弹窗不再有第二个重命名入口），经 datalist 可选可输（输入即过滤）。
+ * 重命名预设目标后缀；源后缀由配置输出矩阵推导（缺省 .bin）。
+ * 输出矩阵内通过 datalist 选择或输入后缀，输入时过滤候选。
  */
 const RENAME_PRESET_TARGETS = ["lua", "json", "msgpack.bin", "xml", "js"] as const;
 
@@ -45,7 +45,7 @@ function renamePresetsOf(
     for (const target of RENAME_PRESET_TARGETS) {
       presets.push({
         value: `/\\.${source}$/.${target}/`,
-        label: `.${source}后缀 => .${target}`,
+        label: t("matrix.suffix", { source, target }),
       });
     }
   }
@@ -54,7 +54,7 @@ function renamePresetsOf(
 
 /**
  * 矩阵模式判定：与 backend domain/selection.ts isMatrixMode 同规则——
- * 规则多于一条，或唯一规则带 tags/classes 限定（main.js:1333-1338）。
+ * 规则多于一条，或唯一规则带 tags/classes 限定。
  * 前端只按此决定展示形态，矩阵语义（资格/计划）由后端判定。
  */
 function isMatrixModeLocal(matrix: readonly OutputMatrixRuleLike[]): boolean {
@@ -71,7 +71,7 @@ function splitWords(text: string): string[] {
   return text.split(/\s+/).filter((word) => word.length > 0);
 }
 
-/** 格式下拉：内置八种；当前值不在列表时追加“未知格式: X”选项（main.js:1404-1418），不静默丢弃。 */
+/** 格式下拉：内置八种；当前值不在列表时追加“未知格式: X”选项，不静默丢弃。 */
 function FormatSelect({
   label,
   value,
@@ -86,18 +86,19 @@ function FormatSelect({
   allowUnset: boolean;
   onCommit: (value: string) => void;
 }) {
+  useI18n();
   const known = (OUTPUT_FORMATS as readonly string[]).includes(value);
   return (
     <label className="select-field select-field--inline">
       <span>{label}</span>
       <select disabled={disabled} value={value} onChange={(event) => onCommit(event.target.value)}>
-        {(allowUnset || value === "") && <option value="">（默认）</option>}
+        {(allowUnset || value === "") && <option value="">{t("common.default")}</option>}
         {OUTPUT_FORMATS.map((format) => (
           <option key={format} value={format}>
             {format}
           </option>
         ))}
-        {value !== "" && !known && <option value={value}>未知格式: {value}</option>}
+        {value !== "" && !known && <option value={value}>{t("matrix.unknown", { value })}</option>}
       </select>
     </label>
   );
@@ -116,13 +117,14 @@ function initialMatrix(effective: EffectiveSettingsLike): OutputMatrixRuleLike[]
 }
 
 /**
- * 输出矩阵编辑器（F07，P4-04b）：单类型模式编辑全局 type/rename/outputDir；
+ * 输出矩阵编辑器：单类型模式编辑全局 type/rename/outputDir；
  * 矩阵模式逐规则编辑 type/rename/outputDir/tags/classes，任何变更整体提交
  * updateSettings({matrix})。删除到 ≤1 条且无 tag/class 时自然回单类型模式
  * （矩阵语义由后端判定，前端如实提交）。重命名是全 GUI 唯一入口
- * （2026-09-26 四轮：input+datalist 可选可输、预设按源后缀推导）。
+ * 。
  */
 export function OutputMatrixEditor() {
+  useI18n();
   const settings = useSessionStore((state) => state.snapshot?.settings);
   const runState = useSessionStore((state) => state.snapshot?.state ?? "idle");
   const updateSettings = useSessionStore((state) => state.updateSettings);
@@ -139,8 +141,8 @@ export function OutputMatrixEditor() {
   };
 
   return (
-    <details className="panel output-matrix collapsible" aria-label="输出矩阵">
-      <summary className="panel-title collapsible-summary">输出矩阵与重命名</summary>
+    <details className="panel output-matrix collapsible" aria-label={t("matrix.label")}>
+      <summary className="panel-title collapsible-summary">{t("matrix.title")}</summary>
       <datalist id={RENAME_DATALIST_ID}>
         {renamePresets.map((preset) => (
           <option key={preset.value} value={preset.value}>
@@ -151,14 +153,14 @@ export function OutputMatrixEditor() {
       {!matrixMode && effective !== null && (
         <div className="detail-grid">
           <FormatSelect
-            label="输出格式"
+            label={t("matrix.format")}
             value={effective.type}
             disabled={disabled}
             allowUnset={false}
             onCommit={(value) => void updateSettings({ type: value })}
           />
           <DraftField
-            label="重命名（正则）"
+            label={t("matrix.rename")}
             value={effective.rename}
             disabled={disabled}
             mono
@@ -167,7 +169,7 @@ export function OutputMatrixEditor() {
             onCommit={(value) => void updateSettings({ rename: value })}
           />
           <DraftField
-            label="输出目录（output_dir）"
+            label={t("conversion.outputDir")}
             value={effective.outputDir}
             disabled={disabled}
             mono
@@ -180,11 +182,15 @@ export function OutputMatrixEditor() {
         <ol className="matrix-rules">
           {matrix.map((rule, index) => (
             // 规则无自然身份且按位置编辑（提交走后端往返）；内容 key 会在每次提交后重挂载整行丢失焦点，位置 key 是有意选择。
-            // biome-ignore lint/suspicious/noArrayIndexKey: 矩阵规则为位置语义的有序列表，无稳定业务 id
-            <li key={index} className="matrix-rule" aria-label={`输出规则 ${index + 1}`}>
+            <li
+              // biome-ignore lint/suspicious/noArrayIndexKey: 矩阵规则为位置语义的有序列表，无稳定业务 id
+              key={index}
+              className="matrix-rule"
+              aria-label={t("matrix.rule", { count: index + 1 })}
+            >
               <div className="detail-grid">
                 <FormatSelect
-                  label="输出格式"
+                  label={t("matrix.format")}
                   value={rule.type ?? ""}
                   disabled={disabled}
                   allowUnset
@@ -197,7 +203,7 @@ export function OutputMatrixEditor() {
                   }
                 />
                 <DraftField
-                  label="重命名（正则）"
+                  label={t("matrix.rename")}
                   value={rule.rename ?? ""}
                   disabled={disabled}
                   mono
@@ -212,7 +218,7 @@ export function OutputMatrixEditor() {
                   }
                 />
                 <DraftField
-                  label="输出目录（output_dir）"
+                  label={t("conversion.outputDir")}
                   value={rule.outputDir ?? ""}
                   disabled={disabled}
                   mono
@@ -226,7 +232,7 @@ export function OutputMatrixEditor() {
                   }
                 />
                 <DraftField
-                  label="tag 限定（空白分隔）"
+                  label={t("matrix.tags")}
                   value={rule.tags.join(" ")}
                   disabled={disabled}
                   onCommit={(value) =>
@@ -238,7 +244,7 @@ export function OutputMatrixEditor() {
                   }
                 />
                 <DraftField
-                  label="class 限定（空白分隔）"
+                  label={t("matrix.classes")}
                   value={rule.classes.join(" ")}
                   disabled={disabled}
                   onCommit={(value) =>
@@ -257,7 +263,7 @@ export function OutputMatrixEditor() {
                   submitMatrix((current) => current.matrix.filter((_, i) => i !== index))
                 }
               >
-                删除规则 {index + 1}
+                {t("matrix.remove", { count: index + 1 })}
               </Button>
             </li>
           ))}
@@ -275,15 +281,15 @@ export function OutputMatrixEditor() {
             );
           }}
         >
-          添加输出规则
+          {t("matrix.add")}
         </Button>
         {matrix.length > 0 && (
           <Button isDisabled={disabled || pending} onPress={() => submitMatrix(() => [])}>
-            清空矩阵
+            {t("matrix.clear")}
           </Button>
         )}
       </div>
-      {effective === null && <p className="empty-state">加载配置后可编辑输出矩阵。</p>}
+      {effective === null && <p className="empty-state">{t("matrix.empty")}</p>}
     </details>
   );
 }

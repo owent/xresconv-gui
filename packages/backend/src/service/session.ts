@@ -1,18 +1,18 @@
 /**
- * 转换会话编排（P3-03/P3-08/P3-09 会话层）。
+ * 转换会话编排(会话层）。
  *
  * ConversionSession 持有一次加载的配置、日志管线与运行代际（run_seq），
  * 是 run-state 状态机（domain/run-state.ts，冻结）的唯一迁移 owner。
  *
  * 依赖注入：
- * - ScriptWorkerPool 由调用方创建/持有（backend 不自己 spawn；会话级 cancel
- *   不杀共享池，BD-O6）；
- * - JavaRunner 默认 guardian runJavaBatch，测试可注入 fake；
- * - LogPipeline 缺省自建；log4js 落盘仅在显式传 `log4js` 选项时挂载（BD-O12）。
+ * ScriptWorkerPool 由调用方创建/持有（backend 不自己 spawn；会话级 cancel
+ *   不杀共享池)；
+ * JavaRunner 默认 guardian runJavaBatch，测试可注入 fake；
+ * LogPipeline 缺省自建；log4js 落盘仅在显式传 `log4js` 选项时挂载。
  *
  * worker 事件接线：pool.onLog 的 log envelope 按级别路由进日志管线；
  * on_append_log 产出的日志按 entry_kind / 在途 invocation_id 判定并 bypass
- * hook 链（递归保护，BD-O11）；WorkerDiag（worker-stderr/fault/exit）记为
+ * hook 链（递归保护)；WorkerDiag（worker-stderr/fault/exit）记为
  * WORKER 模块诊断（bypass hook 链，避免对脚本引擎诊断再触发脚本）。
  */
 
@@ -46,7 +46,7 @@ import { runConversion as executeRun, type JavaRunner, type RunSummary } from ".
 import { resolveSelectorItemsIsolated } from "./selection-rule-service.ts";
 import { type AppliedOpsReport, SessionTreeState } from "./tree-state.ts";
 
-/** 并发默认 2（旧版启动硬压 2 的语义，main.js:2574-2587），上限 16（main.js:6-9）。 */
+/** 并发默认 2（启动硬压 2 的语义)，上限 16。 */
 export const DEFAULT_PARALLELISM = 2;
 export const MAX_PARALLELISM = 16;
 
@@ -55,7 +55,7 @@ const LOG4JS_SHUTDOWN_TIMEOUT_MS = 5000;
 /** dispose 等待活动运行实际回收的上限（超时不冒充清理成功，记诊断）。 */
 const DISPOSE_RUN_TIMEOUT_MS = 60_000;
 
-/** 并发数归一化（BD-O2）：取整并压到 [1, MAX_PARALLELISM]；非有限值抛 RangeError。 */
+/** 并发数归一化：取整并压到 [1, MAX_PARALLELISM]；非有限值抛 RangeError。 */
 function normalizeParallelism(value: number): number {
   const requested = Math.floor(value);
   if (!Number.isFinite(requested)) throw new RangeError("parallelism must be finite");
@@ -67,19 +67,19 @@ export interface ConversionSessionOptions {
   pool: ScriptWorkerPool;
   /** Java 批量执行器；默认 guardian runJavaBatch。 */
   runner?: JavaRunner;
-  /** 转表并发数，默认 2，压到 [1,16]（BD-O2）。 */
+  /** 转表并发数，默认 2，压到 [1,16]。 */
   parallelism?: number;
-  /** set_name 单条超时（毫秒），默认 5000（BD-O1）。 */
+  /** set_name 单条超时（毫秒），默认 5000。 */
   setNameTimeoutMs?: number;
   /** 日志管线；缺省自建。 */
   pipeline?: LogPipeline;
-  /** 显式传入才挂载 log4js 落盘（configurePath 对应 --log-configure，BD-O12）。 */
+  /** 显式传入才挂载 log4js 落盘（configurePath 对应 --log-configure)。 */
   log4js?: { configurePath?: string };
-  /** worker dialog 请求回调；缺省保持 pool 默认（无 handler 自动应答 null，BD-W2）。 */
+  /** worker dialog 请求回调；缺省保持 pool 默认（无 handler 自动应答 null)。 */
   onDialogRequest?: ScriptWorkerPool["onDialogRequest"];
-  /** 弹框失效回调（P2-06：worker 死亡/TTL 过期/显式 dismiss 时 UI 关闭弹框）。 */
+  /** 弹框失效回调(worker 死亡/TTL 过期/显式 dismiss 时 UI 关闭弹框）。 */
   onDialogInvalidate?: ScriptWorkerPool["onDialogInvalidate"];
-  /** matcher 工厂（P4-05a 选择器匹配，隔离域）；缺省真实 MatcherService（懒创建）。 */
+  /** matcher 工厂（ 选择器匹配，隔离域）；缺省真实 MatcherService（懒创建）。 */
   matcherFactory?: () => MatcherService;
 }
 
@@ -92,7 +92,7 @@ export class ConversionSession {
 
   private readonly pool: ScriptWorkerPool;
   private readonly runner: JavaRunner;
-  /** 转表并发数（P4-04b 起可变：updateSettings parallelism 写入；run 每次取当前值）。 */
+  /** 转表并发数（ 起可变：updateSettings parallelism 写入；run 每次取当前值）。 */
   private parallelism: number;
   private readonly setNameTimeoutMs: number | undefined;
   private readonly log4jsSink: Log4jsSink | null = null;
@@ -101,19 +101,21 @@ export class ConversionSession {
   private state: RunState = "idle";
   private generation = 0;
   private config: ParsedConfig | null = null;
-  /** P2-05：与 config 同生共死的会话树状态（选择/展开/矩阵资格 + ops 应用）。 */
+  /** ：与 config 同生共死的会话树状态（选择/展开/矩阵资格 + ops 应用）。 */
   private treeState: SessionTreeState | null = null;
-  /** P4-04a：表单编辑的转换参数覆盖（updateSettings 写入，loadConfig 成功清空）。 */
+  /** ：表单编辑的转换参数覆盖（updateSettings 写入，loadConfig 成功清空）。 */
   private overrides: ConversionOverrides = {};
-  /** P4-05a：自定义选择器/按钮（CLI --custom-selector/--custom-button 文件）。
+  /**
+   *  ：自定义选择器/按钮（CLI --custom-selector/--custom-button 文件）。
    * generation 随 setCustomSelectors 递增，进入 button_id——reload 动作重读文件后
-   * 旧按钮 data（worker 内按 button_id 存活）自动失效，对齐旧版清缓存重建按钮。 */
+   * 旧按钮 data（worker 内按 button_id 存活）自动失效，对齐清缓存重建按钮。
+   */
   private customSelectors: {
     files: string[];
     entries: CustomSelectorEntry[];
     generation: number;
   } | null = null;
-  /** P4-05a：选择器匹配的隔离 matcher（懒创建；dispose 时 shutdown）。 */
+  /** ：选择器匹配的隔离 matcher（懒创建；dispose 时 shutdown）。 */
   private matcher: MatcherService | null = null;
   private readonly matcherFactory: () => MatcherService;
   private javaAbort: AbortController | null = null;
@@ -180,13 +182,13 @@ export class ConversionSession {
     return this.parallelism;
   }
 
-  /** 设置转表并发数（P4-04b updateSettings parallelism）；取整并压到 [1,16]，非有限抛 RangeError。 */
+  /** 设置转表并发数（ updateSettings parallelism）；取整并压到 [1,16]，非有限抛 RangeError。 */
   setParallelism(value: number): void {
     this.parallelism = normalizeParallelism(value);
   }
 
   /**
-   * 加载配置（P3-03）：idle/ready/结束状态 → loading → ready；解析硬错误 → failed 并抛出。
+   * 加载配置：idle/ready/结束状态 → loading → ready；解析硬错误 → failed 并抛出。
    * set_name 整合由 load-config.ts 完成（错误/超时记诊断、加载继续）。
    */
   async loadConfig(configPath: string): Promise<ParsedConfig> {
@@ -212,10 +214,10 @@ export class ConversionSession {
       const tree = new SessionTreeState(config, (this.treeState?.selectionVersion ?? 0) + 1);
       this.config = config;
       this.treeState = tree;
-      // 表单随配置重填：上次配置的 overrides 不带入新配置（P4-04a）。
+      // 表单随配置重填：上次配置的 overrides 不带入新配置。
       this.overrides = {};
-      // P4-05a：已设置自定义选择器时，每次成功加载后重放 default_selected
-      // （main.js:1888-1892 show_conv_tree 末尾 force=true 执行一次）。
+      // 已设置自定义选择器时，每次成功加载后重放 default_selected
+      // （ show_conv_tree 末尾 force=true 执行一次）。
       if (this.customSelectors !== null) {
         await this.applyDefaultSelected();
       }
@@ -233,7 +235,7 @@ export class ConversionSession {
   }
 
   /**
-   * 当前树快照（script-invoke context.tree 的同一份数据，P2-05）。
+   * 当前树快照（script-invoke context.tree 的同一份数据)。
    * UI 渲染/脚本上下文共用；未加载配置时为 null。
    */
   getTreeSnapshot(): TreeSnapshot | null {
@@ -245,7 +247,7 @@ export class ConversionSession {
     return this.treeState?.getSelectedItems() ?? [];
   }
 
-  /** 当前持有的转换参数覆盖（P4-04a；拷贝返回，外部改写不影响会话）。 */
+  /** 当前持有的转换参数覆盖(拷贝返回，外部改写不影响会话）。 */
   getOverrides(): ConversionOverrides {
     return structuredClone(this.overrides);
   }
@@ -260,7 +262,7 @@ export class ConversionSession {
   }
 
   /**
-   * 合并式更新转换参数覆盖（P4-04a updateSettings 后端）。字段白名单/类型校验
+   * 合并式更新转换参数覆盖（ updateSettings 后端）。字段白名单/类型校验
    * 归 RPC 层；此处假定字段已合法。matrix 变化时对会话树重估矩阵资格
    * （multiSelected 按内容推导，与 resolveEffectiveRules 的 matrixMode 同规则；
    * 未加载树状态时跳过）。返回合并后的有效设置快照。
@@ -279,7 +281,7 @@ export class ConversionSession {
   }
 
   /**
-   * 应用一批脚本 ops（P2-05）。诊断与被拒绝的 op 记 warning（module "SCRIPT"）。
+   * 应用一批脚本 ops。诊断与被拒绝的 op 记 warning（module "SCRIPT"）。
    * 版本失配整批拒绝（陈旧镜像的迟到写入不生效）。
    */
   applyScriptOps(ops: readonly unknown[]): AppliedOpsReport {
@@ -301,13 +303,13 @@ export class ConversionSession {
   }
 
   /**
-   * 执行一次转换运行（P3-08）。要求已加载配置；运行结束后再运行先经
-   * loading→ready 重新武装（BD-O14；状态机不允许 terminal→before_hooks 直达）。
+   * 执行一次转换运行。要求已加载配置；运行结束后再运行先经
+   * loading→ready 重新武装(状态机不允许 terminal→before_hooks 直达）。
    *
-   * selection 缺省时从会话树状态派生（P2-05：脚本/矩阵资格造成的最新勾选）。
-   * overrides 缺省时用会话持有的表单覆盖（P4-04a updateSettings 写入）；
+   * selection 缺省时从会话树状态派生(脚本/矩阵资格造成的最新勾选）。
+   * overrides 缺省时用会话持有的表单覆盖（ updateSettings 写入）；
    * 显式入参（含 {}）优先于会话持有值。
-   * config/selection 按引用传入（不再克隆）：旧版 before 链里脚本对 item_data 的
+   * config/selection 按引用传入（不再克隆）： before 链里脚本对 item_data 的
    * 改写是活引用语义，计划构建在 before 之后必须能看到（ops 回流 treeState 与
    * config/selection 共享同一 TreeItem 对象）。
    */
@@ -331,14 +333,14 @@ export class ConversionSession {
     const treeState = this.treeState;
     // 显式 selection = UI 报告的勾选状态：先同步进树状态（树是镜像/快照的唯一
     // 事实来源），再冻结"哪些 item"为数组快照（调用方随后改数组不影响本次运行），
-    // item 对象按引用共享（before 链脚本的字段改写对计划可见，旧版活引用语义）。
+    // item 对象按引用共享（before 链脚本的字段改写对计划可见，活引用语义）。
     if (selection !== undefined) {
       treeState?.replaceSelection(selection.items);
     }
     const effectiveSelection = {
       items: [...(selection ?? { items: treeState?.getSelectedItems() ?? [] }).items],
     };
-    // BD-S16：append_log 的树快照在 run 开始固化一次，不随后续事件 ops 更新。
+    // append_log 的树快照在 run 开始固化一次，不随后续事件 ops 更新。
     const appendLogSnapshot = treeState?.buildSnapshot();
     this.generation++;
     this.cancelRequested = false;
@@ -378,7 +380,7 @@ export class ConversionSession {
   }
 
   /**
-   * 取消当前运行（BD-O6）：冻结派发 + abort 在途 java（SIGTERM→宽限→SIGKILL）。
+   * 取消当前运行：冻结派发 + abort 在途 java（SIGTERM→宽限→SIGKILL）。
    * 仅运行中状态（before_hooks/converting/after_hooks）有效，其余状态 no-op；
    * 清理完成后才进入 cancelled。worker 在途 invoke 不杀（共享池），由其 timeout 兜底。
    */
@@ -411,7 +413,7 @@ export class ConversionSession {
     const run = this.activeRun;
     if (run !== null) {
       // 实际回收后才算清理成功：run 的 settle 发生在 runner 终止确认之后。
-      // 超时不冒充成功——记诊断后继续（EX03/SC11：清理未确认必须可见）。
+      // 超时不冒充成功——记诊断后继续(清理未确认必须可见）。
       let timer: NodeJS.Timeout | undefined;
       const outcome = await Promise.race([
         run.then(() => "settled" as const),
@@ -434,7 +436,7 @@ export class ConversionSession {
       this.matcher = null;
     }
     if (this.log4jsSink !== null) {
-      // 日志后端不可用（如目标只读/配置失败）不能使会话收尾失败（EX04：
+      // 日志后端不可用（如目标只读/配置失败）不能使会话收尾失败(
       // 失败可查，不阻断清理）。与上方 run 清理同款"记诊断后继续"。
       await this.log4jsSink.shutdown(LOG4JS_SHUTDOWN_TIMEOUT_MS).catch((error: unknown) => {
         void this.pipeline.error(`log4js shutdown failed: ${String(error)}`, "LOG", {
@@ -446,11 +448,11 @@ export class ConversionSession {
   }
 
   /**
-   * 重置（EX03/P3-08）：业务操作而非直接清变量——有活动运行先取消并等待
+   * 重置：业务操作而非直接清变量——有活动运行先取消并等待
    * 实际回收（run settle 发生在 runner 终止确认之后），再清运行期状态并
-   * 经 loading→ready 重新武装（BD-O14；配置保留，重载走 loadConfig）。
+   * 经 loading→ready 重新武装(配置保留，重载走 loadConfig）。
    * 幂等；旧运行的迟到回包由 treeState 版本闸与 worker 侧 exactly-once
-   * 拦截（SC10，见 P2-05/P2-06 记录），reset 本身不重放任何任务。
+   * 拦截(见 / 记录），reset 本身不重放任何任务。
    */
   async reset(): Promise<{ cancelledRun: boolean }> {
     if (this.disposed) {
@@ -470,7 +472,7 @@ export class ConversionSession {
     return { cancelledRun: run !== null };
   }
 
-  /** 当前自定义选择器视图（P4-05a；未设置为 null）。 */
+  /** 当前自定义选择器视图(未设置为 null）。 */
   getCustomSelectorViews(): CustomSelectorView[] | null {
     return this.customSelectors === null ? null : selectorViews(this.customSelectors.entries);
   }
@@ -491,8 +493,8 @@ export class ConversionSession {
   }
 
   /**
-   * 设置/重读自定义选择器文件（P4-05a；对应 CLI --custom-selector/--custom-button
-   * 与按钮 reload 动作）。generation 递增使旧 button_id 失效（旧版 reload 动作
+   * 设置/重读自定义选择器文件(对应 CLI --custom-selector/--custom-button
+   * 与按钮 reload 动作）。generation 递增使旧 button_id 失效（ reload 动作
    * 清缓存重建按钮、按钮 data 重置的等价语义）。已加载树时重放 default_selected。
    */
   async setCustomSelectors(files: readonly string[]): Promise<CustomSelectorView[]> {
@@ -511,7 +513,7 @@ export class ConversionSession {
     return selectorViews(entries);
   }
 
-  /** default_selected 重放（force=true，main.js:826-828/1888-1892）；逐选择器隔离失败。 */
+  /** default_selected 重放（force=true)；逐选择器隔离失败。 */
   private async applyDefaultSelected(): Promise<void> {
     const selectors = this.customSelectors;
     const config = this.config;
@@ -535,7 +537,7 @@ export class ConversionSession {
     }
   }
 
-  /** 选择器匹配（隔离 matcher 求值，BD-M4 fail-closed 语义在 SelectionRuleService）。 */
+  /** 选择器匹配（隔离 matcher 求值， fail-closed 语义在 SelectionRuleService）。 */
   private async matchSelector(def: CustomSelectorDef): Promise<TreeItem[]> {
     const config = this.config;
     const selectors = this.customSelectors;
@@ -565,7 +567,7 @@ export class ConversionSession {
   }
 
   /**
-   * 批量勾选/取消匹配条目（main.js:428 逐 item setSelected 的等价 ops）。
+   * 批量勾选/取消匹配条目（ 逐 item setSelected 的等价 ops）。
    * unselectable 条目由树状态 no-op（fancytree 语义）；级联在 SelectionTree 内完成。
    * 会话内生 ops 盖上当前版本过版本闸（生成到应用间无交错，版本即当前值）。
    */
@@ -579,10 +581,10 @@ export class ConversionSession {
     }
   }
 
-  /** 匹配切换（无 action 按钮点击，main.js:333-470）：有未选中 → 全选，否则全取消。 */
+  /** 匹配切换（无 action 按钮点击)：有未选中 → 全选，否则全取消。 */
   private async runSelectorToggle(def: CustomSelectorDef): Promise<void> {
     if (this.treeState === null || this.config === null) {
-      return; // 未加载配置：旧版 conv_data.items 为空，等效无操作
+      return; // 未加载配置： conv_data.items 为空，等效无操作
     }
     const matched = await this.matchSelector(def);
     const selectedSet = new Set(this.treeState.getSelectedItems());
@@ -591,8 +593,8 @@ export class ConversionSession {
   }
 
   /**
-   * 执行单个按钮动作（main.js:663-714）。返回错误文本（null = 成功/no-op）。
-   * reload：重读选择器文件（清缓存重建，main.js:670-676；旧版附带 log4js 重配置
+   * 执行单个按钮动作。返回错误文本（null = 成功/no-op）。
+   * reload：重读选择器文件（清缓存重建，；附带 log4js 重配置
    * 属渲染侧偶然耦合，不复活——log4js 配置由会话级 sink 持有）。
    */
   private async runButtonAction(def: CustomSelectorDef, raw: unknown): Promise<string | null> {
@@ -607,7 +609,7 @@ export class ConversionSession {
       }
       case "select_all":
       case "unselect_all":
-        // 旧版动作名 unselect_all → 树 ops 词汇 select_none；盖当前版本过版本闸。
+        // 动作名 unselect_all → 树 ops 词汇 select_none；盖当前版本过版本闸。
         this.applyScriptOps([
           {
             v: this.treeState?.selectionVersion,
@@ -620,7 +622,7 @@ export class ConversionSession {
     }
   }
 
-  /** 按钮脚本执行（main.js:502-660；worker entry_kind "button"，P2-03）。 */
+  /** 按钮脚本执行(worker entry_kind "button")。 */
   private async runButtonScript(
     def: CustomSelectorDef,
     scriptName: string,
@@ -640,9 +642,9 @@ export class ConversionSession {
         filename: script.filename,
         source: script.source,
         timeout_ms: script.timeoutMs,
-        // button_id 含选择器代际：reload 动作重读文件后 data 重新开始（旧版对象重建语义）。
+        // button_id 含选择器代际：reload 动作重读文件后 data 重新开始（对象重建语义）。
         button_id: `${def.name}@${String(selectors?.generation ?? 0)}`,
-        // 旧版按钮上下文无 run_seq（P0-08 §2.3）；global_options 为 option 数组形态
+        // 按钮上下文无 run_seq；global_options 为 option 数组形态
         // （分歧 3：按钮是数组，before/after 事件才是 {"-p","-a"} 映射）。
         context: {
           work_dir: script.workDir,
@@ -653,10 +655,10 @@ export class ConversionSession {
         },
       });
     } catch (err) {
-      // worker 级失败（WORKER_TIMEOUT/WORKER_EXIT/...）：链中止，模块名同旧版末 catch。
+      // worker 级失败（WORKER_TIMEOUT/WORKER_EXIT/.)：链中止，模块名同末 catch。
       return formatUnknownError(err);
     }
-    // BD-S3：所有 outcome 都应用 ops（settle 前已产生的部分修改可见）。
+    // 所有 outcome 都应用 ops（settle 前已产生的部分修改可见）。
     if (this.disposed || config !== this.config || selectors !== this.customSelectors) {
       return "configuration changed during button script";
     }
@@ -673,7 +675,7 @@ export class ConversionSession {
   }
 
   /**
-   * 自定义按钮点击（P4-05a，main.js:795-830）：有 action 按序执行动作链，
+   * 自定义按钮点击：有 action 按序执行动作链，
    * 失败记 error（module "CUSTOM SELECTOR"）并中止后续；无 action 走匹配切换。
    * 返回 {ok, error?}；未知按钮由 RPC 层拦 INVALID_PARAMS。
    */
@@ -705,9 +707,9 @@ export class ConversionSession {
   }
 
   /**
-   * 事件 hook 开关（P4-05a，F09；main.js:1122-1188 复选框）。仅有 name 且
-   * mutable 的 hook 可切换；无状态门禁——旧版复选框全程可改，hook.enabled
-   * 在执行链构建时读取（运行中切换对当前 run 的 after 链可见，与旧版一致）。
+   * 事件 hook 开关(复选框）。仅有 name 且
+   * mutable 的 hook 可切换；无状态门禁——复选框全程可改，hook.enabled
+   * 在执行链构建时读取（运行中切换对当前 run 的 after 链可见，与一致）。
    */
   setHookEnabled(group: "before" | "after" | "append_log", index: number, enabled: boolean): void {
     const config = this.config;
@@ -741,9 +743,7 @@ export class ConversionSession {
     this.onStateChange?.(to, previous);
   }
 
-  /**
-   * run 流程的状态变更：本次运行结束后忽略迟到或重复更新，避免重复收尾；运行期间的非法跳转仍由 assertTransition 抛出。
-   */
+  /** run 流程的状态变更：本次运行结束后忽略迟到或重复更新，避免重复收尾；运行期间的非法跳转仍由 assertTransition 抛出。 */
   private transitionSoft(to: RunState): void {
     if (isTerminal(this.state)) {
       return;
@@ -776,7 +776,7 @@ export class ConversionSession {
       );
       return;
     }
-    // WorkerDiag（BD-W6）：worker 自身诊断不进 on_append_log 链（防对引擎诊断再触发脚本）。
+    // WorkerDiag：worker 自身诊断不进 on_append_log 链（防对引擎诊断再触发脚本）。
     void this.pipeline.append(
       {
         message: event.line,

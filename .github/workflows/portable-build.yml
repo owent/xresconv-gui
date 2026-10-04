@@ -1,22 +1,5 @@
 name: portable-build
 
-# 跨平台 portable 构建验证（用户 2026-09-27 指示：无签名证书，各平台打包
-# 仅需 Portable 包，不需要安装包；Windows 发行包为 7z、Linux 为 tar.zst。
-# Linux 两种运行时策略都与 AppImage
-# 并存）。范围（packaging/matrix.ts portableArtifactNames 精确 8 项，
-# fail-closed）：
-#   macOS x64/arm64 offline → 未签名 .app（ditto 压缩 .app.zip；无签名身份
-#   环境时 tauri-bundler 跳过签名/公证，tauri-cli v2.11.5 keychain()=None）；
-#   Linux x86_64/aarch64 offline → 自含 AppImage + 同内容自含 tar.zst（P5-06
-#   路线，仅在 Ubuntu 22.04 最老基线构建；linuxdeploy aarch64 由 tauri-bundler
-#   按目标架构选取，bundler 自带 APPIMAGE_EXTRACT_AND_RUN=1，无需 FUSE）；
-#   Linux x86_64/aarch64 bootstrap → 系统 WebKitGTK tar.zst（尽量复用发行版
-#   运行时，解压平铺布局，preflight.sh 探测/指引；构建基线记录在包内
-#   manifest，文件名不带 distro——产物发行版无关）。
-# macOS 两变体（bootstrap/offline）负载相同（targets.json 仅 variant 字段
-# 不同），portable 验证取 offline 命名。不签名、不写 release：聚合 job 只做
-# 产物集合 + SHA-256 边车核验（CI-06 语义，无发布权限）。
-
 on:
   push:
     branches: [dev, master]
@@ -41,8 +24,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # D5：x64/arm64 分别原生构建；runner 架构必须与 --arch 匹配
-          #（package-cli nativeArch 会拒绝外来宿主）。
           - arch: x64
             runner: macos-15-intel
           - arch: arm64
@@ -138,8 +119,6 @@ jobs:
             build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-bootstrap.tar.zst
             build/dist/xresconv-gui-*-linux-${{ matrix.arch }}-bootstrap.tar.zst.sha256
 
-  # CI-06 语义（无 release 写权限）：portable 范围的精确产物集合 + 边车哈希。
-  # 集合 = packaging/matrix.ts portableArtifactNames，缺失/多余/改名一律失败。
   verify-matrix:
     name: verify portable matrix
     needs: [build-macos, build-linux]

@@ -1,18 +1,4 @@
-/**
- * XML 配置加载器（P3-01 解析校验 + P3-02 include 合并）。
- *
- * 行为逐条对齐旧版 src/main.js build_conv_tree（main.js:1192-1851），
- * 证据锚点见 docs/plan/records/P0-08.md §1；差异以 BD-C? 编号记录于
- * docs/plan/records/P3-01.md。
- *
- * 关键决策：
- * - 严格 XML（BD-07）：先 checkWellFormed 预检，再 fast-xml-parser 解析；
- *   外部实体由 fast-xml-parser 直接拒绝（"External entities are not supported"），
- *   不发起任何文件/网络读取（Plan §7.1）。
- * - include：DFS 文档顺序、确定性合并，修复旧版 promise 链未回写竞态（B2 → BD-C1）；
- *   判重键为 realpath 文件身份（路径展示/相对路径仍按声明位置），重复/菱形硬错误 INCLUDE_DUPLICATE（BD-C3），
- *   循环硬错误 INCLUDE_CYCLE 含完整链（BD-C4）。
- */
+/** 严格 UTF-8/XML 加载、文档顺序合并与 realpath 包含检查。读取、节点、嵌套和脚本预算保持有界；仅成功解析后提交配置。 */
 
 import { open, realpath } from "node:fs/promises";
 import path from "node:path";
@@ -30,7 +16,7 @@ import type {
   TreeNode,
 } from "./model.ts";
 
-/** 旧版 convert_to_boolean 的字符串规则（main.js:18-51）：非空且非 no/false/0/disable/disabled（大小写不敏感）。 */
+/** convert_to_boolean 的字符串规则：非空且非 no/false/0/disable/disabled（大小写不敏感）。 */
 function convertToBoolean(input: string | undefined): boolean {
   if (!input) return false;
   const lower = input.toLowerCase();
@@ -44,7 +30,7 @@ function convertToBoolean(input: string | undefined): boolean {
   );
 }
 
-/** 旧版空白切分（main.js:1268-1276、1624-1631：trim 后 split(/[\s]+/) 再过滤空串）。 */
+/** 空白切分(1624-1631：trim 后 split([\s]+) 再过滤空串）。 */
 function splitWords(input: string | undefined): string[] {
   return (input ?? "")
     .trim()
@@ -52,10 +38,10 @@ function splitWords(input: string | undefined): string[] {
     .filter((x) => !!x);
 }
 
-const DEFAULT_HOOK_TIMEOUT_MS = 30000; // main.js:1490-1494 等
+const DEFAULT_HOOK_TIMEOUT_MS = 30000; //  等
 // 字节预算是防误配的保护上界，不是功能限制（03 册）。100k 条目压力用例的单文件
-// XML 约 11 MiB（P0-05 基线 10.8 MiB），故单文件上限须覆盖它；取值与 ipc/guardian
-// 的 64/128 MiB 帧预算同尺度（P4-08），仍保持有界。
+// XML 约 11 MiB（ 基线 10.8 MiB），故单文件上限须覆盖它；取值与 ipc/guardian
+// 的 64/128 MiB 帧预算同尺度，仍保持有界。
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 128 * 1024 * 1024;
 const MAX_INCLUDE_DEPTH = 64;
@@ -101,8 +87,8 @@ const PARSER = new XMLParser({
   attributeNamePrefix: "@",
   parseTagValue: false,
   parseAttributeValue: false,
-  // 不 trim：标量字段在代码内显式 trim（对齐旧版 .html().trim()），
-  // 脚本文本保留原文（仅实体解码，对齐旧版 .html()）。
+  // 不 trim：标量字段在代码内显式 trim（对齐 .html.trim），
+  // 脚本文本保留原文（仅实体解码，对齐 .html）。
   trimValues: false,
   // 保持默认 true：标准 XML 实体解码；外部实体被解析器直接拒绝。
   processEntities: true,
@@ -144,7 +130,7 @@ function childEntries(node: RawNode): Array<[string, RawNode[]]> {
   return entries;
 }
 
-/** 合并中间态（对应旧版 conv_data 的可变部分）。 */
+/** 合并中间态（对应 conv_data 的可变部分）。 */
 interface MergeState {
   totalBytes: number;
   xmlNodes: number;
@@ -171,7 +157,7 @@ interface MergeState {
   defaultSchemeByKey: Map<string, string[]>;
   gui: GuiConfig;
   tree: TreeNode[];
-  /** category id → 节点（main.js:1453-1455 的 cat_map）。 */
+  /** category id → 节点（ 的 cat_map）。 */
   catMap: Map<string, TreeCategoryNode>;
 }
 
@@ -223,7 +209,7 @@ function parseTimeout(
     parsed < 1 ||
     parsed > 2147481647
   ) {
-    // BD-C8：旧版 NaN 会原样流入 vm 选项；新版回退默认值并记录诊断。
+    // ： NaN 会原样流入 vm 选项；回退默认值并记录诊断。
     diagnostics.push({
       file,
       message: `timeout 属性 "${raw}" 无法解析为整数，回退默认值 ${DEFAULT_HOOK_TIMEOUT_MS}`,
@@ -242,7 +228,7 @@ function buildHook(node: RawNode, file: string, diagnostics: ConfigDiagnostic[])
     source: textOf(node),
     timeoutMs: parseTimeout(attrOf(node, "timeout"), file, diagnostics),
     filename: file,
-    // 无 name → 布尔开关值（main.js:1135-1145）；有 name → 初始等于 toggle.checked。
+    // 无 name → 布尔开关值；有 name → 初始等于 toggle.checked。
     enabled: checked,
   };
   if (name.length > 0) {
@@ -255,7 +241,7 @@ function buildHook(node: RawNode, file: string, diagnostics: ConfigDiagnostic[])
   return hook;
 }
 
-/** 解析期 work_dir 相对化（main.js:1434-1439：以声明文件目录为基准）。 */
+/** 解析期 work_dir 相对化(以声明文件目录为基准）。 */
 function resolveWorkDirValue(
   workDir: string | undefined,
   sourceDir: string | undefined,
@@ -278,47 +264,47 @@ function applyGlobalTag(
     matrix: OutputMatrixRule[];
   },
 ): void {
-  // 旧版 HTML 解析标签名大小写不敏感并统一 toLowerCase（main.js:1225）；
-  // 新版严格 XML 仅认小写标签，其余进 diagnostics（BD-C5）。
+  //  HTML 解析标签名大小写不敏感并统一 toLowerCase；
+  // 严格 XML 仅认小写标签，其余进 diagnostics。
   const val = textOf(node).trim();
   switch (tag) {
-    case "work_dir": // main.js:1228-1229
+    case "work_dir":
       state.workDir = val;
       state.workDirSourceDir = path.dirname(file);
       break;
-    case "xresloader_path": // main.js:1230-1231
+    case "xresloader_path":
       state.xresloaderPath = val;
       break;
-    case "proto_file": // main.js:1232-1233：无条件 push（含空串）
+    case "proto_file": // 无条件 push（含空串）
       perFile.protoFile.push(val);
       break;
-    case "output_dir": // main.js:1234-1235
+    case "output_dir":
       state.outputDir = val;
       break;
-    case "data_version": // main.js:1236-1237
+    case "data_version":
       state.dataVersion = val;
       break;
     case "data_src_dir":
-    case "data_source_dir": // main.js:1238-1244：完全等价别名；标签出现即重置，仅非空值入列
+    case "data_source_dir": // 完全等价别名；标签出现即重置，仅非空值入列
       perFile.dataSrcPresent = true;
       if (val) perFile.dataSrcValues.push(val);
       break;
-    case "rename": // main.js:1245-1246
+    case "rename":
       state.rename = val;
       break;
-    case "proto": // main.js:1247-1261（未知协议的 UI 提示属表现层）
+    case "proto": // （未知协议的 UI 提示属表现层）
       state.proto = val;
       break;
-    case "output_type": // main.js:1262-1276
+    case "output_type":
       perFile.matrix.push({
         type: val || undefined,
         rename: (attrOf(node, "rename") ?? "").trim() || undefined,
-        outputDir: attrOf(node, "output_dir") || undefined, // 旧版不 trim（main.js:1265）
+        outputDir: attrOf(node, "output_dir") || undefined, // 不 trim
         tags: splitWords(attrOf(node, "tag")),
         classes: splitWords(attrOf(node, "class")),
       });
       break;
-    case "option": // main.js:1277-1283：空 value 忽略；name/desc 回退 value
+    case "option": // 空 value 忽略；name/desc 回退 value
       if (val) {
         state.globalOptions.push({
           name: attrOf(node, "name") || val,
@@ -327,11 +313,11 @@ function applyGlobalTag(
         });
       }
       break;
-    case "java_option": // main.js:1284-1285：空 value 忽略，跨文件累积
+    case "java_option": // 空 value 忽略，跨文件累积
       if (val) state.javaOptions.push(val);
       break;
     case "default_scheme": {
-      // main.js:1286-1295：空 value 忽略；name trim 后为空忽略
+      // 空 value 忽略；name trim 后为空忽略
       if (!val) break;
       const key = (attrOf(node, "name") ?? "").trim();
       if (!key) break;
@@ -345,7 +331,7 @@ function applyGlobalTag(
       break;
     }
     default:
-      // 旧版静默忽略未识别标签；新版收集诊断（BD-C6），含大小写不匹配场景。
+      // 静默忽略未识别标签；收集诊断，含大小写不匹配场景。
       state.diagnostics.push({ file, tag, message: `<global> 未识别的标签 <${tag}> 已忽略` });
   }
 }
@@ -356,7 +342,7 @@ function applyCategory(root: RawNode, state: MergeState): void {
     const name = attrOf(node, "name") || id || "";
     const category: TreeCategoryNode = { kind: "category", name, children: [] };
     if (id !== undefined) category.id = id;
-    // main.js:1453-1455：有 id 登记 cat_map（后写覆盖）
+    // 有 id 登记 cat_map（后写覆盖）
     if (id) state.catMap.set(id, category);
     for (const child of asArray(objOf(node).tree)) {
       category.children.push(build(child));
@@ -371,15 +357,15 @@ function applyCategory(root: RawNode, state: MergeState): void {
 }
 
 function applyGui(root: RawNode, file: string, state: MergeState): void {
-  // 旧版每文件清空重建 gui（main.js:1465、1484-1486、1580）；include 先应用，
-  // 故最终生效的是最后应用文件（入口文件）的 gui 块（BD-C13）。
+  // 每文件清空重建 gui(1484-1486、1580）；include 先应用，
+  // 故最终生效的是最后应用文件（入口文件）的 gui 块（BD)。
   const gui: GuiConfig = {
     onBeforeConvert: [],
     onAfterConvert: [],
     onAppendLog: [],
     scripts: Object.create(null),
   };
-  // gui script 的 work_dir 在该文件 global 应用后快照（main.js:1434-1439 → 1598）
+  // gui script 的 work_dir 在该文件 global 应用后快照（ → 1598）
   const workDirSnapshot =
     resolveWorkDirValue(state.workDir, state.workDirSourceDir, path.dirname(file)) ?? "";
 
@@ -387,12 +373,12 @@ function applyGui(root: RawNode, file: string, state: MergeState): void {
     const guiObj = objOf(guiRoot);
 
     for (const node of asArray(guiObj.set_name)) {
-      // main.js:1466-1483：后写覆盖（非数组）
+      // 后写覆盖（非数组）
       if (gui.setName) {
         state.diagnostics.push({
           file,
           tag: "set_name",
-          message: "set_name 多次定义，后写覆盖（BD-C7）",
+          message: "set_name 多次定义，后写覆盖",
         });
       }
       gui.setName = { source: textOf(node), filename: file };
@@ -407,7 +393,7 @@ function applyGui(root: RawNode, file: string, state: MergeState): void {
       gui.onAppendLog.push(buildHook(node, file, state.diagnostics));
     }
     for (const node of asArray(guiObj.script)) {
-      // main.js:1580-1608：按 name 存 Record，缺省 ""
+      // 按 name 存 Record，缺省 ""
       const name = attrOf(node, "name") || "";
       gui.scripts[name] = {
         name,
@@ -424,14 +410,14 @@ function applyGui(root: RawNode, file: string, state: MergeState): void {
 function applyItems(root: RawNode, file: string, state: MergeState): void {
   for (const listRoot of asArray(objOf(root).list)) {
     for (const node of asArray(objOf(listRoot).item)) {
-      const name = (attrOf(node, "name") ?? "").trim(); // BD-C9：缺 name 属性安全缺省 ""
+      const name = (attrOf(node, "name") ?? "").trim(); // ：缺 name 属性安全缺省 ""
       const item: TreeItem = {
         file: attrOf(node, "file"),
         scheme: attrOf(node, "scheme"),
         name,
         cat: attrOf(node, "cat"),
         options: [],
-        // main.js:1621：name || desc || ""
+        // name || desc || ""
         desc: name || (attrOf(node, "desc") ?? "").trim() || "",
         schemeData: Object.create(null),
         tags: splitWords(attrOf(node, "tag")),
@@ -439,7 +425,7 @@ function applyItems(root: RawNode, file: string, state: MergeState): void {
       };
 
       for (const optionNode of asArray(objOf(node).option)) {
-        // main.js:1652-1658：name/desc 原样（可 undefined），value trim
+        // name/desc 原样（可 undefined），value trim
         const option: { name?: string; desc?: string; value: string } = {
           value: textOf(optionNode).trim(),
         };
@@ -453,7 +439,7 @@ function applyItems(root: RawNode, file: string, state: MergeState): void {
       for (const schemeNode of asArray(objOf(node).scheme)) {
         const key = (attrOf(schemeNode, "name") ?? "").trim();
         if (!key) {
-          // BD-C9：旧版此处会抛 TypeError 中断加载；新版跳过并记录。
+          // ：此处会抛 TypeError 中断加载；跳过并记录。
           state.diagnostics.push({
             file,
             tag: "scheme",
@@ -461,7 +447,7 @@ function applyItems(root: RawNode, file: string, state: MergeState): void {
           });
           continue;
         }
-        const value = textOf(schemeNode); // main.js:1661-1669：值不 trim
+        const value = textOf(schemeNode); // 值不 trim
         let bucket = item.schemeData[key];
         if (bucket === undefined) {
           bucket = [];
@@ -469,27 +455,27 @@ function applyItems(root: RawNode, file: string, state: MergeState): void {
         }
         bucket.push(value);
 
-        // DataSource 特例（main.js:1671-1685）：name 大小写不敏感等于 datasource
+        // DataSource 特例：name 大小写不敏感等于 datasource
         if (key.toLowerCase() === "datasource") {
           const parts = value.split("|");
           if (parts.length > 1) {
-            item.file = parts[0]; // 第 2 段为表名（展示用途，不进模型，BD-C10）
+            item.file = parts[0]; // 第 2 段为表名（展示用途，不进模型，BD)
           } else {
             item.file = parts[0];
           }
-          // 注意：旧版不设置 item.scheme（main.js:1671-1685）
+          // 注意：不设置 item.scheme
         }
       }
 
-      // default_scheme 补缺（main.js:1689-1692）：仅 item 自身无该 key 时填入；
-      // 补缺拷贝数组而非共享引用（BD-C14）。
+      // default_scheme 补缺：仅 item 自身无该 key 时填入；
+      // 补缺拷贝数组而非共享引用（BD)。
       for (const [key, values] of state.defaultSchemeByKey) {
         if (!item.schemeData[key]) {
           item.schemeData[key] = [...values];
         }
       }
 
-      // main.js:1771-1776：cat 命中 cat_map 挂分类，否则挂根
+      // cat 命中 cat_map 挂分类，否则挂根
       const leaf: TreeNode = { kind: "item", item };
       const parent = item.cat ? state.catMap.get(item.cat) : undefined;
       if (parent) parent.children.push(leaf);
@@ -499,7 +485,7 @@ function applyItems(root: RawNode, file: string, state: MergeState): void {
 }
 
 async function loadFile(file: string, state: MergeState): Promise<void> {
-  // BD-C2：判重键为 path.resolve 规范化路径（旧版为字面字符串键，U4）
+  // ：判重键为 path.resolve 规范化路径（为字面字符串键，U4）
   const resolved = path.resolve(file);
   let identity: string;
   try {
@@ -519,7 +505,7 @@ async function loadFile(file: string, state: MergeState): Promise<void> {
     });
   }
   if (state.loaded.has(identity)) {
-    // BD-C3：旧版 alert 后跳过；新版确定性硬错误
+    // ： alert 后跳过；确定性硬错误
     throw new ConfigError(
       "INCLUDE_DUPLICATE",
       `文件 ${resolved} 已被加载过，不能重复 include（已加载链: ${[...state.visiting, resolved].join(" -> ")}）`,
@@ -589,7 +575,7 @@ async function loadFile(file: string, state: MergeState): Promise<void> {
           budget: "xmlDepth",
         });
       // 含 DOCTYPE 外部实体等解析期拒绝（fxp："External entities are not supported"，
-      // 不发起任何文件/网络读取，天然满足 Plan §7.1 禁用外部实体）。
+      // 外部实体不触发文件或网络读取。
       throw new ConfigError(
         "INVALID_XML",
         `${resolved}: XML 解析失败: ${err instanceof Error ? err.message : String(err)}`,
@@ -606,12 +592,12 @@ async function loadFile(file: string, state: MergeState): Promise<void> {
     checkDocumentBudget(document, resolved, state);
     const root = objOf(document.root as RawNode);
 
-    // 先按 DFS 文档顺序应用全部 include，再应用本文件（BD-C1：确定性顺序，修复 B2 竞态）
+    // 先按 DFS 文档顺序应用全部 include，再应用本文件，保持确定性覆盖顺序。
     for (const includeNode of asArray(root.include)) {
-      // BD-C11：旧版不 trim，含空白的 include 会拼出坏路径；新版 trim
+      // 包含路径去除首尾空白后解析。
       const includePath = textOf(includeNode).trim();
-      if (!includePath) continue; // main.js:1208-1214：空 include 跳过
-      // 相对路径以**声明文件所在目录**为基准（main.js:1210-1212，path.resolve 兼做规范化）
+      if (!includePath) continue; // 空 include 跳过
+      // 相对路径以**声明文件所在目录**为基准(path.resolve 兼做规范化）
       await loadFile(path.resolve(path.dirname(resolved), includePath), state);
     }
 
@@ -619,7 +605,7 @@ async function loadFile(file: string, state: MergeState): Promise<void> {
     state.loaded.add(identity);
     state.loadedFiles.push(resolved);
 
-    // ---- 应用本文件（父覆盖子的 DOM 级全局配置；数组类累积）----
+    // 应用本文件（父覆盖子的 DOM 级全局配置；数组类累积）----
     const perFile = {
       protoFile: [] as string[],
       dataSrcPresent: false,
@@ -633,11 +619,11 @@ async function loadFile(file: string, state: MergeState): Promise<void> {
         }
       }
     }
-    // proto_file：文件内含标签（含空值）即整体替换（main.js:1298-1305）
+    // proto_file：文件内含标签（含空值）即整体替换
     if (perFile.protoFile.length > 0) state.protoFile = perFile.protoFile;
-    // data_src_dir/data_source_dir：标签出现即重置（含空标签 → 空数组，B7 语义；main.js:1307-1317）
+    // data_src_dir/data_source_dir：标签出现即重置（含空标签 → 空数组，B7 语义)
     if (perFile.dataSrcPresent) state.dataSrcDir = perFile.dataSrcValues;
-    // output_type 矩阵：每个文件都重写（main.js:1319-1429）
+    // output_type 矩阵：每个文件都重写
     state.outputMatrix = perFile.matrix;
 
     applyCategory(root, state);
@@ -670,7 +656,7 @@ export async function parseXmlConfig(absPath: string): Promise<ParsedConfig> {
     dataSrcDir: [],
     outputMatrix: [],
     globalOptions: [],
-    // 初始隐含值（main.js:931 reset_conv_data）：模型内含，调用方不再另行补
+    // 初始隐含值（ reset_conv_data）：模型内含，调用方不再另行补
     javaOptions: ["-Dfile.encoding=UTF-8"],
     defaultScheme: [],
     defaultSchemeByKey: new Map(),
@@ -707,7 +693,7 @@ export async function parseXmlConfig(absPath: string): Promise<ParsedConfig> {
 
 /**
  * 取有效工作目录（绝对路径）：相对值以 workDir 声明文件目录为基准
- * （解析期相对化，main.js:1434-1439）；未配置返回 undefined。
+ * （解析期相对化)；未配置返回 undefined。
  */
 export function resolveWorkDir(config: ParsedConfig): string | undefined {
   return resolveWorkDirValue(config.workDir, config.workDirSourceDir, config.dir);

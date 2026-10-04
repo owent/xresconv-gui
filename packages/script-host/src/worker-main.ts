@@ -1,10 +1,4 @@
-/**
- * Script worker main loop (P2-03). Speaks the framed envelope protocol on
- * fd0/fd1 (@xresconv/ipc); every diagnostic of the worker itself goes to fd2.
- * Executes the five legacy script entry kinds via ./executor.ts. Behavior
- * baseline: docs/plan/records/P0-08.md §2/§5; divergences are the BD-S entries
- * in docs/plan/records/P2-03.md.
- */
+/** 脚本 worker 消息循环：校验调用，维护后台上下文与弹窗 token，发送关联结果。 */
 import { randomUUID } from "node:crypto";
 import type { Envelope, ScriptInvoke, ScriptResult } from "@xresconv/contracts";
 import { PROTOCOL_VERSION, validate } from "@xresconv/contracts";
@@ -13,14 +7,14 @@ import type { DialogCallbacks, ExecutorHooks } from "./executor.ts";
 import { executeInvocation } from "./executor.ts";
 
 const ROLE = "script-worker" as const;
-/** Grace on top of invoke.timeout_ms for the worker-level wall-clock fallback (BD-S5). */
+/** Grace on top of invoke.timeout_ms for the worker-level wall-clock fallback. */
 const OUTER_TIMEOUT_GRACE_MS = 100;
 /** Forced exit after shutdown is requested, even if invocations never settle. */
 const SHUTDOWN_FORCE_EXIT_MS = 2000;
 /**
- * 内存/健康自报周期（P2-07 watchdog）：worker 主动周期性上报 memoryUsage，
+ * 内存/健康自报周期（ watchdog）：worker 主动周期性上报 memoryUsage，
  * guardian 据此评估 RSS 限额。同步死循环时无法上报——该情形由 invoke 超时
- * 销毁覆盖（BD-W3），与内存慢增长（事件循环空闲、可持续上报）互补。
+ * 销毁覆盖，与内存慢增长（事件循环空闲、可持续上报）互补。
  * 测试可用 XRESCONV_WORKER_HEALTH_INTERVAL_MS 加速。
  */
 const DEFAULT_HEALTH_REPORT_INTERVAL_MS = 5000;
@@ -28,11 +22,11 @@ const DEFAULT_HEALTH_REPORT_INTERVAL_MS = 5000;
 const inflight = new Set<Promise<void>>();
 
 /**
- * 弹框回调注册表（P2-06）：token → 回调 + 注册上下文。
+ * 弹框回调注册表：token → 回调 + 注册上下文。
  * 生命周期：registerDialogCallbacks 登记 → handleDialogRespond 应答时取出并删除
- * （exactly-once）。条目**不**随 invocation 结束而失效（旧版 modal 晚于脚本
- * 结束仍可点，SC06"合法回调不提前销毁"）；未应答条目的留存上限由 guardian
- * 的 dialogTimeoutMs 统一兜底（BD-W10），worker 进程退出时随进程消亡。
+ * （exactly-once）。条目**不**随 invocation 结束而失效（ modal 晚于脚本
+ * 结束仍可点，"合法回调不提前销毁"）；未应答条目的留存上限由 guardian
+ * 的 dialogTimeoutMs 统一兜底，worker 进程退出时随进程消亡。
  */
 interface DialogRegistryEntry {
   callbacks: DialogCallbacks;
@@ -94,12 +88,7 @@ function sendHealth(inReplyTo?: string): Promise<void> {
   );
 }
 
-/**
- * Worker-level wall-clock fallback around every invocation (BD-S5). The
- * executor's own timer fires first (grace) and reports the legacy reason;
- * this outer race only wins when an invocation stays unsettled past
- * timeout_ms + grace (e.g. a dialog that is never answered).
- */
+/** 每个调用设置 worker 墙钟截止，等待 executor 宽限后仍未完成时返回超时。同步死循环由外部 guardian 截断。 */
 async function runWithOuterDeadline(
   invoke: ScriptInvoke,
   hooks: ExecutorHooks,
@@ -173,12 +162,12 @@ function handleInvoke(env: Envelope): void {
 }
 
 /**
- * alert_warning answer (P0-08 §5)：yes -> yes() -> on_close()；no -> no() ->
- * on_close()。回调先取后删（exactly-once，重复点击/重复应答的第二次直接
- * 拒绝）；this=undefined、无实参（BD-S6）；yes/no 抛异常跳过 on_close（旧版
+ * alert_warning answer：yes -> yes -> on_close；no -> no ->
+ * on_close。回调先取后删（exactly-once，重复点击/重复应答的第二次直接
+ * 拒绝）；this=undefined、无实参；yes/no 抛异常跳过 on_close（
  * 单处理器顺序语义）。choice 为 null/缺失/"dismissed"（ESC/遮罩/关闭/TTL 兜底）
- * → 无回调，仅最终化并记 fd2 诊断（BD-06：关闭必须收尾，不允许永久挂起）。
- * 过期 token（worker 重建/已应答/TTL 清除）不执行任何回调（SC06）。
+ * → 无回调，仅最终化并记 fd2 诊断(关闭必须收尾，不允许永久挂起）。
+ * 过期 token（worker 重建/已应答/TTL 清除）不执行任何回调。
  */
 function handleDialogRespond(env: Envelope): void {
   const fromPayload = env.payload.token;
@@ -210,7 +199,7 @@ function handleDialogRespond(env: Envelope): void {
     } else {
       logStderr(
         `dialog ${token} (invocation ${entry.invocationId}) dismissed without choice; ` +
-          `finalized without callbacks after ${String(Date.now() - entry.createdAt)}ms (BD-06)`,
+          `finalized without callbacks after ${String(Date.now() - entry.createdAt)}ms`,
       );
     }
   } catch (err) {
@@ -262,7 +251,7 @@ async function handleEnvelope(value: unknown): Promise<void> {
 }
 
 // Script callbacks scheduled via injected setTimeout must never crash the
-// worker; legacy surfaced such errors in the GUI log, we surface them on fd2.
+// worker 内部错误写入 stderr，控制协议保留在独立通道。
 process.on("uncaughtException", (err) => {
   logStderr(`uncaughtException: ${formatUnknown(err)}`);
 });
@@ -287,7 +276,7 @@ process.stdin.once("error", handleShutdown);
 
 await sendHealth();
 
-// P2-07：周期性内存/健康自报（unref，不拖住退出；shutdown 后停止）。
+// 周期性内存/健康自报（unref，不拖住退出；shutdown 后停止）。
 const healthReportIntervalMs = (() => {
   const raw = Number(process.env.XRESCONV_WORKER_HEALTH_INTERVAL_MS);
   return Number.isSafeInteger(raw) && raw >= 25 && raw <= 60_000

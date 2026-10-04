@@ -1,14 +1,14 @@
 /**
- * 壳 → guardian → backend 业务 RPC 透传（P4-02）：真实进程链。
+ * 壳 → guardian → backend 业务 RPC 透传：真实进程链。
  *
- * - e2e：spawn 真实 guardian bin（字节帧壳通道），guardian fork 真实 backend
+ * e2e：spawn 真实 guardian bin（字节帧壳通道），guardian fork 真实 backend
  *   bin（其内真实 ScriptWorkerPool + script-host worker）；覆盖
  *   health 握手 → getSnapshot → loadConfig（set_name 真实生效）→ applyOps
  *   版本闸 → 未知方法/坏 payload → 事件转发 → shutdown 自清；
- * - backend 卡死（XRESCONV_BACKEND_FAKE_HANG）：在途请求按死亡确定拒绝
+ * backend 卡死（XRESCONV_BACKEND_FAKE_HANG）：在途请求按死亡确定拒绝
  *   （BACKEND_DIED），不悬挂；死后新请求 BACKEND_NOT_READY；
- * - 请求超时后迟到回复忽略并记诊断（SC10，supervisor 层 + RPC_DELAY 缝）；
- * - 未启动/已关停的 supervisor 立即 BACKEND_NOT_READY。
+ * 请求超时后迟到回复忽略并记诊断(supervisor 层 + RPC_DELAY 缝）；
+ * 未启动/已关停的 supervisor 立即 BACKEND_NOT_READY。
  *
  * 全部显式有界超时；不 mock 协议。
  */
@@ -150,14 +150,14 @@ async function waitExit(child: ChildProcess, label: string, timeoutMs = WAIT_MS)
   ]);
 }
 
-describe("壳→guardian→backend 业务 RPC（P4-02）", () => {
+describe("壳→guardian→backend 业务 RPC", () => {
   it("returns a correlated failure for an oversized snapshot instead of timing out", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "xresconv-large-snapshot-"));
     const fixture = path.join(dir, "large.xml");
     writeFileSync(fixture, `<root><list><item name="${"x".repeat(600_000)}" /></list></root>`);
-    // P4-08 帧上限升至 64MiB（100k 快照需 ~37.5MB）；注入 1MiB 测试上限
+    //  帧上限升至 64MiB（100k 快照需 ~37.5MB）；注入 1MiB 测试上限
     // 复现 RESPONSE_TOO_LARGE 关联失败路径（生产缺省不变）。
     const shell = spawnGuardian({ XRESCONV_MAX_FRAME_BYTES: String(1024 * 1024) });
     try {
@@ -176,7 +176,7 @@ describe("壳→guardian→backend 业务 RPC（P4-02）", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
-  it("大快照过通道（P4-08）：>1MiB 树快照在默认 64MiB 帧预算下完整返回", {
+  it("大快照过通道：>1MiB 树快照在默认 64MiB 帧预算下完整返回", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "xresconv-big-snapshot-"));
@@ -333,7 +333,7 @@ describe("壳→guardian→backend 业务 RPC（P4-02）", () => {
         "backend ready",
       );
       // FAKE_HANG 下 backend 不应答 rpc（卡死语义）；心跳截止判死后在途请求
-      // 必须以 BACKEND_DIED 确定结算（SC10：受影响调用得到确定状态）。
+      // 必须以 BACKEND_DIED 确定结算(受影响调用得到确定状态）。
       const id = await shell.send("rpc", { type: "request", method: "getSnapshot" });
       const dead = resultPayload(
         await shell.waitFor(
@@ -370,7 +370,7 @@ describe("壳→guardian→backend 业务 RPC（P4-02）", () => {
     });
   });
 
-  it("请求超时 → BACKEND_TIMEOUT；迟到回复忽略并记诊断（SC10）", {
+  it("请求超时 → BACKEND_TIMEOUT；迟到回复忽略并记诊断", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const events: BackendSupervisorEvent[] = [];

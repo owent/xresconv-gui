@@ -1,12 +1,12 @@
 /**
- * Guardian: 进程树监督（P2-02，SC07/SC08/SC11）。
+ * Guardian: 进程树监督。
  *
- * 目标（docs/plan/02-contracts-script-host.md「监督进程与清理」）：
- * - 终止必须覆盖整棵进程树，且以 close 事件为实际回收证据；`kill()` 返回值
+ * 目标（docs/development/interfaces.md「监督进程与清理」）：
+ * 终止必须覆盖整棵进程树，且以 close 事件为实际回收证据；`kill` 返回值
  *   或 taskkill 退出码不单独构成清理证明。
- * - 登记原生进程句柄防止 PID 重用误杀（Windows：持有 OpenProcess 句柄期间
+ * 登记原生进程句柄防止 PID 重用误杀（Windows：持有 OpenProcess 句柄期间
  *   内核不会重用该 PID）。
- * - guardian 崩溃时所属子树仍被回收（Windows：JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE，
+ * guardian 崩溃时所属子树仍被回收（Windows：JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE，
  *   最后一个 job 句柄被 OS 关闭时内核终止全部关联进程）。
  *
  * 后端选择（Windows）：
@@ -17,8 +17,8 @@
  *    已知边界：中间进程先退出时孙进程断链成孤儿（微软 /T 只追踪仍存续的
  *    父子链），guardian 崩溃场景无人执行 taskkill。降级会被显式记录。
  * POSIX：spawn 时 detached:true 使子进程成为新进程组组长，终止用
- * kill(-pgid, SIGTERM/SIGKILL) 覆盖组内后代。setsid/double-fork 逃逸不设防
- * （D4 可信脚本）；guardian 崩溃后的 POSIX 清理依赖壳层生命周期适配（待 P5）。
+ * kill(pgid, SIGTERM/SIGKILL) 覆盖组内后代。setsid/double-fork 逃逸不设防
+ * （ 可信脚本）；guardian 崩溃后的 POSIX 清理依赖壳层生命周期适配（待 ）。
  */
 
 import { type ChildProcess, type SpawnOptions, spawn } from "node:child_process";
@@ -45,7 +45,7 @@ export interface ProcessScope {
    * 终止整树并等待实际回收。幂等；重复调用复用首次结果。
    * Windows job-object：TerminateJobObject 一次终止全部关联进程。
    * Windows taskkill 回退：对每个仍存活根进程执行 taskkill /T /F。
-   * POSIX：先 kill(-pgid, SIGTERM)，graceMs 后对未退出组 kill(-pgid, SIGKILL)。
+   * POSIX：先 kill(pgid, SIGTERM)，graceMs 后对未退出组 kill(pgid, SIGKILL)。
    */
   terminate(graceMs?: number): Promise<TreeTerminateReport>;
   /** 释放句柄；仅在没有存活成员时安全（有存活成员会先 terminate）。 */

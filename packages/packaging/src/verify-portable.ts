@@ -1,12 +1,14 @@
-/** Portable 产物验证（portable-build.yml）：安装器链路从不产出这些形态，
+/**
+ *  Portable 产物验证（portable-build.yml）：安装器链路从不产出这些形态，
  * 因此每个 portable 产物在解包后按自身 manifest 逐文件核验，并实测包内
  * Node 二进制可在当前宿主原生运行（架构正确性的直接证据）。聚合口径 =
  * portableArtifactNames 精确集合（fail-closed）。
  *
- * Linux 两种 tar.zst（2026-09-28 用户决策 zstd 压缩）：offline = AppImage
+ * Linux 两种 tar.zst：offline = AppImage
  * 同内容解包树（自含 WebKitGTK 闭包）；bootstrap = exe+布局平铺（运行时用
  * 系统 WebKitGTK，宿主须已具备——ldd 与 preflight.sh 探针在这里充当运行时
- * 策略的证据）。 */
+ * 策略的证据）。
+ */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
@@ -50,8 +52,10 @@ export function resolvePortableTarget(
   return target;
 }
 
-/** 从解包根向下定位发行布局根（runtime-manifest.json 所在目录）。
- * runtime/app 负载树剪枝——manifest 与它们同级，绝不内嵌。 */
+/**
+ *  从解包根向下定位发行布局根（runtime-manifest.json 所在目录）。
+ * runtime/app 负载树剪枝——manifest 与它们同级，绝不内嵌。
+ */
 export function findLayoutRoot(extractedDir: string): string {
   const queue: Array<{ dir: string; depth: number }> = [{ dir: extractedDir, depth: 0 }];
   while (queue.length > 0) {
@@ -91,8 +95,10 @@ export function verifyLayoutIdentity(
   }
 }
 
-/** 负载核验：manifest.files 全量存在 + 大小 + SHA-256（与 verifyReusableLayout
- * 同强度；布局组装阶段已验过一次，这里证明打包未损坏负载）。 */
+/**
+ *  负载核验：manifest.files 全量存在 + 大小 + SHA-256（与 verifyReusableLayout
+ * 同强度；布局组装阶段已验过一次，这里证明打包未损坏负载）。
+ */
 export function verifyLayoutPayload(layoutRoot: string, manifest: RuntimeManifest): void {
   if (manifest.files.length === 0) throw new Error("layout payload is empty");
   for (const file of manifest.files) {
@@ -137,7 +143,7 @@ function readInfoPlistVersion(appDir: string, manifest: RuntimeManifest): void {
     !plist.includes("LSMinimumSystemVersion") ||
     !plist.includes(manifest.osVersionRange.replace(">=", ""))
   )
-    throw new Error("Info.plist is missing the D5 minimum system version");
+    throw new Error("Info.plist is missing the required minimum system version");
   const mainBinary = path.join(appDir, "Contents", "MacOS", path.basename(appDir, ".app"));
   if (!existsSync(mainBinary)) throw new Error(`main binary missing: ${mainBinary}`);
 }
@@ -149,9 +155,11 @@ function verifyLinuxExtras(squashRoot: string): void {
     throw new Error("self-contained package does not bundle WebKitGTK 4.1");
 }
 
-/** bootstrap tar.zst 专属：平铺布局（无 AppDir/usr 树）、系统 WebKitGTK 运行时
+/**
+ *  bootstrap tar.zst 专属：平铺布局（无 AppDir/usr 树）、系统 WebKitGTK 运行时
  * （ldd 必须解析到 webkit4.1——这就是"尽量复用发行版运行时"的直接证据）、
- * preflight.sh 可执行且就绪路径通过。 */
+ * preflight.sh 可执行且就绪路径通过。
+ */
 function verifyBootstrapExtras(topDir: string): void {
   const exe = path.join(topDir, "xresconv-gui");
   if (!existsSync(exe)) throw new Error("bootstrap tarball is missing the app binary");
@@ -191,7 +199,7 @@ function extractMacZip(zipPath: string, destDir: string): string {
 }
 
 function extractAppImage(appImagePath: string, destDir: string): string {
-  // --appimage-extract 不依赖 FUSE；产物与本任务同架构（原生 runner）。
+  // appimage-extract 不依赖 FUSE；产物与本任务同架构（原生 runner）。
   const result = spawnSync(appImagePath, ["--appimage-extract"], {
     cwd: destDir,
     timeout: EXTRACT_TIMEOUT_MS,
@@ -262,8 +270,10 @@ async function verifySidecar(file: string, name: string): Promise<void> {
     throw new Error(`SHA-256 mismatch: ${name}`);
 }
 
-/** 单目标全部 portable 形态验证：构建 job 内调用（同 job 内执行位完好，无需
- * 经过 artifact 中转）。Linux offline 一次验证 AppImage 与 tar.zst 两种产物。 */
+/**
+ *  单目标全部 portable 形态验证：构建 job 内调用（同 job 内执行位完好，无需
+ * 经过 artifact 中转）。Linux offline 一次验证 AppImage 与 tar.zst 两种产物。
+ */
 export async function verifyPortableArtifacts(
   distDir: string,
   expected: PortableExpectation,
@@ -321,7 +331,7 @@ export async function verifyPortableArtifacts(
   return verified;
 }
 
-/** 聚合验证：portable 范围的精确产物集合 + SHA-256 边车（CI-06 语义，无发布）。 */
+/** 聚合验证：portable 范围的精确产物集合 + SHA-256 边车（ 语义，无发布）。 */
 export async function verifyPortableAggregate(
   artifactsDir: string,
   version: string,

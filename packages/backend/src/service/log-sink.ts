@@ -6,7 +6,7 @@ import { encodeFrame, FrameDecoder, writeFrame } from "@xresconv/ipc";
 import type { Log4jsSink, LogEntry } from "./log-pipeline.ts";
 
 /**
- * 默认 log4js 配置（与旧版 src/log4js.json 逐字一致）。P7 起内联为对象：
+ * 默认 log4js 配置（与 src/log4js.json 逐字一致）。 起内联为对象：
  * 发行 bundle（esbuild）里相对 import.meta.url 的文件查找会指向不存在的路径，
  * 内联消除该运行时文件依赖；外部 --log-configure 仍按文件读取（1MiB 上限）。
  */
@@ -29,7 +29,7 @@ export function createLog4jsSink(
   options: {
     configurePath?: string;
     onDiagnostic?: (message: string) => void;
-    /** 进程树作用域（P2-02）；缺省时本 sink 自建，测试可注入桩。 */
+    /** 进程树作用域；缺省时本 sink 自建，测试可注入桩。 */
     scope?: ProcessScope;
   } = {},
 ): Log4jsSink {
@@ -54,7 +54,7 @@ export function createLog4jsSink(
       report(`failed to configure log4js: ${String(err)}; falling back to default config`);
     }
   }
-  // 进程树作用域（P2-02）：自定义 appender 可派生子进程，终止必须覆盖整树。
+  // 进程树作用域：自定义 appender 可派生子进程，终止必须覆盖整树。
   const scope = options.scope ?? createProcessScope({ name: "log4js-sink" });
   const child = spawn(
     process.execPath,

@@ -1,16 +1,16 @@
 /**
- * P5-02：发行布局全链冒烟（PK07 本机核心证据）。
+ * 发行布局全链冒烟（ 本机核心证据）。
  *
  * 用 assembleRuntimeLayout 的真实产出（而非手工 staging）验证：
- * - 单份固定 Node：staged runtime/node.exe 启动 guardian；guardian fork
+ * 单份固定 Node：staged runtime/node.exe 启动 guardian；guardian fork
  *   backend、backend spawn worker 均复用 process.execPath（同一二进制）。
- * - 必要适配定位正确：不设置任何 XRESCONV_* 环境变量——guardian/backend
+ * 必要适配定位正确：不设置任何 XRESCONV_* 环境变量——guardian/backend
  *   bin 按发行布局约定自定位 backend 入口/worker 入口/模块锚点目录。
- * - 动态 require 可用：用户配置在安装树之外，自定义按钮脚本（entry_kind
- *   "button"，沙箱含 require——set_name 无 require，main.js:1748 遗产）
+ * 动态 require 可用：用户配置在安装树之外，自定义按钮脚本（entry_kind
+ *   "button"，沙箱含 require——set_name 无 require， 遗产）
  *   经 XRESCONV_SCRIPT_MODULE_DIRS 回退锚点 require("adm-zip") 完成 zip
  *   round-trip、require("koffi") 原生加载（Node-API 匹配单份 Node ABI）。
- * - PK07 环境约束：安装路径含中文/空格、整树只读、最小环境（PATH 仅
+ * 环境约束：安装路径含中文/空格、整树只读、最小环境（PATH 仅
  *   System32、无 npm_* 与 NODE_PATH——包管理器/网络补包无从发生）。
  *
  * 协议面：壳↔guardian 字节帧（@xresconv/ipc），health 握手 + rpc
@@ -58,7 +58,7 @@ let fixture: ChainFixture | null = null;
 /**
  * 整树只读/可写切换（Windows 上 chmod 映射 FILE_ATTRIBUTE_READONLY）。
  * POSIX 上 0444 会剥离可执行位——node 二进制保持 0555（只读仍可执行，
- * “只读介质上可运行”正是 PK07 要验证的语义；Windows 只读属性同理不挡执行）。
+ * “只读介质上可运行”正是  要验证的语义；Windows 只读属性同理不挡执行）。
  */
 function setTreeReadonly(root: string, readonly: boolean): void {
   const nodeName = process.platform === "win32" ? "node.exe" : "node";
@@ -81,7 +81,7 @@ function setTreeReadonly(root: string, readonly: boolean): void {
 
 beforeAll(async () => {
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "xresconv-p502-chain-"));
-  // PK07：安装路径含中文与空格。
+  // 安装路径含中文与空格。
   const installDir = path.join(tmpBase, "安装 目录");
   // 目标随本机平台（koffi optionalDependencies 按平台解析；node.exe/node 命名
   // 与 chmod 跟随目标 OS——跨平台组装需目标平台 node_modules，CI 各 OS 本平台跑）。
@@ -105,18 +105,18 @@ beforeAll(async () => {
       path: process.execPath,
       source: `local-test-copy:node-v${process.versions.node}-${process.platform}-${process.arch}`,
     },
-    appVersion: "3.0.0-dev.1",
+    appVersion: "3.0.0",
     sourceCommit: SAMPLE_COMMIT,
     repositorySnapshot: {
       repository: "https://github.com/xresloader/xresconv-gui.git",
       dirty: false,
     },
-    verificationReport: { result: "pass", reportPath: "docs/plan/records/P5-02.md" },
+    verificationReport: { result: "pass", reportPath: "docs/development/packaging.md" },
   });
 
   installStagedProbe(path.join(installDir, "app", "node_modules"));
 
-  // 用户项目在安装树之外：裸包名必须靠发行锚点解析（BD-S1 锚定目录无
+  // 用户项目在安装树之外：裸包名必须靠发行锚点解析（ 锚定目录无
   // node_modules 上溯链到安装树）。
   const userProjectDir = path.join(tmpBase, "用户 项目");
   fs.mkdirSync(userProjectDir, { recursive: true });
@@ -144,7 +144,7 @@ resolve();]]></script>
     "utf8",
   );
 
-  // 按钮定义在选择器 JSON（动作链 script:<name> 引用配置内 <script>，P4-05a 模型）。
+  // 按钮定义在选择器 JSON（动作链 script:<name> 引用配置内 <script>， 模型）。
   fs.writeFileSync(
     path.join(userProjectDir, "custom-selectors.json"),
     `${JSON.stringify(
@@ -169,7 +169,7 @@ resolve();]]></script>
     nodeExe: path.join(installDir, "runtime", process.platform === "win32" ? "node.exe" : "node"),
     guardianEntry: path.join(installDir, "app", "guardian", "service.mjs"),
   };
-  // PK07 只读介质：spawn 前整树置只读，afterAll 恢复后清理。
+  //  只读介质：spawn 前整树置只读，afterAll 恢复后清理。
   setTreeReadonly(installDir, true);
 }, ASSEMBLE_TIMEOUT_MS);
 
@@ -357,7 +357,7 @@ class StagedGuardianClient {
   }
 }
 
-describe("release chain smoke（P5-02，PK07 本机部分）", () => {
+describe("release chain smoke(本机部分）", () => {
   it("staged 单份 Node 全链：health→loadConfig→按钮脚本经锚点 require adm-zip/koffi→shutdown 清零", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
@@ -402,7 +402,7 @@ describe("release chain smoke（P5-02，PK07 本机部分）", () => {
       expect((snap.result as { selectedItems: unknown[] }).selectedItems).toHaveLength(1);
     } finally {
       const exitCode = await client.shutdown();
-      // 有界收尾：shutdown 后整树自清，退出码 0（P2-09 合同）。
+      // 有界收尾：shutdown 后整树自清，退出码 0（ 合同）。
       expect(exitCode).toBe(0);
     }
     expect(fs.readFileSync(path.join(f.userProjectDir, "xresconv-gui.info.log"), "utf8")).toContain(

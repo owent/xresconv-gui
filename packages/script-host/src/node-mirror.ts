@@ -1,41 +1,14 @@
-/**
- * NodeMirror（P2-05）：worker 内的 Fancytree 兼容镜像。
- *
- * 合同来源：tests/fixtures/scripts/contract.md §6、docs/plan/records/P0-08.md §8、
- * README 脚本小节。语义核心（三态级联）来自 @xresconv/compat-service 的
- * SelectionTree（与 backend 共享同一实现，禁止分叉）。
- *
- * 支持面（P0-08 §8 证据清单 + 只读导航扩展）：key/title/tooltip/data.item/
- * data.option.auto_select/unselectable(读)、isFolder/isSelected/isPartsel/
- * isExpanded/isRootNode、setSelected/toggleSelected/setExpanded、visit/
- * getSelectedNodes/getTree/getRootNode/getParent/getChildren、render
- * （no-op，见 BD-S15）、toString。其余 Fancytree 成员：调用时抛出带迁移指引
- * 的诊断错误并记录 diagnostic op（D3 排除接口）；DOM/jQuery 属性
- * （li/span/$span/...）读取返回 undefined 并记诊断。
- *
- * 别名恒等（旧版同引用语义，P0-08 §8）：
- *   item.ft_node === node；node.data.item === item；node.key === item.id；
- *   selected_items[k] 与树内 item 是同一对象。folder 节点无 data 字段
- *   （main.js:1447-1454 未设置）。
- *
- * 状态变更语义：方法调用在本地镜像同步生效（read-your-writes），同时按调用
- * 顺序追加 ops；item 字段与 data.option.auto_select 的修改在调用结束时做
- * diff 追加（与节点 ops 操作不同状态切片，可交换，不破坏因果序）。ops 携带
- * 快照版本 `v`，backend 只在版本匹配时应用（失配整批拒绝并记诊断）。
- *
- * readonly 模式（on_append_log，BD-S16）：读取/导航可用，修改方法调用记
- * D3_READ_ONLY 诊断并 no-op，避免逐日志行的 ops 风暴。
- */
+/** worker 树镜像复用 SelectionTree。节点与条目别名一致，操作同步作用于本地镜像，再以版本化 ops 回传。日志上下文只读，支持面见 docs/user/scripts.md。 */
 
 import { SelectionTree, type TreeNodeSnapshot, type TreeSnapshot } from "@xresconv/compat-service";
 import { deepEqual, diffFields, safeClone } from "./diff.ts";
 
-/** 参与 diff 时排除的键：ft_node 是别名、id 是身份（P0-08 §8）。 */
+/** 参与 diff 时排除的键：ft_node 是别名、id 是身份。 */
 const ITEM_DIFF_SKIP_KEYS: ReadonlySet<string> = new Set(["ft_node", "id"]);
 
 /**
- * 已知但被 D3 排除的 Fancytree 方法：调用时抛诊断错误。
- * 划分依据：P0-08 §8 证据清单之外、且不属于只读导航的成员。
+ * 已知但被  排除的 Fancytree 方法：调用时抛诊断错误。
+ * 划分依据：  证据清单之外、且不属于只读导航的成员。
  */
 const EXCLUDED_METHODS: ReadonlySet<string> = new Set([
   "activate",
@@ -110,7 +83,7 @@ const CORE_WRITE_PROPS: ReadonlySet<string> = new Set([
 ]);
 
 export interface MirrorOptions {
-  /** on_append_log 传入 true：只读镜像（BD-S16）。 */
+  /** on_append_log 传入 true：只读镜像。 */
   readonly?: boolean;
 }
 
@@ -122,16 +95,16 @@ interface MirrorNodeState {
   unselectable: boolean;
   parent: MirrorNodeState | null;
   readonly children: MirrorNodeState[];
-  /** 仅 item 节点存在（main.js:1761-1770 的 data.item）。 */
+  /** 仅 item 节点存在（ 的 data.item）。 */
   readonly item?: Record<string, unknown>;
-  /** 仅 item 节点存在（main.js:1766-1769 的 data.option）。 */
+  /** 仅 item 节点存在（ 的 data.option）。 */
   readonly option?: { auto_select: boolean };
 }
 
 export interface MirrorHandle {
-  /** selected_nodes（DFS 序，含 folder 节点，main.js:1952/511）。 */
+  /** selected_nodes（DFS 序，含 folder 节点)。 */
   readonly selectedNodes: unknown[];
-  /** selected_items（DFS 序的 item 对象，main.js:2003-2008）。 */
+  /** selected_items（DFS 序的 item 对象)。 */
   readonly selectedItems: Record<string, unknown>[];
   /** 快照版本（context.tree.version）。 */
   readonly version: number;
@@ -206,7 +179,7 @@ class MirrorBuilder {
       return state;
     };
     // 根节点镜像（fancytree rootNode：title "root"、key "root_<id>"、expanded，
-    // ft-all.js:2718-2723）；旧版 key 含自增树 id 本就不稳定，固定为 "root_1"。
+    // ft-all.js:2718-2723）； key 含自增树 id 本就不稳定，固定为 "root_1"。
     this.rootState = {
       key: "root_1",
       title: "root",
@@ -261,7 +234,7 @@ class MirrorBuilder {
     }
     this.diagnose(
       "D3_READ_ONLY",
-      `${feature} 在 on_append_log 上下文中不可用：日志 hook 的树镜像是只读的（BD-S16）`,
+      `${feature} 在 on_append_log 上下文中不可用：日志 hook 的树镜像是只读的`,
     );
     return false;
   }
@@ -282,7 +255,7 @@ class MirrorBuilder {
     }
     const self = this;
     const target: Record<string, unknown> = {
-      // 数据属性（fancytree 同名）；folder 节点无 data（main.js:1447-1454）。
+      // 数据属性（fancytree 同名）；folder 节点无 data。
       key: state.key,
       title: state.title,
       tooltip: state.tooltip,
@@ -301,7 +274,7 @@ class MirrorBuilder {
         state.children.length === 0 ? null : state.children.map((c) => self.wrapNode(c)),
       setSelected: (flag?: boolean) => {
         if (state.parent === null) {
-          return undefined; // 根节点不在 SelectionTree 内（旧版只静默置位不可见标志）
+          return undefined; // 根节点不在 SelectionTree 内（只静默置位不可见标志）
         }
         if (!self.requireWritable("setSelected")) {
           return undefined;
@@ -382,8 +355,8 @@ class MirrorBuilder {
       },
       getTree: () => self.treeProxy,
       getRootNode: () => self.rootProxy,
-      // render：旧版触发 DOM 重绘（main.js:1058-1100）；新版 UI 由状态驱动自动
-      // 重渲染，render 为语义等价的 no-op（BD-S15）。
+      // render：触发 DOM 重绘； UI 由状态驱动自动
+      // 重渲染，render 为语义等价的 no-op。
       render: () => undefined,
       toString: () => `FancytreeNode@${String(state.key)}[title='${state.title}']`,
       toJSON: () => ({
@@ -396,7 +369,7 @@ class MirrorBuilder {
         unselectable: state.unselectable,
       }),
     };
-    // data 仅 item 节点（旧版 folder 无 data 字段）。
+    // data 仅 item 节点（ folder 无 data 字段）。
     if (state.item !== undefined) {
       target.data = { item: state.item, option: state.option };
     }
@@ -412,16 +385,16 @@ class MirrorBuilder {
           return () => {
             self.diagnose(
               "D3_EXCLUDED",
-              `ft_node.${prop}() 不在脚本兼容范围（D3）：属于未公开的 Fancytree 内部/DOM 接口，` +
+              `ft_node.${prop}() 不在脚本兼容范围：属于未公开的 Fancytree 内部/DOM 接口，` +
                 "请改用 README 记录的脚本接口（详见 tests/fixtures/scripts/contract.md）",
             );
-            throw new Error(`ft_node.${prop} is not part of the supported script interface (D3)`);
+            throw new Error(`ft_node.${prop} is not part of the supported script interface`);
           };
         }
         if (EXCLUDED_PROPS.has(prop)) {
           self.diagnose(
             "D3_EXCLUDED",
-            `ft_node.${prop} 是 DOM/jQuery 属性，不在脚本兼容范围（D3），读取为 undefined`,
+            `ft_node.${prop} 是 DOM/jQuery 属性，不在脚本兼容范围，读取为 undefined`,
           );
           return undefined;
         }
@@ -431,7 +404,7 @@ class MirrorBuilder {
         if (typeof prop === "string" && CORE_WRITE_PROPS.has(prop)) {
           self.diagnose(
             "D3_DIRECT_NODE_WRITE",
-            `直接写 ft_node.${prop} 不生效：请改 node.data.item 字段或调用节点方法（P2-05）`,
+            `直接写 ft_node.${prop} 不生效：请改 node.data.item 字段或调用节点方法`,
           );
           return true;
         }
@@ -441,7 +414,7 @@ class MirrorBuilder {
         return Reflect.has(obj, prop);
       },
     });
-    // 别名恒等：item.ft_node === 节点 Proxy（P0-08 §8），同一节点 Proxy 唯一。
+    // 别名恒等：item.ft_node === 节点 Proxy，同一节点 Proxy 唯一。
     if (state.item !== undefined) {
       state.item.ft_node = proxy;
     }

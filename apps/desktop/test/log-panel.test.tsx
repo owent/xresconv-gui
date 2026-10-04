@@ -86,7 +86,7 @@ function logRow_texts(): string[] {
     .filter((text) => text.length > 0);
 }
 
-describe("LogPanel 日志窗口（P4-07，UI07）", () => {
+describe("LogPanel 日志窗口", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
@@ -211,7 +211,7 @@ describe("LogPanel 日志窗口（P4-07，UI07）", () => {
     render(<LogPanel />);
     await waitFor(() => expect(logRow_texts().length).toBe(2));
     const user = userEvent.setup();
-    // userEvent.setup() 会安装自带 Clipboard 桩覆盖可配置的 navigator.clipboard，
+    // userEvent.setup 会安装自带 Clipboard 桩覆盖可配置的 navigator.clipboard，
     // 因此在 setup 之后再注入 mock。
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {

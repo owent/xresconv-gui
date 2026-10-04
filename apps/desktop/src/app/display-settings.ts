@@ -2,27 +2,27 @@ import { useEffect, useSyncExternalStore } from "react";
 import {
   type DisplaySettings,
   getCliMatches,
+  getSystemLocales,
   readDisplaySettings,
   writeDisplaySettings,
 } from "../adapters/tauri";
+import {
+  getLanguagePreference,
+  type LanguagePreference,
+  normalizePreference,
+  resetLocalization,
+  setLanguagePreference,
+  setSystemLocales,
+  translate as t,
+  useI18n,
+} from "../i18n";
 import {
   isRetryableStartupError,
   STARTUP_RETRY_INTERVAL_MS,
   STARTUP_RETRY_TIMEOUT_MS,
 } from "./startup-retry";
 
-/**
- * 显示设置（2026-09-26 用户需求；同日三轮修复改为模块级单例 store）：
- * - 主题三态（system/light/dark）：写入 `<html data-theme>`；"system" 移除属性
- *   交回 prefers-color-scheme（tokens.css 三态支持）。
- * - 上次转换列表文件：loadConfig 成功后持久化；启动时读取并自动加载。
- * - 分区字体（全局/UI/树/日志 的 family+size）：经 CSS 变量应用到对应区域。
- * - 状态与 DOM 副作用放模块级 store（useSyncExternalStore 订阅）：
- *   多组件消费同一状态，且 StrictMode 双挂载不会让 cancelled 标志吞掉
- *   整个启动流程（旧实现第一挂载的 readDisplaySettings 在 cleanup 后 resolve，
- *   cancelled=true 直接跳过 applyTheme/自动加载，第二挂载 wired=true 也跳过
- *   ——dev 下主题与自动加载从未生效，为 BACKEND_NOT_READY 误报的根因之一）。
- */
+/** 显示设置共享 store：语言、主题、字体和上次配置通过 Tauri 接口持久化。 */
 export type ThemeMode = NonNullable<DisplaySettings["theme"]>;
 
 /** 单区字体偏好（空=该区默认）。 */
@@ -100,6 +100,7 @@ let writes: Promise<void> = Promise.resolve();
 
 function persist(patch: {
   theme?: ThemeMode;
+  language?: LanguagePreference;
   lastConfigFile?: string | null;
   fonts?: FontsConfig;
 }): Promise<void> {
@@ -119,6 +120,8 @@ function persist(patch: {
         : undefined;
       await writeDisplaySettings({
         theme: patch.theme ?? current?.theme ?? null,
+        language:
+          patch.language ?? normalizePreference(current?.language ?? getLanguagePreference()),
         lastConfigFile:
           patch.lastConfigFile !== undefined
             ? patch.lastConfigFile
@@ -173,7 +176,9 @@ async function autoLoadWithRetry(path: string): Promise<void> {
     }
     if (Date.now() + STARTUP_RETRY_INTERVAL_MS > deadline) {
       // 超时：保留最后的瞬态错误为可见错误（不再静默）。
-      useSessionStore.getState().appendLocalLog(`自动加载上次配置超时：${error}`, "error");
+      useSessionStore
+        .getState()
+        .appendLocalLog(t("diagnostics.autoLoadTimeout", { error }), "error");
       return;
     }
     if (!noticed) {
@@ -181,9 +186,7 @@ async function autoLoadWithRetry(path: string): Promise<void> {
       useSessionStore
         .getState()
         .appendLocalLog(
-          `后端启动中，正在自动加载上次转换列表（最长等待 ${Math.round(
-            STARTUP_RETRY_TIMEOUT_MS / 1000,
-          )} 秒）…`,
+          t("diagnostics.autoLoadWait", { seconds: Math.round(STARTUP_RETRY_TIMEOUT_MS / 1000) }),
           "info",
         );
     }
@@ -193,10 +196,13 @@ async function autoLoadWithRetry(path: string): Promise<void> {
   }
 }
 
-/** 解析自动加载目标：优先 CLI --input（F11 启动参数语义），其次上次文件。 */
-async function resolveAutoLoadTarget(fallback: string | null): Promise<string | null> {
+/** 解析自动加载目标：优先 CLI --input（ 启动参数语义），其次上次文件。 */
+async function resolveAutoLoadTarget(
+  fallback: string | null,
+  matchesPromise: Promise<Record<string, unknown>>,
+): Promise<string | null> {
   try {
-    const matches = await getCliMatches();
+    const matches = await matchesPromise;
     const cliInput: unknown = (matches as { input?: unknown }).input;
     if (typeof cliInput === "string" && cliInput.length > 0) {
       return cliInput;
@@ -216,19 +222,29 @@ async function resolveAutoLoadTarget(fallback: string | null): Promise<string | 
 /* ---- 一次性引导（模块级，StrictMode 安全） ---- */
 
 let bootstrapStarted = false;
+let bootstrapGeneration = 0;
+let languageEdited = false;
 
 /** 测试隔离：恢复启动状态，已挂载的订阅由 React cleanup 释放。 */
 export function resetDisplaySettings(): void {
   bootstrapStarted = false;
+  bootstrapGeneration++;
+  languageEdited = false;
   state = DEFAULT_SETTINGS;
   writes = Promise.resolve();
+  resetLocalization();
 }
 
 function bootstrap(): void {
   if (bootstrapStarted) return;
   bootstrapStarted = true;
-  readDisplaySettings()
-    .then(async (loaded) => {
+  const generation = bootstrapGeneration;
+  const cliMatches = getCliMatches().catch(() => ({}));
+  Promise.all([readDisplaySettings().catch(() => null), getSystemLocales().catch(() => [])])
+    .then(async ([loaded, systemLocales]) => {
+      if (generation !== bootstrapGeneration) return;
+      setSystemLocales(Array.isArray(systemLocales) ? systemLocales : []);
+      if (!languageEdited) setLanguagePreference(loaded?.language);
       state = {
         theme: loaded?.theme ?? "system",
         lastConfigFile: loaded?.lastConfigFile ?? null,
@@ -242,7 +258,7 @@ function bootstrap(): void {
       applyTheme(state.theme);
       applyFonts(state.fonts);
       emit();
-      const target = await resolveAutoLoadTarget(state.lastConfigFile);
+      const target = await resolveAutoLoadTarget(state.lastConfigFile, cliMatches);
       if (target !== null && target.length > 0) {
         await autoLoadWithRetry(target);
       }
@@ -253,9 +269,12 @@ function bootstrap(): void {
 }
 
 export function useDisplaySettings(): DisplaySettingsState & {
+  language: LanguagePreference;
+  setLanguage: (language: LanguagePreference) => void;
   setTheme: (theme: ThemeMode) => void;
   setFontPrefs: (area: FontArea, prefs: FontPrefs) => void;
 } {
+  const { preference: language } = useI18n();
   const settings = useSyncExternalStore(subscribe, () => state);
   useEffect(() => {
     bootstrap();
@@ -275,7 +294,13 @@ export function useDisplaySettings(): DisplaySettingsState & {
     void persist({ fonts: state.fonts });
   };
 
-  return { ...settings, setTheme, setFontPrefs };
+  const setLanguage = (language: LanguagePreference) => {
+    languageEdited = true;
+    setLanguagePreference(language);
+    void persist({ language });
+  };
+
+  return { ...settings, language, setLanguage, setTheme, setFontPrefs };
 }
 
 /** loadConfig 成功后调用：持久化上次文件（供自动加载）。 */

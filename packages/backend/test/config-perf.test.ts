@@ -1,10 +1,4 @@
-/**
- * 100k 节点压测（P4-08，03-domain-conversion.md 合同：候选构建 + 序列化 +
- * 快照传输不只测 parser）。生成 1000 分类 × 100 条目 = 100,100 节点的真实 XML，
- * 走完整 parseXmlConfig（严格解析、include 图、模型构建），再以 rpc-app 同款
- * structuredClone 覆盖快照传输序列化。记录耗时供性能台账（不做精确阈值断言，
- * 只设防挂起上限——主计划 §11.5 性能门槛属 P6 报告）。
- */
+/** 加载不同规模的配置，检查结果一致性、资源预算和外部截止。 */
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -76,7 +70,7 @@ function countNodes(nodes: readonly unknown[]): number {
   return total;
 }
 
-describe("100k 节点压测（P4-08）", () => {
+describe("100k 节点压测", () => {
   it("完整解析 + 快照序列化往返（防挂起上限 120s）", { timeout: 120_000 }, async () => {
     const dir = makeTmpDir();
     const xmlPath = generateBigConfig(dir);
@@ -88,7 +82,7 @@ describe("100k 节点压测（P4-08）", () => {
     const nodeCount = countNodes(config.tree);
     expect(nodeCount).toBe(FOLDERS + FOLDERS * ITEMS_PER_FOLDER);
 
-    // 快照传输序列化（rpc-app snapshot() 同款结构克隆）。
+    // 快照传输序列化（rpc-app snapshot 同款结构克隆）。
     const cloneStart = Date.now();
     const snapshot = structuredClone({ config, tree: config.tree });
     const cloneMs = Date.now() - cloneStart;

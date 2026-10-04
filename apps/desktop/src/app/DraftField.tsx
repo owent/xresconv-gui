@@ -2,13 +2,13 @@ import { useState } from "react";
 import { Input, Label, TextArea, TextField } from "react-aria-components";
 
 /**
- * 受控文本字段（P4-04b）：聚焦时进入草稿，blur（单行含 Enter）提交变更；
+ * 受控文本字段：聚焦时进入草稿，blur（单行含 Enter）提交变更；
  * 未聚焦时直接显示后端 effective 值——reload/加载新配置/后端拒绝后自动回写，
- * 不残留旧表单值（docs/plan/04-ui.md §状态分层：显示值以后端返回为准）。
- * - mono：路径/协议文件等机器值用等宽日志字体（2026-09-26 详情弹窗改版）。
- * - spanFull：通栏占满网格行（长路径/多值列表）。
- * - inline：标签与输入同行（短字段的紧凑布局，2026-09-26 四轮）。
- * - datalistId：原生 datalist 下拉候选（可输入过滤预设，如输出重命名正则）。
+ * 不残留旧表单值（docs/development/frontend.md §状态分层：显示值以后端返回为准）。
+ * mono：路径/协议文件等机器值用等宽日志字体。
+ * spanFull：通栏占满网格行（长路径/多值列表）。
+ * inline：标签与输入同行（短字段的紧凑布局)。
+ * datalistId：原生 datalist 下拉候选（可输入过滤预设，如输出重命名正则）。
  */
 export function DraftField({
   label,

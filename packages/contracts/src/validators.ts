@@ -1,7 +1,7 @@
 /**
  * Runtime validators for the contract schemas (schema/ is the single source
  * of truth). Every role boundary validates inbound frames with these;
- * generated TS types alone are NOT runtime validation (Plan §4.2).
+ * generated TS types alone are NOT runtime validation .
  */
 import { createRequire } from "node:module";
 import type { ErrorObject, ValidateFunction } from "ajv";

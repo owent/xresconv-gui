@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "react-aria-components";
+import { translate as t, useI18n } from "../i18n";
 import { parseAnsi } from "./ansi";
 import { Icon } from "./Icon";
 import {
@@ -17,15 +18,17 @@ const LOG_VIEWPORT_MIN_HEIGHT = 160;
 /** 追尾判定阈值（px）：距底部小于该值视为钉住底部。 */
 const PIN_THRESHOLD_PX = 48;
 
-const LEVEL_FILTERS: { value: LogLevelFilter; label: string }[] = [
-  { value: "all", label: "全部" },
-  { value: "info", label: "信息" },
-  { value: "notice", label: "通知" },
-  { value: "warning", label: "警告" },
-  { value: "error", label: "错误" },
-];
+function levelFilters(): { value: LogLevelFilter; label: string }[] {
+  return [
+    { value: "all", label: t("log.all") },
+    { value: "info", label: t("log.info") },
+    { value: "notice", label: t("log.notice") },
+    { value: "warning", label: t("log.warning") },
+    { value: "error", label: t("log.error") },
+  ];
+}
 
-/** 单条日志消息渲染：ANSI SGR → 固定色表 span（BD-04；文本节点，无 HTML 通道）。 */
+/** 单条日志消息渲染：ANSI SGR → 固定色表 span(文本节点，无 HTML 通道）。 */
 function AnsiText({ message }: { message: string }) {
   const segments = useMemo(() => parseAnsi(message), [message]);
   return (
@@ -65,14 +68,15 @@ function LogRow({ entry }: { entry: UiLogEntry }) {
 }
 
 /**
- * 日志面板（F08/F10，P4-07 UI07）：虚拟列表（TanStack Virtual）、级别/文本筛选、
+ * 日志面板：虚拟列表（TanStack Virtual）、级别/文本筛选、
  * 复制/导出（纯文本，entry.text 行）、加载更早（getLogs beforeSeq 游标）。
- * 富文本仅 ANSI SGR 固定色表（BD-04）；标签/事件属性/URL 一律按字面文本渲染，
- * 不进任何 HTML 通道（R12）。筛选只影响显示与复制/导出范围，不影响落盘日志
+ * 富文本仅 ANSI SGR 固定色表；标签/事件属性/URL 一律按字面文本渲染，
+ * 不进任何 HTML 通道。筛选只影响显示与复制/导出范围，不影响落盘日志
  * 与脚本 hook。有界窗口淘汰最老并显示丢弃计数（无业务日志静默丢失：backend
  * 队列/落盘与 UI 丢弃量均可见）。
  */
 export function LogPanel() {
+  useI18n();
   const logs = useSessionStore((state) => state.logs);
   const filter = useSessionStore((state) => state.logFilter);
   const connection = useSessionStore((state) => state.connection);
@@ -82,8 +86,8 @@ export function LogPanel() {
   const exportLogs = useSessionStore((state) => state.exportLogs);
   const setLogFilter = useSessionStore((state) => state.setLogFilter);
 
-  const [copyHint, setCopyHint] = useState<string | null>(null);
-  // 溢出查看方式（2026-09-26 用户需求）：false=横向滚动（默认，虚拟行等高）；
+  const [copyHint, setCopyHint] = useState<number | null>(null);
+  // 溢出查看方式：false=横向滚动（默认，虚拟行等高）；
   // true=自动换行（虚拟行高度按换行后行数估算）。
   const [wrap, setWrap] = useState(false);
 
@@ -103,7 +107,7 @@ export function LogPanel() {
     getItemKey: (index) => filtered[index]?.localId ?? index,
     getScrollElement: () => parentRef.current,
     // 滚动模式：单行不折行，固定行高；换行模式：初始按两行估算，行元素经
-    // measureElement 按实际折行数动态测高（2026-09-26 四轮：固定估算高度会
+    // measureElement 按实际折行数动态测高（固定估算高度会
     // 让长行溢出行框互相重叠）。
     estimateSize: () => (wrap ? LOG_ROW_HEIGHT * 2 : LOG_ROW_HEIGHT),
     overscan: 16,
@@ -132,27 +136,27 @@ export function LogPanel() {
 
   const onCopy = async () => {
     const ok = await copyLogs();
-    setCopyHint(ok ? `已复制 ${filtered.length} 条` : null);
+    setCopyHint(ok ? filtered.length : null);
     if (ok) {
       window.setTimeout(() => setCopyHint(null), 2000);
     }
   };
 
   return (
-    <section className="panel log-panel" aria-label="运行日志">
+    <section className="panel log-panel" aria-label={t("log.title")}>
       <div className="log-toolbar">
         <h2 className="log-title">
           <Icon name="log" />
-          运行日志
+          {t("log.title")}
         </h2>
         <label className="log-filter-label">
-          级别
+          {t("log.level")}
           <select
-            aria-label="日志级别筛选"
+            aria-label={t("log.levelFilter")}
             value={filter.level}
             onChange={(event) => setLogFilter({ level: event.target.value as LogLevelFilter })}
           >
-            {LEVEL_FILTERS.map((option) => (
+            {levelFilters().map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -161,46 +165,47 @@ export function LogPanel() {
         </label>
         <input
           type="search"
-          aria-label="日志文本筛选"
-          placeholder="筛选文本…"
+          aria-label={t("log.textFilter")}
+          placeholder={t("log.filterPlaceholder")}
           value={filter.text}
           onChange={(event) => setLogFilter({ text: event.target.value })}
         />
         <span className="log-count">
-          日志 {filtered.length}/{entries.length} 条
+          {t("log.count", { visible: filtered.length, total: entries.length })}
         </span>
         <Button
           className={wrap ? "" : "btn-ghost"}
           aria-pressed={wrap}
           onPress={() => setWrap((value) => !value)}
         >
-          {wrap ? "换行" : "横向滚动"}
+          {wrap ? t("log.wrap") : t("log.scroll")}
         </Button>
-        <Button onPress={() => void onCopy()}>复制日志</Button>
-        <Button onPress={() => void exportLogs()}>导出日志</Button>
+        <Button onPress={() => void onCopy()}>{t("log.copy")}</Button>
+        <Button onPress={() => void exportLogs()}>{t("log.export")}</Button>
         {copyHint !== null && (
           <span role="status" className="log-copy-hint">
-            {copyHint}
+            {t("log.copied", { count: copyHint })}
           </span>
         )}
       </div>
       <p className="log-window-info" data-testid="log-window-info">
-        {logs.localDroppedCount > 0 && <>窗口已淘汰最老 {logs.localDroppedCount} 条；</>}
-        {logs.backendDroppedCount > 0 && <>后端队列已丢弃 {logs.backendDroppedCount} 条；</>}
-        当前窗口 {entries.length} 条 · 导出包含当前筛选结果
+        {logs.localDroppedCount > 0 && t("log.localDropped", { count: logs.localDroppedCount })}
+        {logs.backendDroppedCount > 0 &&
+          t("log.backendDropped", { count: logs.backendDroppedCount })}
+        {t("log.window", { count: entries.length })}
       </p>
       {canLoadOlder && (
         <div className="log-load-older">
           <Button onPress={() => void loadOlderLogs()}>
-            {logs.loadingOlder ? "加载中…" : "加载更早"}
+            {logs.loadingOlder ? t("log.loading") : t("log.loadOlder")}
           </Button>
         </div>
       )}
-      {logs.noMoreOlder && <p className="log-window-info">已到最早日志</p>}
+      {logs.noMoreOlder && <p className="log-window-info">{t("log.earliest")}</p>}
       <div
         ref={parentRef}
         role="log"
-        aria-label="日志列表"
+        aria-label={t("log.list")}
         className={`log-list${wrap ? " log-list--wrap" : ""}`}
         style={{ minHeight: LOG_VIEWPORT_MIN_HEIGHT }}
         // axe scrollable-region-focusable（WebKit 检出）：滚动区必须可键盘访问。
@@ -214,7 +219,7 @@ export function LogPanel() {
         }}
       >
         {filtered.length === 0 ? (
-          <p className="empty-state">暂无日志</p>
+          <p className="empty-state">{t("log.empty")}</p>
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: "relative", width: "100%" }}>
             {virtualizer.getVirtualItems().map((item) => {

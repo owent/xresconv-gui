@@ -1,14 +1,14 @@
 /**
- * EX02 批次调度/背压/退出汇总（P3-07）：fake-converter 确定性模拟
+ *  批次调度/背压/退出汇总：fake-converter 确定性模拟
  * xresloader --stdin 协议（fixtures/fake-converter.mjs），覆盖真实 JAR 不便
  * 构造的输出模式矩阵。全部真实子进程、显式有界超时、无协议 mock。
  *
- * 验收点（docs/plan/06-testing-acceptance.md EX02）：
- * - 各输出模式：silent（无输出也完成）/chatty（多块日志不改变任务数）；
- * - slow stdin 慢消费 → 写端背压，任务行不丢不重（每任务只提交一次）；
- * - 提前关闭（EPIPE/close 收尾）不挂起；
- * - 退出汇总：failedTaskCount = exitCode（批次失败不冒充精确条目失败数）；
- * - 派生子进程随整树回收（SC11 java 侧）。
+ * 验收点（docs/development/testing.md ）：
+ * 各输出模式：silent（无输出也完成）/chatty（多块日志不改变任务数）；
+ * slow stdin 慢消费 → 写端背压，任务行不丢不重（每任务只提交一次）；
+ * 提前关闭（EPIPE/close 收尾）不挂起；
+ * 退出汇总：failedTaskCount = exitCode（批次失败不冒充精确条目失败数）；
+ * 派生子进程随整树回收（ java 侧）。
  */
 
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -66,8 +66,8 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-describe("runJavaBatch EX02（fake-converter 输出模式矩阵）", () => {
-  it("静默进程：无输出也按 close 正常完成（BD-P2：不依赖 data 事件驱动）", {
+describe("runJavaBatch （fake-converter 输出模式矩阵）", () => {
+  it("静默进程：无输出也按 close 正常完成(不依赖 data 事件驱动）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const dir = makeTmp();
@@ -110,7 +110,7 @@ describe("runJavaBatch EX02（fake-converter 输出模式矩阵）", () => {
     expect(new Set(received).size).toBe(3);
   });
 
-  it("UTF-8 多字节拆包：跨 chunk/跨字符输出拼回原文，无尾换行走 flush（EX04）", {
+  it("UTF-8 多字节拆包：跨 chunk/跨字符输出拼回原文，无尾换行走 flush", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const dir = makeTmp();
@@ -152,7 +152,7 @@ describe("runJavaBatch EX02（fake-converter 输出模式矩阵）", () => {
     const received = JSON.parse(readFileSync(countFile, "utf8")) as string[];
     expect(received.length).toBe(96);
     expect(new Set(received).size).toBe(96);
-    // 顺序保持（FIFO，BD-P1）。
+    // 顺序保持（FIFO，BD)。
     expect(received[0]).toContain("task-0");
     expect(received[95]).toContain("task-95");
   });
@@ -215,7 +215,7 @@ describe("runJavaBatch EX02（fake-converter 输出模式矩阵）", () => {
     expect(result.failedTaskCount).toBe(3);
   });
 
-  it("派生子进程随整树回收（SC11 java 侧）：挂起批次被 deadline 终止后孙进程死亡", {
+  it("派生子进程随整树回收（ java 侧）：挂起批次被 deadline 终止后孙进程死亡", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const dir = makeTmp();

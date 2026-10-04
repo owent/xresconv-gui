@@ -1,5 +1,5 @@
 /**
- * stdin 编码器测试（P3-06）。
+ * stdin 编码器测试。
  *
  * 断言基准：测试内置一个 Main.java stdin tokenizer 的同形 JS mini-parser
  * （来源：xresloader/src/org/xresloader/core/Main.java:344-374——

@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { clickCheckboxLabel } from "../interactions.mjs";
 
 /**
- * 2026-09-26 用户反馈验证：树形条目可勾选/反选、树撑满左列、文字省略、
+ *  用户反馈验证：树形条目可勾选/反选、树撑满左列、文字省略、
  * 页面内容显示正常。配置经 --input 注入（CLI 参数 → loadConfig），
  * 勾选经真实 WebView 点击 → applyOps RPC → 快照回写。
  */
@@ -17,13 +17,13 @@ describeLoaded("tree selection and layout with a loaded config", () => {
   });
 
   it("shows the loaded tree and toggles item selection", async () => {
-    // 等自动加载(--input 经 CLI 或 display-settings)完成:树节点出现。
+    // 等自动加载(input 经 CLI 或 display-settings)完成:树节点出现。
     const firstItem = await $('[role="row"][data-key]');
     await firstItem.waitForExist({ timeout: 30_000 });
 
-    // 2026-09-26 三轮修复:RAC Checkbox 的原生 input 仍是 VisuallyHidden,
+    // 修复:RAC Checkbox 的原生 input 仍是 VisuallyHidden,
     // 可见方框画在 .tree-checkbox(label)上——断言复选框可见,并直接点击它切换
-    // (与用户真实交互一致;此前无可见复选框是用户反馈的问题)。
+    // 通过可见复选框执行与用户一致的选择操作。
     const checkboxLabel = await $(".tree-checkbox");
     await checkboxLabel.waitForExist({ timeout: 10_000 });
     assert.ok(await checkboxLabel.isDisplayed(), "复选框应可见");
@@ -41,7 +41,7 @@ describeLoaded("tree selection and layout with a loaded config", () => {
       { timeout: 10_000, timeoutMsg: "树勾选状态未翻转" },
     );
 
-    // 点标题(旧版点行切换语义)再切回来
+    // 点标题(点行切换语义)再切回来
     await title.click();
     await browser.waitUntil(
       async () => (await checkbox.isSelected()) === before,
@@ -78,7 +78,7 @@ describeLoaded("tree selection and layout with a loaded config", () => {
     }
   });
 
-  it("UI06：缺失 JAR 的真实转换失败 → 结果文案如实失败、不假成功不挂起", async () => {
+  it("：缺失 JAR 的真实转换失败 → 结果文案如实失败、不假成功不挂起", async () => {
     // 默认 fixture（tree-items.xml）的 xresloader_path=xresloader.jar 相对路径
     // 在应用 cwd 下不存在 → java 报 "Unable to access jarfile" 非零退出。
     const checkboxLabel = await $(".tree-checkbox");
@@ -91,7 +91,7 @@ describeLoaded("tree selection and layout with a loaded config", () => {
     const start = await $('button=开始转换');
     await start.click();
 
-    // 运行结果面板出现失败文案（区分阶段、不伪装成功——UI06 合同）。
+    // 运行结果面板出现失败文案（区分阶段、不伪装成功—— 合同）。
     const result = await $('[aria-label="运行结果"]');
     await result.waitForExist({ timeout: 30_000 });
     await browser.waitUntil(

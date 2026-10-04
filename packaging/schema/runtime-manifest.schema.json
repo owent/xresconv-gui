@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "packaging-runtime-manifest",
   "title": "RuntimeManifest",
-  "description": "Artifact-side runtime manifest (P5-01 schema; emitted per built artifact by P5-02..P5-07). Identity fields (targetTriple/os/osVersionRange/arch/variant/webviewStrategy/minimumWebview) mirror the build input packaging/targets.json; the remaining fields are only knowable at build/verify time and must never appear in targets.json. After installation the manifest is checkable against the actual files; its trustworthiness comes from the signed release / verified installer, not from merely containing hashes (05-book). Manifests must not contain developer-machine absolute paths or secrets; @xresconv/packaging lintManifest enforces that hygiene rule (PK01).",
+  "description": "Artifact runtime manifest: target identity, application and Node versions, file hashes, signing and verification evidence. Identity fields mirror packaging/targets.json; artifact-specific values are emitted during assembly and verification. Paths must be relative and secrets excluded. Hashes support integrity checks; authenticity requires a trusted release source.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -137,7 +137,7 @@
     },
     "moduleTreeHash": {
       "$ref": "#/$defs/sha256",
-      "description": "Hash over the production module tree listing (P5-02 assembly); identical between the two variants of one version on one target (05-book Windows rule 4)."
+      "description": "Hash over the production module tree listing ( assembly); identical between the two variants of one version on one target (模块文档 Windows rule 4)."
     },
     "nativeAddonAbi": {
       "type": "object",
@@ -213,7 +213,7 @@
           "license": {
             "type": "string",
             "minLength": 1,
-            "description": "SPDX identifier or license reference; licenses are shipped untrimmed (05-book)."
+            "description": "SPDX identifier or license reference; licenses are shipped untrimmed (模块文档)."
           }
         }
       }
@@ -246,7 +246,7 @@
           "reference": {
             "type": "string",
             "minLength": 1,
-            "description": "Where the evidence lives (detached signature file name, notarization log id); produced by the controlled release environment (P5-07)."
+            "description": "Where the evidence lives (detached signature file name, notarization log id); produced by the controlled release environment."
           }
         }
       }

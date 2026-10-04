@@ -65,7 +65,7 @@ describe("FrameDecoder", () => {
     expect(frames).toEqual([]);
   });
 
-  it("rejects a body that is not valid UTF-8 without decoding mojibake (SC01)", () => {
+  it("rejects a body that is not valid UTF-8 without decoding mojibake", () => {
     const { frames, errors, decoder } = collect();
     const body = Buffer.from([0xff, 0xfe, 0x28]); // 孤立代理字节序列，非法 UTF-8
     const head = Buffer.allocUnsafe(4);
@@ -76,7 +76,7 @@ describe("FrameDecoder", () => {
     expect(errors[0]?.code).toBe("BAD_JSON");
   });
 
-  it("parses a __proto__ key with own-property semantics: no prototype pollution (SC01/R12)", () => {
+  it("parses a __proto__ key with own-property semantics: no prototype pollution", () => {
     const { frames, errors, decoder } = collect();
     // JSON.parse 规范把 "__proto__" 当 own property；即使解析成功，也不能把它
     // 当成原型赋值通道。envelope 层另有 additionalProperties:false 拒绝未知键。

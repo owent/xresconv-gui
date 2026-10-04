@@ -1,7 +1,7 @@
 /**
  * SelectionTree（selectMode:3 语义）测试。用例语义锚定
  * jquery.fancytree 2.38.5（node_modules/jquery.fancytree/dist/jquery.fancytree-all.js）
- * 与旧 GUI 用法（src/main.js 行号见各注释）。
+ * 与 用法（ 行号见各注释）。
  */
 
 import { describe, expect, it } from "vitest";
@@ -84,7 +84,7 @@ describe("setSelected 级联（nodeSetSelected + fixSelection3AfterClick）", ()
     expect(keys).toEqual([1, 2, "f", "g"].sort());
   });
 
-  it("级联跳过 unselectable 子孙；父级聚合排除屏蔽项（2026-09-27 用户反馈修复）", () => {
+  it("级联跳过 unselectable 子孙；父级聚合排除屏蔽项", () => {
     // 语义变更：不再沿用官方 _changeSelectStatusAttrs 对未配置 unselectableStatus
     // 节点的“穿透”怪癖——矩阵屏蔽项（记忆勾选→取消勾选→屏蔽）绝不允许被父级
     // 级联重新选中（否则屏蔽失效、屏蔽项会进入转换集）。采用 fancytree 自家

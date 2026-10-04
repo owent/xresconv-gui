@@ -1,16 +1,16 @@
 /**
- * 会话树状态（P2-05）：backend 侧的选择/展开权威状态与脚本 ops 应用。
+ * 会话树状态：backend 侧的选择/展开权威状态与脚本 ops 应用。
  *
  * 职责：
- * - 从 ParsedConfig 构建 SelectionTree（@xresconv/compat-service，与 worker 内
+ * 从 ParsedConfig 构建 SelectionTree（@xresconv/compat-service，与 worker 内
  *   NodeMirror 共享同一 selectMode:3 实现，禁止分叉）与 item/option 索引；
- * - 生成线上快照（script-invoke context.tree）：item 载荷翻译回旧版字段形状
+ * 生成线上快照（script-invoke context.tree）：item 载荷翻译回字段形状
  *   （snake_case scheme_data、id、无 ft_node——别名由 worker 镜像重建）；
- * - 应用 worker 回传的 ops（set_node_states/set_node_expanded/set_fields/
+ * 应用 worker 回传的 ops（set_node_states/set_node_expanded/set_fields/
  *   set_node_option/diagnostic）与 UI 选择 ops（select_node/select_all/
- *   select_none，P4-03；级联走同一 SelectionTree，UI 不分叉实现），
+ *   select_none，；级联走同一 SelectionTree，UI 不分叉实现），
  *   逐 op 校验快照版本，失配整批拒绝；
- * - 矩阵资格（main.js:1034-1110 show_output_matrix）：见 applyMatrixEligibility。
+ * 矩阵资格（ show_output_matrix）：见 applyMatrixEligibility。
  *
  * 版本约定：version 从 1 开始，每成功应用一批 ops 或一次矩阵资格变化 +1。
  * worker ops 上的 v 必须等于当前版本，否则整批拒绝（陈旧镜像的迟到写入不生效）。
@@ -30,19 +30,19 @@ export interface AppliedOpsReport {
   applied: number;
   /** 被拒绝的 op（含原因）；版本失配时全部拒绝。 */
   rejected: { op: string; reason: string }[];
-  /** 脚本侧诊断（D3_EXCLUDED/D3_READ_ONLY/...），调用方负责进日志。 */
+  /** 脚本侧诊断（D3_EXCLUDED/D3_READ_ONLY/.)，调用方负责进日志。 */
   diagnostics: { code: string; message: string }[];
   /** 应用后的当前版本（含失配拒绝场景——调用方据此重同步）。 */
   version: number;
   /**
-   * UI 选择 ops（select_node/select_all/select_none，P4-03）产生的级联变更
+   * UI 选择 ops（select_node/select_all/select_none)产生的级联变更
    * 全集（应用顺序）；调用方（壳 UI）据此做增量显示更新，无需整树重取。
    * worker 路径的 set_node_states 是镜像盖章，不回填此字段。
    */
   stateChanges: NodeStateChange[];
 }
 
-/** worker ops 支持的最小形状（ops 契约见 docs/plan/records/P2-05.md）。 */
+/** worker ops 支持的最小形状（ops 契约见 docs/development/testing.md）。 */
 interface ScriptOp {
   v?: unknown;
   op?: unknown;
@@ -50,9 +50,9 @@ interface ScriptOp {
 }
 
 /**
- * 旧版 item_data 字段名 → 模型字段名的字段级应用（唯一不同名的是 scheme_data）。
+ *  item_data 字段名 → 模型字段名的字段级应用（唯一不同名的是 scheme_data）。
  * id / ft_node 被跳过：id 是树身份（脚本改写会破坏 key 索引），ft_node 由
- * worker 镜像重建、线上不出现（P2-05 合同）。
+ * worker 镜像重建、线上不出现（ 合同）。
  */
 export function applyLegacyItemField(item: TreeItem, key: string, value: unknown): void {
   if (key === "id" || key === "ft_node") {
@@ -71,7 +71,7 @@ export function applyLegacyItemField(item: TreeItem, key: string, value: unknown
   });
 }
 
-/** 批量应用旧版字段集（value===null → 删键，对齐 worker diffFields 语义）。 */
+/** 批量应用字段集（value===null → 删键，对齐 worker diffFields 语义）。 */
 export function applyLegacyItemFields(item: TreeItem, fields: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(fields)) {
     if (value === null) {
@@ -86,7 +86,7 @@ export function applyLegacyItemFields(item: TreeItem, fields: Record<string, unk
   }
 }
 
-/** item 模型 → 旧版 item_data 载荷（schemeData→scheme_data、附 id、无 ft_node）。 */
+/** item 模型 →  item_data 载荷（schemeData→scheme_data、附 id、无 ft_node）。 */
 export function toLegacyItemData(item: TreeItem): Record<string, unknown> {
   const { schemeData, ...fields } = structuredClone(item);
   return { ...fields, scheme_data: schemeData };
@@ -95,7 +95,7 @@ export function toLegacyItemData(item: TreeItem): Record<string, unknown> {
 export class SessionTreeState {
   private readonly selectionTree: SelectionTree;
   private readonly itemById = new Map<number, TreeItem>();
-  /** key → auto_select 活状态（data.option.auto_select，main.js:1766-1769）。 */
+  /** key → auto_select 活状态（data.option.auto_select)。 */
   private readonly optionByKey = new Map<string | number, { auto_select: boolean }>();
   private version = 1;
   private readonly matrixBlocked = new Set<string | number>();
@@ -106,8 +106,8 @@ export class SessionTreeState {
     this.config = config;
     const nodes = config.tree.map((node) => this.toSnapshotNode(node));
     this.selectionTree = new SelectionTree(nodes);
-    // 加载期矩阵资格：multiSelected 由内容推导（main.js:1333-1340 在加载时把
-    // 多输出项设为选中）；withRule ⇒ 内容必为 multi，故门内即旧版 disable 分支。
+    // 加载期矩阵资格：multiSelected 由内容推导（ 在加载时把
+    // 多输出项设为选中）；withRule ⇒ 内容必为 multi，故门内即 disable 分支。
     const matrix = config.outputMatrix;
     this.applyMatrixEligibility(matrix, isMatrixMode(matrix));
   }
@@ -116,7 +116,7 @@ export class SessionTreeState {
     return this.version;
   }
 
-  /** 当前选中 item（DFS 序，main.js:2003-2008 只收集 items 存在的节点）。 */
+  /** 当前选中 item（DFS 序， 只收集 items 存在的节点）。 */
   getSelectedItems(): TreeItem[] {
     const items: TreeItem[] = [];
     for (const node of this.selectionTree.getSelectedNodes()) {
@@ -132,7 +132,7 @@ export class SessionTreeState {
 
   /**
    * 用调用方给定的 item 集合替换当前勾选（UI 勾选状态 → 树状态的同步入口，
-   * 对应旧版 fancytree 复选框是唯一事实来源）。逐项走 setSelected 级联；
+   * 对应 fancytree 复选框是唯一事实来源）。逐项走 setSelected 级联；
    * unselectable 项被忽略（fancytree 直调 no-op 语义）。有实际变化时版本 +1。
    */
   replaceSelection(items: readonly TreeItem[]): void {
@@ -161,8 +161,10 @@ export class SessionTreeState {
     }
   }
 
-  /** 线上快照：worker NodeMirror 的输入。状态取自 SelectionTree 活状态（不是模型，
-   * 否则丢失脚本/矩阵资格造成的后续变化）；item 载荷从 TreeItem 活值重新翻译。 */
+  /**
+   *  线上快照：worker NodeMirror 的输入。状态取自 SelectionTree 活状态（不是模型，
+   * 否则丢失脚本/矩阵资格造成的后续变化）；item 载荷从 TreeItem 活值重新翻译。
+   */
   buildSnapshot(): TreeSnapshot {
     return {
       version: this.version,
@@ -171,13 +173,13 @@ export class SessionTreeState {
   }
 
   /**
-   * 矩阵资格（main.js:1034-1110 show_output_matrix）：`multiSelected` 对应旧版
+   * 矩阵资格（ show_output_matrix）：`multiSelected` 对应
    * "多输出项当前被选中"（selectedIndex==index，加载期由内容推导：规则>1 或唯一
-   * 规则带限定，main.js:1333-1340）。两分支都以 output_matrix_with_rule 为门
-   * （矩阵非空且每条规则带 tags/classes，main.js:1324-1331）；都只处理**不匹配**
+   * 规则带限定)。两分支都以 output_matrix_with_rule 为门
+   * （矩阵非空且每条规则带 tags/classes)；都只处理**不匹配**
    * 任何规则的 item：multiSelected 时记忆勾选→取消勾选→置 unselectable
-   * （main.js:1072-1077），否则恢复 unselectable 并按记忆的 auto_select 勾选
-   * （main.js:1103-1107）。withRule=false 时旧版两分支均不执行 → 此处 no-op。
+   *    *否则恢复 unselectable 并按记忆的 auto_select 勾选
+   *    *。withRule=false 时两分支均不执行 → 此处 no-op。
    */
   applyMatrixEligibility(matrix: OutputMatrixRule[], multiSelected: boolean): void {
     const withRule =
@@ -196,10 +198,10 @@ export class SessionTreeState {
       }
       const allowed = matrix.some((rule) => matrixRuleMatchesItem(rule, item));
       if (allowed) {
-        return; // 两分支都只处理不匹配项（main.js:1072/1103）
+        return; // 两分支都只处理不匹配项
       }
       if (multiSelected) {
-        // main.js:1073-1075：先记忆当前勾选，再取消勾选并禁止。
+        // 先记忆当前勾选，再取消勾选并禁止。
         if (!this.matrixBlocked.has(key)) {
           option.auto_select = node.selected;
         }
@@ -208,7 +210,7 @@ export class SessionTreeState {
         this.selectionTree.applyUnselectable(key, true);
       } else {
         this.matrixBlocked.delete(key);
-        // main.js:1104-1105：恢复可勾选并按记忆的 auto_select 勾选。
+        // 恢复可勾选并按记忆的 auto_select 勾选。
         this.selectionTree.applyUnselectable(key, false);
         this.selectionTree.applySetSelected(key, option.auto_select);
       }
@@ -231,13 +233,13 @@ export class SessionTreeState {
    * 应用一批脚本 ops。版本失配（任何 op.v !== 当前版本）→ 整批拒绝。
    * 单个 op 的结构性问题只拒绝该 op（其余继续），并给出原因。
    *
-   * ops 词汇（P2-05 worker 契约 + P4-03 UI 扩展）：
-   * - set_node_states（worker 镜像盖章，绝对状态）/ set_node_expanded /
+   * ops 词汇（ worker 契约 +  UI 扩展）：
+   * set_node_states（worker 镜像盖章，绝对状态）/ set_node_expanded /
    *   set_fields / set_node_option / diagnostic：worker 脚本路径；
-   * - select_node {key, selected?}（P4-03 UI）：selected 缺省 = toggle
-   *   （applyToggleSelected，旧版 Space/双击语义），否则 applySetSelected；
+   * select_node {key, selected?}（ UI）：selected 缺省 = toggle
+   *   （applyToggleSelected， Space/双击语义），否则 applySetSelected；
    *   级联与 unselectable no-op 语义同 fancytree selectMode:3；
-   * - select_all / select_none（P4-03 UI）：旧版按钮语义——visit 全树
+   * select_all / select_none（ UI）：按钮语义——visit 全树
    *   setSelected(true/false)（unselectable 逐项 no-op）。
    */
   applyScriptOps(rawOps: readonly unknown[]): AppliedOpsReport {
@@ -345,7 +347,7 @@ export class SessionTreeState {
           }
           break;
         }
-        // ---- P4-03 UI 选择 ops（级联在 SelectionTree 内完成，UI 不分叉实现）----
+        // UI 选择 ops（级联在 SelectionTree 内完成，UI 不分叉实现）----
         case "select_node": {
           const key = op.key;
           if (typeof key !== "string" && typeof key !== "number") {
@@ -353,7 +355,7 @@ export class SessionTreeState {
             break;
           }
           try {
-            // selected 缺省 = toggle（旧版 Space/双击）；显式 bool = set。
+            // selected 缺省 = toggle（ Space/双击）；显式 bool = set。
             const changes =
               op.selected === undefined
                 ? this.selectionTree.applyToggleSelected(key)
@@ -373,7 +375,7 @@ export class SessionTreeState {
         }
         case "select_all":
         case "select_none": {
-          // 旧版按钮语义（main.js:678-695/2678-2695）：visit 全树 setSelected(flag)，
+          // 按钮语义：visit 全树 setSelected(flag)，
           // unselectable 逐项 no-op；级联使后置调用早退，变更集天然不重复。
           // 选择只改标志位、不改树结构，visit 遍历中调用安全。
           const flag = op.op === "select_all";
@@ -431,7 +433,7 @@ export class SessionTreeState {
   }
 
   /**
-   * 模型节点 → 线上快照节点。item 载荷翻译回旧版字段形状（contract.md §6）：
+   * 模型节点 → 线上快照节点。item 载荷翻译回字段形状（contract.md ）：
    * schemeData→scheme_data；附 id；不含 ft_node（worker 镜像重建别名）。
    */
   private toSnapshotNode(node: TreeNode): TreeNodeSnapshot {
@@ -440,7 +442,7 @@ export class SessionTreeState {
       return {
         key,
         title: node.name,
-        tooltip: node.name, // 旧版 folder tooltip=title（main.js:1449-1452）
+        tooltip: node.name, //  folder tooltip=title
         folder: true,
         unselectable: false,
         selected: false,

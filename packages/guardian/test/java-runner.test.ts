@@ -1,10 +1,10 @@
 /**
- * runJavaBatch 真实 JAR 集成测试（P3-07）。
+ * runJavaBatch 真实 JAR 集成测试。
  *
  * 使用本机真实构件：
- * - JAR: XRESCONV_TEST_JAR 或 ../xresloader/target 中唯一 JAR
- * - 样本: XRESCONV_TEST_SAMPLE 或 ../xresloader/sample（cwd 基准，任务内相对路径）
- * jar/样本缺失时整组 skip（在 docs/plan/records/P3-05.md 声明）。
+ * JAR: XRESCONV_TEST_JAR 或 ../xresloader/target 中唯一 JAR
+ * 样本: XRESCONV_TEST_SAMPLE 或 ../xresloader/sample（cwd 基准，任务内相对路径）
+ * jar/样本缺失时整组 skip（在 docs/development/testing.md 声明）。
  *
  * 用例 a-e 对应任务书；另含空批次、中止与截止路径。
  */

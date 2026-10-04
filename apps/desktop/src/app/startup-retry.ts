@@ -1,5 +1,5 @@
 /**
- * 启动期可重试错误判定（2026-09-26 用户反馈：dev 启动仍弹
+ * 启动期可重试错误判定（dev 启动仍弹
  * "guardian protocol violation: BACKEND_NOT_READY"）。
  *
  * guardian/backend 在壳启动后仍在 starting 时，立即发出的 backend_rpc 会以

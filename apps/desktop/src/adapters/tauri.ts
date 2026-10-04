@@ -1,5 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { getBrowserLocales, translate as t } from "../i18n";
 
 /** Persistent guardian health carries supervisor state (not the one-shot NodeHealth). */
 export interface GuardianHealth {
@@ -24,11 +25,16 @@ export interface AppInfo {
  * 组件只依赖本模块，测试按 App.test.tsx 的方式 mock @tauri-apps/api 即可生效。
  *
  * 同命令在途去重：React StrictMode 会同步重放挂载副作用（setup→cleanup→setup），
- * 在途 Promise 复用保证重复挂载不会放大成重复的 invoke 往返（docs/plan/04-ui.md
+ * 在途 Promise 复用保证重复挂载不会放大成重复的 invoke 往返（docs/development/frontend.md
  * §状态分层：重复挂载不能建立重复任务）。Promise 结算后条目自动移除，
  * 之后再次调用（如“重载配置”）会发起新的探测。
  */
 const inflight = new Map<string, Promise<unknown>>();
+
+/** WebView2 字体授权完成后才可枚举；普通浏览器使用自身权限流程。 */
+export async function allowLocalFonts(): Promise<boolean> {
+  return !isTauri() || (await invoke<boolean>("allow_local_fonts"));
+}
 
 function dedupeInflight<T>(key: string, run: () => Promise<T>): Promise<T> {
   const pending = inflight.get(key);
@@ -59,24 +65,24 @@ export function getBackendHealth(): Promise<GuardianHealth> {
 /** 打开原生 XML 配置选择框；用户取消时返回 null。 */
 export async function pickXmlConfig(): Promise<string | null> {
   const selected = await open({
-    title: "选择转换配置",
+    title: t("native.pickConfig"),
     filters: [{ name: "xresconv XML", extensions: ["xml"] }],
   });
   return typeof selected === "string" ? selected : null;
 }
 
-/** 打开原生保存对话框（P4-07 日志导出）；用户取消时返回 null。 */
+/** 打开原生保存对话框（ 日志导出）；用户取消时返回 null。 */
 export async function pickSavePath(defaultName: string): Promise<string | null> {
   const selected = await save({
-    title: "导出日志",
+    title: t("log.export"),
     defaultPath: defaultName,
-    filters: [{ name: "Text", extensions: ["log", "txt"] }],
+    filters: [{ name: t("native.text"), extensions: ["log", "txt"] }],
   });
   return typeof selected === "string" ? selected : null;
 }
 
 /**
- * 写 UTF-8 文本文件（P4-07）：壳层 export_text_file 命令（lib.rs），路径来自
+ * 写 UTF-8 文本文件：壳层 export_text_file 命令（lib.rs），路径来自
  * pickSavePath 的用户选择；这是 UI 侧可写磁盘的唯一入口。
  */
 export function exportTextFile(path: string, content: string): Promise<void> {
@@ -86,6 +92,7 @@ export function exportTextFile(path: string, content: string): Promise<void> {
 /** 显示设置（镜像壳层 DisplaySettings；缺省=跟随系统/无上次文件）。 */
 export interface DisplaySettings {
   theme: "system" | "light" | "dark" | null;
+  language?: string | null;
   lastConfigFile: string | null;
   fonts?: {
     global?: { family?: string | null; size?: number | null };
@@ -99,11 +106,19 @@ export function readDisplaySettings(): Promise<DisplaySettings | null> {
   return invoke<DisplaySettings | null>("read_display_settings");
 }
 
+/** 桌面以原生系统偏好为准，浏览器预览使用浏览器偏好。 */
+export function getSystemLocales(): Promise<string[]> {
+  return isTauri()
+    ? dedupeInflight("get_system_locales", () => invoke<string[]>("get_system_locales"))
+    : Promise.resolve(getBrowserLocales());
+}
+
 export function writeDisplaySettings(
   settings: DisplaySettings & { fontsAsValue?: unknown },
 ): Promise<void> {
   return invoke("write_display_settings", {
     theme: settings.theme,
+    language: settings.language ?? null,
     lastConfigFile: settings.lastConfigFile,
     fonts: (settings.fontsAsValue ?? settings.fonts) as unknown,
   });

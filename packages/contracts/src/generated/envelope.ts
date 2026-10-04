@@ -2,7 +2,7 @@
 // Generated from packages/contracts/schema/*.json. Do not edit.
 
 /**
- * Universal message envelope between shell/guardian/backend/script-worker roles (Plan 02 §消息 envelope). Correlation fields are optional per kind; payload is validated per kind by the receiving handler against its own schema. Single source of truth; TypeScript types are generated from this file.
+ * Message envelope for shell, guardian, backend and script-worker roles. Correlation fields are optional per kind. Receivers validate payloads with the corresponding schema. TypeScript types are generated from this schema.
  */
 export interface Envelope {
   protocol_version: 1;

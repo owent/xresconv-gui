@@ -30,7 +30,7 @@ describe.each([
 
   it("accepts the valid sample", () => {
     const sample = loadSample(`${name}.valid.json`);
-    // 一个文件可携带多例（顶层数组），逐例校验（P4-04a：backend-rpc 增补方法样例）。
+    // 一个文件可携带多例（顶层数组），逐例校验(backend-rpc 增补方法样例）。
     const payloads = Array.isArray(sample) ? sample : [sample];
     expect(payloads.length).toBeGreaterThan(0);
     for (const payload of payloads) {

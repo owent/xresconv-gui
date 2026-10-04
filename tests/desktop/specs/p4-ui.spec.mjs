@@ -1,14 +1,14 @@
 import assert from "node:assert";
 
 /**
- * P4-09 真实 WebView 桌面 E2E：P4-06/P4-07 UI 面在真实 WebView2 的渲染与
+ * 真实 WebView 桌面 E2E：验证 UI 在真实 WebView2 的渲染与
  * 无配置交互路径。不使用 --input（wdio tauri service 无参数注入通道；
- * 原生文件对话框真实打开验证单列，见 06-testing-acceptance.md）。
+ * 原生文件对话框验证另见 docs/development/testing.md）。
  */
 
 const withEmptyState = process.env.XRESCONV_E2E_INPUT ? describe.skip : describe;
 
-withEmptyState("P4 UI panels in the real webview", () => {
+withEmptyState("UI panels in the real webview", () => {
   before(async () => {
     const handles = await browser.getWindowHandles();
     assert.strictEqual(handles.length, 1);
@@ -98,6 +98,73 @@ withEmptyState("P4 UI panels in the real webview", () => {
       getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim(),
     );
     assert.notStrictEqual(bg, "");
+  });
+
+  if (process.platform === "win32") {
+    it("enumerates installed fonts on repeated settings opens without permission confirmation", async () => {
+      const before = await browser.executeAsync((done) => {
+        navigator.permissions.query({ name: "local-fonts" }).then((value) => done(value.state),
+          (error) => done({ error: String(error) }));
+      });
+      assert.ok(["prompt", "granted", "denied"].includes(before), JSON.stringify(before));
+      console.log(`[fonts] initial permission=${before}`);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await (await $("button=显示设置")).click();
+        await browser.waitUntil(
+          () => browser.execute(() => document.querySelector("datalist")?.options.length > 12),
+          { timeout: 10_000, timeoutMsg: "installed font candidates did not replace the fallback list" },
+        );
+        const result = await browser.executeAsync((done) => {
+          Promise.all([
+            navigator.permissions.query({ name: "local-fonts" }),
+            window.queryLocalFonts(),
+          ]).then(([permission, fonts]) => done({
+            permission: permission.state,
+            installed: [...new Set(fonts.map((font) => font.family))].sort(),
+            candidates: Array.from(document.querySelector("datalist").options, (option) => option.value).sort(),
+          }), (error) => done({ error: String(error) }));
+        });
+        assert.strictEqual(result.permission, "granted", JSON.stringify(result));
+        assert.deepStrictEqual(result.candidates, result.installed);
+        console.log(`[fonts] open=${attempt + 1} permission=${result.permission} families=${result.installed.length}`);
+        await (await $("button=关闭")).click();
+      }
+    });
+  }
+  it("reads system languages and restores a saved language after reloading the real webview", async () => {
+    const original = await browser.executeAsync((done) => {
+      window.__TAURI_INTERNALS__.invoke("read_display_settings").then(done, (error) => done({ error: String(error) }));
+    });
+    assert.ok(!original?.error, JSON.stringify(original));
+    try {
+      const languages = await browser.executeAsync((done) => {
+        window.__TAURI_INTERNALS__.invoke("get_system_locales").then(done, (error) => done({ error: String(error) }));
+      });
+      assert.ok(Array.isArray(languages), JSON.stringify(languages));
+      assert.ok(languages.every((language) => typeof language === "string"));
+      console.log(`[languages] system=${JSON.stringify(languages)}`);
+      await (await $("button=显示设置")).click();
+      const select = await $('[data-testid="language-select"]');
+      await select.waitForDisplayed({ timeout: 10_000 });
+      await select.selectByAttribute("value", "en");
+      await expectDisplayed('[role="dialog"][aria-label="Display settings"]');
+      await (await $("button=Close")).click();
+      await browser.waitUntil(async () => (await browser.executeAsync((done) => {
+        window.__TAURI_INTERNALS__.invoke("read_display_settings").then(done, () => done(null));
+      }))?.language === "en", { timeout: 10_000, timeoutMsg: "language was not saved" });
+      await browser.refresh();
+      await expectDisplayed("button=Display settings");
+      const language = await browser.execute(() => document.documentElement.lang);
+      assert.strictEqual(language, "en");
+      await expectDisplayed("button=Start conversion");
+    } finally {
+      const restored = await browser.executeAsync((settings, done) => {
+        window.__TAURI_INTERNALS__.invoke("write_display_settings", settings).then(() => done(true), (error) => done({ error: String(error) }));
+      }, original ?? { language: "zh-CN" });
+      assert.strictEqual(restored, true, JSON.stringify(restored));
+      await browser.refresh();
+      await expectDisplayed("button=显示设置");
+    }
   });
 });
 

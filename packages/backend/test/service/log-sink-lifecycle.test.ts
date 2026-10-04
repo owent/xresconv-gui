@@ -45,7 +45,7 @@ it("reports unconfirmed cleanup when a killed log worker never closes", async ()
   );
   await vi.advanceTimersByTimeAsync(2500);
   expect(await Promise.race([outcome, Promise.resolve("pending")])).toMatch(/cleanup unconfirmed/);
-  // 终止走进程树作用域（P2-02），不再对单个进程裸发 SIGKILL。
+  // 终止走进程树作用域，不再对单个进程裸发 SIGKILL。
   expect(scope.terminate).toHaveBeenCalled();
   expect(child.stdin.destroyed).toBe(true);
 });

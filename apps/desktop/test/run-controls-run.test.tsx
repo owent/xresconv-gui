@@ -97,14 +97,14 @@ function summaryText(summary: Partial<RunSummaryLike>): RunSummaryLike {
   };
 }
 
-describe("RunControls 运行控制门禁（P4-06）", () => {
+describe("RunControls 运行控制门禁", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
     mockedInvoke.mockReset();
   });
 
-  it("ready：预览和开始可用，取消禁用，旧版重置入口不显示", async () => {
+  it("ready：预览和开始可用，取消禁用，重置入口不显示", async () => {
     await loadFixture();
     render(<RunControls />);
     expect(buttonEnabled("预览")).toBe(true);
@@ -162,7 +162,7 @@ describe("RunControls 运行控制门禁（P4-06）", () => {
   });
 });
 
-describe("RunControls 开始/取消 RPC 流程（P4-06，EX03 前端侧）", () => {
+describe("RunControls 开始/取消 RPC 流程(前端侧）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
@@ -257,7 +257,7 @@ describe("RunControls 开始/取消 RPC 流程（P4-06，EX03 前端侧）", () 
   });
 });
 
-describe("运行结果文案（P4-06，UI06：区分实际阶段与已发生副作用）", () => {
+describe("运行结果文案(：区分实际阶段与已发生副作用）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
@@ -300,7 +300,7 @@ describe("运行结果文案（P4-06，UI06：区分实际阶段与已发生副�
     );
     expect(region.textContent).toContain("失败计数 2");
     expect(region.textContent).toContain("5 个任务");
-    // 2026-09-30 用户改版：失败文案精简为"详见日志"，不再展开批次协议说明。
+    // 失败文案精简为"详见日志"，不再展开批次协议说明。
     expect(region.textContent).toContain("详见日志");
   });
 
@@ -346,7 +346,7 @@ describe("运行结果文案（P4-06，UI06：区分实际阶段与已发生副�
   });
 });
 
-describe("store 运行语义（P4-06）", () => {
+describe("store 运行语义", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();

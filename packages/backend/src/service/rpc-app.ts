@@ -1,33 +1,32 @@
 /**
- * Backend 业务 RPC 面（P4-02）：壳 → guardian → backend 的请求入口与事件源。
+ * Backend 业务 RPC 面：壳 → guardian → backend 的请求入口与事件源。
  *
  * BackendRpcApp 持有 ScriptWorkerPool 与 ConversionSession（各一，会话级），
  * 把 packages/contracts/schema/backend-rpc.json 定义的方法集映射到会话操作：
  *
- * - loadConfig {path} / reload {}：加载/重载配置（运行中拒绝，INVALID_STATE；
+ * loadConfig {path} / reload {}：加载/重载配置（运行中拒绝，INVALID_STATE；
  *   解析失败 CONFIG_ERROR），成功后返回完整快照（成功时清空 overrides，表单随配置重填）；
- * - getSnapshot {}：{state, runSeq, config, tree, selectedItems, settings}；
- * - applyOps {ops}：脚本 ops 应用到会话树（版本闸在 SessionTreeState，P2-05）；
- * - updateSettings {fields}：合并式写入转换参数覆盖（P4-04a；白名单逐字段类型校验，
+ * getSnapshot {}：{state, runSeq, config, tree, selectedItems, settings}；
+ * applyOps {ops}：脚本 ops 应用到会话树（版本闸在 SessionTreeState)；
+ * updateSettings {fields}：合并式写入转换参数覆盖(白名单逐字段类型校验，
  *   未知键/错类型 → INVALID_PARAMS；未加载/运行中 → INVALID_STATE），返回
  *   {overrides, effective, parallelism}（配置默认 ⊕ 覆盖的全量有效值）；matrix 变化
- *   触发会话树矩阵资格重估；parallelism（P4-04b）为会话级并发数（number，有限校验，
+ *   触发会话树矩阵资格重估；parallelism为会话级并发数（number，有限校验，
  *   取整夹取 [1,16]），不进 overrides；
- * - preview {}：当前选择 + 当前覆盖构建转换计划预览（P4-04a；未加载 → INVALID_STATE；
+ * preview {}：当前选择 + 当前覆盖构建转换计划预览(未加载 → INVALID_STATE；
  *   计划构建错误按其 code 透传，如 XRESLOADER_NOT_FOUND），返回任务列表与
- *   同一条目、同 (type, outputDir, rename) 的重复转换任务（UI04）；
- * - run {}：异步启动一次转换（缺省用会话持有的 overrides），立即返回 {runSeq}，
+ *   同一条目、同 (type, outputDir, rename) 的重复转换任务；
+ * run {}：异步启动一次转换（缺省用会话持有的 overrides），立即返回 {runSeq}，
  *   进度/结果经事件流（state_change / log / run_end）上报；
- * - cancel {} / reset {}：取消当前运行 / 业务级重置（EX03 语义在会话层）；
- * - respondDialog {token, choice}：应答脚本弹框（P2-06 注册表在 pool；迟到/
- *   未知 token 按 SC06 丢弃，返回 {answered:false} 而非报错）。
- * - setHookEnabled {group, index, enabled}：事件 hook 开关（P4-05a，F09；
- *   group ∈ before/after/append_log；未加载 → INVALID_STATE；越界/匿名/
- *   immutable → INVALID_PARAMS；无运行状态门禁——旧版复选框全程可改）。
- * - setCustomSelectors {files}：设置/重读自定义选择器文件（P4-05a；错误条目
+ * cancel {} / reset {}：取消当前运行 / 业务级重置（ 语义在会话层）；
+ * respondDialog {token, choice}：应答脚本弹框（ 注册表在 pool；迟到/
+ *   未知 token 按  丢弃，返回 {answered:false} 而非报错）。
+ * setHookEnabled {group, index, enabled}：事件 hook 开关(*   group ∈ before/after/append_log；未加载 → INVALID_STATE；越界/匿名/
+ *   immutable → INVALID_PARAMS；无运行状态门禁——复选框全程可改）。
+ * setCustomSelectors {files}：设置/重读自定义选择器文件(错误条目
  *   随视图返回并记 CUSTOM SELECTOR 日志；已加载树时重放 default_selected），
  *   返回 {selectors}；无运行状态门禁（CLI 顺序允许先于 loadConfig）。
- * - invokeCustomButton {name}：自定义按钮点击（P4-05a；未知 → INVALID_PARAMS；
+ * invokeCustomButton {name}：自定义按钮点击(未知 → INVALID_PARAMS；
  *   动作链失败记日志并中止），返回 {ok, error?}。
  * 快照 customSelectors 字段：未设置时为 null，设置后为选择器视图数组。
  *
@@ -62,8 +61,10 @@ import type { AppliedOpsReport } from "./tree-state.ts";
 /** backend-rpc schema 的方法枚举（单一事实源在 schema；此处取生成类型的子类型）。 */
 export type BackendRpcMethod = Extract<BackendRpc, { type: "request" }>["method"];
 
-/** backend 侧 RPC 错误码（guardian 侧 BACKEND_* 码见 backend-supervisor.ts）。
- * XRESLOADER_NOT_FOUND 来自计划构建（P4-04a preview；code 为自由字符串词表）。 */
+/**
+ *  backend 侧 RPC 错误码（guardian 侧 BACKEND_* 码见 backend-supervisor.ts）。
+ * XRESLOADER_NOT_FOUND 来自计划构建（ preview；code 为自由字符串词表）。
+ */
 export type RpcErrorCode =
   | "INVALID_PARAMS"
   | "UNKNOWN_METHOD"
@@ -83,15 +84,17 @@ export class RpcError extends Error {
   }
 }
 
-/** 表单设置视图（P4-04a）：当前覆盖 + 配置默认 ⊕ 覆盖的有效值（未加载配置时 effective 为 null）。
- * P4-04b：parallelism 为会话级并发数（不进 overrides，归 ConversionSession 持有）。 */
+/**
+ *  表单设置视图：当前覆盖 + 配置默认 ⊕ 覆盖的有效值（未加载配置时 effective 为 null）。
+ * parallelism 为会话级并发数（不进 overrides，归 ConversionSession 持有）。
+ */
 export interface SettingsView {
   overrides: ConversionOverrides;
   effective: EffectiveSettings | null;
   parallelism: number;
 }
 
-/** preview 的单任务视图（UI04：display 为旧式单行展示串）。 */
+/** preview 的单任务视图(display 为旧式单行展示串）。 */
 export interface PreviewTask {
   itemKey?: string;
   outputDir?: string;
@@ -125,7 +128,7 @@ export interface BackendSnapshot {
   tree: ReturnType<ConversionSession["getTreeSnapshot"]>;
   selectedItems: ReturnType<ConversionSession["getSelectedItems"]>;
   settings: SettingsView;
-  /** P4-05a：自定义选择器/按钮视图（未 setCustomSelectors 时为 null）。 */
+  /** ：自定义选择器/按钮视图（未 setCustomSelectors 时为 null）。 */
   customSelectors: CustomSelectorView[] | null;
 }
 
@@ -147,13 +150,13 @@ export interface BackendRpcAppOptions {
   parallelism?: number;
   /** set_name 单条超时（毫秒）。 */
   setNameTimeoutMs?: number;
-  /** 选择器匹配的隔离 matcher 工厂（P4-05a）；缺省真实 MatcherService（懒创建）。 */
+  /** 选择器匹配的隔离 matcher 工厂；缺省真实 MatcherService（懒创建）。 */
   matcherFactory?: () => MatcherService;
-  /** log4js 落盘配置路径（F10/F11 --log-configure；缺省用内置默认配置）。 */
+  /** log4js 落盘配置路径(-log-configure；缺省用内置默认配置）。 */
   log4jsConfigurePath?: string | null;
 }
 
-/** 弹框 token 推导与 pool 的注册表键一致（P2-06：payload.token，缺省回退 env.id）。 */
+/** 弹框 token 推导与 pool 的注册表键一致(payload.token，缺省回退 env.id）。 */
 function dialogToken(env: Envelope): string {
   const token = env.payload.token;
   return typeof token === "string" && token.length > 0 ? token : env.id;
@@ -169,7 +172,7 @@ function asParams(params: Record<string, unknown> | undefined): Record<string, u
   return params;
 }
 
-/** updateSettings 字段白名单（P4-04a）：标量字段（string）。 */
+/** updateSettings 字段白名单：标量字段（string）。 */
 const STRING_SETTING_FIELDS = [
   "workDir",
   "xresloaderPath",
@@ -179,12 +182,12 @@ const STRING_SETTING_FIELDS = [
   "rename",
   "type",
 ] as const;
-/** updateSettings 字段白名单：多值字段（string[]，新 UI 直给数组；不复活旧版 JSON 串编码）。 */
+/** updateSettings 字段白名单：多值字段（string[]，新 UI 直给数组；不复活 JSON 串编码）。 */
 const STRING_ARRAY_SETTING_FIELDS = ["protoFile", "dataSrcDir"] as const;
 /** 矩阵规则允许的键（OutputMatrixRule 形状）。 */
 const MATRIX_RULE_KEYS = ["type", "rename", "outputDir", "tags", "classes"] as const;
 
-/** getLogs 单次返回上限（P4-07；UI 分页按此粒度拉取）。 */
+/** getLogs 单次返回上限(UI 分页按此粒度拉取）。 */
 const GET_LOGS_MAX_LIMIT = 1000;
 
 function asStringArray(value: unknown, label: string): string[] {
@@ -224,7 +227,7 @@ function asMatrixRule(value: unknown, index: number): OutputMatrixRule {
   return rule;
 }
 
-/** validateSettingsFields 的分流结果（P4-04b）：parallelism 属会话级设置，不进 ConversionOverrides。 */
+/** validateSettingsFields 的分流结果：parallelism 属会话级设置，不进 ConversionOverrides。 */
 interface ParsedSettingsFields {
   overrides: ConversionOverrides;
   parallelism?: number;
@@ -239,7 +242,7 @@ function validateSettingsFields(value: unknown): ParsedSettingsFields {
   let parallelism: number | undefined;
   for (const [key, v] of Object.entries(value)) {
     if (key === "parallelism") {
-      // 会话级并发数（P4-04b）：number 且有限；取整/夹取 [1,16] 归 ConversionSession。
+      // 会话级并发数：number 且有限；取整/夹取 [1,16] 归 ConversionSession。
       if (typeof v !== "number" || !Number.isFinite(v)) {
         throw new RpcError(
           "INVALID_PARAMS",
@@ -270,7 +273,7 @@ export class BackendRpcApp {
   private readonly pool: ScriptWorkerPool;
   private readonly session: ConversionSession;
   private readonly listeners = new Set<(event: BackendAppEvent) => void>();
-  /** token → pool 应答函数（P2-06 respond；已失效/已应答条目即删）。 */
+  /** token → pool 应答函数（ respond；已失效/已应答条目即删）。 */
   private readonly pendingDialogs = new Map<string, (choice: DialogChoice) => void>();
   private startPromise: Promise<void> | null = null;
   private disposed = false;
@@ -309,7 +312,7 @@ export class BackendRpcApp {
   start(): Promise<void> {
     if (this.startPromise === null) {
       this.startPromise = this.pool.start();
-      // 池启动失败必须可见（SC11）；handleRpc 侧的 await 会拿到同一拒绝。
+      // 池启动失败必须可见；handleRpc 侧的 await 会拿到同一拒绝。
       this.startPromise.catch((err: unknown) => {
         this.emit({
           type: "diagnostic",
@@ -343,9 +346,7 @@ export class BackendRpcApp {
     });
   }
 
-  /**
-   * 分发一次 RPC。可预期失败抛 RpcError；未知错误原样抛出（bin 兜底 INTERNAL）。
-   */
+  /** 分发一次 RPC。可预期失败抛 RpcError；未知错误原样抛出（bin 兜底 INTERNAL）。 */
   async handleRpc(
     method: BackendRpcMethod | (string & {}),
     params?: Record<string, unknown>,
@@ -461,12 +462,12 @@ export class BackendRpcApp {
     if (!Array.isArray(ops)) {
       throw new RpcError("INVALID_PARAMS", "applyOps requires params.ops (array)");
     }
-    // 版本闸与逐 op 校验在 SessionTreeState（P2-05）；未加载配置时为空报告。
+    // 版本闸与逐 op 校验在 SessionTreeState；未加载配置时为空报告。
     return this.session.applyScriptOps(ops);
   }
 
   /**
-   * updateSettings（P4-04a/P4-04b）：合并写入表单覆盖，返回 {overrides, effective, parallelism}。
+   * updateSettings：合并写入表单覆盖，返回 {overrides, effective, parallelism}。
    * parallelism 为会话级设置（不写进 overrides），与其余字段同发时两者都生效。
    */
   private rpcUpdateSettings(params: Record<string, unknown>): SettingsView {
@@ -487,7 +488,7 @@ export class BackendRpcApp {
   }
 
   /**
-   * preview（P4-04a，UI04）：当前选择 + 当前覆盖构建计划预览。
+   * preview：当前选择 + 当前覆盖构建计划预览。
    * PlanBuildError 按其 code 透传（如 XRESLOADER_NOT_FOUND），details 进 message 可读串。
    */
   private rpcPreview(): PreviewResult {
@@ -511,11 +512,11 @@ export class BackendRpcApp {
       }
       throw new RpcError("CONFIG_ERROR", formatUnknownError(err));
     }
-    // 输出冲突（UI04；2026-09-26 四轮修正）：真实冲突 = 同一条目以相同
+    // 输出冲突：真实冲突 = 同一条目以相同
     // (type, outputDir, rename) 生成多个转换任务（输出文件必相同）。不同条目共享
     // 目录/重命名规则是正常形态——最终文件名由 xresloader 从各条目 scheme 的
     // OutputFile 取（SchemeConf.getOutputFile），GUI 无法跨条目判重，只报告
-    // 可证明的重复转换任务（此前按 (outputDir, rename) 分组>1 误报一切多条目配置）。
+    // 按完整任务身份检查可证明的重复转换任务，避免误报不同条目。
     const groups = new Map<string, PreviewConflict & { count: number }>();
     for (const task of plan.tasks) {
       const outputDir = task.outputDir ?? "";
@@ -551,7 +552,7 @@ export class BackendRpcApp {
   }
 
   /**
-   * getLogs（P4-07，UI07 日志游标）：返回内存队列日志窗口（含 seq），与事件流
+   * getLogs(日志游标）：返回内存队列日志窗口（含 seq），与事件流
    * log 条目按 seq 幂等对齐；droppedCount/capacity 供 UI 展示丢弃量。
    * beforeSeq 缺省 = 最新窗口；给定时返回 seq < beforeSeq 的更早窗口（滚动加载
    * 历史）。无状态门禁——日志面独立于配置会话（未加载配置也可查）。
@@ -598,7 +599,7 @@ export class BackendRpcApp {
   }
 
   /**
-   * checkJava（F06/F12，旧版 conv_env_check 恢复）：java -version 探测 +
+   * checkJava(conv_env_check 恢复）：java -version 探测 +
    * 版本/位数判定 + 下载指引。无状态门禁（启动即可查）；实际转换用同一
    * 解析（XRESCONV_JAVA/JAVA_HOME/PATH，java-runner 共用 resolveJavaExecutable）。
    */
@@ -663,7 +664,7 @@ export class BackendRpcApp {
     }
     const respond = this.pendingDialogs.get(token);
     if (respond === undefined) {
-      // 迟到/未知应答：弹框已失效或从未存在（SC06 丢弃语义），非协议错误。
+      // 迟到/未知应答：弹框已失效或从未存在（ 丢弃语义），非协议错误。
       return { answered: false };
     }
     this.pendingDialogs.delete(token);
@@ -672,7 +673,7 @@ export class BackendRpcApp {
   }
 
   /**
-   * setHookEnabled（P4-05a，F09）：事件 hook 开关。无运行状态门禁（旧版复选框
+   * setHookEnabled：事件 hook 开关。无运行状态门禁（复选框
    * 全程可改），仅需已加载配置；hook 定位失败（越界/匿名/immutable）是会话层
    * Error，此处统一映射为 INVALID_PARAMS（调用方可修正的参数错误）。
    */
@@ -704,7 +705,7 @@ export class BackendRpcApp {
   }
 
   /**
-   * setCustomSelectors（P4-05a）：设置/重读自定义选择器文件，返回视图数组。
+   * setCustomSelectors：设置/重读自定义选择器文件，返回视图数组。
    * 无运行状态门禁：CLI 顺序允许先于 loadConfig；已加载树时会话层重放
    * default_selected。错误条目随视图返回（不拒绝整批）。
    */
@@ -719,7 +720,7 @@ export class BackendRpcApp {
   }
 
   /**
-   * invokeCustomButton（P4-05a）：自定义按钮点击。未知按钮名先经快照视图校验
+   * invokeCustomButton：自定义按钮点击。未知按钮名先经快照视图校验
    * （INVALID_PARAMS）；动作链失败不算 RPC 错误，返回 {ok:false, error}；
    * 会话/matcher 结构性失败原样上抛（bin 兜底 INTERNAL，不误报为参数错误）。
    */

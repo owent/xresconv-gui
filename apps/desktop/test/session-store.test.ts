@@ -141,7 +141,7 @@ function rpcCalls(method: string): { params: { ops?: Record<string, unknown>[] }
     .map(([, args]) => ({ params: (args?.params ?? {}) as { ops?: Record<string, unknown>[] } }));
 }
 
-describe("session store (P4-03)", () => {
+describe("session store", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
@@ -292,7 +292,7 @@ describe("session store (P4-03)", () => {
     await useSessionStore.getState().selectNone();
     const ops = rpcCalls("applyOps").map((call) => call.params.ops?.[0]?.op);
     expect(ops).toEqual(["select_all", "select_none"]);
-    // 版本随每次成功应用推进（1 → 2），第二批携带新版本
+    // 版本随每次成功应用推进（1 → 2），第二批携带本
     expect(rpcCalls("applyOps").map((call) => call.params.ops?.[0]?.v)).toEqual([1, 2]);
   });
 
@@ -366,7 +366,7 @@ describe("session store (P4-03)", () => {
     expect(state.lastError).toContain("channel EOF");
   });
 
-  // 2026-09-26 四轮：加载配置/开始转换即重置运行日志显示面（同首次启动）。
+  // 加载配置/开始转换即重置运行日志显示面（同首次启动）。
   it("loadConfig 成功后日志窗口清空且不再重拉历史（保留 seq 水位）", async () => {
     await loadFixture();
     // 先注入带 seq 的后端事件（推进水位）与本地行，模拟旧会话累积的日志。
@@ -429,7 +429,7 @@ describe("session store (P4-03)", () => {
     expect(rpcCalls("applyOps")).toHaveLength(0);
   });
 
-  // 2026-09-26 用户反馈回归：启动期 getLogs 撞上 BACKEND_NOT_READY 不应把
+  // 启动期 getLogs 撞上 BACKEND_NOT_READY 不应把
   // "guardian protocol violation" 卡成持久告警，也不应让日志永远拉不出来。
   it("initLogs 启动瞬态失败静默重试，就绪后成功且 lastError 保持干净", async () => {
     vi.useFakeTimers();

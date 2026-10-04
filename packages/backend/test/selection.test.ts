@@ -1,7 +1,7 @@
 /**
- * 选择与资格判定测试（P3-04 余量）。
- * 行为锚点：check_matrix_rule（main.js:1012-1032）、
- * custom_selector_on_click 匹配部分（main.js:333-414）。
+ * 选择与资格判定测试（ 余量）。
+ * 行为锚点：check_matrix_rule、
+ * custom_selector_on_click 匹配部分。
  */
 import { describe, expect, it } from "vitest";
 import type { OutputMatrixRule, TreeItem, TreeNode } from "../src/config/model.ts";
@@ -27,12 +27,12 @@ function makeItem(partial: Partial<TreeItem> = {}): TreeItem {
   };
 }
 
-describe("matrixRuleMatchesItem（main.js:1012-1032）", () => {
+describe("matrixRuleMatchesItem", () => {
   it("tags/classes 均空 → 通过", () => {
     expect(matrixRuleMatchesItem(makeRule(), makeItem())).toBe(true);
   });
 
-  it("tags 非空需交集（BD-M1 修复后 tags 与 classes 同一规则）", () => {
+  it("tags 非空需交集（ 修复后 tags 与 classes 同一规则）", () => {
     const rule = makeRule({ tags: ["server"] });
     expect(matrixRuleMatchesItem(rule, makeItem({ tags: ["server", "x"] }))).toBe(true);
     expect(matrixRuleMatchesItem(rule, makeItem({ tags: ["client"] }))).toBe(false);
@@ -67,14 +67,14 @@ describe("flattenTreeItems", () => {
   });
 });
 
-describe("resolveSelectorItems（main.js:333-414）", () => {
+describe("resolveSelectorItems", () => {
   it("by_schemes：file 必中且 scheme 缺省或中；仅 file&&scheme 的 item 参与", () => {
     const withBoth = makeItem({ name: "both", file: "role.xlsx", scheme: "scheme_role" });
     const fileOnly = makeItem({ name: "fileOnly", file: "role.xlsx" });
     const dsItem = makeItem({ name: "ds", schemeData: { DataSource: ["role.xlsx|sheet|1,1"] } });
     const selector = { by_schemes: [{ file: "glob:*.xlsx" }] };
     const matched = resolveSelectorItems(selector, [withBoth, fileOnly, dsItem]);
-    // else-if 互斥（main.js:338/365）：dsItem 不走 by_schemes；fileOnly 无 scheme 不参与
+    // else-if 互斥：dsItem 不走 by_schemes；fileOnly 无 scheme 不参与
     expect(matched.map((i) => i.name)).toEqual(["both"]);
   });
 
@@ -105,7 +105,7 @@ describe("resolveSelectorItems（main.js:333-414）", () => {
     expect(
       resolveSelectorItems({ by_sheets: [{ file: "book.xlsx", sheet: "nope" }] }, [item]),
     ).toHaveLength(0);
-    // 每个 item 至多命中一次（has_matched，main.js:374-377）
+    // 每个 item 至多命中一次（has_matched)
     const two = resolveSelectorItems(
       {
         by_sheets: [

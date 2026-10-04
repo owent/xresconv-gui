@@ -1,14 +1,13 @@
 /**
- * ANSI SGR 安全渲染解析（P4-07，BD-04）。
+ * ANSI SGR 安全渲染解析。
  *
- * 对齐旧版 shell_color_to_html（main.js:433-500）的可见语义：
- * - SGR 序列（`\x1b[...m`，旧版正则容许缺省 ESC，保持一致）按数字 flag 解析；
+ * 对齐 shell_color_to_html的可见语义：
+ * SGR 序列（`\x1b[...m`，正则容许缺省 ESC，保持一致）按数字 flag 解析；
  *   flag 0 关闭全部已开样式；1/4 加粗/下划线；30-37/40-47 映射固定颜色词表。
- * - 其余文本按字面保留（`\r\n`/`\r` 归一为 `\n`，`\t` 展开两空格，对齐旧版），
- *   由 React 以文本节点渲染 —— 标签、事件属性、URL 一律不执行（BD-04/R12，
- *   修复旧版 `.replace("<","&lt;")` 只转义首个字符的缺陷，不复活 innerHTML 路径）。
- * - 颜色词表为固定枚举（非日志内容），渲染为内联 style；嵌套 SGR 合并样式
- *   （旧版嵌套 span 的等效可见行为）。
+ * 其余文本按字面保留（`\r\n`/`\r` 归一为 `\n`，`\t` 展开两空格，对齐），
+ *   由 React 以文本节点渲染 —— 标签、事件属性、URL 一律不执行(*   修复 `.replace("<","&lt;")` 只转义首个字符的缺陷，不复活 innerHTML 路径）。
+ * 颜色词表为固定枚举（非日志内容），渲染为内联 style；嵌套 SGR 合并样式
+ *   （嵌套 span 的等效可见行为）。
  */
 
 export interface AnsiStyle {
@@ -25,7 +24,7 @@ export interface AnsiSegment {
   style: AnsiStyle;
 }
 
-/** 旧版固定颜色词表（main.js:433-452）；值全部为 CSS 命名颜色。 */
+/** 固定颜色词表；值全部为 CSS 命名颜色。 */
 const SGR_FOREGROUND: Readonly<Record<string, string>> = {
   30: "black",
   31: "darkred",
@@ -48,7 +47,7 @@ const SGR_BACKGROUND: Readonly<Record<string, string>> = {
   47: "white",
 };
 
-// ANSI SGR 序列以 ESC 控制字符开头（本模块的解析对象）；旧版正则容许缺省 ESC。
+// ANSI SGR 序列以 ESC 控制字符开头（本模块的解析对象）；正则容许缺省 ESC。
 // biome-ignore lint/suspicious/noControlCharactersInRegex: SGR 分隔符即 ESC 控制字符
 const SGR_SPLIT = /(\x1b?\[[\d;]*m)/g;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: SGR 令牌即 ESC 控制字符
@@ -91,7 +90,7 @@ export function parseAnsi(input: string): AnsiSegment[] {
     const next: AnsiStyle = {};
     for (const flag of part.match(/\d+/g) ?? []) {
       if (flag === "0") {
-        // 旧版：flag 0 关闭全部已开 span 并忽略同序列其余 flag。
+        // flag 0 关闭全部已开 span 并忽略同序列其余 flag。
         reset = true;
         break;
       }

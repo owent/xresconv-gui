@@ -1,5 +1,5 @@
 /**
- * 剪贴板写入（P4-07）：优先 navigator.clipboard（WebView2/WKWebView 的安全
+ * 剪贴板写入：优先 navigator.clipboard（WebView2/WKWebView 的安全
  * 上下文可用）；不可用时回退隐藏 textarea + execCommand（deprecated 但作为
  * 无插件兜底）。两条路径都只写纯文本——日志内容不经任何富文本/HTML 通道。
  */

@@ -15,13 +15,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.6.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.6", features = [] }
+tauri = { version = "~2.11.6", features = [] }
 tauri-plugin-cli = "2.4.1"
 tauri-plugin-dialog = "2.7.3"
 tauri-plugin-opener = "2.5.5"
 tauri-plugin-wdio-webdriver = { version = "=1.4.0", optional = true }
 serde.workspace = true
 serde_json.workspace = true
+sys-locale = "0.3.2"
 windows-registry = "0.100.0"
 windows-sys = { version = "0.61.2", features = [
   "Win32_UI_WindowsAndMessaging",
@@ -30,6 +31,11 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_Storage_FileSystem",
   "Win32_System_Memory",
 ] }
+
+[target.'cfg(windows)'.dependencies]
+# Match Tauri 2.11's native WebView2 types; no new runtime dependencies.
+webview2-com = "0.38.2"
+windows = "0.61.3"
 
 [features]
 # Desktop E2E (WebdriverIO) hooks; never enabled for production builds.

@@ -1,15 +1,16 @@
 import { Button, Input, SearchField } from "react-aria-components";
 import type { TreeNodeKey } from "../adapters/backend";
+import { translate as t, useI18n } from "../i18n";
 import { collectFolderKeys } from "./ConversionTree";
 import { Icon } from "./Icon";
 import { useSessionStore } from "./session-store";
 
 /**
- * 转换树工具栏：仅搜索（布局对照旧版——全选/全取消/展开/收起按钮在旧版位于
- * 右侧按钮组，已随 RunControls 归位；搜索为新增辅助操作，只过滤显示、
- * 保留祖先链、显示命中数，不改变真实选择）。
+ * 转换树工具栏：搜索过滤显示，保留祖先链并显示命中数。
+ * 全选、全取消、展开和收起按钮位于右侧；搜索不改变转换选择。
  */
 export function TreeToolbar({ hitCount }: { hitCount: number | null }) {
+  useI18n();
   const searchTerm = useSessionStore((state) => state.searchTerm);
   const search = useSessionStore((state) => state.search);
   const snapshot = useSessionStore((state) => state.snapshot);
@@ -17,30 +18,30 @@ export function TreeToolbar({ hitCount }: { hitCount: number | null }) {
   const store = useSessionStore.getState;
 
   return (
-    <div role="toolbar" aria-label="转换树工具栏" className="tree-tools">
+    <div role="toolbar" aria-label={t("tree.toolbar")} className="tree-tools">
       <div className="tree-tools-heading">
-        <h2 className="panel-title">转换列表</h2>
+        <h2 className="panel-title">{t("tree.title")}</h2>
         <SearchField
-          aria-label="搜索转换条目"
+          aria-label={t("tree.search")}
           className="tree-search"
           value={searchTerm}
           onChange={search}
         >
           <Icon name="search" />
-          <Input placeholder="搜索转换条目…" />
+          <Input placeholder={t("tree.searchPlaceholder")} />
         </SearchField>
       </div>
       {hitCount !== null ? (
         <span className="tree-search-count" role="status">
-          匹配 {hitCount} 项
+          {t("tree.matches", { count: hitCount })}
         </span>
       ) : null}
       <div className="tree-actions">
         <Button isDisabled={disabled} onPress={() => void store().selectAll()}>
-          全部选中
+          {t("tree.selectAll")}
         </Button>
         <Button isDisabled={disabled} onPress={() => void store().selectNone()}>
-          全部取消
+          {t("tree.selectNone")}
         </Button>
         <Button
           isDisabled={disabled}
@@ -50,10 +51,10 @@ export function TreeToolbar({ hitCount }: { hitCount: number | null }) {
             store().setExpandedKeys(keys);
           }}
         >
-          全部展开
+          {t("tree.expandAll")}
         </Button>
         <Button isDisabled={disabled} onPress={() => store().setExpandedKeys(new Set())}>
-          全部收起
+          {t("tree.collapseAll")}
         </Button>
       </div>
     </div>

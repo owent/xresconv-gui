@@ -1,16 +1,5 @@
 name: release
 
-# 新架构发行：v3 标签创建 draft；手动构建仅上传 Actions 产物。
-# Windows = 解压即用 7z 归档（bootstrap 附 Evergreen 引导器；offline
-# 内嵌 Fixed Version 运行时完全离线，用支持 7z 的工具解压，
-# 无安装器）；Linux = 发行版无关 tar.zst（bootstrap
-# 系统 WebKitGTK + offline 自含，AppImage 与 tar.zst 并存；不再产出 deb/rpm）
-# ——两者与 --portable 与否无关；macOS 仅 bootstrap dmg（未签名；用户已从
-# 执行计划移除证书验收）。汇总 job 是唯一写 release 的入口，校验产物
-# 名集合与正式发行的全量 12 产物完全相等后创建
-# draft（不 overwrite，不自动发布）。
-# 旧 v2.x 标签不再触发（D1：旧架构 2.6.0 为终点版本）。
-
 on:
   push:
     branches:
@@ -30,7 +19,7 @@ env:
   NODE_VERSION: "24"
 
 jobs:
-  # CI-04：按平台构建变体。产物命名/矩阵由 packaging/targets.json 派生。
+  # ：按平台构建变体。产物命名/矩阵由 packaging/targets.json 派生。
   build-windows:
     name: build windows ${{ matrix.arch }} (${{ matrix.variant }})
     runs-on: ${{ matrix.runner }}
@@ -154,7 +143,7 @@ jobs:
         with:
           workspaces: . -> target
           key: release-macos-${{ matrix.arch }}
-      # D5：x64/arm64 分别原生构建（runner 架构须匹配；arm64 用 macos arm64 runner）
+      # ：x64/arm64 分别原生构建（runner 架构须匹配；arm64 用 macos arm64 runner）
       - run: corepack yarn package:macos --variant=${{ matrix.variant }} --arch=${{ matrix.arch }}
 
       # actions/upload-artifact v7.0.1
@@ -226,8 +215,6 @@ jobs:
           file: "build/release-artifacts/**/*"
           tags: true
           draft: true
-          # 含 prerelease 后缀的 tag（如 v3.0.0-dev.1、v3.0.0-rc.1）标记为
-          # pre-release；正式版 tag（如 v3.0.0）保持 false。
           prerelease: ${{ contains(github.ref_name, '-') }}
           overwrite: false
       - name: Verify uploaded or unchanged release contents

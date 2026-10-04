@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "script-invoke",
   "title": "ScriptInvoke",
-  "description": "guardian -> script-worker: execute one legacy script entry (five kinds, tests/fixtures/scripts/contract.md). `context` carries only JSON-serializable data; functions (require/resolve/reject/log_*/alert_*) are reconstructed inside the worker. Button `data` never crosses the wire: it lives in the session worker keyed by button_id.",
+  "description": "guardian -> script-worker: execute one script entry (five kinds, tests/fixtures/scripts/contract.md). `context` carries only JSON-serializable data; functions (require/resolve/reject/log_*/alert_*) are reconstructed inside the worker. Button `data` never crosses the wire: it lives in the session worker keyed by button_id.",
   "type": "object",
   "required": ["invocation_id", "entry_kind", "filename", "source", "timeout_ms", "context"],
   "additionalProperties": false,
@@ -19,7 +19,7 @@
     "run_seq": { "type": "integer", "minimum": 0 },
     "context": {
       "type": "object",
-      "description": "Entry-specific JSON data: work_dir, configure_file, xresloader_path, item_data (set_name), selected_items/selected_nodes mirror data, global_options (object form for events, array form for buttons), log_object (on_append_log: {message, module_name, style}), tree (P2-05 TreeSnapshot {version, nodes}: when present the worker rebuilds the NodeMirror from it and derives selected_items/selected_nodes itself; ops echo the snapshot version in their `v` field)."
+      "description": "Entry-specific JSON data: work_dir, configure_file, xresloader_path, item_data (set_name), selected_items/selected_nodes mirror data, global_options (object form for events, array form for buttons), log_object (on_append_log: {message, module_name, style}), tree ( TreeSnapshot {version, nodes}: when present the worker rebuilds the NodeMirror from it and derives selected_items/selected_nodes itself; ops echo the snapshot version in their `v` field)."
     }
   }
 }

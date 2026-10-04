@@ -1,9 +1,4 @@
-/**
- * P2-11 真实脚本差分：xresconv-conf sample.xml 的 5 个真实 GUI 脚本
- * （dab714ae 固定提交，tests/fixtures/scripts/legacy-samples/xresconv-conf/）
- * 逐条跑真实 worker 子进程，对照 P0-08 旧实现行为合同与 contract.md。
- * 无协议 mock；所有等待显式有界；差异记录为 BD-S 条目（本文件即证据）。
- */
+/** 使用上游真实脚本验证 worker 上下文、模块和弹窗行为，所有等待保持有界。 */
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import os from "node:os";
@@ -101,9 +96,9 @@ function setFieldsOf(result: ScriptResult): Record<string, unknown> {
   return op?.op === "set_fields" ? (op.fields as Record<string, unknown>) : {};
 }
 
-describe("真实脚本差分（P2-11，xresconv-conf sample.xml）", () => {
+describe("真实脚本差分(xresconv-conf sample.xml）", () => {
   it(
-    "set_name 原文：文件名提取并回填显示名（P0-08 §1 活引用赋值语义）",
+    "set_name 原文：文件名提取并回填显示名（  活引用赋值语义）",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1 });
       try {
@@ -134,7 +129,7 @@ describe("真实脚本差分（P2-11，xresconv-conf sample.xml）", () => {
   );
 
   it(
-    "set_name 原文负面对照：无扩展名文件 match=null → TypeError 按错误日志收尾、名称不变（main.js:1746 catch 等价）",
+    "set_name 原文负面对照：无扩展名文件 match=null → TypeError 按错误日志收尾、名称不变（ catch 等价）",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1 });
       try {
@@ -150,8 +145,8 @@ describe("真实脚本差分（P2-11，xresconv-conf sample.xml）", () => {
           },
         });
         const result = await pool.invoke(invoke);
-        // 旧版：异常被 catch 记错误日志，item_data 仍提交且 name 未被改写
-        // （match 返回 null 先于赋值抛 TypeError）。新版：outcome=error 且
+        // 异常被 catch 记错误日志，item_data 仍提交且 name 未被改写
+        // （match 返回 null 先于赋值抛 TypeError）。：outcome=error 且
         // 无 name 变更 op——对外可观察语义一致。
         expect(result.outcome).toBe("error");
         expect(result.error?.code).toBe("SCRIPT_RUNTIME_ERROR");
@@ -203,7 +198,7 @@ describe("真实脚本差分（P2-11，xresconv-conf sample.xml）", () => {
   );
 
   it(
-    "on_after_convert 原文：alert_warning 弹框应答后 resolve（SC06 真实样例）",
+    "on_after_convert 原文：alert_warning 弹框应答后 resolve（ 真实样例）",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1 });
       const dialogs: { title: string; content: string; buttons: string[] }[] = [];
@@ -362,9 +357,9 @@ describe("真实脚本差分（P2-11，xresconv-conf sample.xml）", () => {
   );
 
   it(
-    "BD-S18 README 已知问题场景：spawn 回调内未捕获异常不再白屏，有界超时结算且补员可用",
+    "README 已知问题场景：spawn 回调内未捕获异常不再白屏，有界超时结算且补员可用",
     async () => {
-      // 旧版（README"已知问题"）：require("child_process").spawn 回调里抛异常
+      // （README"已知问题"）：require("child_process").spawn 回调里抛异常
       // → 渲染进程未捕获异常 → GUI 白屏。新架构合同：worker 记诊断存活，
       // 该 invocation 因有界超时按 WORKER_TIMEOUT 结算，worker 销毁补员，
       // 后续调用不受影响。

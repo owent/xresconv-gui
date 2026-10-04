@@ -30,9 +30,10 @@ test.beforeEach(async ({ page }) => {
       unregisterCallback(id: number) { callbacks.delete(id); },
       async invoke(command: string, args: Record<string, unknown> = {}) {
         if (command === "get_cli_matches") return { input: { value: snapshot.config.path } };
+        if (command === "get_system_locales") return ["zh-CN"];
         if (command === "read_display_settings") return settings;
         if (command === "write_display_settings") { settings = args; return; }
-        if (command === "get_app_info") return { name: "xresconv-gui", version: "3.0.0-dev.1", protocol_version: 1 };
+        if (command === "get_app_info") return { name: "xresconv-gui", version: "3.0.0", protocol_version: 1 };
         if (command === "get_backend_health") return { ok: true, node: "v24.21.0", backend: { state: "ready", generation: 1 } };
         if (command === "plugin:event|listen") { if (args.event === "xresconv-event") eventHandler = Number(args.handler); return args.handler; }
         if (command === "plugin:event|unlisten") return;
@@ -104,6 +105,22 @@ test("工作区、详情、主题和换行日志可用", async ({ page }, info) 
   const violations = (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations.filter((item) => ["serious", "critical"].includes(item.impact ?? ""));
   expect(violations.map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) }))).toEqual([]);
   expect(errors).toEqual([]);
+});
+
+test("语言切换保留配置、选择和项目名称", async ({ page }) => {
+  const chineseItem = page.getByRole("checkbox", { name: "选择 道具配置 1", exact: true });
+  await expect(chineseItem).toBeChecked();
+  await page.getByRole("button", { name: "显示设置", exact: true }).click();
+  await page.getByTestId("language-select").selectOption("de");
+  await expect(page.getByRole("dialog", { name: "Anzeigeeinstellungen" })).toBeVisible();
+  await page.getByRole("button", { name: "Schließen", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "道具配置 1 auswählen", exact: true })).toBeChecked();
+  await expect(page.getByRole("button", { name: "服务端配置", exact: true })).toBeVisible();
+  await expect(page.getByTestId("picked-path")).toHaveValue("D:/项目/游戏配置/资源与表格/xresconv.xml");
+  await page.getByRole("button", { name: "Details…", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Konfigurationsdetails" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Arbeitsverzeichnis (work_dir)", exact: true })).toHaveValue("D:/项目/游戏配置");
+  await expect(page.getByRole("textbox", { name: "Datenversion", exact: true })).toHaveValue("2026.09.27");
 });
 
 test("窄窗口和分区大字号不遮挡日志与操作", async ({ page }, info) => {

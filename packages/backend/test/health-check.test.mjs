@@ -1,4 +1,4 @@
-// Real child-process test for the P1 backend/bin/health-check.mjs entry.
+// Real child-process test for the  backend/bin/health-check.mjs entry.
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -1,13 +1,13 @@
 /**
- * cancel/reset/close 统一收尾（P2-09/P3-08，EX03/SC10 会话侧）。
+ * cancel/reset/close 统一收尾(/ 会话侧）。
  *
- * - 取消覆盖各阶段：before（本文件：慢 hook 在途时取消，java 不派发）/
+ * 取消覆盖各阶段：before（本文件：慢 hook 在途时取消，java 不派发）/
  *   converting（既有 run.test.ts）/ after_hooks（本文件：in-flight hook
  *   完成后链中止，无迟到重放）；
- * - reset 是业务操作：先取消并等实际回收（runner 终止确认后 run 才 settle），
+ * reset 是业务操作：先取消并等实际回收（runner 终止确认后 run 才 settle），
  *   再清运行期状态重新武装；幂等（同请求重投）；结束状态只发布一次；
- * - dispose 幂等；有界等待，超时不冒充清理成功；
- * - 不自动重放：被取消 run 的 hook 不会在新 run 中再次执行（SC10）。
+ * dispose 幂等；有界等待，超时不冒充清理成功；
+ * 不自动重放：被取消 run 的 hook 不会在新 run 中再次执行。
  *
  * 真实 ScriptWorkerPool + 注入 fake Java runner；全部显式有界超时。
  */
@@ -47,7 +47,7 @@ function collectStates(session: ConversionSession): RunState[] {
   return states;
 }
 
-describe("cancel/reset/close 统一收尾（EX03）", () => {
+describe("cancel/reset/close 统一收尾", () => {
   let pool: ScriptWorkerPool;
 
   beforeAll(async () => {
@@ -58,7 +58,7 @@ describe("cancel/reset/close 统一收尾（EX03）", () => {
     await pool.shutdown();
   }, TEST_TIMEOUT_MS);
 
-  it("before_hooks 阶段取消：java 未派发、无 after 链、结束状态只发布一次（EX03 补 before 阶段）", {
+  it("before_hooks 阶段取消：java 未派发、无 after 链、结束状态只发布一次（ 补 before 阶段）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const calls: JavaBatchOptions[] = [];
@@ -99,7 +99,7 @@ describe("cancel/reset/close 统一收尾（EX03）", () => {
     expect(summary.state).toBe("cancelled");
     expect(states.filter((s) => s === "cancelled").length).toBe(1);
     const messages = session.pipeline.snapshot().map((entry) => entry.message);
-    // in-flight hook 完成（BD-O6：共享池不杀在途 invoke），但链不再前进。
+    // in-flight hook 完成(共享池不杀在途 invoke），但链不再前进。
     expect(messages).toContain("AFTER1");
     expect(messages).not.toContain("AFTER2");
     expect(messages).toContain("Conversion cancelled.");

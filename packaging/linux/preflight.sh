@@ -1,7 +1,7 @@
 #!/bin/sh
-# xresconv-gui Linux 预检引导器（P5-05，PK05）。
+# xresconv-gui Linux 预检引导器。
 #
-# 约束（docs/plan/05-packaging-release.md §Linux）：
+# 约束（docs/development/packaging.md §Linux）：
 # - 引导器自身不依赖 GTK/WebKit（纯 POSIX shell + ldconfig 探测），
 #   不先启动 Tauri 动态链接程序；
 # - 缺运行时时给出按发行版的可行动安装指引；--install（或交互确认）才调用
@@ -9,7 +9,7 @@
 # - 已满足时不安装/不降级（幂等）。
 #
 # 用法：preflight.sh [--install] [--quiet] [-- <app-bin> [app args…]]
-# 退出码：0=运行时就绪（-- 时已 exec 应用）；2=缺依赖（已给指引）；
+# 退出码：0=运行时就绪(时已 exec 应用）；2=缺依赖（已给指引）；
 #         3=不支持的发行版；4=安装尝试失败；5=用法错误。
 #
 # 本脚本随 bootstrap/offline 两变体一同分发（offline 变体自含运行时，
@@ -42,7 +42,7 @@ done
 log() { [ "$QUIET" = "1" ] || printf '%s\n' "$*"; }
 die() { printf 'preflight: %s\n' "$*" >&2; exit "$2"; }
 
-# --- 1. 发行版识别（/etc/os-release；ID/ID_LIKE 词表） ------------------------
+# --- 1. 发行版识别(etc/os-release；ID/ID_LIKE 词表） ------------------------
 distro_family=""
 package_manager=""
 if [ -r /etc/os-release ]; then
@@ -80,7 +80,7 @@ if [ -z "$missing" ]; then
   exit 0
 fi
 
-# --- 3. 缺依赖：按发行版给出可行动指引（PK05：先诊断，不先启 GUI） -------------
+# --- 3. 缺依赖：按发行版给出可行动指引(先诊断，不先启 GUI） -------------
 log "preflight: 缺少运行时库：$missing"
 case "$distro_family" in
   debian)

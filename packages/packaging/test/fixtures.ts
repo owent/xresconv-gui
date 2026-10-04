@@ -21,7 +21,7 @@ export const SAMPLE_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 export function sampleManifest(target: ReleaseTarget): RuntimeManifest {
   const manifest: RuntimeManifest = {
     schemaVersion: 1,
-    appVersion: "3.0.0-dev.1",
+    appVersion: "3.0.0",
     sourceCommit: SAMPLE_COMMIT,
     targetTriple: target.targetTriple,
     os: target.os,

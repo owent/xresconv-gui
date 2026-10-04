@@ -3,7 +3,7 @@ import { loadTargets } from "../packages/packaging/src/load.ts";
 import { buildMatrix, selectMatrix } from "../packages/packaging/src/matrix.ts";
 import { verifyReleaseArtifacts } from "../packages/packaging/src/release-artifacts.ts";
 
-// --target=<os>/<distro-or-dash>/<arch>/<variant>（targetKey 格式，可重复）：
+// target=<os>/<distro-or-dash>/<arch>/<variant>（targetKey 格式，可重复）：
 // 本次 release CI 实际构建的目标子集，与 release.yml 三个 build job 的 matrix
 // 同步维护。不传任何 --target 时按全量矩阵校验（本地预检语义）。
 const { values } = parseArgs({

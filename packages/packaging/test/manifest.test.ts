@@ -56,7 +56,7 @@ describe("runtime-manifest schema (artifact side)", () => {
   });
 });
 
-describe("manifest hygiene lint (PK01: no dev-machine paths, no secrets)", () => {
+describe("manifest hygiene lint (no dev-machine paths, no secrets)", () => {
   it("flags a Windows developer path inside files[]", () => {
     const manifest = sampleManifest(pickTarget((t) => t.os === "windows"));
     const file = manifest.files[0];

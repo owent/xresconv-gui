@@ -1,12 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * 三引擎浏览器 E2E（P4-08，UI08；docs/plan/06-testing-acceptance.md 浏览器层）。
+ * 三引擎浏览器 E2E(docs/development/testing.md 浏览器层）。
  *
- * - 目标：生产构建（`vite preview`，非开发服务器；UI08：不依赖 CDN/开发服务器）
+ * 目标：生产构建（`vite preview`，非开发服务器；：不依赖 CDN/开发服务器）
  *   在 Chromium / WebKit / Firefox 的渲染、主题与可访问性基线。
- * - 浏览器层不替代真实桌面（WDIO Tauri WebView2 属 tests/desktop）。
- * - 浏览器安装：`PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/
+ * 浏览器层不替代真实桌面（WDIO Tauri WebView2 属 tests/desktop）。
+ * 浏览器安装：`PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/
  *   corepack yarn playwright install chromium webkit firefox`（国内镜像）。
  */
 export default defineConfig({
@@ -19,6 +19,7 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     baseURL: "http://127.0.0.1:4173",
+    locale: "zh-CN",
   },
   projects: [
     {

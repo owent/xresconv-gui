@@ -1,15 +1,14 @@
-# faults/ 故障注入 Fixtures
+# 故障数据
 
-全部为 `authored` 状态。预期行为分两列记录：旧版实际表现（`[待运行验证]`，P0-04 采集）与新版契约目标（主计划 §6、§11.3）。**禁止在开发者日常环境无限运行资源耗尽型样本**；在隔离目录执行并设外部截止时间。
+故障输入用于检验响应、隔离、错误结果和资源清理。资源耗尽样本只能在隔离目录及具有外部截止的测试中执行。
 
-| 文件 | 注入 | 旧版预期（源码推断） | 新版契约目标 |
-| --- | --- | --- | --- |
-| `fault-sync-throw.xml` | before 事件同步 throw | Promise 链 reject，转换不启动，记 `CONV EVENT EXCEPTION` | 结束状态一致，并明确上报错误 |
-| `fault-async-throw.xml` | before 事件 setTimeout 回调 throw | 未捕获异常 → 渲染进程级崩溃/白屏（README 已知问题） | 隔离进程失败，GUI 存活 |
-| `fault-never-resolve.xml` | 事件永不 resolve | 外部 setTimeout 到点 reject（默认 30s，样本改 2s） | 相同，检查所属子进程回收结果 |
-| `fault-infinite-loop.xml` | set_name 同步死循环 | 无 VM timeout → GUI 冻结 | 外部硬截止时间终止 worker，加载收尾 |
-| `fault-process-exit.xml` | 按钮脚本 `process.exit(1)` | 渲染进程退出 → 白屏 | 仅脚本 worker 终止，会话标记失效 |
-| `fault-log-recursion.xml` | on_append_log 内调 log_info | 递归守卫拦截，第二条走原始渲染 | 相同语义，hook 故障隔离 |
-| `fault-log-storm.xml` | 事件内 1e5 次 log_info | DOM 追加 1e5 条，GUI 卡死风险 | 有界队列 + 落盘完整日志 |
+| 注入 | 期望行为 |
+| --- | --- |
+| 同步/异步异常 | 明确报告错误，主会话保持可诊断 |
+| 不调用完成回调 | 超时并回收 worker |
+| 无限循环 | 外部监督截止，不阻塞界面 |
+| process.exit | 监督报告退出与调用失败 |
+| 日志递归 | 绕过钩子链，限制递归 |
+| 日志风暴 | 有界队列与跳过/丢弃诊断 |
 
-执行方法：旧版 `--input <file>`（按钮类配合 `../selectors/actions-chain.json`），观察后回填 `../legacy/manifest.json`。
+测试以实际断言验证取消、超时、进程树结束和日志限额。脚本属于可信代码，故障隔离不能作为恶意代码沙箱。接口见[脚本文档](../../../docs/user/scripts.md)。

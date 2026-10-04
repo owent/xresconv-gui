@@ -93,7 +93,7 @@ try {
   // 每轮验证首次启动，不依赖开发者的上次配置；无论成功失败都恢复原始字节。
   const inputs = env.XRESCONV_E2E_INPUT ? [env.XRESCONV_E2E_INPUT] : ['', path.join(root, 'tests/fixtures/config/tree-items.xml')];
   for (const { input, specs } of desktopSessions(provider, inputs)) {
-    writeFileSync(settingsFile, '{}\n');
+    writeFileSync(settingsFile, '{"language":"zh-CN"}\n');
     const appScope = createProcessScope({ name: 'desktop-e2e-app' });
     try {
       if (provider === 'embedded') {

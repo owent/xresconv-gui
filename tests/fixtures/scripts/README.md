@@ -1,12 +1,13 @@
-# scripts/ 脚本行为 Fixtures
+# 脚本数据
 
-- `contract.md`：P0-03 从源码提取的完整脚本上下文契约（权威，含锚点与 `[待运行验证]` 标记）。
-- 脚本通常内嵌在 XML 配置中，因此多数脚本 fixture 位于 `../config/` 与 `../faults/`；本目录只放需要独立文件的场景。
+当前 API 见[用户脚本文档](../../../docs/user/scripts.md)，测试关注点见[测试契约](contract.md)。脚本可内嵌在 XML，异常与资源样本位于相邻 faults 目录。
 
-| 文件 | 覆盖点 |
+| 输入 | 覆盖行为 |
 | --- | --- |
-| `events-order.xml` | 命名/匿名事件、checked/mutable、before→convert→after 顺序、事件内 data 生命周期 |
-| `append-log.xml` | on_append_log 双 hook 共享 context、改写 message/module_name/style、递归保护 |
-| `legacy-samples/set_name_item_name.js` | 独立 set_name 样本：按 file basename+scheme 改写 item_data.name（P2-03 worker 测试 b） |
+| `events-order.xml` | 事件顺序、开关与 data 生命周期 |
+| `append-log.xml` | 日志钩子链、字段改写与递归保护 |
+| `alert-warning.xml` | 弹窗选择和完成回调 |
+| `legacy-samples/set_name_item_name.js` | 条目命名 |
+| [xresconv-conf 样本](legacy-samples/xresconv-conf/README.md) | 上游配置中的实际脚本 |
 
-执行方法：配合 `../selectors/actions-chain.json` 使用 `--custom-selector` 验证按钮脚本共享 data 与动作链中断。
+配合 selectors/actions-chain.json 验证同按钮共享 data、按钮重建与动作链中断。运行输入应来自可信来源，并设置外部截止。

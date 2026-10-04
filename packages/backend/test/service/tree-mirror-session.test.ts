@@ -1,6 +1,6 @@
 /**
- * P2-05 端到端：事件 hook 经 NodeMirror 改动选择/字段，ops 回流会话树状态，
- * 后续 hook 看到更新后的选择；计划仍按 run 开始时的选择冻结（旧版 conv_start
+ *  端到端：事件 hook 经 NodeMirror 改动选择/字段，ops 回流会话树状态，
+ * 后续 hook 看到更新后的选择；计划仍按 run 开始时的选择冻结（ conv_start
  * 快照语义），但 item 字段改写对计划可见（活引用语义）。
  */
 
@@ -24,7 +24,7 @@ function must<T>(value: T | null | undefined, label: string): T {
   return value;
 }
 
-describe("session tree mirror (P2-05)", () => {
+describe("session tree mirror", () => {
   let pool: ScriptWorkerPool;
 
   beforeAll(async () => {
@@ -55,7 +55,7 @@ describe("session tree mirror (P2-05)", () => {
     const summary = await session.runConversion({ items: [first] });
     await session.pipeline.drain();
     expect(summary.state).toBe("succeeded");
-    // 计划按 run 开始的选择冻结：hook1 取消勾选不影响本次任务数（旧版快照语义）
+    // 计划按 run 开始的选择冻结：hook1 取消勾选不影响本次任务数（快照语义）
     expect(summary.taskCount).toBe(1);
     expect(calls.length).toBe(1);
     // hook2 经由回流后的树快照看到空选择
@@ -74,7 +74,7 @@ describe("session tree mirror (P2-05)", () => {
     await session.dispose();
   });
 
-  it("hook 改选择后下一次运行按新树状态重新生成计划（CF06）", {
+  it("hook 改选择后下一次运行按新树状态重新生成计划（）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const calls: JavaBatchOptions[] = [];

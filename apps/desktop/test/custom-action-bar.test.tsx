@@ -1,8 +1,8 @@
 /**
- * CustomActionBar 测试（P4-05b，UI05 按钮链；F04/F05）。
+ * CustomActionBar 测试(按钮链)。
  *
- * 快照 customSelectors 渲染按钮；错误条目不渲染（旧版仅记日志）；样式
- * 白名单映射与缺省回退（main.js:775-792，B6 不复活）；点击经
+ * 快照 customSelectors 渲染按钮；错误条目不渲染（仅记日志）；样式
+ * 白名单映射与缺省回退(B6 不复活）；点击经
  * invokeCustomButton RPC 并随后重同步快照；{ok:false} 进 lastError。
  */
 
@@ -48,13 +48,13 @@ function rpcCalls(method: string): Record<string, unknown>[] {
     .map(([, args]) => args?.params as Record<string, unknown>);
 }
 
-describe("CustomActionBar（P4-05b）", () => {
+describe("CustomActionBar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
   });
 
-  it("自适应：未设置选择器/空数组 → 整个区域不渲染（2026-09-26 用户需求）", () => {
+  it("自适应：未设置选择器/空数组 → 整个区域不渲染", () => {
     const view = render(<CustomActionBar />);
     expect(view.container.firstChild).toBeNull();
 

@@ -7,7 +7,7 @@
 1. 编写约 20 条标注查询：8–10 条应触发，8–10 条不应触发（重点覆盖 near-miss 近似场景、口语、拼写错误、隐式意图）。
 2. 每条查询至少运行 3 次统计触发率，默认通过阈值 0.5；按约 60/40 划分 train/validation 防止过拟合。
 3. 误触发则缩窄 `description`，漏触发则补充意图描述；**禁止**把失败查询的具体关键词直接塞回 `description`。
-4. 更新 Skill 的 `metadata.last-reviewed`、`docs/ai/source-index.md` 和维护记录。
+4. 更新 Skill 的 `metadata.last-reviewed`、`docs/ai/source-index.md` 中的当前结论。
 
 ## ai-agent-maintenance 标注查询集
 
@@ -29,17 +29,14 @@
 1. “修复打包时 icon 路径错误”（普通缺陷修复）
 2. “给 GUI 加一个自定义按钮功能”（功能开发）
 3. “README.md 里的截图链接失效了”（普通文档修复，非 AI 配置）
-4. “升级 electron 到最新版本”（依赖升级）
+4. “升级 React 到最新版本”（依赖升级）
 5. “帮我写一个用户脚本 on_after_convert”（运行时功能）
-6. “gulp 打包报错怎么排查”（构建问题）
+6. “Tauri 打包报错怎么排查”（构建问题）
 7. “CI workflow 上传 release 失败”（CI 修复，非 AI 配置）
 8. “把 log4js 日志级别改成 debug”（配置调整）
 9. “agent 这个词在代码里什么意思”（代码理解）
 10. “帮我审查这次 PR 的代码质量”（代码审查）
 
-## 评估记录
+## 当前评估方式
 
-- 2026-09-25：`description` 统一为 `Use When:` 标准前缀（用户决策，语义与触发边界未变）；触发率未在 harness 中实测，待按上方流程补测。
-- 2026-09-27：只更新转表术语的按需写作参考；人工复核现有 10 条正例与 10 条负例，`name`、`description` 和触发边界不变；触发率未在 harness 中实测。
-- 2026-09-30：仅增加“Tauri 桌面层”写作约定；人工复核上述 10 条正例与 10 条负例，`name`、`description` 和触发边界不变；触发率未在 harness 中实测。
-- 2026-10-04：更新按需写作参考的研发用语、运行结束表达和句式约定；人工复核上述 10 条正例与 10 条负例，`name`、`description` 和触发边界不变。普通文档编辑经 AGENTS.md 读取通用约定，单独修改写作规则属于 AI 配置维护；触发率未在 harness 中实测。
+人工复核 10 条正例与 10 条负例，name、description 与使用意图保持一致。触发率未在 harness 中实测；有可用评估环境时按上方流程测量。

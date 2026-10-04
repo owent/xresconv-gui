@@ -1,5 +1,5 @@
 /**
- * BackendRpcApp 自定义选择器/按钮 + 事件 hook 开关测试（P4-05a，UI05/F09 后端）。
+ * BackendRpcApp 自定义选择器/按钮 + 事件 hook 开关测试(后端）。
  *
  * 真实 ScriptWorkerPool（按钮脚本真进程执行）+ 真实隔离 MatcherService
  * （选择器匹配）；fixture custom-button.xml 提供 file+scheme 项、DataSource 项、
@@ -8,7 +8,7 @@
  * 覆盖：setHookEnabled（参数/状态校验、mutable 生效进快照）；setCustomSelectors
  * （参数校验、错误条目、default_selected 重放）；invokeCustomButton（匹配切换、
  * 动作链、按钮 data 跨点击持久、reload 动作使 data 重置、链失败中止记日志、
- * BD-S3 所有 outcome 应用 ops）。
+ *  所有 outcome 应用 ops）。
  */
 
 import { ScriptWorkerPool } from "@xresconv/guardian";
@@ -71,7 +71,7 @@ function counterLogs(events: BackendAppEvent[]): string[] {
     .map((e) => (e.type === "log" ? e.entry.message : ""));
 }
 
-describe("setHookEnabled（P4-05a，main.js:1122-1188 复选框）", () => {
+describe("setHookEnabled(复选框）", () => {
   it("未加载配置 → INVALID_STATE；参数形状/越界/无开关/不可变 → INVALID_PARAMS", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
@@ -148,13 +148,13 @@ describe("setHookEnabled（P4-05a，main.js:1122-1188 复选框）", () => {
     snap = await snapshot(app);
     expect(snap.config?.gui.onAppendLog[0]?.enabled).toBe(false);
 
-    // 无状态门禁：旧版复选框全程可改，切回不报错。
+    // 无状态门禁：复选框全程可改，切回不报错。
     await app.handleRpc("setHookEnabled", { group: "before", index: 0, enabled: true });
     expect((await snapshot(app)).config?.gui.onBeforeConvert[0]?.enabled).toBe(true);
   });
 });
 
-describe("setCustomSelectors（P4-05a，setup.js:54-105）", () => {
+describe("setCustomSelectors", () => {
   it("参数校验：files 缺失/非数组/元素非字符串 → INVALID_PARAMS", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
@@ -194,7 +194,7 @@ describe("setCustomSelectors（P4-05a，setup.js:54-105）", () => {
     expect(errors.length).toBe(3);
   });
 
-  it("default_selected：先设选择器再 loadConfig 重放勾选；reload 再重放（main.js:1888-1892）", {
+  it("default_selected：先设选择器再 loadConfig 重放勾选；reload 再重放", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const { app } = makeApp();
@@ -228,7 +228,7 @@ describe("setCustomSelectors（P4-05a，setup.js:54-105）", () => {
   });
 });
 
-describe("invokeCustomButton（P4-05a，main.js:795-830）", () => {
+describe("invokeCustomButton", () => {
   it("参数校验与未知按钮：name 缺失/非字符串/未知 → INVALID_PARAMS", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
@@ -239,7 +239,7 @@ describe("invokeCustomButton（P4-05a，main.js:795-830）", () => {
     await expectRpcError(app.handleRpc("invokeCustomButton", { name: "不存在" }), "INVALID_PARAMS");
   });
 
-  it("无 action 选择器点击 = 匹配切换：有未选中 → 全选匹配项，否则全取消（main.js:416-428）", {
+  it("无 action 选择器点击 = 匹配切换：有未选中 → 全选匹配项，否则全取消", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const { app } = makeApp();
@@ -263,7 +263,7 @@ describe("invokeCustomButton（P4-05a，main.js:795-830）", () => {
     expect((await snapshot(app)).selectedItems.map((item) => item.name)).toEqual(["pa", "pb"]);
   });
 
-  it("按钮脚本 data 跨点击持久；reload 动作重读文件使 data 重置（BD-O19 字符串 action 生效）", {
+  it("按钮脚本 data 跨点击持久；reload 动作重读文件使 data 重置（ 字符串 action 生效）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const { app, events } = makeApp();
@@ -280,7 +280,7 @@ describe("invokeCustomButton（P4-05a，main.js:795-830）", () => {
     expect(second.ok).toBe(true);
     expect(counterLogs(events)).toEqual(["COUNTER=1", "COUNTER=2"]);
 
-    // 重载按钮：字符串 action "reload"（BD-O19 归一化路径）重读文件，
+    // 重载按钮：字符串 action "reload"（ 归一化路径）重读文件，
     // generation 递增 → 旧 button_id 的 data 不再命中。
     const reloaded = (await app.handleRpc("invokeCustomButton", { name: "重载按钮" })) as {
       ok: boolean;
@@ -340,7 +340,7 @@ describe("invokeCustomButton（P4-05a，main.js:795-830）", () => {
     expect(noop.ok).toBe(true);
   });
 
-  it("BD-S3：按钮脚本（resolved）的 ops 应用回会话树（item 字段改写可见）", {
+  it("：按钮脚本（resolved）的 ops 应用回会话树（item 字段改写可见）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const { app } = makeApp();

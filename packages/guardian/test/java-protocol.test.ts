@@ -80,7 +80,7 @@ describe("Java pipe failure boundaries", () => {
     expect(Math.max(...lines.map((line) => line.length))).toBeLessThanOrEqual(65536);
   });
 
-  it("reassembles UTF-8 multibyte characters split at arbitrary byte boundaries (EX04)", async () => {
+  it("reassembles UTF-8 multibyte characters split at arbitrary byte boundaries", async () => {
     const child = fakeChild();
     const lines: string[] = [];
     const pending = runJavaBatch({

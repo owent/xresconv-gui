@@ -1,6 +1,8 @@
-/** Embedded 1.4.0 uses el.click(), omitting the pointer events required by React Aria labels.
+/**
+ *  Embedded 1.4.0 uses el.click, omitting the pointer events required by React Aria labels.
  * The external driver retains native input. Embedded checks exercise renderer callbacks,
- * not OS input/Gatekeeper; keep the selection assertions identical for both providers. */
+ * not OS input/Gatekeeper; keep the selection assertions identical for both providers.
+ */
 export async function clickCheckboxLabel(browser, label) {
   if (process.env.XRESCONV_E2E_DRIVER_PROVIDER !== 'embedded') return label.click();
   await browser.execute((el) => {

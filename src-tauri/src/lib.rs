@@ -1,6 +1,6 @@
 //! Tauri thin shell: window, plugins, CLI args, version handshake.
 //!
-//! D6: no business logic in Rust. Configuration, domain model, conversion
+//! no business logic in Rust. Configuration, domain model, conversion
 //! scheduling and scripting live in the Node.js backend/guardian processes
 //! (packages/backend, packages/guardian). This crate only keeps the window,
 //! native dialogs, CLI parsing and the minimal bridge commands.
@@ -13,13 +13,16 @@ use tauri::Manager;
 use tauri_plugin_cli::CliExt;
 
 mod guardian;
+#[cfg(windows)]
+mod local_fonts;
+mod locale_settings;
 mod webview_preflight;
 mod windowless_process;
 
 pub use webview_preflight::ensure_webview2_or_exit;
 
-/// Bridge handshake result. Field layout is owned by
-/// `packages/contracts/schema/handshake.json` (single source of truth).
+///Bridge handshake result. Field layout is owned by
+///`packages/contracts/schema/handshake.json` (single source of truth).
 #[derive(Debug, Clone, Serialize)]
 struct Handshake {
     name: &'static str,
@@ -36,9 +39,15 @@ fn get_app_info() -> Handshake {
     }
 }
 
-/// CLI arguments parsed by tauri-plugin-cli, exposed read-only to the UI.
-/// The legacy flags (`--input`, `--debug-mode`, `--custom-selector`,
-/// `--custom-button`, `--log-configure`) are declared in tauri.conf.json.
+/// 系统语言偏好按优先级返回，语言匹配和英文回退由界面处理。
+#[tauri::command]
+fn get_system_locales() -> Vec<String> {
+    sys_locale::get_locales().collect()
+}
+
+///CLI arguments parsed by tauri-plugin-cli, exposed read-only to the UI.
+///The legacy flags (`--input`, `--debug-mode`, `--custom-selector`,
+///`--custom-button`, `--log-configure`) are declared in tauri.conf.json.
 #[tauri::command]
 fn get_cli_matches(app: tauri::AppHandle) -> serde_json::Value {
     match app.cli().matches() {
@@ -47,8 +56,8 @@ fn get_cli_matches(app: tauri::AppHandle) -> serde_json::Value {
     }
 }
 
-/// P4-02：经长驻 guardian 通道取健康（含 backend 监督状态）。
-/// 通道按需建立；guardian 死亡/毒帧由 reader 判死并经事件通知 UI。
+/// 经长驻 guardian 通道取健康（含 backend 监督状态）。
+///通道按需建立；guardian 死亡/毒帧由 reader 判死并经事件通知 UI。
 #[tauri::command]
 async fn get_backend_health(
     state: tauri::State<'_, std::sync::Arc<guardian::GuardianState>>,
@@ -61,9 +70,9 @@ async fn get_backend_health(
     result.map_err(|e| e.to_string())
 }
 
-/// P4-02：业务 RPC 透传（shell → guardian → backend）。`method`/`params`
-/// 契约见 packages/contracts/schema/backend-rpc.json 与
-/// packages/backend/src/service/rpc-app.ts；timeout_ms 缺省 60s。
+/// 业务 RPC 透传（shell → guardian → backend）。`method`/`params`
+///契约见 packages/contracts/schema/backend-rpc.json 与
+///packages/backend/src/service/rpc-app.ts；timeout_ms 缺省 60s。
 #[tauri::command]
 async fn backend_rpc(
     method: String,
@@ -86,8 +95,8 @@ async fn backend_rpc(
     result.map_err(|e| e.to_string())
 }
 
-/// P4-02：显式重建 guardian 通道（backend/guardian 故障后由 UI 触发；
-/// 旧通道整树自清，不自动重放在途请求——SC10）。
+/// 显式重建 guardian 通道（backend/guardian 故障后由 UI 触发；
+// 旧通道整树自清，不自动重放在途请求)。
 #[tauri::command]
 async fn restart_guardian(
     state: tauri::State<'_, std::sync::Arc<guardian::GuardianState>>,
@@ -102,9 +111,9 @@ async fn restart_guardian(
     result.map_err(|e| e.to_string())
 }
 
-/// P4-07：导出 UTF-8 文本文件（日志导出）。路径来自 plugin-dialog 的 save
-/// 对话框（用户显式选择）；这是 UI 侧可写磁盘的唯一入口。日志内容本身
-/// 不经过任何执行路径（BD-04/R12），命令参数只来自本应用 UI 的调用。
+/// 导出 UTF-8 文本文件（日志导出）。路径来自 plugin-dialog 的 save
+///对话框（用户显式选择）；这是 UI 侧可写磁盘的唯一入口。日志内容本身
+// 不经过任何执行路径，命令参数只来自本应用 UI 的调用。
 fn write_text_file_impl(path: &str, content: &str) -> Result<(), String> {
     if path.trim().is_empty() {
         return Err("export path must not be empty".to_string());
@@ -119,10 +128,24 @@ async fn export_text_file(path: String, content: String) -> Result<(), String> {
         .map_err(|e| format!("export task failed: {e}"))?
 }
 
-/// 显示设置（2026-09-26 用户需求）：主题三态 + 上次转换列表文件；JSON 持久化
-/// 到可执行程序目录旁（exe 同级 `display-settings.json`）。读失败（首次运行/
-/// 损坏）返回 null 由前端用默认值；写做字段白名单校验。
-/// 分区字体设置（2026-09-26）：family 空=该区默认；size 为 px 数值。
+// Grant only the main app origin's font enumeration before the UI queries it.
+#[tauri::command]
+async fn allow_local_fonts(window: tauri::WebviewWindow) -> Result<bool, String> {
+    #[cfg(windows)]
+    {
+        local_fonts::allow(&window).await
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = window;
+        Ok(false)
+    }
+}
+
+// 显示设置：主题三态 + 上次转换列表文件；JSON 持久化
+///到可执行程序目录旁（exe 同级 `display-settings.json`）。读失败（首次运行/
+///损坏）返回 null 由前端用默认值；写做字段白名单校验。
+// 分区字体设置：family 空=该区默认；size 为 px 数值。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct FontPrefs {
@@ -153,6 +176,9 @@ struct DisplaySettings {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     theme: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    language: Option<String>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     last_config_file: Option<String>,
@@ -188,6 +214,7 @@ fn read_display_settings() -> Option<DisplaySettings> {
 #[tauri::command]
 async fn write_display_settings(
     theme: Option<String>,
+    language: Option<String>,
     last_config_file: Option<String>,
     fonts: Option<serde_json::Value>,
 ) -> Result<(), String> {
@@ -196,6 +223,9 @@ async fn write_display_settings(
         && !matches!(t.as_str(), "system" | "light" | "dark")
     {
         return Err(format!("invalid theme: {t}"));
+    }
+    if let Some(value) = &language {
+        locale_settings::validate_language(value)?;
     }
     // 字体：结构经 serde 反序列化校验；字号白名单 [6,48]，family 去控制字符。
     let fonts = match fonts {
@@ -232,6 +262,7 @@ async fn write_display_settings(
     };
     let settings = DisplaySettings {
         theme,
+        language,
         last_config_file,
         fonts,
     };
@@ -241,7 +272,7 @@ async fn write_display_settings(
 }
 
 pub fn run() {
-    // P5-03：任何 WebView 创建前的原生运行时预检（PK02：先检查后 GUI）。
+    // 任何 WebView 创建前的原生运行时预检(先检查后 GUI）。
     ensure_webview2_or_exit();
     let builder = tauri::Builder::default();
     #[cfg(all(feature = "e2e", debug_assertions))]
@@ -251,7 +282,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            // F10/F11：解析 --log-configure 并接力给 guardian 进程（env 注入点
+            // 解析 --log-configure 并接力给 guardian 进程（env 注入点
             // 在 guardian.rs spawn；未提供时不设 env，backend 用内置默认配置）。
             if let Ok(matches) = app.cli().matches()
                 && let Some(value) = matches.args.get("log-configure")
@@ -259,7 +290,7 @@ pub fn run() {
             {
                 guardian::set_guardian_log_configure(Some(path.to_string()));
             }
-            // P4-02：长驻 guardian 通道托管状态。事件出口经注入的 EventSink
+            // 长驻 guardian 通道托管状态。事件出口经注入的 EventSink
             // 转发前端（xresconv-event / xresconv-guardian-dead）；guardian
             // 模块不依赖 tauri 类型，保持 unit test 无 GUI 导入可加载。
             let handle = app.handle().clone();
@@ -273,7 +304,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // 窗口关闭 → 显式关闭 guardian 通道（子树自清，P2-09）。
+            // 窗口关闭 → 显式关闭 guardian 通道（子树自清)。
             if let tauri::WindowEvent::CloseRequested { api, .. } = event
                 && let Some(state) = window.try_state::<std::sync::Arc<guardian::GuardianState>>()
             {
@@ -290,11 +321,13 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_info,
+            get_system_locales,
             get_cli_matches,
             get_backend_health,
             backend_rpc,
             restart_guardian,
             export_text_file,
+            allow_local_fonts,
             read_display_settings,
             write_display_settings
         ])
@@ -306,13 +339,12 @@ pub fn run() {
 mod tests {
     use super::write_text_file_impl;
 
-    /// 显示设置：JSON 往返 + 主题白名单 + 损坏文件容错（只依赖 std）。
+    ///显示设置：JSON 往返 + 主题白名单 + 损坏文件容错（只依赖 std）。
     #[test]
     fn display_settings_round_trip_and_validation() {
-        let dir = std::env::temp_dir().join("xresconv-display-test");
-        std::fs::create_dir_all(&dir).expect("mkdir");
         let settings = super::DisplaySettings {
             theme: Some("dark".into()),
+            language: Some("fr".into()),
             last_config_file: Some("D:/路径 配置.xml".into()),
             fonts: Some(super::FontsConfig {
                 tree: super::FontPrefs {
@@ -329,11 +361,14 @@ mod tests {
         assert!(body.contains("Microsoft YaHei"));
         let parsed: super::DisplaySettings = serde_json::from_str(&body).unwrap();
         assert_eq!(parsed.theme.as_deref(), Some("dark"));
+        assert_eq!(parsed.language.as_deref(), Some("fr"));
         assert_eq!(parsed.fonts.and_then(|f| f.tree.size), Some(14.0));
+        let old: super::DisplaySettings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
+        assert!(old.language.is_none());
     }
 
-    /// P4-07：导出写 UTF-8（含中文/空格路径）；空/空白路径拒绝。
-    /// 只依赖 std，不触碰 tauri/wry 运行时类型（0xc0000139 约束）。
+    /// 导出写 UTF-8（含中文/空格路径）；空/空白路径拒绝。
+    ///只依赖 std，不触碰 tauri/wry 运行时类型（0xc0000139 约束）。
     #[test]
     fn write_text_file_writes_utf8_and_rejects_empty_path() {
         let dir = std::env::temp_dir().join("xresconv-export-test");

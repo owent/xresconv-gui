@@ -15,7 +15,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   isTauri: () => false,
   invoke: vi.fn(async (cmd: string) => {
     if (cmd === "get_app_info") {
-      return { name: "xresconv-gui", version: "3.0.0-dev.1", protocol_version: 1 };
+      return { name: "xresconv-gui", version: "3.0.0", protocol_version: 1 };
     }
     if (cmd === "get_cli_matches") {
       return { input: { value: "tests/fixtures/config/basic.xml" } };
@@ -77,7 +77,11 @@ function defaultInvokeImpl(cmd: string, args?: unknown): Promise<unknown> {
     });
   }
   if (cmd === "get_app_info") {
-    return Promise.resolve({ name: "xresconv-gui", version: "3.0.0-dev.1", protocol_version: 1 });
+    return Promise.resolve({
+      name: "xresconv-gui",
+      version: "3.0.0",
+      protocol_version: 1,
+    });
   }
   if (cmd === "get_cli_matches") {
     return Promise.resolve({ "log-configure": { value: "log4js.json" } });
@@ -105,20 +109,20 @@ function invokeCallCount(cmd: string): number {
   return mockedInvoke.mock.calls.filter(([called]) => called === cmd).length;
 }
 
-/** 渲染并等待诊断信息写入运行日志（2026-09-26 三轮改版：调试信息进日志）。 */
+/** 渲染并等待诊断信息写入运行日志。 */
 async function renderAndSettle() {
   render(<App />);
   const log = await screen.findByRole("log", { name: "日志列表" });
   await waitFor(() => {
     const text = log.textContent ?? "";
-    expect(text).toContain("xresconv-gui v3.0.0-dev.1 · protocol v1");
+    expect(text).toContain("xresconv-gui v3.0.0 · protocol v1");
     expect(text).toContain("guardian ok · node v24.21.0");
     expect(text).toContain('Java 环境：openjdk version "17.0.9" 2023-10-17');
   });
   return log;
 }
 
-describe("App shell (P4-01)", () => {
+describe("App shell", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();
@@ -147,7 +151,7 @@ describe("App shell (P4-01)", () => {
     expect(screen.getByRole("button", { name: "详情…" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "显示设置" })).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "并发数" })).toBeTruthy();
-    // 自适应（2026-09-26）：无选择器定义时自定义按钮区不渲染。
+    // 自适应：无选择器定义时自定义按钮区不渲染。
     expect(screen.queryByRole("region", { name: "自定义按钮" })).toBeNull();
 
     // 底部运行控制与日志（RunControls / RunSummary / LogPanel / DialogHost）
@@ -164,7 +168,7 @@ describe("App shell (P4-01)", () => {
   it("routes handshake info from the shell into the run log", async () => {
     const log = await renderAndSettle();
     const text = log.textContent ?? "";
-    expect(text).toContain("xresconv-gui v3.0.0-dev.1 · protocol v1");
+    expect(text).toContain("xresconv-gui v3.0.0 · protocol v1");
     expect(text).toContain("backend ready · pid 1235 · generation 1");
     // 主面板不再有常驻状态行（版本/健康/Java 都只在日志里）。
     expect(screen.queryByTestId("backend-health")).toBeNull();
@@ -195,7 +199,7 @@ describe("App shell (P4-01)", () => {
     const picked = await screen.findByTestId("picked-path");
     expect((picked as HTMLInputElement).value).toBe("D:/conf/convert_list.xml");
 
-    // 2026-09-26 五轮：加载成功重置日志后补写 Java 环境与输出矩阵概要。
+    // 加载成功重置日志后补写 Java 环境与输出矩阵概要。
     await waitFor(() => {
       const text = screen.getByRole("log", { name: "日志列表" }).textContent ?? "";
       expect(text).toContain("Java 环境：openjdk version");
@@ -226,7 +230,7 @@ describe("App shell (P4-01)", () => {
     expect(screen.getByRole("button", { name: "开始转换" })).toBeTruthy();
   });
 
-  it("UI01: Java 缺失只写运行日志 warning 与修复指引，不阻塞界面", async () => {
+  it(": Java 缺失只写运行日志 warning 与修复指引，不阻塞界面", async () => {
     mockedInvoke.mockImplementation((cmd: string, args?: unknown) => {
       if (cmd === "backend_rpc") {
         const method = (args as { method?: string } | undefined)?.method;
@@ -240,7 +244,10 @@ describe("App shell (P4-01)", () => {
             problem: "未找到可用的 java 可执行文件",
             downloadHints: [
               { name: "Temurin", url: "https://example/temurin" },
-              { name: "Microsoft Build of OpenJDK", url: "https://example/msjdk" },
+              {
+                name: "Microsoft Build of OpenJDK",
+                url: "https://example/msjdk",
+              },
             ],
           });
         }
@@ -268,7 +275,7 @@ describe("App shell (P4-01)", () => {
     );
     await waitFor(() =>
       expect(screen.getByRole("log", { name: "日志列表" }).textContent ?? "").toContain(
-        "xresconv-gui v3.0.0-dev.1",
+        "xresconv-gui v3.0.0",
       ),
     );
     expect(invokeCallCount("get_app_info")).toBe(1);

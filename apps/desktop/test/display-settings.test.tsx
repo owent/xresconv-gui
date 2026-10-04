@@ -13,7 +13,7 @@ import { resetEnvironmentDiagnostics } from "../src/app/environment-diagnostics"
 import { resetSessionStore } from "../src/app/session-store";
 
 /**
- * 2026-09-26 用户反馈回归：dev 启动自动加载上次配置时，后端仍在 starting 的
+ * dev 启动自动加载上次配置时，后端仍在 starting 的
  * 瞬态失败（BACKEND_NOT_READY）不得以 "guardian protocol violation" 弹在树上；
  * 应静默重试直到就绪，并在日志里给出等待提示。
  */
@@ -88,7 +88,10 @@ describe("display settings bootstrap (auto-load retry)", () => {
     await waitFor(() =>
       expect(mockedInvoke).toHaveBeenCalledWith(
         "backend_rpc",
-        expect.objectContaining({ method: "loadConfig", params: { path: "first.xml" } }),
+        expect.objectContaining({
+          method: "loadConfig",
+          params: { path: "first.xml" },
+        }),
       ),
     );
   });
@@ -97,7 +100,9 @@ describe("display settings bootstrap (auto-load retry)", () => {
     mockedInvoke.mockResolvedValue(null);
     render(<DisplaySettingsDialog open onClose={() => {}} />);
     const user = userEvent.setup();
-    const size = screen.getByRole("spinbutton", { name: "左侧转换列表字号(px)" });
+    const size = screen.getByRole("spinbutton", {
+      name: "左侧转换列表字号(px)",
+    });
     await user.type(size, "24");
     expect(
       mockedInvoke.mock.calls.filter(([cmd]) => cmd === "write_display_settings"),
@@ -164,7 +169,7 @@ describe("display settings bootstrap (auto-load retry)", () => {
         case "get_app_info":
           return Promise.resolve({
             name: "xresconv-gui",
-            version: "3.0.0-dev.1",
+            version: "3.0.0",
             protocol_version: 1,
           });
         case "get_cli_matches":
@@ -190,7 +195,11 @@ describe("display settings bootstrap (auto-load retry)", () => {
             if (logCalls < 3) {
               return Promise.reject("BACKEND_NOT_READY: backend not ready (state: starting)");
             }
-            return Promise.resolve({ entries: [], droppedCount: 0, capacity: 10000 });
+            return Promise.resolve({
+              entries: [],
+              droppedCount: 0,
+              capacity: 10000,
+            });
           }
           if (method === "checkJava") {
             return Promise.resolve({

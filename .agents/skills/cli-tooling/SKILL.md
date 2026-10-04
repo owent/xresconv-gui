@@ -4,7 +4,7 @@ description: "Use When: selecting, probing, or installing command-line tools for
 license: MIT
 metadata:
   owner: project-ai-maintainers
-  last-reviewed: 2026-09-25
+  last-reviewed: 2026-10-04
 ---
 
 # 现代 CLI 工具选用与安装
@@ -31,7 +31,7 @@ metadata:
 ## Resources
 
 - [references/modern-cli-tools.md](references/modern-cli-tools.md)：传统→现代工具完整对照表、安装渠道、平台要点、Agent 使用守则。选型或安装前必读。
-- [references/trigger-evaluation.md](references/trigger-evaluation.md)：本 Skill 的标注查询集与评估记录。
+- [references/trigger-evaluation.md](references/trigger-evaluation.md)：本 Skill 的标注查询集与评估方式。
 
 ## Validation
 

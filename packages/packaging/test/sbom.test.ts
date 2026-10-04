@@ -15,7 +15,7 @@ function file(partial: Partial<ManifestFile> & { path: string }): ManifestFile {
 function manifest(files: ManifestFile[]): RuntimeManifest {
   return {
     schemaVersion: 1,
-    appVersion: "3.0.0-dev.1",
+    appVersion: "3.0.0",
     sourceCommit: "0".repeat(40),
     targetTriple: "x86_64-pc-windows-msvc",
     os: "windows",
@@ -43,11 +43,11 @@ function manifest(files: ManifestFile[]): RuntimeManifest {
       commit: "0".repeat(40),
       dirty: false,
     },
-    verificationReport: { result: "pass", reportPath: "docs/plan/records/P5-07.md" },
+    verificationReport: { result: "pass", reportPath: "docs/development/packaging.md" },
   };
 }
 
-describe("packageInventory / buildSpdx（P5-07 SBOM 部分）", () => {
+describe("packageInventory / buildSpdx（ SBOM 部分）", () => {
   it("preserves nested versions, distinct package IDs and required package metadata", () => {
     const input = manifest([
       file({ path: "a", origin: "npm:pkg@1.0.0" }),
@@ -111,11 +111,11 @@ describe("packageInventory / buildSpdx（P5-07 SBOM 部分）", () => {
       expect(rel.spdxElementId).toBe(appPkg?.SPDXID);
       expect(rel.relationshipType).toBe("DEPENDS_ON");
     }
-    expect(doc.documentNamespace).toContain("3.0.0-dev.1");
+    expect(doc.documentNamespace).toContain("3.0.0");
   });
 });
 
-describe("sizeBreakdown（P5-09）", () => {
+describe("sizeBreakdown", () => {
   it("按 origin 类别汇总（node-dist/build/npm）并排序", () => {
     const report = sizeBreakdown([
       file({ path: "a", origin: "build:x", size: 100 }),

@@ -1,9 +1,11 @@
-/** 回归（P5-11 CI 实证）：compat-service 模块级"入口健康行"守卫在 esbuild
+/**
+ *  回归（ CI 实证）：compat-service 模块级"入口健康行"守卫在 esbuild
  * bundle 中误触发（argv[1] 恰为 bundle 本身），裸 JSON 先于帧协议写入 stdout，
  * 帧解码器把它当 UInt32BE 长度读出 0x7B226F6B（=CI 观测的 TOO_LARGE 数值）。
  * 本测试用与 assemble.ts 相同的 esbuild 配置打包真实 worker，断言 stdout 的
  * 第一帧是合法 health 信封——任何模块在 bundle 中向 stdout 泄漏副作用都会
- * 在此失败。 */
+ * 在此失败。
+ */
 import { spawn } from "node:child_process";
 import { mkdirSync, rmSync } from "node:fs";
 import path from "node:path";

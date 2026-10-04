@@ -15,7 +15,7 @@ export type PackagingErrorCode =
   | "NODE_ACQUISITION_FAILED"
   | "ASSEMBLY_FAILED";
 
-/** All packaging-matrix failures carry a stable machine-readable code (PK01). */
+/** All packaging-matrix failures carry a stable machine-readable code. */
 export class PackagingError extends Error {
   readonly code: PackagingErrorCode;
   readonly details: readonly string[];

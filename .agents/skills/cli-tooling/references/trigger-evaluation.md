@@ -1,4 +1,4 @@
-# cli-tooling 触发评估记录
+# cli-tooling 触发评估
 
 ## 标注查询集
 
@@ -17,18 +17,17 @@
 
 ### 不应触发（负例 / near-miss）
 
-1. “执行 yarn run package-test 打包”（项目构建命令）
+1. “执行 yarn package:windows 打包”（项目构建命令）
 2. “PowerShell 双引号里怎么转义”（shell 语法，属 AGENTS.md 常驻规则）
 3. “帮我写个 .ps1 部署脚本”（脚本编写，不是工具选型）
-4. “CI 里 npm install 失败了”（CI 排错）
+4. “CI 里 yarn install 失败了”（CI 排错）
 5. “git 提交冲突怎么解决”
 6. “markdownlint 报 MD029 怎么修”
-7. “Electron 打包体积太大怎么优化”
+7. “Tauri 打包体积太大怎么优化”
 8. “命令超时了要不要重试”（超时纪律在 AGENTS.md）
 9. “node 脚本里怎么读 JSON”（代码问题）
-10. “帮我装一下 electron”（项目依赖，走 yarn）
+10. “帮我添加 React 依赖”（项目依赖，走 yarn）
 
-## 评估记录
+## 当前评估方式
 
-- 首次创建：未在 harness 中实测触发率；待后续维护时按 `ai-agent-maintenance/references/trigger-evaluation.md` 的流程补测。
-- 2026-09-25：`description` 统一为 `Use When:` 标准前缀（用户决策，语义与触发边界未变）；触发率仍未实测。
+人工复核 10 条正例与 10 条负例，工具选型、探测、安装与迁移属于使用范围，普通构建和代码问题不触发。触发率未在 harness 中实测。

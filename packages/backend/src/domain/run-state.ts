@@ -1,5 +1,5 @@
 /**
- * Run lifecycle state machine (Plan.md §4.3).
+ * Run lifecycle state machine (docs/development/README.md ).
  *
  * Idle → Loading → Ready → BeforeHooks → Converting → AfterHooks → Succeeded
  *                  │          │             │           │

@@ -1,10 +1,4 @@
-/**
- * Executor for the five legacy script entry kinds (P0-08 §2, src/main.js
- * anchors noted per entry). Each invocation compiles `invoke.source` with
- * `new vm.Script(text, { filename })` and runs it in a fresh vm context whose
- * keys mirror the legacy sandbox field by field. Wire-observable differences
- * from the legacy GUI are recorded as BD-S entries in docs/plan/records/P2-03.md.
- */
+/** 执行五类脚本入口，为调用重建明确上下文，保持按钮 data、模块解析、树镜像和回调约定。接口见 docs/user/scripts.md。 */
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -42,7 +36,7 @@ export interface ExecutorHooks {
   registerDialogCallbacks(token: string, callbacks: DialogCallbacks, invocationId: string): void;
 }
 
-/** Worker-lifetime button data store (main.js:612/771: data persists per button). */
+/** Worker-lifetime button data store (data persists per button). */
 const buttonDataStore = new Map<string, Record<string, unknown>>();
 
 function formatException(err: unknown): string {
@@ -56,11 +50,7 @@ function formatException(err: unknown): string {
   return String(err);
 }
 
-/**
- * Node >= 22 injects a host `console` into every vm context; the legacy
- * renderer sandbox had none (scripts calling console.* died with
- * ReferenceError). Deleting it restores the exact legacy surface.
- */
+/** 脚本上下文显式移除默认 console，统一使用 log_* 记录日志。 */
 function stripHostConsole(context: vm.Context): void {
   vm.runInContext("delete globalThis.console", context);
 }
@@ -85,7 +75,7 @@ function makeLoggers(moduleName: string, invocationId: string, hooks: ExecutorHo
 }
 
 function makeAlerts(invocationId: string, hooks: ExecutorHooks) {
-  // Legacy defaults: main.js:885-886 ("无内容，参数错误"/"警告"), main.js:864-866 ("出错啦").
+  // 缺省弹窗标题与内容保持明确提示。
   const alertError = (content?: unknown, title?: unknown): void => {
     const token = randomUUID();
     hooks.requestDialog(invocationId, {
@@ -94,8 +84,8 @@ function makeAlerts(invocationId: string, hooks: ExecutorHooks) {
       content: content == null ? "无内容，参数错误" : String(content),
       buttons: ["ok"],
     });
-    // alert_error 无脚本回调（main.js:861-877），但仍登记 token：应答到达时静默
-    // 最终化，避免 worker 侧报 "unknown token" 噪音（P2-06 注册表统一管理）。
+    // alert_error 无脚本回调，但仍登记 token：应答到达时静默
+    // 最终化，避免 worker 侧报 "unknown token" 噪音（ 注册表统一管理）。
     hooks.registerDialogCallbacks(token, {}, invocationId);
   };
   const alertWarning = (content?: unknown, title?: unknown, options?: DialogCallbacks): void => {
@@ -119,19 +109,7 @@ function makeAlerts(invocationId: string, hooks: ExecutorHooks) {
   return { alert_warning: alertWarning, alert_error: alertError };
 }
 
-/**
- * BD-S1: require is anchored at the configure file (createRequire), so module
- * resolution starts at the config's directory. Legacy anchored at the app's
- * src/ directory and could reach electron/jquery (main.js:564/2297).
- *
- * P2-10 兼容层：裸包名（`require("adm-zip")`）在锚定解析失败时回退到发行版
- * 捆绑模块目录（env `XRESCONV_SCRIPT_MODULE_DIRS`，path.delimiter 分隔的
- * anchor 目录列表，解析其 node_modules；由 backend 按 runtime manifest 注入，
- * P5-02 组装）。旧版行为里裸包名来自宿主 app 目录；新锚点在用户配置目录，
- * 没有该回退则发行目录下 `require("adm-zip")` 必然 MODULE_NOT_FOUND。
- * 相对/绝对/node: 说明符不回退（BD-S1 语义不变）；用户配置旁的 node_modules
- * 优先于捆绑目录（锚定解析先跑）。env 未设置时行为与之前完全一致。
- */
+/** require 以配置文件为锚点，配置模块优先。裸包名解析失败时查 XRESCONV_SCRIPT_MODULE_DIRS 提供的发行模块目录；已找到模块的内部错误直接报告。 */
 function makeRequire(invoke: ScriptInvoke): NodeJS.Require {
   const anchor = invoke.context.configure_file;
   const filename =
@@ -233,13 +211,13 @@ function fallbackRequires(): NodeJS.Require[] {
 }
 
 /**
- * Keys shared by the event/button/append-log base contexts (main.js:2253-2298).
+ * Keys shared by the event/button/append-log base contexts.
  * on_append_log reuses the event base verbatim (append_log_context ===
- * vm_context_obj, main.js:2299), so require/selected_nodes/run_seq are present.
+ * vm_context_obj), so require/selected_nodes/run_seq are present.
  *
- * P2-05：context.tree（TreeSnapshot）存在时，selected_nodes/selected_items 由
+ * context.tree（TreeSnapshot）存在时，selected_nodes/selected_items 由
  * NodeMirror 重建（别名恒等 + 有序 ops）；不存在或为非法快照时回退为 JSON
- * 快照透传（BD-S9 降级形态）并附诊断 op。
+ * 快照透传（ 降级形态）并附诊断 op。
  */
 function buildSelection(invoke: ScriptInvoke): {
   mirror: import("./node-mirror.ts").MirrorHandle | null;
@@ -314,9 +292,9 @@ function buttonBase(
   hooks: ExecutorHooks,
   selection: { selectedNodes: unknown; selectedItems: unknown },
 ): Record<string, unknown> {
-  // No run_seq for buttons (main.js:521-565). global_options stays in the
-  // legacy array form ([{name,desc,value}], main.js:525) — divergence preserved.
-  // Legacy labels the module with the script name; the wire carries button_id only.
+  // No run_seq for buttons. global_options stays in the
+  // 按钮 global_options 使用数组形式。
+  // 按钮日志模块名使用脚本名称，调用通过 button_id 关联。
   return {
     ...sharedContextKeys(invoke, false, selection),
     ...makeAlerts(invoke.invocation_id, hooks),
@@ -325,7 +303,7 @@ function buttonBase(
   };
 }
 
-/** set_name (main.js:1704-1758): sync, no vm options, no require/resolve/reject. */
+/** set_name: sync, no vm options, no require/resolve/reject. */
 function runSetName(invoke: ScriptInvoke, hooks: ExecutorHooks, script: vm.Script): ScriptResult {
   const context = invoke.context;
   // Boundary assertion: script-invoke schema documents item_data as the item object.
@@ -342,7 +320,7 @@ function runSetName(invoke: ScriptInvoke, hooks: ExecutorHooks, script: vm.Scrip
   stripHostConsole(sandbox);
   let failure: ScriptResult["error"];
   try {
-    // Bug compatibility: legacy passes NO options here (main.js:1748) — no vm
+    // 同步 VM 执行不传 timeout，外部 worker 监督负责切断事件循环阻塞。
     // timeout. The worker-level wall-clock fallback lives in worker-main.
     script.runInContext(sandbox);
   } catch (err) {
@@ -363,7 +341,7 @@ function runSetName(invoke: ScriptInvoke, hooks: ExecutorHooks, script: vm.Scrip
 }
 
 /**
- * Events (main.js:2307-2392) and buttons (main.js:593-646) share the async
+ * Events and buttons share the async
  * resolve/reject protocol: first call wins, the wall-clock timer is installed
  * AFTER runInContext returns so asynchronous resolution works (B9).
  */
@@ -401,8 +379,8 @@ function runAsyncEntry(
       finish({ invocation_id: invoke.invocation_id, outcome: "rejected", reason: String(reason) });
     },
     data,
-    // BD-S7: legacy vm sandboxes had no timer functions; injecting them enables
-    // the documented async-resolve pattern without changing legacy behavior.
+    // 异步入口提供计时器以支持显式 resolve/reject 完成。
+    // 异步调用仍需遵守外部截止和会话清理。
     setTimeout,
     clearTimeout,
     ...base,
@@ -421,7 +399,7 @@ function runAsyncEntry(
       "code" in err &&
       err.code === "ERR_SCRIPT_EXECUTION_TIMEOUT"
     ) {
-      // Sync vm timeout maps to the legacy wall-clock wording (BD-S4).
+      // 调用未完成时等待墙钟截止。
       finish({
         invocation_id: invoke.invocation_id,
         outcome: "rejected",
@@ -439,7 +417,7 @@ function runAsyncEntry(
     }
     return promise;
   }
-  // Wall-clock installed after the synchronous run returned (main.js:2360-2369).
+  // Wall-clock installed after the synchronous run returned.
   if (done) return promise;
   timer = setTimeout(() => {
     timer = null;
@@ -452,7 +430,7 @@ function runAsyncEntry(
   return promise;
 }
 
-/** on_append_log (main.js:166-215): sync, data is the log object, partial edits survive errors. */
+/** on_append_log: sync, data is the log object, partial edits survive errors. */
 function runAppendLog(
   invoke: ScriptInvoke,
   hooks: ExecutorHooks,
@@ -518,7 +496,7 @@ async function executeUnchecked(invoke: ScriptInvoke, hooks: ExecutorHooks): Pro
     case "on_append_log":
       break;
   }
-  // P2-05：事件/按钮/append_log 共用的 NodeMirror（无 tree 时回退 JSON 快照）。
+  // 事件/按钮/append_log 共用的 NodeMirror（无 tree 时回退 JSON 快照）。
   const selection = buildSelection(invoke);
   const result = await (async (): Promise<ScriptResult> => {
     switch (invoke.entry_kind) {
@@ -533,8 +511,8 @@ async function executeUnchecked(invoke: ScriptInvoke, hooks: ExecutorHooks): Pro
         );
       case "button": {
         // Button data persists per button_id for the worker process lifetime
-        // (main.js:612/771). Without a button_id there is nothing to key on, so
-        // the invocation gets a throwaway object (recorded in P2-03).
+        //. Without a button_id there is nothing to key on, so
+        // 缺少有效按钮身份时，data 只用于本次调用。
         let data: Record<string, unknown>;
         if (invoke.button_id !== undefined) {
           data = buttonDataStore.get(invoke.button_id) ?? {};
@@ -557,7 +535,7 @@ async function executeUnchecked(invoke: ScriptInvoke, hooks: ExecutorHooks): Pro
         throw new Error("unreachable: set_name handled above");
     }
   })();
-  // 镜像 ops 在 log 字段 ops 之后追加；实时节点 ops 内部保持调用序（P2-05）。
+  // 镜像 ops 在 log 字段 ops 之后追加；实时节点 ops 内部保持调用序。
   const mirrorOps: Record<string, unknown>[] = [];
   if (selection.fallbackDiagnostic !== undefined) {
     mirrorOps.push({
@@ -577,7 +555,7 @@ async function executeUnchecked(invoke: ScriptInvoke, hooks: ExecutorHooks): Pro
 
 /**
  * Never let non-JSON mutations prevent the worker from sending a terminal result.
- * BD-S17（P2-05）：ops 逐条 JSON 消毒；单条不可序列化（如脚本给 item 挂了
+ *  *ops 逐条 JSON 消毒；单条不可序列化（如脚本给 item 挂了
  * 循环引用自定义字段）降级为诊断 op，不再拖垮整个 result。
  */
 export async function executeInvocation(

@@ -1,8 +1,8 @@
 /**
- * runConversion 编排测试（P3-08）。
+ * runConversion 编排测试。
  *
  * 真实 ScriptWorkerPool（worker 真进程）+ 注入 fake Java runner（不 spawn java）。
- * 语义锚点：main.js:2301-2448（事件链/收尾文案）、main.js:2118-2189（并发与退出码）。
+ * 语义锚点：（事件链/收尾文案）、（并发与退出码）。
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -71,8 +71,8 @@ describe("runConversion", () => {
       "succeeded",
     ]);
 
-    // 日志次序：BEFORE（hook log_info，main.js:2301+）→ 派发日志 [CONV 1]（main.js:2093-2097）
-    // → AFTER → "All jobs done."（main.js:2438-2446）。
+    // 日志次序：BEFORE（hook log_info，+）→ 派发日志 [CONV 1]
+    // → AFTER → "All jobs done."。
     const snapshot = session.pipeline.snapshot();
     const indexOf = (pred: (message: string, moduleName: string) => boolean) =>
       snapshot.findIndex((entry) => pred(entry.message, entry.moduleName));
@@ -85,13 +85,13 @@ describe("runConversion", () => {
     expect(afterIdx).toBeGreaterThan(dispatchIdx);
     expect(doneIdx).toBeGreaterThan(afterIdx);
 
-    // 运行结束后重跑：loading→ready 重新武装（BD-O14）。
+    // 运行结束后重跑：loading→ready 重新武装。
     const rerun = await session.runConversion(selectAll(config));
     expect(rerun.state).toBe("succeeded");
     expect(rerun.runSeq).toBe(2);
   });
 
-  it("before reject → java/after 全跳过、failed_count=1、失败收尾文案（main.js:2396-2418）", {
+  it("before reject → java/after 全跳过、failed_count=1、失败收尾文案", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const calls: JavaBatchOptions[] = [];
@@ -108,7 +108,7 @@ describe("runConversion", () => {
     expect(states).toEqual(["loading", "ready", "before_hooks", "failed"]);
 
     const messages = session.pipeline.snapshot().map((entry) => entry.message);
-    // 末尾 catch 记 "CONV" error（main.js:2416-2418）。
+    // 末尾 catch 记 "CONV" error。
     expect(messages.some((m) => m.includes("stop-now"))).toBe(true);
     expect(messages.some((m) => m.includes("AFTER"))).toBe(false); // after 链跳过
     expect(messages).toContain("All jobs done, 1 job(s) failed.");
@@ -170,7 +170,7 @@ describe("runConversion", () => {
     },
   );
 
-  it("java 退出码累加进 failed_count（main.js:2175-2176），after 跳过（main.js:2179-2185）", {
+  it("java 退出码累加进 failed_count，after 跳过", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const session = new ConversionSession({
@@ -245,7 +245,7 @@ describe("runConversion", () => {
     await session.dispose();
   });
 
-  it("确定分片：round-robin（task i → 分片 i%N，BD-O3），5 任务并发 2 → [0,2,4]/[1,3]", {
+  it("确定分片：round-robin（task i → 分片 i%N)，5 任务并发 2 → [0,2,4]/[1,3]", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const calls: JavaBatchOptions[] = [];
@@ -269,7 +269,7 @@ describe("runConversion", () => {
     }
   });
 
-  it("取消：运行中 cancel → 结束状态 cancelled 恰好一次、java abort 生效、无 All jobs done（BD-O6）", {
+  it("取消：运行中 cancel → 结束状态 cancelled 恰好一次、java abort 生效、无 All jobs done", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const runnerCalls: JavaBatchOptions[] = [];
@@ -300,7 +300,7 @@ describe("runConversion", () => {
     expect(messages.some((m) => m.startsWith("All jobs done"))).toBe(false);
   });
 
-  it("会话持有的 overrides：缺省用持有值，显式入参优先（P4-04a）", {
+  it("会话持有的 overrides：缺省用持有值，显式入参优先", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const calls: JavaBatchOptions[] = [];
@@ -321,7 +321,7 @@ describe("runConversion", () => {
     expect(session.getOverrides().proto).toBe("capnproto");
   });
 
-  it("事件上下文 work_dir/xresloader_path 用有效值（overrides 优先，main.js:2254-2256）", {
+  it("事件上下文 work_dir/xresloader_path 用有效值（overrides 优先)", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const session = new ConversionSession({ pool, runner: okRunner([]) });

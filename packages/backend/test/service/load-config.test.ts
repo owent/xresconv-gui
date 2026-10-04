@@ -1,8 +1,8 @@
 /**
- * loadConfig + set_name 整合测试（P3-03）。
+ * loadConfig + set_name 整合测试。
  *
  * 真实 ScriptWorkerPool（script-host worker 真进程），无协议 mock。
- * 语义锚点：main.js:1704-1758（上下文/无超时/异常后继续）、BD-O1（硬超时）。
+ * 语义锚点：（上下文/无超时/异常后继续）、（硬超时）。
  */
 
 import type { ScriptWorkerPool } from "@xresconv/guardian";
@@ -29,7 +29,7 @@ describe("loadConfig + set_name", () => {
     expect(session.getState()).toBe("ready");
     const names = flattenTreeItems(config.tree).map((item) => item.name);
     expect(names).toEqual(["alpha-renamed", "beta-renamed"]);
-    // 同一对象引用：树节点内的 item 同步可见（旧版活引用语义）。
+    // 同一对象引用：树节点内的 item 同步可见（活引用语义）。
     const node = config.tree[0];
     expect(node?.kind).toBe("item");
     if (node?.kind === "item") {
@@ -43,8 +43,8 @@ describe("loadConfig + set_name", () => {
     const session = new ConversionSession({ pool });
     const config = await session.loadConfig(fixture("set-name-error.xml"));
     const items = flattenTreeItems(config.tree);
-    // good 正常改名；partial 改名后才抛错（部分修改保留，BD-O16/main.js:1711 活引用语义）；
-    // bad 抛错前未修改 → 保留原名（main.js:1749-1757）。
+    // good 正常改名；partial 改名后才抛错（部分修改保留，/ 活引用语义）；
+    // bad 抛错前未修改 → 保留原名。
     expect(items.map((item) => item.name)).toEqual(["good-ok", "partial-ok", "bad"]);
     const errors = session.pipeline
       .snapshot()
@@ -54,7 +54,7 @@ describe("loadConfig + set_name", () => {
     expect(errors.some((entry) => entry.message.includes("boom-bad"))).toBe(true);
   });
 
-  it("set_name 死循环：注入短超时内记诊断、不卡死、item 保留原名（BD-O1）", {
+  it("set_name 死循环：注入短超时内记诊断、不卡死、item 保留原名", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const session = new ConversionSession({ pool, setNameTimeoutMs: 300 });

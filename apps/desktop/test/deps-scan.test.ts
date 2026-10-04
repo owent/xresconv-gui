@@ -4,9 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * 依赖与产物扫描（P4-09，G4）：新架构工作区不得携带旧 UI 运行依赖
- * （jquery/jquery.fancytree/bootstrap/@popperjs——旧实现仅供对照，P7 删除）。
- * 旧依赖允许存在于仓库根 package.json（旧 Electron 架构过渡期保留）。
+ * 依赖与产物扫描(）：新架构工作区不得携带旧 UI 运行依赖
+ * （jquery/jquery.fancytree/bootstrap/@popperjs——仅供对照， 删除）。
  */
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -43,7 +42,7 @@ function listSourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe("依赖与产物扫描（P4-09，G4）", () => {
+describe("依赖与产物扫描(）", () => {
   it("新架构工作区生产依赖不含旧 UI 运行依赖", () => {
     const manifests = listWorkspacePackageJsons();
     expect(manifests.length).toBeGreaterThanOrEqual(8);

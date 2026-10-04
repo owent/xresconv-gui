@@ -1,155 +1,68 @@
 # AGENTS.md
 
-面向 AI 编程 Agent 的项目级规则入口。只记录高信号、不易从源码直接推断的事实。AI 配置维护（本文件、Skills、工具专属层）的详细规则见 Skill `.agents/skills/ai-agent-maintenance/`。
+面向 AI 编程 Agent 的项目规则入口。AI 配置维护细节见 [ai-agent-maintenance Skill](.agents/skills/ai-agent-maintenance/SKILL.md)。
 
 ## 项目目标与边界
 
-- xresconv-gui：符合 [xresconv-conf](https://github.com/xresloader/xresconv-conf) 规范的 GUI 批量转表工具，以 [xresloader](https://github.com/xresloader/xresloader) 为后端。
-- 基于 Tauri 2 桌面层（负责窗口、系统接口、进程启动与消息转发）+ 系统 WebView + 独立 Node.js 业务进程，支持 Windows / Linux / macOS（64 位；D1 决策，旧 2.6.0 为 32 位终点版本）。
-- 本仓库负责 GUI、Node.js 业务进程与打包逻辑；转表协议变更属于 xresconv-conf / xresloader 仓库。
+xresconv-gui 是符合 xresconv-conf 规范、以 xresloader 为后端的 GUI 批量转表工具。Tauri 2 桌面层管理窗口、系统接口、进程启动和消息转发，React/TypeScript 提供界面，独立 Node.js workspaces 承担业务。支持 Windows、Linux、macOS 的 x64/ARM64，平台边界以 [packaging/targets.json](packaging/targets.json) 为准。
 
-## 不可违反的原则
+本仓库负责 GUI、业务进程和打包，外部转换规范属于 xresconv-conf / xresloader。架构和接口从[开发索引](docs/development/README.md)按任务读取。
 
-- **先调研，后方案，再实施**：涉及技术选型、框架用法、Agent 规范、部署方式或工具兼容性的决策，必须先查最新官方文档；资料不足标注“未验证”，不猜测、不编造。
-- **不抹除来源**：更新内容保留或迁移引用来源；来源失效时记录替代来源。来源写入 `docs/ai/source-index.md`。
-- **不复制冗余**：`AGENTS.md` 是跨工具主入口；工具专属文件只在确有必要时作为薄兼容层创建，避免规则漂移。
-- **不保留历史版本**：规则与 Skills 只保留当前最佳版本，历史解释进决策记录或来源索引。
-- **可验证优先**：新功能必须有测试；缺陷修复必须补回归测试；能用 lint/类型检查/测试验证的不靠人工判断。
-- **最小上下文成本**：默认加载只放稳定、高信号、常用事实；长流程、示例、来源细节放按需加载文件并写明何时读取。每次维护时删除过时、重复、可从源码推断的内容。
-- **入口索引优先**：任务启动只读入口文件、索引、目录列表；只有任务目标或索引明确指向时才读细节。
-- **原生能力优先**：开始任务先确认当前 harness 实际提供的 Skills、工具、权限；不把其他工具的能力当内置能力。
-- **流程强度与风险匹配**：小改动走最短可验证路径；新功能、行为变更、公开 API、数据模型、安全或部署变更必须先形成可审阅的需求与设计合同。
-- **现代工具优先与 shell 纪律**：见“终端与工具约定”。
+## 任务启动与实现
 
-## 调研与实时更新流程
-
-每次任务开始时执行：
-
-1. 只读入口与索引：`AGENTS.md`、`.agents/skills/README.md`、`docs/ai/source-index.md`、相关目录列表；工具专属目录只判断是否存在，不批量读取。
-2. 判断任务依赖的外部事实（语言生态、框架版本、Agent 规范、MCP、部署平台、安全要求），查最新官方文档/规范/SDK/release；社区讨论只作补充。
-3. 关键来源链接与最新结论写入 `docs/ai/source-index.md`；易变信息标记 `review_cadence`、`update_trigger`、`status`，只记录当前结论。
-4. 形成可执行方案：选项、取舍理由、风险、回滚方式、验证方式；获得足够事实后再实施。发现事实变化时先更新方案和规则，再改代码。
-5. 结束前刷新同步清单：Agent 规则、Skills、文档、部署配置、路线图、测试、来源索引。
+- 先读本文件、[Skills 索引](.agents/skills/README.md)、[来源索引](docs/ai/source-index.md)和相关目录列表，按入口加载细节。
+- 先核对 git status / diff，保留用户已有改动。确认 harness 实际工具、Skills 和权限。
+- 框架、依赖、工具、平台和安全决策先核对当前官方资料，资料不足标注未验证；依据写入来源索引。
+- 小型文案和格式改动走最短验证路径；缺陷先定位并增加失败回归测试，再最小修复。
+- 新功能、行为、公开接口、数据、安全或部署变更先形成可审阅的需求与设计合同，按已有用户授权实施。流程见[变更工作流](docs/ai/spec-driven-workflow.md)。
+- 不做无关重构，不复制冗余规则。用户/开发文档和注释只保留现行约定，来源与引用随内容迁移。CHANGELOG.md 保留完整发布历史，新版本变化追加到顶部。
 
 ## 技术栈与命令
 
-- Node.js LTS（>=24）+ Tauri 2 + React 19 + TypeScript workspaces。桌面层入口 `src-tauri/`（窗口、系统接口与进程通信），前端 `apps/desktop/`，业务内核 `packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`（D6：业务全在 Node/TS，Rust 仅实现桌面层）。
-- 包管理器：**Yarn 4（corepack，`packageManager: yarn@4.18.1`）为唯一 JS 包管理器**；`package-lock.json`、`pnpm-lock.yaml` 已删除（P1-02），唯一 JS 锁文件为 `yarn.lock`，`Cargo.lock` 仅服务 Tauri 桌面层。安装用 `corepack yarn install`，变更依赖时只更新 `yarn.lock`。
-- 常用命令：
-  - 开发运行：`yarn dev:desktop`（tauri dev，前端热更新）
-  - 构建桌面应用：`yarn build:desktop`
-- 新架构（Tauri 桌面层 + Node workspaces，见 `Plan.md`）已有质量入口：`yarn lint`、`yarn typecheck`、`yarn test:unit`、`yarn test:contracts`、`yarn test:browser`（Playwright 三引擎浏览器层，生产构建 preview；浏览器经 `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/` 安装）、`yarn test:desktop`（桌面 E2E，Windows/Linux 用 tauri-driver；macOS 用仅 debug e2e feature 的嵌入驱动；Windows 需匹配 WebView2 版本的 msedgedriver，经 `MSEDGEDRIVER_PATH`/`TAURI_DRIVER_PATH`（Windows 风格路径）注入；runner 默认覆盖空会话和 CLI 加载，自动收尾所属进程树）、`yarn test:conversion`（真实 JAR 八格式 stdin vs argv 差分；相邻 `../xresloader/target` 有多个匹配 JAR 时必须显式设 `XRESCONV_TEST_JAR`，缺件 exit 2 显式退出）、`yarn check:shell` / `yarn test:shell`（Tauri 桌面层的 Cargo 检查）。发行打包：`yarn package:windows|linux|macos`（组装发行布局 → 平台归档 → 矩阵命名 + SHA-256；macOS 须在 mac 主机）；portable 构建验证：`yarn package:<os> --portable --variant=…` + `yarn verify:portable --os=… --arch=…`（`verify:portable` 支持 Windows 7z、macOS .app.zip 与 Linux tar.zst/AppImage；Windows 交叉包可用 --static-only；macOS 未签名 .app.zip；Linux offline=自含 AppImage+tar.zst、bootstrap=系统 WebKitGTK tar.zst；Windows 双变体=7z（bootstrap 附 WebView2 bootstrapper，offline 内嵌 Fixed Version；构建需 7-Zip，用户需支持 7z 的解压工具；语言策略见 05 册及 source-index）——两者与是否传 --portable 无关；CI 入口 `portable-build.yml`，范围与运行时约定见 05 册，同系统跨架构打包须显式 --cross --arch=…，目标 Node/原生模块不得用宿主版本替代；后续验收见 08 册）。旧 Electron 架构已于 P7 移除（2026-09-26；回滚入口=旧 tag v2.6.0 与 [迁移说明](README.md#迁移与回滚)）。选型依据见 `docs/ai/source-index.md` 与 `docs/plan/`。
+Node.js >=24；Yarn 4 由根 packageManager 固定；Rust 工具链由 rust-toolchain.toml 固定。Yarn 是唯一 JS 包管理器，仅维护 yarn.lock；Cargo.lock 服务桌面层。
 
-## 目录结构
+| 操作 | 命令 |
+| --- | --- |
+| 依赖 | `corepack yarn install --immutable` |
+| 开发 / 构建 | `corepack yarn dev:desktop` / `corepack yarn build:desktop` |
+| JS 与文档检查 | `corepack yarn lint` / `corepack yarn typecheck` |
+| 单元 / 契约 | `corepack yarn test:unit` / `corepack yarn test:contracts` |
+| Rust | `corepack yarn check:shell` / `corepack yarn test:shell` |
+| 浏览器 / 桌面 | `corepack yarn test:browser` / `corepack yarn test:desktop` |
+| 真实转换 | `corepack yarn test:conversion` |
+| 发行 | `corepack yarn package:windows` / `package:linux` / `package:macos` |
 
-- `apps/desktop/`、`packages/{backend,guardian,contracts,ipc,script-host,compat-service,packaging}/`、`src-tauri/`、`tests/`：当前实现（D6，接口/平台/测试约定由 `docs/plan/README.md` 路由，完成记录见 `docs/plan/records/`）
-
-- `docs/`：文档截图、图标、自定义选择器示例 `custom-selector.json`
-- `.github/workflows/`：CI（ci.yml 质量与桌面测试；release.yml 构建与 draft 聚合；stale.yml）
-- `.agents/skills/`：跨工具 Agent Skills（索引见 `.agents/skills/README.md`）
-- `docs/ai/`：来源索引、工具清单等 AI 维护资料
+环境、命令参数及检查边界见[测试](docs/development/testing.md)和[打包](docs/development/packaging.md)。Windows 驱动通过 Windows 风格路径的 MSEDGEDRIVER_PATH / TAURI_DRIVER_PATH 提供；多个候选 JAR 时必须显式设置 XRESCONV_TEST_JAR。
 
 ## 非显而易见的约束
 
-- 用户自定义脚本在独立 Node worker 中执行，可信脚本可访问本地模块与进程；故障隔离不等于防恶意沙箱。保持 `resolve()`/`reject()` 和弹框回调约定，不向脚本提供 DOM/jQuery/Electron。详见 `docs/plan/02-contracts-script-host.md`。
-- GUI 与文件编码统一 UTF-8；Windows 默认 GBK，文件名建议全英文（见 README“注意事项”）。
-- 桌面 E2E 的 `e2e` feature 含可执行任意页面 JS 的 localhost WebDriver，只允许 debug 测试构建；release + e2e 编译拒绝。测试构建不得代替公开介质或原生系统对话框验收。
-- src-tauri 中被 `#[cfg(test)]` 测试引用的模块不得触碰 tauri/wry 运行时类型（如 `AppHandle`/`Emitter`）：测试 exe 无 SxS manifest，经 Drop glue 保留 wry 对话框代码会导入 comctl32 v6 专有符号，进程加载即 0xc0000139。事件出口用注入闭包（P4-02 `EventSink`，诊断工具 `build/tools/check-imports.mjs`）。
-- Windows 发行版的 Tauri 桌面程序使用 GUI subsystem；启动 Node guardian 必须经 `windowless_process` 设置 `CREATE_NO_WINDOW`，受监督子进程必须经 `ProcessScope.decorateSpawnOptions` 设置 `windowsHide`。仅数 `conhost.exe` 不足以判断是否弹窗；回归见 `gui_shell_does_not_create_a_guardian_console` 和 [发行包实测](docs/plan/records/REVIEW-2026-09-29-WINDOWS-CONSOLE.md)。
-
-- Windows 双变体均使用 7z；Linux tar.zst 使用 tar 文件 → 外部 zstd 文件两步，以显式压缩级别并校验后发布。用真实负载验证压缩/解压，不能只看小样本或退出码。语言裁剪默认关闭，须显式选 `--webview-locales=mainstream` 并复验固定运行时版本。
-
-## 任务分流
-
-| 任务类型 | 默认流程 |
-| --- | --- |
-| 文案、注释、格式、边界清楚的单文件小改动 | 读取就近规则，最小改动，运行对应检查 |
-| 缺陷诊断和修复 | 先复现定位根因，再写失败的回归测试，最小修复并验证原始症状消失 |
-| 新功能、行为变更、跨模块重构、公开 API、数据模型、安全或部署变更 | 先形成可审阅的需求与设计合同（本仓库暂无 OpenSpec，用 issue/ADR/文档载体），获批准后再实现 |
-| 需求不清或多架构方向 | 只读探索，逐个澄清问题，比较 2–3 个方案，分段确认设计后再动手 |
-
-- 实现纪律：RED-GREEN-REFACTOR（先失败测试，再最小实现，后重构）；发现设计不成立时先更新权威合同再改代码。
-- 本仓库未采用 OpenSpec、未安装 Superpowers、未接入 MCP，不得擅自安装或声称使用了对应工作流；如团队决定采用，先按官方文档初始化并更新 `docs/ai/source-index.md`。完整的 OpenSpec/Superpowers 职责边界、OpenSpec 新功能 8 步流程、MCP 接入安全规则见 `docs/ai/spec-driven-workflow.md`（高风险变更或接入外部系统前必读）。
+- 用户脚本可信，可访问模块和进程，故障隔离不能防恶意代码。保持 resolve/reject、弹框回调及树镜像约定，脚本不获得 DOM/jQuery/Electron。见[脚本接口](docs/user/scripts.md)。
+- GUI、配置和脚本文件统一 UTF-8，Windows 默认代码页可能为 GBK。
+- JSON Schema 在 packages/contracts/schema 维护，生成目录的类型与注释只通过生成命令更新，批量整理时排除该目录。修改后生成类型并运行契约测试。
+- Rust 测试引用模块避免 tauri/wry 运行时类型，事件用注入闭包；测试 exe 缺 SxS manifest，运行时 Drop glue 可能引入 comctl32 v6 符号并导致 0xc0000139。
+- Windows guardian 使用 CREATE_NO_WINDOW，受监督子进程使用 ProcessScope.decorateSpawnOptions 的 windowsHide。检查窗口和选项，不能只数 conhost。
+- 嵌入 WebDriver 只允许 debug e2e，release + e2e 编译拒绝。测试构建不能代替公开介质或原生系统对话框验证。
+- 跨架构打包显式 --cross --arch，Node 和原生模块必须属于目标架构。静态检查、构建、安装和运行分别报告。
+- Windows 使用 7z；Linux 先 tar 后外部 zstd，校验真实负载再发布。语言裁剪默认关闭，显式 mainstream 后复验固定运行时版本。
 
 ## 终端与工具约定
 
-### Shell 纪律（Windows）
+Windows 使用 PowerShell 7+（pwsh.exe），禁止 Windows PowerShell 5.1，不嵌套 cmd、Git Bash、WSL 等 shell。独立 pwsh 使用 -NoLogo -NoProfile，无人值守加 -NonInteractive。
 
-- 一律使用 PowerShell 7+（`pwsh.exe`）；**禁止** Windows PowerShell 5.1（默认 UTF-16LE 写文件、缺 `&&`/`||`、传参有已知缺陷）。
-- 不嵌套调用 `cmd.exe`、Git Bash、WSL 或其他 shell。独立进程用 `pwsh.exe -NoLogo -NoProfile`（无人值守加 `-NonInteractive`），多行脚本可用 `-Command -` 从 stdin 读取。
-- 本机 `npm`/`pnpm` 的 `.ps1` shim 被执行策略拦截，调用时用 `npm.cmd` / `npx.cmd`。
-- 命令选择顺序：现代 CLI 工具 → PowerShell 原生 cmdlet → 传统工具。避免含义不明确的别名（`cat`、`find`、`where`、`ps`、`sort`、`curl`、`wget`）；写入仓库的 `.ps1` 脚本一律用全名 cmdlet。
-- 引用与文本：无需变量展开用单引号；双引号内用反引号转义；正则放单引号内；多行文本用 here-string（`@' ... '@`，定界符独占一行、结尾顶格），不用 Bash heredoc。
-- 管道与传参：语句块输出接管道用 `& { ... } | ...` 包裹；向 .exe 传含空格/引号的参数用数组 splatting；`--%` 停止解析符仅对原生命令有效。
-- 编码：写跨工具共享文件显式 `-Encoding utf8`；原生命令输出乱码时先设 `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`，不换 shell。
-- 错误处理：原生命令后用 `$LASTEXITCODE -ne 0` 判断；关键 cmdlet 加 `-ErrorAction Stop` 并 `try/catch`；失败先查命令名、路径、引号、退出码，定位根因再修。
+优先 rg 搜索、现代 CLI，再用 PowerShell 原生命令，避免 cat/find/where/ps/sort/curl/wget 等模糊别名。工具选型与安装按 [cli-tooling Skill](.agents/skills/cli-tooling/SKILL.md)。搜索限流、排除 node_modules、build 和工具工作树；管道输出关闭颜色与分页，结构化数据用 jq/yq。
 
-### 现代 CLI 工具
+无需展开时用单引号，正则置于单引号，多行文本用 here-string。语句块管道用 `& { ... } | ...`，原生命令参数用数组 splatting，避免 shell 字符串插值。共享文本写入显式 UTF-8，不重用 HOME/CODEX_HOME 等系统变量。
 
-- 探测可用后优先：`rg`（搜索）、`fd`（找文件）、`bat`（读文件）、`sd`（替换）、`eza`（列表）、`jq`/`yq`（结构化数据）、`dust`、`duf`、`tokei`、`fzf --filter`、`xh` 等；缺失时回退传统工具。完整对照表、安装渠道与平台差异见 Skill `.agents/skills/cli-tooling/`（工具选型、安装或迁移存量脚本时加载）。
-- 环境受限最小套装：`rg`、`fd`、`sd`、`jq`（+`yq`）、`bat`。
-- 使用守则：管道捕获时确保干净输出（`--color=never`、`--paging=never`、`NO_COLOR=1`）；优先 `--json` 结构化输出 + `jq -r` 取字段，不用正则解析人类排版；保持非交互；搜索与遍历必须限流（`rg --max-count`、`-g '!node_modules'`、`fd --max-results`）；注意 `rg`/`grep` 退出码 1 表示无匹配而非错误。
+原生命令检查 LASTEXITCODE，rg 无匹配的退出码 1 属正常；关键 cmdlet 使用 ErrorAction Stop。npm/npx 受执行策略影响时用 .cmd shim，项目依赖仍使用 Yarn。
 
-### 命令超时与重试
+普通检查限时 10–20 分钟，构建/打包 20–30 分钟，桌面按 runner 截止。超时先定位下载、挂起、资源或命令问题，最多调整后重试 2–3 次。需要口令时由用户在终端输入，Agent 不读取密钥。
 
-- 常规 lint/typecheck/单测上限 10–20 分钟；构建/打包 20–30 分钟；e2e 按项目说明延长。
-- 超时后保留输出，分析是依赖下载、死锁、挂起、资源不足还是命令错误；最多重试 2–3 次，每次必须调整命令、环境、等待时间或并发度，不盲目重复。
-- 脚本和 Skill 中的命令必须支持非交互；需要口令/token 时让用户在终端直接输入，AI 不得获取密钥。
+## 验证、文档和临时文件
 
-## 测试、lint 与质量门禁
+新增功能补单元测试，缺陷补回归测试，不能跳过失败后宣称通过。Markdown 使用仓库 markdownlint 零告警，文档链接检查同步验证。图示优先 Mermaid，检查语法和引用。
 
-- 新增功能必须补单元测试（外部依赖补 mock 测试）；缺陷修复必须补回归测试。
-- 不得跳过失败测试；确需跳过必须记录原因、风险、负责人和恢复条件。
-- 新增/修改的 Markdown 必须通过 markdownlint 零告警：`npx.cmd --yes markdownlint-cli@latest <files>`（配置 `.markdownlint.json`）。既有 `README.md`/`CHANGELOG.md` 的历史告警不在本次范围。
-- 架构图优先 Mermaid/Chart.js/Draw.io，尽量验证语法和布局。
+临时脚本、报告和调试产物只放 `build/<task-name>`，结束清理。需要保留时说明用途。本地开发资源放 development，密钥放忽略提交的 development/secret，不写入日志或模型上下文。需要环境变量且没有模板时提供 .env.example 占位符。
 
-## 临时文件与密钥
+文档、注释和回复使用自然具体的研发用语，按需读取[写作规则](.agents/skills/ai-agent-maintenance/references/writing-rules.md)。结束前核对受影响的用户/开发文档、来源、测试、部署和 Agent 配置，确保内容与引用有效。反复出现的问题修正对应约定或测试，避免重复规则。
 
-- **临时文件只允许放 `build/` 目录，禁止随意乱放**：本地调试产物、临时脚本、一次性输出一律写入 `build/<task-name>/` 子目录，不得散落在仓库根目录、`docs/`、`src/`、`tests/`、用户主目录或系统临时目录；任务结束清理，需保留的产物必须有说明和索引。
-- 本地开发临时资源放 `development/`；本地密钥放 `development/secret/` 并确保不被提交。
-- 密钥、token 不进仓库、不进日志、不发 AI 接口；密钥值只能通过 `jq`/`yq` 在脚本中提取透传。
-- 需要环境变量而仓库没有 `.env` 时，创建带占位符的 `.env.example` 并说明需用户填真实值。
-- 打包产物 `out/` 与 `node_modules/` 已在 `.gitignore`，不要提交。
-
-## 文档、路线图与执行计划
-
-文档、注释和回复使用自然、具体的研发用语，少用无必要的否定对照；撰写或修订时按需读取[写作规则](.agents/skills/ai-agent-maintenance/references/writing-rules.md)的术语与句式约定。
-
-每次任务结束前判断是否需更新：`AGENTS.md`、`CLAUDE.md`、`.agents/skills/`、自定义 Agent/prompt/workflow、`docs/` 模块文档、`docs/ai/source-index.md`、部署配置、`roadmap/`（存在时）、测试说明与故障排查文档。
-
-推进或维护执行计划时，先读 `Plan.md` 与 `docs/plan/README.md`，再按任务加载分册。活动任务状态唯一维护在 `docs/plan/08-release-follow-up.md`；完成过程进入 records，模块文档保留约定与验证记录链接。更新发布进度须分别核对 tag、下载包内 sourceCommit/摘要和当前候选提交；同名资产跳过不证明上传了当前构建。已完成任务移入 records，不把 CI/本机通过外推为全矩阵验收。
-
-文档组织要求：
-
-- 不把所有内容堆到单个文档；按模块、组件、主题建立层级目录。
-- 每个目录应有 `README.md` 索引，说明文件用途和阅读顺序。
-- 架构、数据流、部署和复杂流程应使用图示（优先 Mermaid/Chart.js/Draw.io）。
-- 变更文档时同步更新交叉引用，避免死链。
-
-## 自我改进机制
-
-出现纠错、返工、遗漏、误判或测试失败时：
-
-1. 判断根因：信息不足、规则缺失、Skill 误触发/漏触发、文档过期、测试缺失还是实现错误。
-2. 同类问题可能复发时，更新最合适的位置（`AGENTS.md`、Skill、条件化规则、docs、测试），合并去重，不留多版本。
-3. 为修复过的问题补测试或验证脚本。
-4. 在 `docs/ai/source-index.md` 写明变更依据。
-
-## 任务完成前检查清单
-
-- [ ] 调研基于最新来源并已记录；能力边界已确认，未伪造 harness 能力。
-- [ ] 方案说明了取舍、风险、验证方式；流程强度与任务风险匹配。
-- [ ] 最小必要改动，无无关重构；测试/回归测试已补。
-- [ ] 已运行必要的 lint、test、build 验证；Markdown 过 markdownlint。
-- [ ] 终端命令遵守 pwsh 7+ 与现代工具纪律。
-- [ ] 已检查是否需要更新 `AGENTS.md`、`CLAUDE.md`、Skills、docs、来源索引。
-- [ ] 临时文件只写入过 `build/<task-name>/` 且已清理，无散落在其他目录；未泄露任何密钥。
-- [ ] 已记录后续风险和未完成事项。
-
-## 按需加载
-
-- 用户脚本接口、启动参数、自定义选择器 JSON 结构：查 `README.md` 对应小节。
-- 现代 CLI 完整工具清单、安装渠道与平台差异：Skill `.agents/skills/cli-tooling/references/modern-cli-tools.md`（需要选型、安装或迁移工具时读）。
-- 高风险变更完整工作流（OpenSpec/Superpowers）与 MCP 接入安全规则：`docs/ai/spec-driven-workflow.md`。
-- 外部调研结论、工具兼容性、已知缺口：`docs/ai/source-index.md`。
-- AI 配置维护流程（改 AGENTS.md/CLAUDE.md/Skills/工具专属层时必读）：Skill `.agents/skills/ai-agent-maintenance/`。
+AGENTS.md 为共享入口，CLAUDE.md 只导入共享规则并写差异。新增工具层前核验官方资料，仓库未采用的工具不能声称已使用。

@@ -108,7 +108,7 @@ function checkCoherence(target: ReleaseTarget): void {
     }
     case "macos": {
       if (target.webviewStrategy !== "system-only") {
-        fail("INCOHERENT_TARGET", target, "macOS uses the system WKWebView only (D5)");
+        fail("INCOHERENT_TARGET", target, "macOS uses the system WKWebView only");
       }
       if (target.minimumWebview !== null) {
         fail("INCOHERENT_TARGET", target, "macOS gate is osVersionRange, not a webview version");
@@ -129,9 +129,9 @@ function checkCoherence(target: ReleaseTarget): void {
 }
 
 /**
- * Semantic gate on top of the JSON schema (PK01): duplicate targets,
+ * Semantic gate on top of the JSON schema: duplicate targets,
  * domain membership, per-os coherence, and exact set equality with the
- * D1/D2 baseline. Exported separately so callers holding already-typed
+ * baseline. Exported separately so callers holding already-typed
  * targets can run it without the schema step.
  */
 export function validateTargetSemantics(targets: readonly ReleaseTarget[]): void {
@@ -139,7 +139,7 @@ export function validateTargetSemantics(targets: readonly ReleaseTarget[]): void
   const duplicates: string[] = [];
   for (const target of targets) {
     if (FORBIDDEN_ARCHES.includes(target.arch)) {
-      fail("FORBIDDEN_ARCH", target, `arch "${target.arch}" is forbidden (D1: 64-bit only)`);
+      fail("FORBIDDEN_ARCH", target, `arch "${target.arch}" is forbidden`);
     }
     checkDomains(target);
     checkCoherence(target);
@@ -162,7 +162,7 @@ export function validateTargetSemantics(targets: readonly ReleaseTarget[]): void
   if (missing.length > 0) {
     throw new PackagingError(
       "MISSING_TARGET",
-      `matrix misses targets required by the D1/D2 baseline: ${missing.join(", ")}`,
+      `matrix misses targets required by the supported target set: ${missing.join(", ")}`,
       missing,
     );
   }
@@ -170,7 +170,7 @@ export function validateTargetSemantics(targets: readonly ReleaseTarget[]): void
   if (unexpected.length > 0) {
     throw new PackagingError(
       "UNEXPECTED_TARGET",
-      `targets outside the D1/D2 baseline: ${unexpected.join(", ")}`,
+      `targets outside the supported target set: ${unexpected.join(", ")}`,
       unexpected,
     );
   }
@@ -210,7 +210,7 @@ export function loadTargets(path?: string | URL): TargetsFile {
 
 /**
  * Structural validation of an artifact-side runtime manifest. By default the
- * PK01 hygiene lint (no dev-machine absolute paths, no secrets) also runs and
+ *  hygiene lint (no dev-machine absolute paths, no secrets) also runs and
  * fails the manifest; pass { lint: false } only for schema-focused tests.
  */
 export function validateRuntimeManifest(

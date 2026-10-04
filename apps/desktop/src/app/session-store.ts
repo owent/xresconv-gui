@@ -23,6 +23,7 @@ import {
   type XresconvEvent,
 } from "../adapters/backend";
 import { exportTextFile, pickSavePath } from "../adapters/tauri";
+import { translate as t } from "../i18n";
 import { writeClipboardText } from "./clipboard";
 import { rememberLoadedConfig } from "./display-settings";
 import {
@@ -32,23 +33,23 @@ import {
 } from "./startup-retry";
 
 /**
- * 会话 store（docs/plan/04-ui.md §状态分层）：后端快照缓存 + 事件水位 + UI 状态。
+ * 会话 store（docs/development/frontend.md §状态分层）：后端快照缓存 + 事件水位 + UI 状态。
  *
- * - 选择权威在 backend；UI 只发 ops（带版本闸），按 AppliedOpsReport.stateChanges
+ * 选择权威在 backend；UI 只发 ops（带版本闸），按 AppliedOpsReport.stateChanges
  *   增量套用并推进版本；版本失配自动 getSnapshot 重同步并以 lastError 可见提示
  *   （不悄悄吞）。
- * - 事件存计数、最近 state_change、脚本弹框队列与有界日志窗口（P4-07）；
+ * 事件存计数、最近 state_change、脚本弹框队列与有界日志窗口；
  *   日志按 seq 幂等对齐（getLogs 初始页 + 事件流），guardian 死亡复位游标。
- * - 选择 ops 串行执行（selectionChain）：连续快速操作总是读到最新版本，
+ * 选择 ops 串行执行（selectionChain）：连续快速操作总是读到最本，
  *   避免自造的 stale 拒绝。
- * - 不在任何 useEffect 里以状态就绪为触发自动执行转换。
+ * 不在任何 useEffect 里以状态就绪为触发自动执行转换。
  */
 
 export type ConnectionState = "idle" | "ok" | "degraded";
 
 /**
- * 待应答脚本弹框（P4-05b，SC06）：dialog_request 进队，应答/失效出队。
- * answering=true 表示应答在途（UI 禁用按钮，已应答不可再点，P2-06 遗留项）。
+ * 待应答脚本弹框：dialog_request 进队，应答/失效出队。
+ * answering=true 表示应答在途（UI 禁用按钮，已应答不可再点， 遗留项）。
  */
 export interface PendingDialog {
   token: string;
@@ -65,7 +66,7 @@ const HOOK_GROUP_KEYS: Record<HookGroup, string> = {
   append_log: "onAppendLog",
 };
 
-/** 预览面板状态（P4-04b）：idle=未预览/已失效；loading=在途；ok/error=最近一次结果。 */
+/** 预览面板状态：idle=未预览/已失效；loading=在途；ok/error=最近一次结果。 */
 export interface PreviewState {
   status: "idle" | "loading" | "ok" | "error";
   result: PreviewResult | null;
@@ -74,7 +75,7 @@ export interface PreviewState {
 }
 
 /**
- * 最近一次运行的结果记录（P4-06，UI06）：run_end 摘要 + 运行结束前的阶段。
+ * 最近一次运行的结果记录：run_end 摘要 + 运行结束前的阶段。
  * endPhase 取 state_change.previous（事件按序先于 run_end 到达）；事件缺失时为
  * null，文案退化为通用描述，不猜测阶段。
  */
@@ -87,7 +88,7 @@ export interface RunRecord {
   endPhase: string | null;
 }
 
-/** UI 日志窗口条目（P4-07）：backend 条目 + 本地稳定键（无 seq 时本地计数器补）。 */
+/** UI 日志窗口条目：backend 条目 + 本地稳定键（无 seq 时本地计数器补）。 */
 export type UiLogEntry = LogEntryLike & { localId: number };
 
 export type LogLevelFilter = "all" | LogLevelLike;
@@ -98,7 +99,7 @@ export interface LogFilterState {
   text: string;
 }
 
-/** 日志窗口状态（P4-07，UI07）：有界缓冲 + 游标 + 丢弃计数。 */
+/** 日志窗口状态：有界缓冲 + 游标 + 丢弃计数。 */
 export interface LogWindowState {
   entries: UiLogEntry[];
   /** 已完成初始 getLogs 拉取（防重试风暴；guardian 死亡复位）。 */
@@ -180,22 +181,22 @@ interface SessionData {
   expandedKeys: ReadonlySet<TreeNodeKey>;
   /** UI：聚焦节点 key；聚焦变化绝不影响选择。 */
   focusedKey: TreeNodeKey | null;
-  /** UI：预览状态（P4-04b）；loadConfig/reload 成功时重置为 idle（旧预览随配置失效）。 */
+  /** UI：预览状态；loadConfig/reload 成功时重置为 idle（旧预览随配置失效）。 */
   preview: PreviewState;
-  /** 待应答脚本弹框队列（P4-05b；dialog_request 进队、应答/失效出队）。 */
+  /** 待应答脚本弹框队列(dialog_request 进队、应答/失效出队）。 */
   pendingDialogs: PendingDialog[];
-  /** P4-06：run RPC 在途（双击防护）。 */
+  /** ：run RPC 在途（双击防护）。 */
   runStarting: boolean;
   settingsPending: number;
-  /** P4-06：已请求取消、等待后端清理（结束状态事件清除；EX03 重复取消幂等）。 */
+  /** ：已请求取消、等待后端清理（结束状态事件清除； 重复取消幂等）。 */
   cancelRequested: boolean;
-  /** 最近一次运行结果记录（P4-06，UI06）；新 run 成功启动时清除。 */
+  /** 最近一次运行结果记录；新 run 成功启动时清除。 */
   lastRun: RunRecord | null;
   /** 进入结束状态的 state_change 的 previous；由同一次运行的 run_end 消费。 */
   pendingEndPhase: string | null;
-  /** 日志窗口（P4-07，UI07）。 */
+  /** 日志窗口。 */
   logs: LogWindowState;
-  /** 日志筛选（P4-07 UI 状态；不影响落盘日志与脚本 hook）。 */
+  /** 日志筛选（ UI 状态；不影响落盘日志与脚本 hook）。 */
   logFilter: LogFilterState;
 }
 
@@ -204,45 +205,45 @@ interface SessionActions {
   reload: () => Promise<boolean>;
   refreshSnapshot: () => Promise<boolean>;
   /**
-   * 合并式写入表单覆盖/会话级并发数（P4-04b）。成功用返回的 SettingsView 整体
+   * 合并式写入表单覆盖/会话级并发数。成功用返回的 SettingsView 整体
    * 替换 snapshot.settings（受控回写）；失败写 lastError。并行多次提交以请求
    * 序号防乱序覆盖（后端合并语义，最后一次响应即全量）。
    */
   updateSettings: (
     fields: SettingsFields | ((current: EffectiveSettingsLike) => SettingsFields),
   ) => Promise<boolean>;
-  /** 预览（P4-04b，UI04）：在途 loading；错误（含 XRESLOADER_NOT_FOUND）进 error。 */
+  /** 预览：在途 loading；错误（含 XRESLOADER_NOT_FOUND）进 error。 */
   runPreview: () => Promise<boolean>;
   /**
-   * 开始转换（P4-06）：run RPC 立即返回 {runSeq}，进度/结果经事件流；成功后
+   * 开始转换：run RPC 立即返回 {runSeq}，进度/结果经事件流；成功后
    * 重同步快照（状态权威来自 backend，防事件迟到窗口）并清除上次运行记录。
    */
   startRun: () => Promise<boolean>;
-  /** 取消当前运行（P4-06，EX03）：置 cancelRequested 直到结束状态事件（重复取消幂等）。 */
+  /** 取消当前运行：置 cancelRequested 直到结束状态事件（重复取消幂等）。 */
   cancelRun: () => Promise<boolean>;
-  /** 初始拉取日志窗口（P4-07）：getLogs 最新页；幂等（initialized 闸）。 */
+  /** 初始拉取日志窗口：getLogs 最新页；幂等（initialized 闸）。 */
   initLogs: () => Promise<void>;
-  /** 加载更早日志（P4-07）：beforeSeq 向后分页并前插；无更早置 noMoreOlder。 */
+  /** 加载更早日志：beforeSeq 向后分页并前插；无更早置 noMoreOlder。 */
   loadOlderLogs: () => Promise<void>;
-  /** 复制筛选后日志到剪贴板（P4-07）：纯文本（entry.text 行）。 */
+  /** 复制筛选后日志到剪贴板：纯文本（entry.text 行）。 */
   copyLogs: () => Promise<boolean>;
-  /** 导出筛选后日志（P4-07）：原生保存对话框 + 壳层 export_text_file。 */
+  /** 导出筛选后日志：原生保存对话框 + 壳层 export_text_file。 */
   exportLogs: () => Promise<boolean>;
-  /** 设置日志筛选（P4-07 UI 状态）。 */
+  /** 设置日志筛选（ UI 状态）。 */
   setLogFilter: (patch: Partial<LogFilterState>) => void;
   /**
-   * 注入本地日志行（2026-09-26 用户需求：预览结果显示到运行日志）：
+   * 注入本地日志行：
    * 不经 backend 事件流（UI 本地证据），seq 缺省（不参与游标分页）。
    */
   appendLocalLog: (message: string, level?: LogLevelLike) => void;
-  /** 事件 hook 开关（P4-05b，F09）：成功就地改写快照 config.gui；失败写 lastError。 */
+  /** 事件 hook 开关：成功就地改写快照 config.gui；失败写 lastError。 */
   setHookEnabled: (group: HookGroup, index: number, enabled: boolean) => Promise<boolean>;
-  /** 设置/重读自定义选择器文件（P4-05b）：成功后重同步快照（default_selected 已改树）。 */
+  /** 设置/重读自定义选择器文件：成功后重同步快照（default_selected 已改树）。 */
   setCustomSelectors: (files: string[], startup?: boolean) => Promise<boolean>;
-  /** 自定义按钮点击（P4-05b）：按钮可改树/设置，成功后重同步快照；{ok:false} 写 lastError。 */
+  /** 自定义按钮点击：按钮可改树/设置，成功后重同步快照；{ok:false} 写 lastError。 */
   invokeCustomButton: (name: string) => Promise<boolean>;
   /**
-   * 应答脚本弹框（P4-05b，SC06）：yes/no/on_close(choice=null) 语义；
+   * 应答脚本弹框：yes/no/on_close(choice=null) 语义；
    * 应答在途标记 answering（禁用按钮），结算后本地出队（迟到应答后端丢弃）。
    */
   respondDialog: (token: string, choice: "yes" | "no" | null) => Promise<void>;
@@ -318,8 +319,10 @@ function applyStateChanges(
 
 const initialPreview = (): PreviewState => ({ status: "idle", result: null, error: null });
 
-/** 日志显示面重置（2026-09-26 四轮：加载配置/开始转换后同首次启动）。
- *  保留 seq 水位（旧事件不灌回）与容量；initialized=true 防止重拉历史。 */
+/**
+ *  日志显示面重置。
+ *  保留 seq 水位（旧事件不灌回）与容量；initialized=true 防止重拉历史。
+ */
 const resetLogWindow = (logs: LogWindowState, afterId: number): LogWindowState => ({
   entries: logs.entries.filter((entry) => entry.localId > afterId),
   initialized: true,
@@ -426,13 +429,11 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         }
         if (epoch !== sessionEpoch) return;
         if (report.rejected.some((entry) => entry.reason.includes("stale tree version"))) {
-          // 版本闸拒绝：整批未生效；自动重同步并给出可见提示（04-ui §状态分层）。
+          // 版本闸拒绝：整批未生效；自动重同步并给出可见提示。
           const ok = await get().refreshSnapshot();
           if (epoch !== sessionEpoch) return;
           set({
-            lastError: ok
-              ? "树状态已被并发更新，已重新同步最新选择，请重试操作"
-              : (get().lastError ?? "树状态已过期且重同步失败"),
+            lastError: ok ? t("error.staleTree") : (get().lastError ?? t("error.staleSync")),
           });
           return;
         }
@@ -491,14 +492,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
           ? {
               configLoadSeq: state.configLoadSeq + 1,
               searchTerm: "",
-              // 配置变了旧预览失效（P4-04b）：loadConfig/reload 成功重置 preview。
+              // 配置变了旧预览失效：loadConfig/reload 成功重置 preview。
               preview: initialPreview(),
               expandedKeys: (() => {
                 const keys = new Set<TreeNodeKey>();
                 collectExpandedKeys(snapshot.tree?.nodes ?? [], keys);
                 return keys;
               })(),
-              // 2026-09-26 四轮：加载新配置即重置运行日志显示面（同首次启动）——
+              // 加载新配置即重置运行日志显示面（同首次启动）——
               // 清空窗口、不再重拉历史（initialized=true），保留 seq 水位防旧
               // 事件灌回；后续新会话日志经事件流继续追加。
               logs: resetLogWindow(state.logs, logCutoff),
@@ -515,7 +516,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
 
     loadConfig: async (path) => {
       if (loadingConfig) {
-        set({ lastError: "配置正在加载，请完成后重试" });
+        set({ lastError: t("error.loading") });
         return false;
       }
       const epoch = ++sessionEpoch;
@@ -559,7 +560,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
 
     reload: async () => {
       if (loadingConfig) {
-        set({ lastError: "配置正在加载，请完成后重试" });
+        set({ lastError: t("error.loading") });
         return false;
       }
       const epoch = ++sessionEpoch;
@@ -670,7 +671,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         const { runSeq } = await backendRpc<{ runSeq: number }>("run");
         if (epoch !== sessionEpoch) return false;
         // 新运行开始：上次运行结果记录与取消标记失效（run_end 只针对当前运行）；
-        // 运行日志显示面重置（2026-09-26 四轮：每次开始转换从干净日志追加）。
+        // 运行日志显示面重置。
         logWindowEpoch++;
         set((state) => ({
           lastRun: state.lastRun?.runSeq === runSeq ? state.lastRun : null,
@@ -748,7 +749,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
         if (epoch !== sessionEpoch || logEpoch !== logWindowEpoch) return;
         // 启动瞬态错误（backend 仍在 starting）：静默重试，不置 initialized、
         // 不写 lastError——否则首个 BACKEND_NOT_READY 会作为持久告警卡在树上
-        // 且日志永远拉不出来（2026-09-26 用户反馈的启动报错来源之一）。
+        // 且日志永远拉不出来。
         if (
           isRetryableStartupError(message) &&
           logInitRetries < MAX_LOG_INIT_RETRIES &&
@@ -820,7 +821,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       const state = get();
       const filtered = filterLogEntries(state.logs.entries, state.logFilter);
       if (filtered.length === 0) {
-        set({ lastError: "无日志可复制" });
+        set({ lastError: t("error.noCopy") });
         return false;
       }
       try {
@@ -836,7 +837,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       const state = get();
       const filtered = filterLogEntries(state.logs.entries, state.logFilter);
       if (filtered.length === 0) {
-        set({ lastError: "无日志可导出" });
+        set({ lastError: t("error.noExport") });
         return false;
       }
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "");
@@ -961,14 +962,14 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       await get().refreshSnapshot();
       if (!result.ok) {
         // 动作链失败 backend 已记 CUSTOM SELECTOR 日志；此处让错误在 UI 同样可见。
-        set({ lastError: result.error ?? "自定义按钮动作失败" });
+        set({ lastError: result.error ?? t("error.customAction") });
         return false;
       }
       return true;
     },
 
     respondDialog: async (token, choice) => {
-      // 已应答按钮立即禁用（P2-06 遗留：UI 侧防重复应答）。
+      // 已应答按钮立即禁用（ 遗留：UI 侧防重复应答）。
       set((state) => ({
         pendingDialogs: state.pendingDialogs.map((dialog) =>
           dialog.token === token ? { ...dialog, answering: true } : dialog,
@@ -979,7 +980,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       } catch (error) {
         set({ lastError: describeError(error) });
       } finally {
-        // 已应答/已失效（answered:false）都出队；迟到应答由后端按 SC06 丢弃。
+        // 已应答/已失效（answered:false）都出队；迟到应答由后端按  丢弃。
         set((state) => ({
           pendingDialogs: state.pendingDialogs.filter((dialog) => dialog.token !== token),
         }));
@@ -1052,7 +1053,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
             }
             if (typeof payload.state === "string" && RUN_TERMINAL_STATES.has(payload.state)) {
               // 记录运行结束前的阶段（同一次运行的 run_end 消费）；清理标记无论
-              // run_end 是否到达都不能卡住（EX03：结束状态只发布一次）。
+              // run_end 是否到达都不能卡住(结束状态只发布一次）。
               next.pendingEndPhase = ["before_hooks", "converting", "after_hooks"].includes(
                 payload.previous ?? "",
               )
@@ -1093,7 +1094,7 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
             }
           }
           if (payload?.type === "dialog_request" && typeof payload.token === "string") {
-            // 脚本弹框进队（P4-05b，SC06）；同 token 重发不重复入队。
+            // 脚本弹框进队；同 token 重发不重复入队。
             if (!state.pendingDialogs.some((dialog) => dialog.token === payload.token)) {
               const dialog = payload.dialog ?? {};
               next.pendingDialogs = [
@@ -1131,7 +1132,9 @@ export const useSessionStore = create<SessionStore>()((set, get) => {
       // 在途动作的 finally 因 epoch 失配跳过清理，这里统一复位（否则按钮永久禁用）。
       set((state) => ({
         connection: "degraded",
-        lastError: `后端进程已退出${payload.reason ? `：${payload.reason}` : ""}`,
+        lastError: t("error.backendExited", {
+          reason: payload.reason ? `: ${payload.reason}` : "",
+        }),
         runStarting: false,
         settingsPending: 0,
         cancelRequested: false,

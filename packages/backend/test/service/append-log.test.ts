@@ -1,9 +1,9 @@
 /**
- * on_append_log 链测试（P3-09 / P2-08 backend 侧）。
+ * on_append_log 链测试(backend 侧）。
  *
  * 真实 ScriptWorkerPool（worker 真进程）+ fake Java runner。
- * 语义锚点：main.js:166-215（共享 log_object/guard/部分修改保留）、
- * main.js:2299/2424（append_log_context 仅 conv_start 链期间）。
+ * 语义锚点：（共享 log_object/guard/部分修改保留）、
+ * （append_log_context 仅 conv_start 链期间）。
  */
 
 import type { JavaBatchOptions, JavaBatchResult, ScriptWorkerPool } from "@xresconv/guardian";
@@ -42,20 +42,20 @@ describe("on_append_log", () => {
     await session.pipeline.drain();
     expect(summary.state).toBe("succeeded");
 
-    // hook1 加 "[H1] " 前缀 → hook2 大写（ops 合并贯穿，main.js:183-204）。
+    // hook1 加 "[H1] " 前缀 → hook2 大写（ops 合并贯穿)。
     const hooked = session.pipeline.snapshot().map((entry) => entry.message);
     expect(hooked).toContain("[H1] CHAIN-TARGET");
     expect(hooked).not.toContain("chain-target");
     expect(hooked).not.toContain("[H1] chain-target");
 
-    // append_log_context 窗口外（run 结束后）日志不再进 hook 链（main.js:2424）。
+    // append_log_context 窗口外（run 结束后）日志不再进 hook 链。
     await session.pipeline.info("post-run", "X");
     const after = session.pipeline.snapshot().map((entry) => entry.message);
     expect(after).toContain("post-run");
     expect(after).not.toContain("[H1] POST-RUN");
   });
 
-  it("hook 内 log_info 不递归进链（guard），且先于被 hook 的日志落队（main.js:182-214）", {
+  it("hook 内 log_info 不递归进链（guard），且先于被 hook 的日志落队", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const session = new ConversionSession({ pool, runner: okRunner });
@@ -66,20 +66,20 @@ describe("on_append_log", () => {
 
     const snapshot = session.pipeline.snapshot();
     // hook 对每条进链日志执行一次 log_info("inner-from-hook")；guard（按 invocation_id
-    // 判定 bypass，BD-O11）保证 inner 自身不再进链——否则会被加 "!" 并无限递归。
+    // 判定 bypass)保证 inner 自身不再进链——否则会被加 "!" 并无限递归。
     const inners = snapshot.filter((entry) => entry.message.startsWith("inner-from-hook"));
     expect(inners.length).toBeGreaterThanOrEqual(1);
     expect(inners.every((entry) => entry.message === "inner-from-hook")).toBe(true);
     // 每条被 hook 的日志（以 "!" 结尾）恰好对应一条 inner。
     const hookedCount = snapshot.filter((entry) => entry.message.endsWith("!")).length;
     expect(inners.length).toBe(hookedCount);
-    // inner 在被 hook 的日志之前落队（旧版同步 guard 语义，main.js:182-214）。
+    // inner 在被 hook 的日志之前落队（同步 guard 语义)。
     const outerIdx = snapshot.findIndex((entry) => entry.message === "outer!");
     expect(outerIdx).toBeGreaterThanOrEqual(0);
     expect(snapshot.indexOf(inners[0] as (typeof snapshot)[number])).toBeLessThan(outerIdx);
   });
 
-  it("hook 异常：已改字段保留、剩余 hook 跳过、记 APPEND LOG EVENT EXCEPTION（main.js:205-212）", {
+  it("hook 异常：已改字段保留、剩余 hook 跳过、记 APPEND LOG EVENT EXCEPTION", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const session = new ConversionSession({ pool, runner: okRunner });

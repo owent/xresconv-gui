@@ -1,15 +1,15 @@
-//! Windows WebView2 运行时原生预检（P5-03，PK02：先检查后 GUI）。
+//! Windows WebView2 运行时原生预检(先检查后 GUI）。
 //!
 //! Windows 发行形态是解压即用的 7z 归档（bootstrap / offline，无安装器）：
 //! bootstrap = 系统 Evergreen 运行时（包内附官方 bootstrapper 作为修复
 //! 通道）；offline = 内嵌 Fixed Version 运行时（`webview2-runtime/` 目录），
 //! 完全离线。预检在任何 WebView 创建之前完成两件事（fail-closed）：
-//! - 系统 Evergreen 满足最低版本时优先使用，并清理继承的固定路径覆盖。
-//! - 系统缺失/过旧且有 offline 负载时，指向包内固定 runtime
+//! 系统 Evergreen 满足最低版本时优先使用，并清理继承的固定路径覆盖。
+//! 系统缺失/过旧且有 offline 负载时，指向包内固定 runtime
 //!   （相邻目录不被 loader 自动发现；该环境变量优先级最高、提权
 //!   宿主下也生效——wry#1782），并补 Win10 Fixed≥120 要求的 AppContainer
 //!   读执行 ACL；固定 runtime 由打包合同保证版本 ≥ minimumWebview。
-//! - bootstrap：注册表探测 Evergreen（EdgeUpdate Client 官方固定 GUID），
+//! bootstrap：注册表探测 Evergreen（EdgeUpdate Client 官方固定 GUID），
 //!   缺失或过旧时弹原生消息框并带可行动诊断退出。
 //!
 //! 本模块只依赖 windows-registry/windows-sys（无 tauri/wry 类型），
@@ -17,30 +17,30 @@
 
 use std::path::Path;
 
-/// exe 旁固定 runtime 目录名（offline 布局，package-cli 组装时固定命名）。
+///exe 旁固定 runtime 目录名（offline 布局，package-cli 组装时固定命名）。
 #[cfg(windows)]
 pub const FIXED_RUNTIME_DIR: &str = "webview2-runtime";
 
-/// WebView2 Evergreen 的 EdgeUpdate Client GUID（微软官方固定值）。
+///WebView2 Evergreen 的 EdgeUpdate Client GUID（微软官方固定值）。
 #[cfg(windows)]
 const WEBVIEW2_CLIENT_KEY: &str =
     r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
-/// per-user 安装位置（无 WOW6432Node 视图）。
+///per-user 安装位置（无 WOW6432Node 视图）。
 #[cfg(windows)]
 const WEBVIEW2_CLIENT_KEY_USER: &str =
     r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
-/// 最低 WebView2 大版本（packaging/targets.json 的 minimumWebview=120）。
+///最低 WebView2 大版本（packaging/targets.json 的 minimumWebview=120）。
 #[cfg_attr(not(windows), allow(dead_code))]
 const MINIMUM_WEBVIEW2_MAJOR: u32 = 120;
 
-/// 解析版本串的主版本号（"153.0.4234.48" → 153）。非法输入返回 None。
+///解析版本串的主版本号（"153.0.4234.48" → 153）。非法输入返回 None。
 // 非 Windows 构建里仅测试引用（预检主体走 windows cfg）。
 #[cfg_attr(not(windows), allow(dead_code))]
 fn webview2_major(version: &str) -> Option<u32> {
     version.split('.').next()?.parse().ok()
 }
 
-/// 预检判定（纯函数，可测）：缺失/无法解析/低于最低大版本均不接受。
+///预检判定（纯函数，可测）：缺失/无法解析/低于最低大版本均不接受。
 #[cfg_attr(not(windows), allow(dead_code))]
 fn webview2_acceptable(version: Option<&str>) -> bool {
     match version {
@@ -57,7 +57,7 @@ fn installed_version(machine: Option<String>, user: Option<String>) -> Option<St
         .max_by_key(|version| webview2_major(version).unwrap_or_default())
 }
 
-/// 读取已安装 WebView2 运行时版本（per-machine 或 per-user 任一）。
+///读取已安装 WebView2 运行时版本（per-machine 或 per-user 任一）。
 #[cfg(windows)]
 fn webview2_runtime_version() -> Option<String> {
     let machine = windows_registry::LOCAL_MACHINE
@@ -69,20 +69,19 @@ fn webview2_runtime_version() -> Option<String> {
     installed_version(machine.ok(), user.ok())
 }
 
-/// 预检决策（纯函数，可测）。offline 包的用户决策（2026-09-28 追问修订）：
-/// **系统 Evergreen 优先，缺失/过旧时才启用包内固定 runtime**——多数机器
-/// 与其他 WebView2 应用共享系统 runtime（自动安全更新、共享磁盘/内存），
-/// 仅无 WebView2 的机器走包内兜底；体积敏感用户可删 webview2-runtime/ 目录
-/// 当 bootstrap 用。Windows 的运行时选择发生在 WebView 创建之前（进程级
-/// loader 参数），可干净决策——05 册否决 Linux"单包自动切换"的 RUNPATH
-/// 理由不适用于此。
+// 预检决策（纯函数，可测）。offline 包的用户决策：
+///**系统 Evergreen 优先，缺失/过旧时才启用包内固定 runtime**——多数机器
+///与其他 WebView2 应用共享系统 runtime（自动安全更新、共享磁盘/内存），
+///仅无 WebView2 的机器走包内兜底；体积敏感用户可删 webview2-runtime/ 目录
+///当 bootstrap 用。Windows 的运行时选择发生在 WebView 创建之前（进程级
+///loader 参数）；平台打包约定见 docs/development/packaging.md。
 #[cfg_attr(not(windows), allow(dead_code))]
 enum WebView2Plan {
-    /// 系统 Evergreen 可用：清理继承的固定路径覆盖，让 loader 使用系统运行时。
+    ///系统 Evergreen 可用：清理继承的固定路径覆盖，让 loader 使用系统运行时。
     UseSystemEvergreen,
-    /// 系统不可用但包内有 webview2-runtime/：指向它运行。
+    ///系统不可用但包内有 webview2-runtime/：指向它运行。
     UseFixedRuntime,
-    /// 系统不可用且包内无 runtime（bootstrap 语义）：弹诊断退出。
+    ///系统不可用且包内无 runtime（bootstrap 语义）：弹诊断退出。
     FatalMissing,
 }
 
@@ -97,8 +96,8 @@ fn webview2_plan(fixed_runtime_present: bool, system_version: Option<&str>) -> W
     }
 }
 
-/// Apply the decision through an injected environment setter so the startup
-/// behavior can be tested without mutating the test runner's process environment.
+///Apply the decision through an injected environment setter so the startup
+///behavior can be tested without mutating the test runner's process environment.
 #[cfg_attr(not(windows), allow(dead_code))]
 fn configure_browser_folder(
     plan: &WebView2Plan,
@@ -114,7 +113,7 @@ fn configure_browser_folder(
     }
 }
 
-/// 原生错误消息框（无 WebView 依赖的 win32 MessageBox）。
+///原生错误消息框（无 WebView 依赖的 win32 MessageBox）。
 #[cfg(windows)]
 fn show_missing_dialog() {
     use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
@@ -142,13 +141,13 @@ fn to_wide(path: &Path) -> Vec<u16> {
         .collect()
 }
 
-/// Win10 + Fixed Version ≥120 的 unpackaged Win32 要求：runtime 目录须授予
-/// ALL RESTRICTED APPLICATION PACKAGES（S-1-15-2-2）与 ALL APPLICATION
-/// PACKAGES（S-1-15-2-1）读+执行并随子对象继承——官方 distribution 文档的
-/// `icacls <dir> /grant *S-1-15-2-2:(OI)(CI)RX` 等价实现（zip 解压出的目录
-/// 不带该 DACL，由壳首次运行时幂等补齐）。返回是否成功；失败不阻塞启动
-/// （Win11 无此要求；只读介质上固定 runtime 本就不可用，后续 WebView 创建
-/// 自会给出错误）。仅 windows 宿主可达。
+///Win10 + Fixed Version ≥120 的 unpackaged Win32 要求：runtime 目录须授予
+///ALL RESTRICTED APPLICATION PACKAGES（S-1-15-2-2）与 ALL APPLICATION
+///PACKAGES（S-1-15-2-1）读+执行并随子对象继承——官方 distribution 文档的
+///`icacls <dir> /grant *S-1-15-2-2:(OI)(CI)RX` 等价实现（zip 解压出的目录
+///不带该 DACL，由壳首次运行时幂等补齐）。返回是否成功；失败不阻塞启动
+///（Win11 无此要求；只读介质上固定 runtime 本就不可用，后续 WebView 创建
+///自会给出错误）。仅 windows 宿主可达。
 #[cfg(windows)]
 fn grant_appcontainer_rx(dir: &Path) -> bool {
     use windows_sys::Win32::Foundation::LocalFree;
@@ -258,7 +257,7 @@ fn grant_appcontainer_rx(dir: &Path) -> bool {
     applied
 }
 
-/// 在创建任何窗口前执行；不满足时弹诊断并以退出码 2 终止（可区分于正常退出）。
+///在创建任何窗口前执行；不满足时弹诊断并以退出码 2 终止（可区分于正常退出）。
 pub fn ensure_webview2_or_exit() {
     #[cfg(windows)]
     {
@@ -302,7 +301,7 @@ pub fn ensure_webview2_or_exit() {
     }
     #[cfg(not(windows))]
     {
-        // macOS/Linux 使用系统 WebView（WKWebView/WebKitGTK），策略见 05 册。
+        // macOS/Linux 使用系统 WebView（WKWebView/WebKitGTK）。
     }
 }
 
@@ -360,8 +359,8 @@ mod tests {
         assert!(!webview2_acceptable(None));
     }
 
-    /// offline 包运行时优先级决策表（2026-09-28 追问修订）：系统 Evergreen
-    /// 优先，仅缺失/过旧时回退包内固定 runtime；bootstrap 无兜底则致命退出。
+    // offline 包运行时优先级决策表：系统 Evergreen
+    ///优先，仅缺失/过旧时回退包内固定 runtime；bootstrap 无兜底则致命退出。
     #[test]
     fn plan_prefers_system_evergreen_and_falls_back_to_bundled_runtime() {
         use WebView2Plan::{FatalMissing, UseFixedRuntime, UseSystemEvergreen};

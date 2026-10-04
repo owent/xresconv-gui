@@ -1,12 +1,4 @@
-/**
- * Guardian: script-worker pool (P2-01). Owns spawn/handshake/invoke routing
- * between the guardian and the P2-03 script worker (packages/script-host):
- * framed envelopes on fd0/fd1 (@xresconv/ipc), worker diagnostics on fd2.
- *
- * Behavior contract: docs/plan/records/P2-01.md (BD-W entries). The worker
- * side protocol is frozen in packages/contracts/schema (envelope,
- * script-invoke, script-result) and implemented in P2-03.
- */
+/** 受监督脚本 worker 池：关联调用、限制时间和内存、处理退出与补员。调用和弹窗语义见 docs/user/scripts.md。 */
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -17,8 +9,8 @@ import { createProcessScope, type ProcessScope } from "./process-tree.ts";
 
 /**
  * Default pool size 1: button-script `data` and require.cache live inside a
- * single worker process (P2-03), so session affinity matters; scale out only
- * when the caller accepts that (BD-W5).
+ * single worker process, so session affinity matters; scale out only
+ * when the caller accepts that.
  */
 const DEFAULT_POOL_SIZE = 1;
 /** Health handshake deadline after spawn. */
@@ -32,8 +24,8 @@ const SHUTDOWN_EXIT_WAIT_MS = 2000;
 /** Retained stderr bytes per worker, for diagnostics. */
 const STDERR_TAIL_BYTES = 4096;
 /**
- * 未应答弹框的默认保留上限（P2-06，BD-W10）：旧版 modal 无限期挂着（ESC 还不
- * 回调 → BD-06 挂起），新架构 pool/worker 长命，必须给未应答弹框一个有界留存；
+ * 未应答弹框的默认保留上限： modal 无限期挂着（ESC 还不
+ * 回调 →  挂起），新架构 pool/worker 长命，必须给未应答弹框一个有界留存；
  * 过期按 ESC 语义应答 null（无回调）并通知 UI 关闭。30 分钟对正常交互足够宽。
  */
 const DEFAULT_DIALOG_TIMEOUT_MS = 30 * 60_000;
@@ -67,40 +59,40 @@ export class WorkerInvokeError extends Error {
 }
 
 export interface ScriptWorkerPoolOptions {
-  /** Workers kept alive concurrently (default 1, see BD-W5). */
+  /** Workers kept alive concurrently (default 1, see ). */
   size?: number;
   /** Worker entry path; defaults to packages/script-host/bin/worker.mjs. */
   workerEntry?: string;
   /** Health handshake deadline per spawned worker. */
   spawnDeadlineMs?: number;
-  /** 追加给 worker Node 的参数（如 ["--max-old-space-size=64"]，P2-07 资源限额）。 */
+  /** 追加给 worker Node 的参数（如 ["--max-old-space-size=64"]， 资源限额）。 */
   workerNodeArgs?: string[];
   /**
-   * V8 堆上限（MB，P2-07）：等价于追加 `--max-old-space-size=N`。只覆盖 V8 堆；
+   * V8 堆上限（MB)：等价于追加 `--max-old-space-size=N`。只覆盖 V8 堆；
    * Buffer/原生内存走 RSS 看门狗（memoryLimitBytes）。
    */
   workerMaxOldSpaceMb?: number;
   /**
-   * 每 worker RSS 看门狗上限（字节，P2-07，BD-W11）：worker 周期自报
+   * 每 worker RSS 看门狗上限（字节，)：worker 周期自报
    * memoryUsage（health envelope 携带），超出即销毁并按 WORKER_EXIT 结算在途
    * invocation，随后补员。缺省不限制（只记录峰值）。
    */
   memoryLimitBytes?: number;
-  /** 每 worker 的进程树作用域工厂（P2-02）；测试可注入降级后端。 */
+  /** 每 worker 的进程树作用域工厂；测试可注入降级后端。 */
   createScope?: () => ProcessScope;
-  /** 未应答弹框保留上限（毫秒，默认 30min，BD-W10）；过期按 null 应答并失效。 */
+  /** 未应答弹框保留上限（毫秒，默认 30min)；过期按 null 应答并失效。 */
   dialogTimeoutMs?: number;
   /**
-   * 追加给 worker 进程的环境变量（P2-04 环境策略/P2-10 发行锚点），覆盖在
-   * 继承的 process.env 之上；值 undefined 表示删除该键。发行接线（P5-02 落地）：
+   * 追加给 worker 进程的环境变量（ 环境策略/ 发行锚点），覆盖在
+   * 继承的 process.env 之上；值 undefined 表示删除该键。发行接线（ 落地）：
    * guardian 按发行布局自定位 app 根，经 backendEnv 接力，backend 将
    * XRESCONV_SCRIPT_MODULE_DIRS 显式注入本选项（锚点是布局约定，不经
-   * manifest 传输，见 docs/plan/records/P5-02.md 偏差说明）。
+   * manifest 传输，见 docs/development/testing.md 偏差说明）。
    */
   workerEnv?: Record<string, string | undefined>;
 }
 
-/** 在途弹框（P2-06）：worker 发过 dialog_request 但未最终化的条目。 */
+/** 在途弹框：worker 发过 dialog_request 但未最终化的条目。 */
 interface PendingDialog {
   readonly key: string;
   readonly slot: WorkerSlot;
@@ -121,22 +113,22 @@ interface PendingInvocation {
 interface WorkerSlot {
   readonly child: ChildProcess;
   readonly pid: number | undefined;
-  /** 该 worker 的进程树作用域（P2-02）；终止覆盖脚本派生的子孙进程。 */
+  /** 该 worker 的进程树作用域；终止覆盖脚本派生的子孙进程。 */
   readonly scope: ProcessScope;
   ready: boolean;
   exited: boolean;
-  /** Protocol-fault discard: never replenished (BD-W1). */
+  /** Protocol-fault discard: never replenished. */
   discarded: boolean;
   /** Deliberate kill in progress (timeout destroy / fault / shutdown). */
   killing: boolean;
   inflightCount: number;
-  /** Total invocations assigned; exposed via stats(). */
+  /** Total invocations assigned; exposed via stats. */
   served: number;
   stderrLine: string;
   stderrTail: string;
-  /** 最近一次健康自报（P2-07）；握手帧不带 memory 时为 undefined。 */
+  /** 最近一次健康自报；握手帧不带 memory 时为 undefined。 */
   lastMemory?: { rss: number; heapUsed: number; heapTotal: number };
-  /** 观测到的 RSS 峰值（字节）；stats() 透出。 */
+  /** 观测到的 RSS 峰值（字节）；stats 透出。 */
   maxRssBytes: number;
 }
 
@@ -144,7 +136,7 @@ export interface WorkerStat {
   pid: number | undefined;
   inflight: number;
   served: number;
-  /** 观测到的 RSS 峰值（字节，P2-07）；未收到过自报时为 0。 */
+  /** 观测到的 RSS 峰值（字节)；未收到过自报时为 0。 */
   maxRssBytes: number;
 }
 
@@ -153,11 +145,11 @@ function defaultWorkerEntry(): string {
 }
 
 export class ScriptWorkerPool {
-  /** worker -> guardian dialog request; respond() answers it exactly once. */
+  /** worker -> guardian dialog request; respond answers it exactly once. */
   onDialogRequest?: (env: Envelope, respond: (choice: DialogChoice) => void) => void;
   /**
-   * 弹框失效通知（P2-06）：worker 死亡、TTL 过期（BD-W10）或 dismissPendingDialogs
-   * 显式收尾时触发，UI 据此关闭对应弹框；已失效弹框的迟到应答被丢弃（SC06）。
+   * 弹框失效通知：worker 死亡、TTL 过期或 dismissPendingDialogs
+   * 显式收尾时触发，UI 据此关闭对应弹框；已失效弹框的迟到应答被丢弃。
    */
   onDialogInvalidate?: (env: Envelope, reason: string) => void;
   /** kind:"log" envelopes and WorkerDiag diagnostics (stderr/fault/exit). */
@@ -524,12 +516,7 @@ export class ScriptWorkerPool {
     }
   }
 
-  /**
-   * 握手后的周期性健康自报（P2-07；BD-W7 修订：不再纯忽略，作为内存样本消费）。
-   * 样本是协作式的——同步死循环的 worker 无法自报，该情形由 invoke 超时销毁
-   * 覆盖（BD-W3）；RSS 超限即销毁 worker（BD-W11），在途 invocation 经 exit
-   * 路径按 WORKER_EXIT 结算并补员。
-   */
+  /** 握手后将周期性健康自报作为内存样本。样本依赖 worker 响应，同步死循环仍由调用截止兜底。 */
   private handleHealthReport(slot: WorkerSlot, env: Envelope): void {
     const memory = env.payload.memory;
     if (typeof memory !== "object" || memory === null) {
@@ -550,7 +537,7 @@ export class ScriptWorkerPool {
       this.emitDiag(
         "worker-fault",
         slot.pid,
-        `worker RSS ${String(rss)}B exceeds memory limit ${String(this.memoryLimitBytes)}B, destroying (BD-W11)`,
+        `worker RSS ${String(rss)}B exceeds memory limit ${String(this.memoryLimitBytes)}B, destroying`,
       );
       this.destroyWorker(slot);
     }
@@ -601,7 +588,7 @@ export class ScriptWorkerPool {
     this.settlePending(pending, null, result);
   }
 
-  /** Worker-reported fault (bad invoke payload etc.): per-invocation, worker stays alive. */
+  /** Worker-reported fault (bad invoke payload etc): per-invocation, worker stays alive. */
   private handleWorkerFault(slot: WorkerSlot, env: Envelope): void {
     const message = typeof env.payload.message === "string" ? env.payload.message : "worker fault";
     this.emitDiag("worker-fault", slot.pid, message);
@@ -619,7 +606,7 @@ export class ScriptWorkerPool {
     this.ensureDialogSweeper();
     const respond = (choice: DialogChoice): void => {
       if (entry.answered || slot.killing || slot.exited) return;
-      // 已失效（TTL 过期/worker 死亡/显式 dismiss）→ 过期应答不执行（SC06）。
+      // 已失效（TTL 过期/worker 死亡/显式 dismiss）→ 过期应答不执行。
       if (!this.pendingDialogs.has(key)) return;
       entry.answered = true;
       this.pendingDialogs.delete(key);
@@ -641,7 +628,7 @@ export class ScriptWorkerPool {
     if (this.onDialogRequest !== undefined) {
       this.onDialogRequest(env, respond);
     } else {
-      // No handler: answer ESC-equivalent so the worker is never blocked (BD-W2).
+      // No handler: answer ESC-equivalent so the worker is never blocked.
       respond(null);
     }
   }
@@ -669,7 +656,7 @@ export class ScriptWorkerPool {
       if (now - entry.createdAt >= this.dialogTimeoutMs) {
         this.invalidateDialog(
           entry,
-          `dialog unanswered for ${String(this.dialogTimeoutMs)}ms, auto-dismissed (BD-W10)`,
+          `dialog unanswered for ${String(this.dialogTimeoutMs)}ms, auto-dismissed`,
         );
       }
     }
@@ -677,7 +664,7 @@ export class ScriptWorkerPool {
 
   /**
    * 最终化一个弹框：从注册表删除；worker 还活着就补一条 choice=null 的应答
-   * （worker 侧按 BD-06 语义最终化、不触发回调），并通知 UI 关闭。幂等。
+   * （worker 侧按  语义最终化、不触发回调），并通知 UI 关闭。幂等。
    */
   private invalidateDialog(entry: PendingDialog, reason: string): void {
     if (!this.pendingDialogs.delete(entry.key)) {
@@ -743,8 +730,8 @@ export class ScriptWorkerPool {
         );
       }
     }
-    // P2-06：worker 死亡 → 其在途弹框全部失效（不应答——进程已死），
-    // UI 收到 invalidate 关闭弹框；迟到的点击应答被 respond 守卫丢弃（SC06）。
+    // worker 死亡 → 其在途弹框全部失效（不应答——进程已死），
+    // UI 收到 invalidate 关闭弹框；迟到的点击应答被 respond 守卫丢弃。
     for (const entry of [...this.pendingDialogs.values()]) {
       if (entry.slot === slot) {
         this.invalidateDialog(
@@ -776,11 +763,11 @@ export class ScriptWorkerPool {
       new WorkerInvokeError("WORKER_TIMEOUT", `invocation ${invocationId} exceeded its deadline`),
     );
     // A worker that missed the deadline may be stuck in a sync loop: destroy
-    // it; the exit handler replenishes the pool (BD-W3).
+    // it; the exit handler replenishes the pool.
     this.destroyWorker(slot);
   }
 
-  /** 整树终止（P2-02）；补员在 exit 处理里完成（BD-W3）。 */
+  /** 整树终止；补员在 exit 处理里完成。 */
   private destroyWorker(slot: WorkerSlot): void {
     if (slot.killing || slot.exited) {
       return;
@@ -797,7 +784,7 @@ export class ScriptWorkerPool {
     });
   }
 
-  /** Protocol fault: discard the worker WITHOUT replenishment (BD-W1). */
+  /** Protocol fault: discard the worker WITHOUT replenishment. */
   private faultWorker(slot: WorkerSlot, reason: string): void {
     slot.discarded = true;
     this.emitDiag("worker-fault", slot.pid, reason);

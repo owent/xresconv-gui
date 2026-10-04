@@ -6,7 +6,7 @@ import { glibcExclusion } from "../src/assemble.ts";
 import { loadTargets } from "../src/load.ts";
 
 /**
- * musl 变体剔除（P5-06）：glibc（gnu triple）Linux 目标的闭包不携带
+ * musl 变体剔除：glibc（gnu triple）Linux 目标的闭包不携带
  * musl 专用原生模块——linuxdeploy 按 glibc 解析 musl ELF 会失败
  * （"Could not find dependency: libc.musl-x86_64.so.1"，WSL Debian 13 实测）。
  */
@@ -17,7 +17,7 @@ afterAll(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
-describe("glibcExclusion（P5-06 musl 变体剔除）", () => {
+describe("glibcExclusion（ musl 变体剔除）", () => {
   it("仅 gnu triple 的 Linux 目标启用排除", () => {
     const targets = loadTargets();
     const linuxGnu = targets.targets.find(

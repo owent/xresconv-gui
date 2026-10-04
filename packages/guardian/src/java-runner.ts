@@ -1,20 +1,4 @@
-/**
- * Guardian: xresloader Java 批量运行器（P3-07 backend/guardian 适配）。
- *
- * 对齐旧版 run_one_child_process（main.js:2118-2144）：
- * `spawn("java", javaArgs.concat(["-jar", jarPath, "--stdin"]), {cwd: workDir})`，
- * 任务逐行写 stdin（`line + "\r\n"`，main.js:2100-2101），写完 `stdin.end()`（main.js:2103）。
- *
- * 与旧版的差异（BD-P 编号记录于 docs/plan/records/P3-05.md）：
- * - 派发不由 stdout/stderr data 事件驱动（BD-03 落实）：任务行一次性按序写入
- *   （带背压），完成判定只以进程退出为准。JVM 消费速度由 stdin 管道缓冲自然调节。
- * - 退出码语义：xresloader 约定 = 失败任务数累加（Main.java:399-411，
- *   `exitCode += processArgumentGroup(...)`），failedTaskCount 直接取 exitCode。
- * - 截止/中止终止整棵进程树（P2-02 process-tree.ts）：Windows 默认 Job Object
- *   （TerminateJobObject，含孙进程；guardian 崩溃由 KILL_ON_JOB_CLOSE 兜底），
- *   POSIX 组级 SIGTERM → 宽限 → SIGKILL。Windows 上旧版 child.kill("SIGTERM")
- *   本就是 TerminateProcess 硬杀，不存在被移除的优雅期。
- */
+/** xresloader Java 批量运行器：按背压写入任务行，同时读取输出，写完关闭 stdin，等待退出、管道和子树收尾。截止和取消通过 ProcessScope 回收所属进程。批次退出码不能可靠表示逐条结果。 */
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { once } from "node:events";
@@ -24,11 +8,11 @@ import { createProcessScope, type ProcessScope } from "./process-tree.ts";
 import { HardDeadlineError, SpawnError } from "./run-with-deadline.ts";
 
 export interface JavaBatchOptions {
-  /** JVM 参数（含 -Dfile.encoding=UTF-8，由调用方给；对齐 main.js:2121）。 */
+  /** JVM 参数（含 -Dfile.encoding=UTF-8，由调用方给；对齐 ）。 */
   javaArgs?: string[];
   /** xresloader JAR 路径。 */
   jarPath: string;
-  /** 工作目录（spawn cwd，main.js:2142）。 */
+  /** 工作目录（spawn cwd)。 */
   workDir: string;
   /** 已编码的任务行（见 backend stdin-encoder），按数组顺序 FIFO 写入。 */
   tasks: string[];
@@ -38,10 +22,10 @@ export interface JavaBatchOptions {
   deadlineMs?: number;
   /** 外部中止信号；触发与截止相同的终止路径，拒绝 AbortError。 */
   signal?: AbortSignal;
-  /** 进程树作用域（P2-02）；缺省时本批次自建。终止路径覆盖 JVM 的子进程。 */
+  /** 进程树作用域；缺省时本批次自建。终止路径覆盖 JVM 的子进程。 */
   scope?: ProcessScope;
   /**
-   * 测试注入缝（EX02 fake-converter）：存在时替换 `java ... -jar jarPath --stdin`
+   * 测试注入缝（ fake-converter）：存在时替换 `java ... -jar jarPath --stdin`
    * 的完整 spawn 规格。生产路径不得使用——调度合同固定 java argv 数组、不经 shell。
    */
   spawnSpec?: { command: string; args: string[]; env?: Record<string, string> };
@@ -148,7 +132,7 @@ export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult
     const stderrBuffer = onLog && child.stderr ? new LineBuffer("stderr", onLog) : null;
     child.stdout?.on("data", (chunk: Buffer) => stdoutBuffer?.push(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderrBuffer?.push(chunk));
-    // stdin 上的 EPIPE（子进程早退）不视为致命：完成判定只认进程退出（BD-03）。
+    // stdin 上的 EPIPE（子进程早退）不视为致命：完成判定只认进程退出。
     child.stdin?.on("error", (error: Error) => {
       ioError = new Error(`java stdin failed: ${error.message}`);
       escalateKill();
@@ -169,7 +153,7 @@ export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult
       void scope.dispose().then(fn, reject);
     };
 
-    // 进程树终止（P2-02）：Windows job-object/回退 taskkill /T /F 立即整树终止，
+    // 进程树终止：Windows job-object/回退 taskkill /T /F 立即整树终止，
     // POSIX 组级 SIGTERM → 宽限 → SIGKILL；仍不见 close 则兜底报告，绝不留下失控子进程。
     let reapTimer: NodeJS.Timeout | undefined;
     let pipeTimer: NodeJS.Timeout | undefined;
@@ -222,7 +206,7 @@ export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult
       );
     });
 
-    // 以 close 为准（stdio 已排空，日志缓冲可安全 flush）；不用 data 事件驱动（BD-03）。
+    // 以 close 为准（stdio 已排空，日志缓冲可安全 flush）；不用 data 事件驱动。
     child.once("close", (exitCode, exitSignal) => {
       stdoutBuffer?.flush();
       stderrBuffer?.flush();

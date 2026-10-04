@@ -1,13 +1,12 @@
 #!/usr/bin/env node
-// P1 guardian entry: probes the backend health entry under an external hard
-// deadline and prints one combined handshake line on stdout. P2 replaces this
-// with the real guardian protocol (spawn ownership, deadlines, IPC routing).
-//
+//  guardian entry: probes the backend health entry under an external hard
+// deadline and prints one combined handshake line on stdout.
+
 // Backend entry resolution: XRESCONV_BACKEND_ENTRY env, then the sibling
 // workspace path ../../backend/bin/health-check.mjs relative to this file.
 // The backend runs on the same Node binary (process.execPath): packaged
-// builds ship exactly one Node runtime per architecture (Plan §6.1).
-//
+// builds ship exactly one Node runtime per architecture .
+
 // Deadline: XRESCONV_BACKEND_DEADLINE_MS overrides the 5000ms default
 // (used by tests; the shell-side deadline in get_backend_health is larger).
 

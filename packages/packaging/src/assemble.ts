@@ -1,9 +1,9 @@
 /**
- * P5-02：发行布局组装器（PK07 本机部分）。把三角色 Node JS（backend/
+ * 发行布局组装器（ 本机部分）。把三角色 Node JS（backend/
  * guardian/script-host worker）用 esbuild 打包为纯 JS ESM bundle，按生产
  * 依赖闭包裁剪复制 npm 模块，落位 @xresconv/contracts schema 资源，单份
  * Node 二进制经版本/哈希校验后落位，最后生成 runtime-manifest.json
- * （P5-01 schema，默认跑 PK01 卫生 lint）。
+ * （ schema，默认跑  卫生 lint）。
  *
  * 布局约定（与 guardian/backend bin 的发行自定位一致）：
  *   <outDir>/runtime/node.exe|node      单份固定 Node（各角色复用，不重复嵌入）
@@ -11,9 +11,9 @@
  *   <outDir>/app/guardian/service.mjs   guardian bundle
  *   <outDir>/app/script-host/worker.mjs worker bundle（含 bin 的 fd2 控制台门卫）
  *   <outDir>/app/node_modules/**        生产 npm 闭包 + contracts schema 落位
- *   <outDir>/runtime-manifest.json      P5-01 manifest（files 相对 outDir，正斜杠）
+ *   <outDir>/runtime-manifest.json       manifest（files 相对 outDir，正斜杠）
  *
- * 机制依据（P2-10 实测，非猜测）：Node 禁止对 node_modules 内的 .ts 做类型
+ * 机制依据（ 实测，非猜测）：Node 禁止对 node_modules 内的 .ts 做类型
  * 剥离 → workspace 代码必须打包为纯 JS；contracts validators 运行时
  * createRequire(import.meta.url).resolve("@xresconv/contracts/schema/…")
  * → schema 必须落位在 bundle 上溯可达的 node_modules；缺失的平台
@@ -95,7 +95,7 @@ const SEED_SOURCE_PACKAGES = [
   "packages/backend",
 ] as const;
 
-/** SC04 用户脚本供给包（旧 GUI 提供、新 workspace 不作为依赖的）。 */
+/** 用户脚本供给包（ 提供、新 workspace 不作为依赖的）。 */
 const DEFAULT_USER_SCRIPT_PACKAGES = ["adm-zip", "compressing", "koffi"] as const;
 
 export interface NodeAcquisition {
@@ -103,7 +103,7 @@ export interface NodeAcquisition {
   path: string;
   /**
    * 来源描述，写入 manifest nodeHash.source 供复现（如 nodejs.org dist URL）；
-   * 不得是开发机绝对路径（PK01 lint 会拒绝）。
+   * 不得是开发机绝对路径（ lint 会拒绝）。
    */
   source: string;
   /** 期望 sha256（CI：SHASUMS256.txt 对应值）；给出时强制校验，不符即拒绝。 */
@@ -125,10 +125,10 @@ export interface AssembleLayoutOptions {
   repositorySnapshot: { repository: string; dirty: boolean };
   /**
    * 验收报告位（schema 必填）。本机组装传本切片记录（如
-   * docs/plan/records/P5-02.md）；正式发行由受控环境在验收后填写（P5-07/P5-10）。
+   * docs/development/testing.md）；正式发行由受控环境在验收后填写。
    */
   verificationReport: VerificationReport;
-  /** 用户脚本供给 npm 包（SC04 清单）；缺省 adm-zip/compressing/koffi。 */
+  /** 用户脚本供给 npm 包（ 清单）；缺省 adm-zip/compressing/koffi。 */
   userScriptPackages?: readonly string[];
   /** 构建工具链事实；缺省从本机进程与仓库 package.json 采集。 */
   toolchain?: Partial<BuildToolchain>;
@@ -248,7 +248,7 @@ function verifyNodeBinary(node: NodeAcquisition, target: ReleaseTarget): NodeFac
 /**
  * 生产 npm 种子：各 workspace 包 dependencies 中滤掉 workspace:* 协议，
  * 与用户脚本供给包合并去重。esbuild external 与闭包复制共用这一集合——
- * 不复制开发机 node_modules 全集（PK07）。
+ * 不复制开发机 node_modules 全集。
  */
 export function collectProductionSeeds(
   repoRoot: string = REPO_ROOT,
@@ -274,8 +274,8 @@ function copyDir(src: string, dest: string): void {
 
 /**
  * glibc（gnu triple）目标的闭包排除规则：剔除 musl 专用原生模块变体
- * （如 koffi 平台包的 musl_x64 目录）。D2 矩阵无 musl 目标；musl ELF
- * 进入发行树会让 linuxdeploy（P5-06 自含包）按 glibc 解析失败
+ * （如 koffi 平台包的 musl_x64 目录）。 矩阵无 musl 目标；musl ELF
+ * 进入发行树会让 linuxdeploy（ 自含包）按 glibc 解析失败
  * （"Could not find dependency: libc.musl-x86_64.so.1"，WSL 实测）。
  */
 export function glibcExclusion(target: ReleaseTarget): RegExp | null {
@@ -684,7 +684,7 @@ export async function assembleRuntimeLayout(
     verificationReport: options.verificationReport,
   };
 
-  // P5-01 schema + PK01 卫生 lint（无开发机绝对路径/密钥）默认开启。
+  //  schema +  卫生 lint（无开发机绝对路径/密钥）默认开启。
   const validated = validateRuntimeManifest(manifest);
   fs.writeFileSync(
     path.join(outDir, "runtime-manifest.json"),

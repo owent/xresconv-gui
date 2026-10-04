@@ -5,13 +5,13 @@ import { loadTargets } from "../src/load.ts";
 import type { ReleaseTarget } from "../src/types.ts";
 
 describe("packaging/targets.json (positive)", () => {
-  it("loads and passes schema + D1/D2 semantic validation", () => {
+  it("loads and passes schema + / semantic validation", () => {
     const file = loadTargets();
     expect(file.schemaVersion).toBe(1);
     expect(file.targets).toHaveLength(12);
   });
 
-  it("target identity set equals the D1/D2 baseline exactly", () => {
+  it("target identity set equals the / baseline exactly", () => {
     const file = loadTargets();
     const keys = file.targets.map((target) => targetKey(target)).sort();
     expect(keys).toEqual(baselineKeys());

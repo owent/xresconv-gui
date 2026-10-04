@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import type { SettingsFields } from "../adapters/backend";
 import { pickXmlConfig } from "../adapters/tauri";
+import { translate as t, useI18n } from "../i18n";
 import { DisplaySettingsDialog } from "./DisplaySettingsDialog";
 import { DraftField } from "./DraftField";
 import { Icon } from "./Icon";
@@ -9,20 +10,22 @@ import { ItemDetails } from "./ItemDetails";
 import { OutputMatrixEditor } from "./OutputMatrixEditor";
 import { useSessionStore } from "./session-store";
 
-/** 内置协议（旧版 index.html 下拉仅 protobuf；配置值无匹配时追加“未知协议: X”选项）。 */
+/** 内置协议；配置值无匹配时追加保留原值的未知协议选项。 */
 const PROTOCOL_OPTIONS = ["protobuf"] as const;
-/** 输出类型词表与文案（旧版 index.html conv_list_output_type 逐项对应）。 */
-const OUTPUT_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: "bin", label: "协议二进制" },
-  { value: "lua", label: "Lua配置" },
-  { value: "msgpack", label: "MsgPack二进制" },
-  { value: "json", label: "Json格式" },
-  { value: "xml", label: "Xml" },
-  { value: "javascript", label: "Javascript配置" },
-  { value: "ue-json", label: "UE资源Json格式" },
-  { value: "ue-csv", label: "UE资源Csv格式" },
-];
-/** 并发数 1..16（main.js:6-9 上限；>6 需本地确认，main.js:2611-2639）。 */
+/** 内置输出类型及其本地化文案。 */
+function outputTypeOptions(): { value: string; label: string }[] {
+  return [
+    { value: "bin", label: t("format.bin") },
+    { value: "lua", label: t("format.lua") },
+    { value: "msgpack", label: t("format.msgpack") },
+    { value: "json", label: t("format.json") },
+    { value: "xml", label: t("format.xml") },
+    { value: "javascript", label: t("format.javascript") },
+    { value: "ue-json", label: t("format.ueJson") },
+    { value: "ue-csv", label: t("format.ueCsv") },
+  ];
+}
+/** 并发数范围 1..16；超过 6 需用户确认。 */
 const PARALLELISM_OPTIONS = Array.from({ length: 16 }, (_, index) => index + 1);
 const PARALLELISM_CONFIRM_THRESHOLD = 6;
 
@@ -36,16 +39,9 @@ function linesToList(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-/**
- * 转换参数区（F01/F06；2026-09-26 四轮改版）：
- * - 常显仅文件行：转换列表文件（选择/路径/重载）+ 并发数 + “详情”与
- *   “⚙ 显示设置”按钮（同排）。
- * - 详情弹窗重新分区排版（不拘泥旧版）：路径/多值字段通栏等宽、短字段
- *   （数据版本/协议类型/输出类型）标签与控件同行紧凑；重命名不再在此出现
- *   ——全 GUI 唯一入口在“输出矩阵与重命名”（datalist 可选可输，预设按
- *   配置矩阵推导，2026-09-26 四轮去重复）。
- */
+/** 转换参数表单：提交草稿后以后端确认值更新。输出格式由输出矩阵管理。 */
 export function ConversionSettings() {
+  useI18n();
   const settings = useSessionStore((state) => state.snapshot?.settings);
   const runState = useSessionStore((state) => state.snapshot?.state ?? "idle");
   const configPath = useSessionStore((state) => state.configPath);
@@ -81,19 +77,22 @@ export function ConversionSettings() {
     label: value,
   }));
   if (proto !== "" && !(PROTOCOL_OPTIONS as readonly string[]).includes(proto)) {
-    // 配置/覆盖值不在内置列表：追加“未知协议”选项并选中（main.js:1247-1261），不静默丢弃。
-    protoOptions.push({ value: proto, label: `未知协议: ${proto}` });
+    // 配置/覆盖值不在内置列表：追加“未知协议”选项并选中，不静默丢弃。
+    protoOptions.push({ value: proto, label: t("conversion.unknownProtocol", { value: proto }) });
   }
   const outputType = effective?.type ?? "";
-  const typeOptions = [...OUTPUT_TYPE_OPTIONS];
-  if (outputType !== "" && !OUTPUT_TYPE_OPTIONS.some((option) => option.value === outputType)) {
-    typeOptions.push({ value: outputType, label: `未知类型: ${outputType}` });
+  const typeOptions = [...outputTypeOptions()];
+  if (outputType !== "" && !outputTypeOptions().some((option) => option.value === outputType)) {
+    typeOptions.push({
+      value: outputType,
+      label: t("conversion.unknownType", { value: outputType }),
+    });
   }
 
   return (
     <form
       className="panel conversion-settings"
-      aria-label="转换参数"
+      aria-label={t("conversion.form")}
       onSubmit={(event) => event.preventDefault()}
     >
       <div className="config-file-bar">
@@ -103,14 +102,14 @@ export function ConversionSettings() {
           isDisabled={BUSY_STATES.has(runState)}
         >
           <Icon name="file" />
-          转换列表文件
+          {t("conversion.open")}
         </Button>
         <input
           className="config-file-display"
-          aria-label="配置文件路径"
+          aria-label={t("conversion.path")}
           data-testid="picked-path"
-          placeholder="打开 XML 转换清单，开始工作…"
-          title={configPath ?? "选择 xresconv XML 配置文件"}
+          placeholder={t("conversion.placeholder")}
+          title={configPath ?? t("conversion.pick")}
           value={configPath ?? ""}
           readOnly
         />
@@ -118,10 +117,10 @@ export function ConversionSettings() {
           onPress={() => void reloadConfig()}
           isDisabled={configPath === null || BUSY_STATES.has(runState)}
         >
-          重载配置
+          {t("conversion.reload")}
         </Button>
         <label className="select-field select-field--inline compact">
-          <span>并发数</span>
+          <span>{t("conversion.parallelism")}</span>
           <select
             disabled={disabled}
             value={parallelism}
@@ -147,11 +146,11 @@ export function ConversionSettings() {
           onPress={() => setDetailOpen(true)}
           isDisabled={effective === null}
         >
-          详情…
+          {t("conversion.details")}
         </Button>
         <Button className="btn-accent" onPress={() => setSettingsOpen(true)}>
           <Icon name="settings" />
-          显示设置
+          {t("settings.title")}
         </Button>
       </div>
 
@@ -163,16 +162,16 @@ export function ConversionSettings() {
         }}
       >
         <Modal className="confirm-modal detail-modal">
-          <Dialog aria-label="详细配置" className="confirm-dialog">
+          <Dialog aria-label={t("conversion.detailTitle")} className="confirm-dialog">
             <Heading slot="title" className="detail-title">
-              详细配置
+              {t("conversion.detailTitle")}
             </Heading>
             <div className="detail-config">
-              <section className="detail-section" aria-label="转表工具与目录">
-                <h3 className="detail-section-title">转表工具与目录</h3>
+              <section className="detail-section" aria-label={t("conversion.tools")}>
+                <h3 className="detail-section-title">{t("conversion.tools")}</h3>
                 <div className="detail-grid">
                   <DraftField
-                    label="转表工具（xresloader.jar）"
+                    label={t("conversion.jar")}
                     value={effective?.xresloaderPath ?? ""}
                     disabled={disabled}
                     mono
@@ -180,7 +179,7 @@ export function ConversionSettings() {
                     onCommit={(value) => submit({ xresloaderPath: value })}
                   />
                   <DraftField
-                    label="执行目录（work_dir）"
+                    label={t("conversion.workDir")}
                     value={effective?.workDir ?? ""}
                     disabled={disabled}
                     mono
@@ -188,7 +187,7 @@ export function ConversionSettings() {
                     onCommit={(value) => submit({ workDir: value })}
                   />
                   <DraftField
-                    label="输出目录（output_dir）"
+                    label={t("conversion.outputDir")}
                     value={effective?.outputDir ?? ""}
                     disabled={disabled}
                     mono
@@ -197,24 +196,24 @@ export function ConversionSettings() {
                   />
                 </div>
               </section>
-              <section className="detail-section" aria-label="数据与协议">
-                <h3 className="detail-section-title">数据与协议</h3>
+              <section className="detail-section" aria-label={t("conversion.dataProtocol")}>
+                <h3 className="detail-section-title">{t("conversion.dataProtocol")}</h3>
                 <div className="detail-grid detail-grid--row">
                   <DraftField
-                    label="数据版本"
+                    label={t("conversion.dataVersion")}
                     value={effective?.dataVersion ?? ""}
                     disabled={disabled}
                     inline
                     onCommit={(value) => submit({ dataVersion: value })}
                   />
                   <label className="select-field select-field--inline">
-                    <span>协议类型</span>
+                    <span>{t("conversion.protocol")}</span>
                     <select
                       disabled={disabled}
                       value={proto}
                       onChange={(event) => submit({ proto: event.target.value })}
                     >
-                      {proto === "" && <option value="">（未设置）</option>}
+                      {proto === "" && <option value="">{t("common.unset")}</option>}
                       {protoOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -223,13 +222,13 @@ export function ConversionSettings() {
                     </select>
                   </label>
                   <label className="select-field select-field--inline">
-                    <span>输出类型</span>
+                    <span>{t("conversion.outputType")}</span>
                     <select
                       disabled={disabled}
                       value={outputType}
                       onChange={(event) => submit({ type: event.target.value })}
                     >
-                      {outputType === "" && <option value="">（未设置）</option>}
+                      {outputType === "" && <option value="">{t("common.unset")}</option>}
                       {typeOptions.map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
@@ -240,7 +239,7 @@ export function ConversionSettings() {
                 </div>
                 <div className="detail-grid">
                   <DraftField
-                    label="协议描述文件（一行一个）"
+                    label={t("conversion.protoFiles")}
                     value={(effective?.protoFile ?? []).join("\n")}
                     disabled={disabled}
                     multiline
@@ -249,7 +248,7 @@ export function ConversionSettings() {
                     onCommit={(value) => submit({ protoFile: linesToList(value) })}
                   />
                   <DraftField
-                    label="数据目录（一行一个）"
+                    label={t("conversion.dataDirs")}
                     value={(effective?.dataSrcDir ?? []).join("\n")}
                     disabled={disabled}
                     multiline
@@ -259,20 +258,20 @@ export function ConversionSettings() {
                   />
                 </div>
               </section>
-              <section className="detail-section detail-section--flat" aria-label="条目详情">
+              <section className="detail-section detail-section--flat" aria-label={t("item.title")}>
                 <ItemDetails />
               </section>
               <section
                 className="detail-section detail-section--flat"
-                aria-label="输出矩阵与重命名"
+                aria-label={t("matrix.title")}
               >
                 <OutputMatrixEditor />
               </section>
             </div>
             <div className="detail-footer">
-              <span className="settings-hint">修改后按回车或移开焦点即可应用。</span>
+              <span className="settings-hint">{t("conversion.commitHint")}</span>
               <Button className="btn-primary" onPress={() => setDetailOpen(false)}>
-                关闭
+                {t("common.close")}
               </Button>
             </div>
           </Dialog>
@@ -289,11 +288,13 @@ export function ConversionSettings() {
         }}
       >
         <Modal className="confirm-modal">
-          <Dialog aria-label="确认高并发数" className="confirm-dialog">
-            <Heading slot="title">确认高并发数</Heading>
+          <Dialog aria-label={t("conversion.highParallelism")} className="confirm-dialog">
+            <Heading slot="title">{t("conversion.highParallelism")}</Heading>
             <p>
-              并发数 {pendingParallelism ?? 0} 超过 {PARALLELISM_CONFIRM_THRESHOLD}
-              ：高并发会显著增加内存与 IO 压力，输出互相覆盖的风险也随之上升。确定要继续吗？
+              {t("conversion.parallelWarning", {
+                count: pendingParallelism ?? 0,
+                limit: PARALLELISM_CONFIRM_THRESHOLD,
+              })}
             </p>
             <div className="confirm-actions">
               <Button
@@ -305,9 +306,9 @@ export function ConversionSettings() {
                   setPendingParallelism(null);
                 }}
               >
-                确认
+                {t("common.confirm")}
               </Button>
-              <Button onPress={() => setPendingParallelism(null)}>取消</Button>
+              <Button onPress={() => setPendingParallelism(null)}>{t("common.cancel")}</Button>
             </div>
           </Dialog>
         </Modal>

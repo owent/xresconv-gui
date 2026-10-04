@@ -1,18 +1,4 @@
-/**
- * P6-03 泄漏循环（主计划 11.5 / 06 册"性能、稳定性和证据模板"）：
- * 加载→选择→转换→（每 10 轮取消 + reset 重新武装 + 再次转换），共 100 轮。
- *
- * 断言（本机可自动验证部分）：
- * - 每轮结束状态正确（succeeded / cancelled），runSeq 与实际运行数一致；
- * - 后端 reset RPC 在循环中反复执行（活动运行取消后重新武装路径）；
- * - 池 worker 数量不随循环增长（补员只替换不累积）；
- * - 进程句柄数无持续增长（warm-up/中段/末段三点采样，末-首差有界）；
- * - 结束后 shutdown：循环期间出现过的全部 worker pid 均已回收（无孤儿）；
- * - RSS 趋势记录在案（宽松上界守卫，稳定态评估不靠硬阈值伪造精度）。
- *
- * 真实 ScriptWorkerPool（真实 worker 子进程执行 BEFORE/AFTER hook）+
- * 注入 fake Java runner（真实 JAR 差分属 EX05，不在此重复）；全部等待有界。
- */
+/** 重复运行与取消，检查进程句柄、RSS 和 worker 回收是否保持有界。 */
 
 import type { JavaBatchOptions, JavaBatchResult, ScriptWorkerPool } from "@xresconv/guardian";
 import { AbortError, ScriptWorkerPool as Pool } from "@xresconv/guardian";
@@ -63,7 +49,7 @@ function activeHandles(): number {
   return handles ? handles().length : -1;
 }
 
-it("P6-03：100 轮加载→选择→转换（每 10 轮取消+reset+再转换）无孤儿、句柄无持续增长", {
+it("：100 轮加载→选择→转换（每 10 轮取消+reset+再转换）无孤儿、句柄无持续增长", {
   timeout: STRESS_TIMEOUT_MS,
 }, async () => {
   const pool: ScriptWorkerPool = new Pool();
@@ -144,7 +130,7 @@ it("P6-03：100 轮加载→选择→转换（每 10 轮取消+reset+再转换�
   const trend = handleSamples
     .map((s) => `#${s.iteration} handles=${s.handles} rss=${s.rssMb}MiB`)
     .join("; ");
-  console.log(`[P6-03] 句柄/RSS 采样：${trend}；循环期间出现 worker pid 数=${seenPids.size}`);
+  console.log(`[run-stress] 句柄/RSS 采样：${trend}；循环期间出现 worker pid 数=${seenPids.size}`);
 
   // 孤儿检查：shutdown 后循环期间出现过的全部 worker pid 死亡。
   await pool.shutdown();

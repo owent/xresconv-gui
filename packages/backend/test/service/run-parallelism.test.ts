@@ -1,13 +1,13 @@
 /**
- * 并发分片矩阵（P3-07 / EX02）：fake runner 实测编排层批次调度。
+ * 并发分片矩阵：fake runner 实测编排层批次调度。
  *
- * - 并发 1/4/16：分片数、单分片任务数、真实最大并发数、每任务只提交一次；
- * - 少于 worker 的任务数（parallelism 16、3 任务 → 3 分片）；
- * - 空任务不 spawn（BD-O5）。
+ * 并发 1/4/16：分片数、单分片任务数、真实最大并发数、每任务只提交一次；
+ * 少于 worker 的任务数（parallelism 16、3 任务 → 3 分片）；
+ * 空任务不 spawn。
  *
  * runner 是注入的 fake（不 spawn java）：真实并发窗口用 25ms 延迟放大，
- * maxConcurrency 证明 Promise.all 的真实并行度。语义锚点：main.js:2118
- * （parallelism）、BD-O2（[1,16] 夹取）、BD-O3（round-robin 确定分片）。
+ * maxConcurrency 证明 Promise.all 的真实并行度。语义锚点：
+ * （parallelism）、（[1,16] 夹取）、（round-robin 确定分片）。
  */
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -74,7 +74,7 @@ function allLines(stats: RunnerStats): string[] {
   return stats.calls.flatMap((call) => call.tasks);
 }
 
-describe("runConversion 并发分片矩阵（EX02）", () => {
+describe("runConversion 并发分片矩阵", () => {
   let pool: ScriptWorkerPool;
 
   beforeAll(async () => {
@@ -165,7 +165,7 @@ describe("runConversion 并发分片矩阵（EX02）", () => {
     expect(stats.maxConcurrency).toBe(3);
   });
 
-  it("空任务：不 spawn java（BD-O5），succeeded", { timeout: TEST_TIMEOUT_MS }, async () => {
+  it("空任务：不 spawn java，succeeded", { timeout: TEST_TIMEOUT_MS }, async () => {
     const stats: RunnerStats = { calls: [], maxConcurrency: 0 };
     const session = new ConversionSession({ pool, runner: measuringRunner(stats), parallelism: 4 });
     await session.loadConfig(writeConfig(3)); // 空选择也需先加载配置（状态机要求）

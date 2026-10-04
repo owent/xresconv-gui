@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { getCliMatches } from "../adapters/tauri";
+import { translate as t } from "../i18n";
 import { useSessionStore } from "./session-store";
 
 /**
- * CLI 自定义选择器接线（P4-05b，F11）：启动时读取壳解析的
- * --custom-selector/--custom-button（tauri.conf.json multiple 参数），
+ * CLI 自定义选择器接线：启动时读取壳解析的
+ * custom-selector/--custom-button（tauri.conf.json multiple 参数），
  * 非空则一次性 setCustomSelectors 进后端（后端允许先于 loadConfig；
  * 之后每次加载/重载自动重放 default_selected）。
  *
@@ -52,7 +53,9 @@ export function useCliCustomSelectors(): void {
       .catch((error: unknown) => {
         if (!cancelled) {
           useSessionStore.setState({
-            lastError: `读取启动参数失败：${error instanceof Error ? error.message : String(error)}`,
+            lastError: t("diagnostics.cliError", {
+              error: error instanceof Error ? error.message : String(error),
+            }),
           });
         }
       });

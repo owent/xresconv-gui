@@ -1,5 +1,5 @@
 /**
- * 设计令牌（docs/plan/04-ui.md §样式；2026-09-26 现代化改版）：
+ * 设计令牌（docs/development/frontend.md）：
  * 颜色、间距、字号、圆角、阴影、动效均为 CSS 自定义属性。
  * 主题三态：跟随系统（prefers-color-scheme）/亮（[data-theme="light"]）/
  * 暗（[data-theme="dark"]）——[data-theme] 覆盖媒体查询，由显示设置写入。
@@ -9,7 +9,7 @@
   color-scheme: light dark;
 
   /*
-   * 默认字体栈（2026-09-26 用户指定优先序；浏览器按序自动选用本机已有字体，
+   * 默认字体栈（ 用户指定优先序；浏览器按序自动选用本机已有字体，
    * 不下载任何资源）。用户在显示设置里指定字体时经 inline style 覆盖
    * `--font-<area>-family`，未指定则回落到这些栈。
    */
@@ -73,7 +73,7 @@
   --color-border-strong: #b7c0ce;
   --color-text: #1a2333;
   --color-text-muted: #5d6a7d;
-  /* 2026-09-26 四轮：#2f6bff+白字对比 4.5:1 临界不过 axe，加深主色 */
+  /* #2f6bff+白字对比 4.5:1 临界不过 axe，加深主色 */
   --color-accent: #1f57e8;
   --color-accent-hover: #184ad6;
   --color-accent-soft: #e7eeff;
@@ -88,7 +88,7 @@
   --color-success-soft: #e2f5e9;
   --color-info-soft: #e7eeff;
   --color-focus-ring: #2f6bff;
-  /* 实底状态章/主按钮的前景墨色（axe AA ≥4.5:1 已验证；2026-09-26 对比度强化） */
+  /* 实底状态章/主按钮的前景墨色（axe AA ≥4.5:1 已验证； 对比度强化） */
   --color-accent-ink: #ffffff;
   --color-success-ink: #ffffff;
   --color-danger-ink: #ffffff;
@@ -134,7 +134,7 @@
 }
 
 /* 强制暗色：完整暗色令牌 + color-scheme（原生表单控件/滚动条随主题——
-   2026-09-26 反馈：暗色下原生 select/输入框仍是亮色观感）。跟随系统时
+   暗色下原生 select/输入框仍是亮色观感）。跟随系统时
    :root 的 color-scheme: light dark 已覆盖。 */
 :root[data-theme="dark"] {
   color-scheme: dark;

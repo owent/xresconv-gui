@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "script-result",
   "title": "ScriptResult",
-  "description": "script-worker -> guardian: terminal result of one invocation. `resolved`/`rejected` come from the legacy resolve/reject protocol (first call wins); `error` is an uncaught synchronous exception; `timeout` is reported by the guardian, never by the worker. `ops` is the ordered list of side effects the script produced (logs, field mutations, dialog requests already answered); guardian/backend apply them in order.",
+  "description": "script-worker -> guardian: terminal result of one invocation. `resolved`/`rejected` come from the resolve/reject protocol (first call wins); `error` is an uncaught synchronous exception; `timeout` is reported by the guardian, never by the worker. `ops` is the ordered list of side effects the script produced (logs, field mutations, dialog requests already answered); guardian/backend apply them in order.",
   "type": "object",
   "required": ["invocation_id", "outcome"],
   "additionalProperties": false,

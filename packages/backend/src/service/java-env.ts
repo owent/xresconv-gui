@@ -1,13 +1,13 @@
 /**
- * Java 运行时环境检查（F06/F12；2026-09-26 用户指示恢复旧版 conv_env_check 逻辑）。
+ * Java 运行时环境检查(用户指示恢复 conv_env_check 逻辑）。
  *
- * 对齐旧版 main.js:2459-2562（conv_env_check）：
- * - `java -version` 输出（stdout+stderr 合并）解析版本号；
- * - 版本要求：主版本 >1 或次版本 ≥8（即 Java 8+）；
- * - 非 64-Bit 视为不满足（旧版提示下载 64 位）；
- * - 不满足时给下载指引（旧版推荐列表）。
+ * 对齐 （conv_env_check）：
+ * `java -version` 输出（stdout+stderr 合并）解析版本号；
+ * 版本要求：主版本 >1 或次版本 ≥8（即 Java 8+）；
+ * 非 64-Bit 视为不满足（提示下载 64 位）；
+ * 不满足时给下载指引（推荐列表）。
  * 新增：java 可执行文件解析支持环境变量——`XRESCONV_JAVA`（显式路径）→
- * `JAVA_HOME/bin/java(.exe)` → PATH `java`（与 java-runner 转换执行共用同一解析，
+ * `JAVA_HOME/bin/java(exe)` → PATH `java`（与 java-runner 转换执行共用同一解析，
  * 保证"显示的 java"与"实际运行转换的 java"一致）。
  */
 
@@ -16,7 +16,7 @@ import { createProcessScope, type JavaExecutable, resolveJavaExecutable } from "
 
 export { type JavaExecutable, resolveJavaExecutable } from "@xresconv/guardian";
 
-/** 旧版 dep_msg 的推荐发行版（main.js:2464-2474，链接保留）。 */
+/** dep_msg 的推荐发行版(链接保留）。 */
 export const JAVA_DOWNLOAD_HINTS: readonly { name: string; url: string }[] = [
   { name: "TemurinJDK", url: "https://adoptium.net/" },
   { name: "Microsoft JDK", url: "https://www.microsoft.com/openjdk" },
@@ -42,7 +42,7 @@ export interface JavaCheckResult {
 
 const CHECK_TIMEOUT_MS = 8000;
 
-/** 运行 `java -version` 并按旧版规则判定（有界超时；不经 shell）。 */
+/** 运行 `java -version` 并按规则判定（有界超时；不经 shell）。 */
 export async function checkJavaEnvironment(): Promise<JavaCheckResult> {
   const executable = resolveJavaExecutable();
   const scope = createProcessScope({ name: "java-environment-check" });

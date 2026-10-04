@@ -200,7 +200,7 @@ function makeInvoke(overrides: Partial<ScriptInvoke>): ScriptInvoke {
   };
 }
 
-describe("script worker (P2-03)", () => {
+describe("script worker", () => {
   it(
     "a. emits a health envelope on startup",
     async () => {
@@ -260,11 +260,11 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
-    "b2. set_name sandbox exposes no require (SC02 负断言)",
+    "b2. set_name sandbox exposes no require ( 负断言)",
     async () => {
       const client = new WorkerClient();
       try {
-        // set_name 是同步沙箱，没有 resolve/reject 出口（main.js:1704-1758）；
+        // set_name 是同步沙箱，没有 resolve/reject 出口；
         // 用 item_data 字段把 typeof require 带出，经 set_fields ops 断言。
         const invoke = makeInvoke({
           entry_kind: "set_name",
@@ -290,7 +290,7 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
-    "b3. set_name data is created fresh per invocation (SC02, main.js:1712 生命周期)",
+    "b3. set_name data is created fresh per invocation (生命周期)",
     async () => {
       const client = new WorkerClient();
       try {
@@ -476,7 +476,7 @@ describe("script worker (P2-03)", () => {
     TEST_TIMEOUT_MS,
   );
 
-  // 异步回调内死循环（06 册 SC07 样例）阻塞 worker 事件循环：vm timeout 与
+  // 异步回调内死循环（06 册  样例）阻塞 worker 事件循环：vm timeout 与
   // worker 自身 wall-clock 定时器都无法触发，唯一边界是 guardian 的外部硬截止——
   // 该场景在 guardian/script-worker.test.ts 的 WORKER_TIMEOUT 用例验收，不在本层。
 
@@ -502,7 +502,7 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
-    "i. console is not injected into the sandbox (legacy parity)",
+    "i. console is not injected into the sandbox (script contract)",
     async () => {
       const client = new WorkerClient();
       try {
@@ -587,11 +587,11 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
-    "k2. button data keeps functions/Buffer/BigInt alive without forced JSON round-trip (SC05)",
+    "k2. button data keeps functions/Buffer/BigInt alive without forced JSON round-trip",
     async () => {
       const client = new WorkerClient();
       try {
-        // 06 册 SC05：按钮 data 不强制 JSON 化——函数/Buffer/BigInt 属于 worker
+        // 06 册 ：按钮 data 不强制 JSON 化——函数/Buffer/BigInt 属于 worker
         // 进程内状态（buttonDataStore），从不跨 IPC 序列化。
         const first = makeInvoke({
           entry_kind: "button",
@@ -665,7 +665,7 @@ describe("script worker (P2-03)", () => {
         expect((await client.completeOf(yesInvoke.invocation_id)).outcome).toBe("resolved");
 
         // ESC/backdrop semantics: choice null (delivered via in_reply_to) fires nothing,
-        // so the invocation hangs until the legacy wall-clock timeout.
+        // 调用未完成时等待墙钟截止。
         const escInvoke = makeInvoke({ source: ALERT_ORDER_SOURCE, timeout_ms: 300 });
         client.invoke(escInvoke);
         const escRequest = await client.waitFor(
@@ -694,7 +694,7 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
-    "l2. alert_warning fires no->on_close on choice no (SC06 no 分支)",
+    "l2. alert_warning fires no->on_close on choice no ( no 分支)",
     async () => {
       const client = new WorkerClient();
       try {
@@ -848,7 +848,7 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
-    "q. dialog callbacks survive invocation settle (合法回调不提前销毁，SC06)",
+    "q. dialog callbacks survive invocation settle (合法回调不提前销毁)",
     async () => {
       const client = new WorkerClient();
       try {
@@ -858,7 +858,7 @@ describe("script worker (P2-03)", () => {
             '  yes: function () { log_notice("LATE-YES"); },',
             '  on_close: function () { log_notice("LATE-CLOSE"); },',
             "});",
-            "resolve();", // invocation 先结束；旧版 modal 晚于脚本结束仍可点
+            "resolve();", // invocation 先结束； modal 晚于脚本结束仍可点
           ].join("\n"),
           timeout_ms: 1000,
         });
@@ -888,7 +888,7 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
-    "r. duplicate dialog answers fire callbacks exactly once (重复点击，SC06)",
+    "r. duplicate dialog answers fire callbacks exactly once (重复点击)",
     async () => {
       const client = new WorkerClient();
       try {
@@ -921,10 +921,10 @@ describe("script worker (P2-03)", () => {
   );
 
   it(
-    "s. require.cache is process-shared across invocations (P2-04 cache 契约：按钮与 hook 共用模块态)",
+    "s. require.cache is process-shared across invocations ( cache 契约：按钮与 hook 共用模块态)",
     async () => {
-      // 旧版单渲染进程内 require.cache 全局共享（02 §103 兼容风险）；新版默认
-      // size=1 单 worker（BD-W5），createRequire 的 cache 即进程级 Module._cache，
+      // 单渲染进程内 require.cache 全局共享（02  兼容风险）；默认
+      // size=1 单 worker，createRequire 的 cache 即进程级 Module._cache，
       // 跨 invocation/入口类型共享同一模块实例——本用例固化该契约。
       const dir = mkdtempSync(path.join(os.tmpdir(), "xresconv-cache-"));
       const modulePath = path.join(dir, "shared-state.cjs");

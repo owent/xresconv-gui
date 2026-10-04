@@ -1,17 +1,17 @@
 /**
- * fake-converter：xresloader --stdin 协议的确定性模拟（P3-07 / EX02）。
+ * fake-converter：xresloader --stdin 协议的确定性模拟。
  * 由 FAKE_CONV_MODE 环境变量驱动输出模式：
- * - echo：每收一行回显一行 stdout（默认）；
- * - silent：全程无输出，EOF 后 exit 0（静默进程也可完成）；
- * - chatty：每行产生多 chunk stdout/stderr（刻意半行拆分，考验行缓冲拼接；
+ * echo：每收一行回显一行 stdout（默认）；
+ * silent：全程无输出，EOF 后 exit 0（静默进程也可完成）；
+ * chatty：每行产生多 chunk stdout/stderr（刻意半行拆分，考验行缓冲拼接；
  *   日志块数量不得改变任务计数语义）；
- * - utf8-split：每行以 2 字节粒度切割 UTF-8 多字节序列输出（中文/emoji 跨
- *   chunk 到达，考验 StringDecoder 拼接无 mojibake，EX04）；EOF 后再输出
+ * utf8-split：每行以 2 字节粒度切割 UTF-8 多字节序列输出（中文/emoji 跨
+ *   chunk 到达，考验 StringDecoder 拼接无 mojibake)；EOF 后再输出
  *   一段无尾换行的半行，覆盖 flush 路径；
- * - slow：每行 20ms 慢消费（readline for-await 自然背压，考验写端 drain）；
- * - early-exit：收到首行即 exit 7（提前关闭，写端 EPIPE/close 收尾路径）；
- * - fail：EOF 后 exit FAKE_CONV_EXIT（默认 3，退出码=失败任务数约定）；
- * - child：spawn 一个长生子进程（pid 写入 FAKE_CONV_CHILD_PID_FILE），自身
+ * slow：每行 20ms 慢消费（readline for-await 自然背压，考验写端 drain）；
+ * early-exit：收到首行即 exit 7（提前关闭，写端 EPIPE/close 收尾路径）；
+ * fail：EOF 后 exit FAKE_CONV_EXIT（默认 3，退出码=失败任务数约定）；
+ * child：spawn 一个长生子进程（pid 写入 FAKE_CONV_CHILD_PID_FILE），自身
  *   在 EOF 后仍不退（挂起），供截止/中止的整树回收断言。
  *
  * FAKE_CONV_COUNT_FILE 存在时，退出前把接收到的全部行以 JSON 数组写入该文件，

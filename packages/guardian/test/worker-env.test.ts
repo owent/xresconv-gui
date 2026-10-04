@@ -1,5 +1,5 @@
 /**
- * P2-10 环境策略接线：ScriptWorkerPool.workerEnv 覆盖注入到 worker 进程
+ *  环境策略接线：ScriptWorkerPool.workerEnv 覆盖注入到 worker 进程
  * 环境的验证（发行接线点——backend 据此注入 XRESCONV_SCRIPT_MODULE_DIRS）。
  * 真实 worker 子进程，无协议 mock；等待均有显式超时。
  */
@@ -23,7 +23,7 @@ function makeInvoke(overrides: Partial<ScriptInvoke>): ScriptInvoke {
   };
 }
 
-describe("ScriptWorkerPool workerEnv (P2-10)", () => {
+describe("ScriptWorkerPool workerEnv", () => {
   it(
     "workerEnv 注入新键并覆盖继承键；脚本经 require(node:process) 可见",
     async () => {

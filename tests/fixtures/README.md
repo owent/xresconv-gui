@@ -1,18 +1,13 @@
-# 测试 Fixtures 索引
+# 测试数据
 
-本目录保存重构基线与回归测试的输入/预期样本。规则：
+输入用于配置、选择器、脚本、转换和故障回归测试。期望行为由当前实现合同与测试断言定义，外部样本来源和摘要用于保证输入可重复。
 
-- 每个子目录有 README 说明数据来源与执行方法。
-- `legacy/manifest.json` 是 F01–F12 功能对照的唯一清单（P0-02 产物）。
-- `authored` 状态的 fixture 由源码分析编制（来源锚点见 `scripts/contract.md`），**未经旧应用运行验证**，执行后必须回填观察结果并把状态改为 `verified`。
-- 外部样本（xresconv-conf sample.xml、xresloader JAR、示例表格）体积/许可原因不进 Git；哈希与获取方式记录在 manifest 与 `docs/plan/records/`。
-- 禁止提交绝对开发机路径、真实凭据或私人业务表格。
+| 目录 | 用途 |
+| --- | --- |
+| [config](config/README.md) | XML 加载、包含、全局设置与非法输入 |
+| [selectors](selectors/README.md) | 匹配规则、空规则与动作链 |
+| [scripts](scripts/README.md) | 事件、命名、按钮、弹窗和日志钩子 |
+| [conversion](conversion/README.md) | JAR 发现、样本、golden 与真实输出差分 |
+| [faults](faults/README.md) | 超时、异常、退出、递归与日志过载 |
 
-| 目录 | 内容 | 主要服务的测试类别 |
-| --- | --- | --- |
-| `config/` | XML 配置样本（最小/完整/include/边界/非法） | C01–C03、C06、F01/F02 |
-| `selectors/` | 自定义选择器 JSON | C05、C08、F04/F05 |
-| `scripts/` | 脚本契约与脚本行为 fixture | C09–C13、F09/F10、SC 系列 |
-| `conversion/` | 转换输入/输出对照（JAR、参数、输出） | C07、C15、R06 |
-| `faults/` | 故障注入配置 | R01–R12 |
-| `legacy/` | 旧版基线清单与观察记录 | 全部 |
+测试必须隔离输出、设置截止并回收自身进程。禁止提交开发机绝对路径、凭据和私人表格。外部 JAR 与大样本通过环境变量提供，缺件明确报告，使用方法见[测试文档](../../docs/development/testing.md)。

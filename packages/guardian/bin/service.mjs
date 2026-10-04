@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// P2-09：长驻 guardian 服务入口（壳↔guardian 字节帧通道，@xresconv/ipc；
+// 长驻 guardian 服务入口（壳↔guardian 字节帧通道，@xresconv/ipc；
 // 不可信边界——帧上限预分配前拒绝）。职责：持有 BackendSupervisor（fork IPC
 // 监督 backend），把监督事件转发给壳；壳通道 EOF/error（壳死亡/断开）→
-// 整树自清后退出（句柄/管道检测，不轮询 PID，Plan 02 §142）。
-//
+// 整树自清后退出（句柄/管道检测，不轮询 PID，接口文档）。
+
 // 首帧为 health 握手（role=guardian，payload.backend 含监督状态）。
 // 壳侧命令：health（回含 supervisor stats）、shutdown（清树后退出 0）。
-// P4-02 业务路由：壳 kind "rpc"（backend-rpc payload）→ supervisor.request
+//  业务路由：壳 kind "rpc"（backend-rpc payload）→ supervisor.request
 // 透传 backend → 回 kind "rpc_result"（in_reply_to 关联）；backend 不可用
 // （未就绪/死亡/超时）时回 {ok:false, error:{code:BACKEND_*}}。backend 的
 // kind "event" 业务事件原样转发壳（source:"backend"）。
@@ -21,10 +21,10 @@ const { PROTOCOL_VERSION, validate } = await import("@xresconv/contracts");
 const { encodeFrame, FrameDecoder, writeFrame } = await import("@xresconv/ipc");
 const { BackendRequestError, BackendSupervisor } = await import("../src/backend-supervisor.ts");
 
-// P5-02 发行布局自定位：bundle 落位 <root>/app/guardian/service.mjs 时 app
+//  发行布局自定位：bundle 落位 <root>/app/guardian/service.mjs 时 app
 // 根 = 上两级目录；backend 入口、worker 入口与脚本模块锚点目录按布局约定
 // 推导，经 backendEnv 接力给 backend（backend 再经 pool workerEnv 注入
-// worker；锚点语义见 script-host executor 回退层，P2-10）。开发布局
+// worker；锚点语义见 script-host executor 回退层)。开发布局
 // （packages/guardian/bin/service.mjs）不命中探测，保持既有默认解析。
 // XRESCONV_BACKEND_ENTRY 显式指定时优先（诊断/测试缝）。
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -34,7 +34,7 @@ const backendEntry =
   process.env.XRESCONV_BACKEND_ENTRY ||
   (existsSync(layoutBackendEntry) ? layoutBackendEntry : undefined);
 const backendEnv = {};
-// F10/F11：--log-configure 壳 → guardian → backend 接力（只在设置时传递）。
+// log-configure 壳 → guardian → backend 接力（只在设置时传递）。
 if (existsSync(layoutWorkerEntry) && existsSync(join(appRoot, "node_modules"))) {
   backendEnv.XRESCONV_SCRIPT_MODULE_DIRS = appRoot;
   backendEnv.XRESCONV_WORKER_ENTRY = layoutWorkerEntry;
@@ -54,14 +54,14 @@ function envelope(kind, payload, extra = {}) {
   };
 }
 
-// 帧上限（P4-08）：缺省与 @xresconv/ipc DEFAULT_MAX_FRAME_BYTES 一致（64MiB）；
+// 帧上限：缺省与 @xresconv/ipc DEFAULT_MAX_FRAME_BYTES 一致（64MiB）；
 // 测试可注入更小上限复现 RESPONSE_TOO_LARGE 路径（生产不变）。
 const envMaxFrame = Number(process.env.XRESCONV_MAX_FRAME_BYTES);
 const MAX_FRAME_BYTES_LIMIT =
   Number.isFinite(envMaxFrame) && envMaxFrame > 0 ? envMaxFrame : undefined;
 
 let queuedOutputBytes = 0;
-// 在途字节预算（P4-08 上调）：需容纳单个 100k 快照帧（~37.5MB）+ 并发事件；
+// 输出队列预算为 128 MiB，允许大快照与并发事件，同时保持有界。
 // 仍为有界预算，超限自关（不无限积压）。
 const MAX_QUEUED_OUTPUT_BYTES = 128 * 1024 * 1024;
 function send(kind, payload, extra = {}) {
@@ -106,7 +106,7 @@ const supervisor = new BackendSupervisor({
   backendEnv,
   onEvent: (event) => {
     process.stderr.write(`[guardian] ${event.type}: ${event.message}\n`);
-    // backend 死亡等监督事件必须让壳可见（SC11：UI 故障可见）。
+    // backend 死亡等监督事件必须让壳可见(UI 故障可见）。
     send("event", {
       source: "backend-supervisor",
       type: event.type,
@@ -116,7 +116,7 @@ const supervisor = new BackendSupervisor({
     });
   },
   onBackendEvent: (env) => {
-    // backend 业务事件（P4-02：log/state_change/dialog_*/run_end）原样转发壳；
+    // backend 业务事件(log/state_change/dialog_*/run_end）原样转发壳；
     // payload 由 backend 构造（含 source:"backend"），guardian 不改写业务内容。
     if (typeof env.payload === "object" && env.payload !== null) {
       void send("event", env.payload);
@@ -175,7 +175,7 @@ const decoder = new FrameDecoder(
           await selfShutdown("shell requested shutdown");
           return;
         case "rpc": {
-          // P4-02：壳 → backend 业务 RPC 透传。payload 先过 backend-rpc schema；
+          // 壳 → backend 业务 RPC 透传。payload 先过 backend-rpc schema；
           // supervisor 拒绝（BACKEND_*）与 backend 业务错误统一走 rpc_result，
           // 不升级为 fault（通道保持可用）。
           let request;

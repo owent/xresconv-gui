@@ -1,11 +1,11 @@
 /**
- * 资源限额与内存耗尽验收（P2-07 / SC07/SC08 内存部分）：真实 worker 子进程。
+ * 资源限额与内存耗尽验收(内存部分）：真实 worker 子进程。
  *
- * - a. V8 堆硬顶（--max-old-space-size）：堆耗尽 → V8 fatal 杀进程 → 在途
+ * a. V8 堆硬顶(max-old-space-size）：堆耗尽 → V8 fatal 杀进程 → 在途
  *   invocation 收 WORKER_EXIT、池补员、后续可用、无自动重放（单次结算）。
- * - b. RSS 看门狗（BD-W11）：Buffer 外部内存绕过 V8 堆顶（--max-old-space-size
+ * b. RSS 看门狗：Buffer 外部内存绕过 V8 堆顶(max-old-space-size
  *   管不到），RSS 超限 → guardian 销毁 + 诊断 + 补员。
- * - c. 周期健康自报携带 memoryUsage，stats() 透出 RSS 峰值。
+ * c. 周期健康自报携带 memoryUsage，stats 透出 RSS 峰值。
  *
  * 外层超时全部显式有界（真实子进程 = 真实时钟）。
  */
@@ -58,7 +58,7 @@ async function expectInvokeError(pending: Promise<unknown>, code: string): Promi
   throw new Error(`expected invoke to reject with ${code}`);
 }
 
-describe("worker resource limits (P2-07)", () => {
+describe("worker resource limits", () => {
   afterEach(() => {
     delete process.env[HEALTH_ENV];
   });
@@ -98,7 +98,7 @@ describe("worker resource limits (P2-07)", () => {
   );
 
   it(
-    "b. RSS 看门狗（BD-W11）：Buffer 外部内存绕过 V8 堆顶，超限即销毁",
+    "b. RSS 看门狗：Buffer 外部内存绕过 V8 堆顶，超限即销毁",
     async () => {
       process.env[HEALTH_ENV] = "100";
       const limitBytes = 256 * 1024 * 1024;
@@ -113,10 +113,10 @@ describe("worker resource limits (P2-07)", () => {
         await pool.start();
         const oldPid = pool.stats()[0]?.pid;
         // Buffer.alloc 是外部内存（不占 V8 老年代）；setTimeout 递归分配（沙箱只
-        // 注入 setTimeout/clearTimeout，BD-S7），每 25ms +64MB → RSS 超 256MB；
+        // 注入 setTimeout/clearTimeout)，每 25ms +64MB → RSS 超 256MB；
         // 下一次健康自报触发看门狗销毁。不 resolve；12s invoke 超时兜底。
         // 注意必须 fill(1) 逐页写脏：alloc 的零填充内存在 Windows 上是惰性提交
-        // 的，只分配不触碰 RSS 不涨（P2-07 实测教训）。
+        // 的，只分配不触碰 RSS 不涨（ 实测教训）。
         const hog = makeInvoke({
           source: [
             'var B = require("node:buffer").Buffer;',
@@ -141,7 +141,7 @@ describe("worker resource limits (P2-07)", () => {
   );
 
   it(
-    "c. 健康自报携带 memoryUsage：stats() 透出 RSS 峰值",
+    "c. 健康自报携带 memoryUsage：stats 透出 RSS 峰值",
     async () => {
       process.env[HEALTH_ENV] = "100";
       const pool = new ScriptWorkerPool({ size: 1 });

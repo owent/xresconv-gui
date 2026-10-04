@@ -1,16 +1,16 @@
 /**
- * P2-10：发布目录动态模块与原生扩展验证（SC04/PK07 的本机可验证部分）。
+ * 发布目录动态模块与原生扩展验证(的本机可验证部分）。
  *
  * 在临时目录 staged 一套"发行布局"并验证真实加载链：
- * - runtime/node.exe：复制的 Node 二进制（spawn 显式使用它，不从 PATH 选择，
- *   模拟"无全局 Node"；Plan 02 §80）。
- * - app/：script-host worker 源码 + node_modules（@xresconv workspace 包 +
+ * runtime/node.exe：复制的 Node 二进制（spawn 显式使用它，不从 PATH 选择，
+ *   模拟"无全局 Node"；接口文档）。
+ * app/：script-host worker 源码 + node_modules（@xresconv workspace 包 +
  *   从本仓库 node_modules 递归闭包复制的 npm 生产依赖）。
- * - 用户项目目录刻意放在安装树之外：验证 XRESCONV_SCRIPT_MODULE_DIRS 回退
- *   锚点（executor.ts，P2-10 兼容层）使裸包名在发行布局下仍可 require。
- * - 环境变量重建为最小集（无 npm_*、无 NODE_PATH、PATH 仅 System32），
+ * 用户项目目录刻意放在安装树之外：验证 XRESCONV_SCRIPT_MODULE_DIRS 回退
+ *   锚点（executor.ts， 兼容层）使裸包名在发行布局下仍可 require。
+ * 环境变量重建为最小集（无 npm_*、无 NODE_PATH、PATH 仅 System32），
  *   任何包管理器/网络补包都无从发生（"无 npm 网络"的机制级证据）。
- * - 安装目录在 spawn 前整树置为只读（PK07 只读介质）；路径含中文与空格。
+ * 安装目录在 spawn 前整树置为只读（ 只读介质）；路径含中文与空格。
  *
  * 每个等待都有显式超时；afterAll 恢复可写并清理临时目录。
  */
@@ -76,7 +76,7 @@ function setTreeReadonly(root: string, readonly: boolean): void {
 
 beforeAll(async () => {
   const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), "xresconv-p210-"));
-  // PK07：安装路径含中文与空格。
+  // 安装路径含中文与空格。
   const installDir = path.join(tmpBase, "安装 目录");
   const appDir = path.join(installDir, "app");
   const runtimeDir = path.join(installDir, "runtime");
@@ -84,13 +84,13 @@ beforeAll(async () => {
   fs.mkdirSync(nodeModulesDest, { recursive: true });
   fs.mkdirSync(runtimeDir, { recursive: true });
 
-  // 单份固定 Node：复制当前进程二进制（P5-02 将按 manifest 下载校验）。
+  // 单份固定 Node：复制当前进程二进制（ 将按 manifest 下载校验）。
   const nodeExe = path.join(runtimeDir, process.platform === "win32" ? "node.exe" : "node");
   fs.copyFileSync(process.execPath, nodeExe);
 
   // script-host 应用本体：esbuild 打包为纯 JS（发行布局必须带编译产物——
   // Node 禁止对 node_modules 内的 .ts 做类型剥离，直接复制 TS 源会
-  // ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING；P5-02 组装沿用此机制）。
+  // ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING； 组装沿用此机制）。
   // @xresconv/* 内联；npm 生产依赖保持 external，由 app/node_modules 提供。
   const scriptHostDest = path.join(appDir, "script-host");
   fs.mkdirSync(scriptHostDest, { recursive: true });
@@ -129,13 +129,13 @@ beforeAll(async () => {
     path.join(contractsDest, "package.json"),
     JSON.stringify({
       name: "@xresconv/contracts",
-      version: "3.0.0-dev.1",
+      version: "3.0.0",
       exports: { "./schema/*": "./schema/*" },
     }),
     "utf8",
   );
 
-  // 用户脚本可见的 npm 包（SC04 清单）+ 打包保持 external 的生产依赖闭包。
+  // 用户脚本可见的 npm 包（ 清单）+ 打包保持 external 的生产依赖闭包。
   copyNpmClosure(
     ["adm-zip", "compressing", "koffi", "ajv", "log4js", "minimatch"],
     REPO_ROOT,
@@ -154,7 +154,7 @@ beforeAll(async () => {
     "utf8",
   );
 
-  // 优先级夹具：用户配置旁的 node_modules 必须胜过发行捆绑（BD-S1）。
+  // 优先级夹具：用户配置旁的 node_modules 必须胜过发行捆绑。
   const userDirShadow = path.join(tmpBase, "shadow 项目");
   const shadowPkg = path.join(userDirShadow, "node_modules", "adm-zip");
   fs.mkdirSync(shadowPkg, { recursive: true });
@@ -183,7 +183,7 @@ beforeAll(async () => {
     userDirShadow,
     tempDir,
   };
-  // PK07 只读介质：spawn 前把整棵安装树置只读，afterAll 恢复后再清理。
+  //  只读介质：spawn 前把整棵安装树置只读，afterAll 恢复后再清理。
   setTreeReadonly(installDir, true);
 }, STAGE_TIMEOUT_MS);
 
@@ -349,7 +349,7 @@ function theLayout(): StageLayout {
   return layout;
 }
 
-describe("release layout offline module loading (P2-10)", () => {
+describe("release layout offline module loading", () => {
   it(
     "a. staged node.exe 启动 worker 并完成握手（无全局 Node、无 npm）",
     async () => {
@@ -380,7 +380,7 @@ describe("release layout offline module loading (P2-10)", () => {
   );
 
   it(
-    "b. 内置/相对/npm/原生包与归档往返在发行布局下全部可用（SC04）",
+    "b. 内置/相对/npm/原生包与归档往返在发行布局下全部可用",
     async () => {
       const l = theLayout();
       const client = new StagedWorkerClient(l, {
@@ -500,7 +500,7 @@ describe("release layout offline module loading (P2-10)", () => {
   );
 
   it(
-    "d. 用户配置旁的 node_modules 优先于发行捆绑目录（BD-S1 锚定语义不回退）",
+    "d. 用户配置旁的 node_modules 优先于发行捆绑目录（ 锚定语义不回退）",
     async () => {
       const l = theLayout();
       const client = new StagedWorkerClient(l, {

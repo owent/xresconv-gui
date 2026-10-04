@@ -106,7 +106,7 @@ function answerUpdateSettings(snapshot: BackendSnapshot) {
   };
 }
 
-describe("OutputMatrixEditor（P4-04b，UI04）", () => {
+describe("OutputMatrixEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSessionStore();

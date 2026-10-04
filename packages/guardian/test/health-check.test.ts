@@ -1,4 +1,4 @@
-// Real child-process tests for the P1 guardian/bin/health-check.mjs entry:
+// Real child-process tests for the  guardian/bin/health-check.mjs entry:
 // guardian -> backend spawn chain, non-ASCII/spaced paths, deadline kill.
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -65,9 +65,9 @@ describe("guardian health-check entry", () => {
   });
 
   it("works when entry paths contain spaces and non-ASCII characters", () => {
-    // P1-05 evidence: install/resource dirs with spaces/Chinese must not
-    // break spawn or entry resolution (Plan C03/I09, narrowed here to the
-    // Node role chain; full packaged-app coverage belongs to P5).
+    //  evidence: install/resource dirs with spaces/Chinese must not
+    // break spawn or entry resolution (Plan /I09, narrowed here to the
+    // Node role chain; full packaged-app coverage belongs to ).
     const base = join(makeTmp(), "安装 dir with spaces");
     mkdirSync(join(base, "guardian", "bin"), { recursive: true });
     mkdirSync(join(base, "backend", "bin"), { recursive: true });

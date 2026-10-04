@@ -1,5 +1,6 @@
 import { Input, Label, TextField } from "react-aria-components";
 import type { TreeNodeKey, TreeNodeSnap } from "../adapters/backend";
+import { translate as t, useI18n } from "../i18n";
 import { useSessionStore } from "./session-store";
 
 function findNode(nodes: readonly TreeNodeSnap[], key: TreeNodeKey): TreeNodeSnap | null {
@@ -20,11 +21,11 @@ function asList(value: unknown): string {
 }
 
 /**
- * 条目详情（F02）：当前聚焦节点的名称/描述/来源/scheme/tag/class 只读视图
- * （编辑属 P4-04）。数据来源为 store 的 focusedKey + 树快照；
- * 聚焦变化绝不改变转换选择（04-ui §页面和组件边界验收原文）。
+ * 条目详情：当前聚焦节点的名称/描述/来源/scheme/tag/class 只读视图
+ * 数据来源为 store 的 focusedKey 和树快照；聚焦变化不改变转换选择。
  */
 export function ItemDetails() {
+  useI18n();
   const focusedKey = useSessionStore((state) => state.focusedKey);
   const nodes = useSessionStore((state) => state.snapshot?.tree?.nodes ?? null);
 
@@ -41,23 +42,23 @@ export function ItemDetails() {
   };
 
   const fields = [
-    { id: "name", label: "名称" },
-    { id: "desc", label: "描述" },
-    { id: "source", label: "来源（file / sheet）" },
+    { id: "name", label: t("item.name") },
+    { id: "desc", label: t("item.description") },
+    { id: "source", label: t("item.source") },
     { id: "scheme", label: "scheme" },
     { id: "tags", label: "tag" },
     { id: "classes", label: "class" },
   ] as const;
 
   return (
-    <details className="panel item-details collapsible" aria-label="条目详情">
-      <summary className="panel-title collapsible-summary">条目详情</summary>
+    <details className="panel item-details collapsible" aria-label={t("item.title")}>
+      <summary className="panel-title collapsible-summary">{t("item.title")}</summary>
       {node === null ? (
-        <p className="empty-state">在左侧树中聚焦条目后显示详情。</p>
+        <p className="empty-state">{t("item.empty")}</p>
       ) : (
         <p className="empty-state">
-          {node.folder ? "分类" : "条目"}
-          {node.unselectable ? " · 不可勾选" : ""}
+          {node.folder ? t("item.category") : t("item.entry")}
+          {node.unselectable ? ` · ${t("tree.unselectable")}` : ""}
         </p>
       )}
       <div className="form-grid">

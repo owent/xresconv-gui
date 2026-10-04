@@ -134,8 +134,10 @@ export function selectArtifact(dir: string, extension: string, builtAfter: numbe
   return files[0] as string;
 }
 
-/** macOS portable 打包：ditto 压缩 .app（保留符号链接/xattr，--keepParent 使
- * zip 根为 <productName>.app）。仅 darwin 宿主可达（nativeArch 已保证）。 */
+/**
+ *  macOS portable 打包：ditto 压缩 .app（保留符号链接/xattr，--keepParent 使
+ * zip 根为 <productName>.app）。仅 darwin 宿主可达（nativeArch 已保证）。
+ */
 export function zipMacAppBundle(appPath: string, dest: string): void {
   const result = spawnSync(
     "ditto",
@@ -159,8 +161,10 @@ function runTauriBuild(args: string[]): void {
     throw new Error(`tauri build failed (${result.error?.message ?? result.status})`);
 }
 
-/** Portable 归档固定顶层目录名（= productName），解压后 `./xresconv-gui/`
- * 即应用根（Windows 7z 与 Linux tar.zst 一致）。 */
+/**
+ *  Portable 归档固定顶层目录名（= productName），解压后 `./xresconv-gui/`
+ * 即应用根（Windows 7z 与 Linux tar.zst 一致）。
+ */
 const PORTABLE_TAR_TOPDIR = "xresconv-gui";
 const PORTABLE_TAR_STAGE = path.join(ROOT, "build/portable-tar");
 
@@ -203,21 +207,25 @@ function tarStageTo(dest: string): void {
   renameSync(archive, dest);
 }
 
-/** Windows portable 7z：解压后进入 xresconv-gui/ 直接双击 xresconv-gui.exe。
- * 用户 2026-09-28 决策：不创建安装包。bootstrap 变体 WebView2 用系统
+/**
+ *  Windows portable 7z：解压后进入 xresconv-gui/ 直接双击 xresconv-gui.exe。
+ * 用户  决策：不创建安装包。bootstrap 变体 WebView2 用系统
  * Evergreen 运行时，包内附官方 bootstrapper（MicrosoftEdgeWebview2Setup.exe）
  * 作为修复通道，壳预检缺失时弹窗指引；offline 变体内嵌 Fixed Version 运行时
  * （webview2-runtime/ 目录，壳以 WEBVIEW2_BROWSER_EXECUTABLE_FOLDER 指向它）。
- * 仅 windows 宿主可达（nativeArch 已保证）。 */
+ * 仅 windows 宿主可达（nativeArch 已保证）。
+ */
 export interface WindowsArchiveExtras {
   bootstrapper?: string;
   fixedRuntimeDir?: string;
   fixedRuntimeLocales?: WebViewLocalePolicy;
 }
 
-/** 组装 Windows portable 顶层目录：exe + wry 的
+/**
+ *  组装 Windows portable 顶层目录：exe + wry 的
  * WebView2Loader.dll + 发行布局（runtime/app/manifest）+ WebView2 附件
- * （bootstrap 附 bootstrapper sidecar；offline 内嵌 fixed runtime）。 */
+ * （bootstrap 附 bootstrapper sidecar；offline 内嵌 fixed runtime）。
+ */
 function stageWindowsPortableTop(
   stage: string,
   exePath: string,
@@ -253,9 +261,11 @@ function stageWindowsPortableTop(
   }
 }
 
-/** Each invocation owns its staging files. Copy/compression/verification failure
+/**
+ *  Each invocation owns its staging files. Copy/compression/verification failure
  * retains the previous artifact pair. A publication error may remove the old
- * checksum; consumers must always require a matching sidecar. */
+ * checksum; consumers must always require a matching sidecar.
+ */
 function withWindowsArchiveStage(dest: string, pack: (stage: string) => string): void {
   const build = path.join(ROOT, "build");
   mkdirSync(build, { recursive: true });
@@ -285,8 +295,10 @@ function verifyArchiveHeader(file: string, magic: string): void {
   }
 }
 
-/** Archive the staged Windows layout with 7-Zip. The same method and solid
- * compression settings apply to bootstrap and offline packages. */
+/**
+ *  Archive the staged Windows layout with 7-Zip. The same method and solid
+ * compression settings apply to bootstrap and offline packages.
+ */
 export function sevenZipPortableWindowsLayout(
   exePath: string,
   layoutDir: string,
@@ -331,8 +343,10 @@ export function sevenZipPortableWindowsLayout(
   });
 }
 
-/** WebView2 Evergreen bootstrapper 官方稳定短链（微软文档引用）；7z 内
- * sidecar 的唯一来源。下载后缓存到 build/，MZ 头 + 体积下限防半截文件。 */
+/**
+ *  WebView2 Evergreen bootstrapper 官方稳定短链（微软文档引用）；7z 内
+ * sidecar 的唯一来源。下载后缓存到 build/，MZ 头 + 体积下限防半截文件。
+ */
 const WEBVIEW2_BOOTSTRAPPER_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703";
 const WEBVIEW2_BOOTSTRAPPER_CACHE = path.join(ROOT, "build/webview2-bootstrapper");
 
@@ -351,9 +365,11 @@ async function ensureWebView2Bootstrapper(): Promise<string> {
   return dest;
 }
 
-/** WebView2 Fixed Version 官方下载页（HTML 静态内嵌全部直链，无需 JS 渲染；
- * 2026-09-28 curl 实证）。无官方 API（WebView2Feedback#3372），页面结构变化
- * 时解析失败即 fail-closed 中止构建，不产出残缺 offline 包。 */
+/**
+ *  WebView2 Fixed Version 官方下载页（HTML 静态内嵌全部直链，无需 JS 渲染；
+ *  curl 实证）。无官方 API（WebView2Feedback#3372），页面结构变化
+ * 时解析失败即 fail-closed 中止构建，不产出残缺 offline 包。
+ */
 export const WEBVIEW2_DOWNLOAD_PAGE =
   "https://developer.microsoft.com/en-us/microsoft-edge/webview2/";
 const FIXED_RUNTIME_PATTERN =
@@ -374,9 +390,11 @@ function compareVersions(a: string, b: string): number {
   return 0;
 }
 
-/** 纯函数：从下载页 HTML 解析每个架构的最高版本 cab 直链。URL 里的
+/**
+ *  纯函数：从下载页 HTML 解析每个架构的最高版本 cab 直链。URL 里的
  * `\u002F` 转义还原为 `/`；同架构多版本取最高（页面保证最新两大版本的
- * most-patched 可下载）。 */
+ * most-patched 可下载）。
+ */
 export function parseFixedRuntimeLinks(
   html: string,
 ): Map<"x64" | "x86" | "arm64", FixedRuntimeLink> {
@@ -396,10 +414,12 @@ export function parseFixedRuntimeLinks(
 
 const WEBVIEW2_FIXED_CACHE = path.join(ROOT, "build/webview2-fixedruntime");
 
-/** Windows offline 的 Fixed Version 运行时（2026-09-28 决策）：抓官方下载
+/**
+ *  Windows offline 的 Fixed Version 运行时：抓官方下载
  * 页取直链（无 API，见 parseFixedRuntimeLinks）→ cab 下载缓存（MSCF 魔数 +
  * 体积下限校验）→ `expand -F:*` 解压（官方指定方式）。返回解压出的运行时
- * 目录（Microsoft.WebView2.FixedVersionRuntime.<version>.<arch>/）。 */
+ * 目录（Microsoft.WebView2.FixedVersionRuntime.<version>.<arch>)。
+ */
 export async function ensureWebView2FixedRuntime(arch: "x64" | "arm64"): Promise<string> {
   const page = await fetch(WEBVIEW2_DOWNLOAD_PAGE, { redirect: "follow" });
   if (!page.ok) throw new Error(`webview2 download page fetch failed: HTTP ${page.status}`);
@@ -443,9 +463,11 @@ export async function ensureWebView2FixedRuntime(arch: "x64" | "arm64"): Promise
   return runtimeDir;
 }
 
-/** Linux offline portable：已产出的自含 AppImage `--appimage-extract`（免 FUSE，
+/**
+ *  Linux offline portable：已产出的自含 AppImage `--appimage-extract`（免 FUSE，
  * 内容与 AppImage 逐字节一致）后重压为 tar.zst——复用 linuxdeploy 闭包，不在
- * 脚本侧重造依赖收集。仅 linux 宿主可达。 */
+ * 脚本侧重造依赖收集。仅 linux 宿主可达。
+ */
 export function tarPortableFromAppImage(appImagePath: string, dest: string): void {
   rmSync(PORTABLE_TAR_STAGE, { recursive: true, force: true });
   mkdirSync(PORTABLE_TAR_STAGE, { recursive: true });
@@ -467,9 +489,11 @@ export function tarPortableFromAppImage(appImagePath: string, dest: string): voi
   }
 }
 
-/** Linux bootstrap portable：裸 exe + 发行布局平铺（exe 同级 runtime/app/
+/**
+ *  Linux bootstrap portable：裸 exe + 发行布局平铺（exe 同级 runtime/app/
  * runtime-manifest.json/preflight.sh），运行时复用系统 WebKitGTK。仅 linux
- * 宿主可达（nativeArch 已保证）。 */
+ * 宿主可达（nativeArch 已保证）。
+ */
 export function tarPortableBootstrapLayout(exePath: string, layoutDir: string, dest: string): void {
   rmSync(PORTABLE_TAR_STAGE, { recursive: true, force: true });
   const top = path.join(PORTABLE_TAR_STAGE, PORTABLE_TAR_TOPDIR);
@@ -536,7 +560,7 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
   const arch = packageArch(os, options.arch, options.cross);
   const cross = arch !== nativeArch(os);
   // Linux 归档发行版无关，但必须在最老支持基线上构建（glibc 地板）；宿主探测
-  // 与期望基线（--distro，默认 ubuntu-22.04）不一致即 fail-closed。
+  // 与期望基线(distro，默认 ubuntu-22.04）不一致即 fail-closed。
   const distro = os === "linux" ? detectDistro(readFileSync("/etc/os-release", "utf8")) : undefined;
   const expectedDistro =
     distro === undefined ? undefined : (options.distro ?? LINUX_BUILD_BASELINE);
@@ -595,7 +619,7 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
           dirty: git(["status", "--porcelain"]).length > 0,
         },
         // Building alone is not installer acceptance. A controlled release must replace this evidence.
-        verificationReport: { result: "fail", reportPath: "docs/plan/05-packaging-release.md" },
+        verificationReport: { result: "fail", reportPath: "docs/development/packaging.md" },
       });
     }
     const baseName =
@@ -604,8 +628,8 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
     const signing = signingBundle(os);
     for (const key of Object.keys(signing))
       base.bundle[key] = { ...base.bundle[key], ...(signing[key] as object) };
-    // macOS release 产物是 dmg 安装器（--portable 时为未签名 .app.zip，供
-    // portable 管线）；Windows/Linux 一律 portable 归档（用户 2026-09-28
+    // macOS release 产物是 dmg 安装器(portable 时为未签名 .app.zip，供
+    // portable 管线）；Windows/Linux 一律 portable 归档（用户
     // 决策）：Windows 双变体 7z 解压即双击；Linux tar.zst 解压即运行 +
     // offline AppImage 并存。与是否
     // 传 --portable 无关。
@@ -669,7 +693,7 @@ export async function packageNative(os: TargetOs, args = process.argv.slice(2)):
       } else if (format === "app.zip") {
         // Tauri 的 "app" 目标产出 bundle/macos/<productName>.app 目录。ditto
         // 保留符号链接/元数据并以 .app 为包根压缩；无签名身份环境时 bundler
-        // 跳过签名（v2.11.5 keychain()=None），portable 即未签名 .app。
+        // 跳过签名（v2.11.5 keychain=None），portable 即未签名 .app。
         base.bundle.targets = ["app"];
         const overlay = path.join(overlays, `tauri.${os}.${variant}.conf.json`);
         writeFileSync(overlay, `${JSON.stringify(base, null, 2)}\n`, "utf8");

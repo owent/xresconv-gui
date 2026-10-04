@@ -1,11 +1,11 @@
 /**
  * Configuration loading: strict XML parsing, include graph, path rules.
  *
- * BD-07: unlike the legacy GUI (jQuery HTML-tolerant parsing), malformed XML
+ * unlike the script (jQuery HTML-tolerant parsing), malformed XML
  * is rejected with a locatable error and never silently loaded.
  *
- * P1 provides the well-formedness boundary and error model; the full
- * configuration model lands in P3 against tests/fixtures/config.
+ *  provides the well-formedness boundary and error model; the full
+ * configuration model lands in  against tests/fixtures/config.
  */
 
 import { XMLValidator } from "fast-xml-parser";

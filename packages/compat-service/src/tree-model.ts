@@ -1,28 +1,28 @@
 /**
- * Fancytree selectMode:3 选择/展开语义的纯数据重实现（P2-05 NodeMirror 共享层）。
+ * Fancytree selectMode:3 选择/展开语义的纯数据重实现（ NodeMirror 共享层）。
  *
  * 这是 worker 内 NodeMirror 与 backend 会话树状态的**唯一**三态选择实现，
  * 两侧必须共享同一份代码，禁止各自重写（04-ui.md：React Aria 默认 selection
- * 不等于 selectMode 3）。语义逐行对齐随旧版发行的 jquery.fancytree 2.38.5
+ * 不等于 selectMode 3）。语义逐行对齐随发行的 jquery.fancytree 2.38.5
  * （node_modules/jquery.fancytree/dist/jquery.fancytree-all.js，下文行号锚点）：
  *
- * - nodeSetSelected（ft-all.js:5743-5818）：unselectable 直调 no-op；
+ * nodeSetSelected（ft-all.js:5743-5818）：unselectable 直调 no-op；
  *   `_lastSelectIntent`；`selected===flag && !(partsel && !flag)` 早退；
  *   selectMode 3 → selected=flag + fixSelection3AfterClick。
- * - nodeToggleSelected（ft-all.js:5941-5956）：flag=!selected；
+ * nodeToggleSelected（ft-all.js:5941-5956）：flag=!selected；
  *   partsel && !selected && _lastSelectIntent===true → flag=false 且先置
  *   selected=true 防早退。
- * - fixSelection3AfterClick（ft-all.js:1041-1058）：visit 子树全部
+ * fixSelection3AfterClick（ft-all.js:1041-1058）：visit 子树全部
  *   _changeSelectStatusAttrs(flag)，再 fixSelection3FromEndNodes。
- * - fixSelection3FromEndNodes（ft-all.js:1061-1180）：先 _walk 自身（有子节点则
+ * fixSelection3FromEndNodes（ft-all.js:1061-1180）：先 _walk 自身（有子节点则
  *   由子状态聚合覆盖自身），再 visitParents 逐层聚合（child.selected ||
  *   child.partsel → someSelected）。
- * - _changeSelectStatusAttrs（ft-all.js:991-1032）：false→(false,false)；
- *   true→(true,true)；undefined→(false,true)。旧应用从不配置
- *   unselectableStatus / unselectableIgnore / radiogroup / lazy（main.js 未出现），
- *   这些分支不实现（BD-S15 记录）。
- * - visit（ft-all.js:2497-2518）：fn 返回 false 全停、"skip" 跳过子树。
- * - getSelectedNodes（ft-all.js:1397-1410）：DFS 收集 selected；
+ * _changeSelectStatusAttrs（ft-all.js:991-1032）：false→(false,false)；
+ *   true→(true,true)；undefined→(false,true)。从不配置
+ *   unselectableStatus / unselectableIgnore / radiogroup / lazy（ 未出现），
+ *   这些分支不实现（ 记录）。
+ * visit（ft-all.js:2497-2518）：fn 返回 false 全停、"skip" 跳过子树。
+ * getSelectedNodes（ft-all.js:1397-1410）：DFS 收集 selected；
  *   stopOnParents=true 时命中后 skip 子树。
  *
  * 本模块不感知 item 业务字段；快照节点上的 `item` 载荷原样透传给镜像层。
@@ -30,7 +30,7 @@
 
 /** 线上快照节点（script-invoke context.tree 的元素；backend 生成、worker 消费）。 */
 export interface TreeNodeSnapshot {
-  /** item 节点 = item.id（number，main.js:1764）；category 节点 = 稳定字符串。 */
+  /** item 节点 = item.id（number)；category 节点 = 稳定字符串。 */
   key: string | number;
   title: string;
   tooltip: string;
@@ -39,7 +39,7 @@ export interface TreeNodeSnapshot {
   selected: boolean;
   partsel: boolean;
   expanded: boolean;
-  /** node.data.option.auto_select（main.js:1766-1769）。 */
+  /** node.data.option.auto_select。 */
   autoSelect: boolean;
   /** item 节点载荷（脚本的 item_data 本体，ft_node 键由镜像层重建，线上不出现）。 */
   item?: Record<string, unknown>;
@@ -87,7 +87,7 @@ export interface VisitContext {
 /**
  * 一棵树的 selectMode:3 状态机。构造时对每个顶层节点跑
  * fixSelection3FromEndNodes（等价 fancytree 加载后的聚合），随后全部
- * 读写经 apply* 方法，保证与旧 GUI 的可见状态一致。
+ * 读写经 apply* 方法，保证与 的可见状态一致。
  */
 export class SelectionTree {
   private readonly byKey = new Map<string | number, NodeState>();
@@ -155,8 +155,8 @@ export class SelectionTree {
     // 但 clicked 节点随后被 fixSelection3FromEndNodes 的 _walk 覆盖定稿；此处直接
     // 让级联覆盖自身，最终选择状态相同，且变更集能正确包含 clicked 节点（供 backend 确认选择变更）。
     this.visitState(node, (child) => {
-      // 2026-09-27：级联不改写 unselectable 节点（fancytree `unselectableIgnore`
-      // 语义）——矩阵屏蔽项保持未选；旧 GUI 的 auto_select 记忆+屏蔽意图明确
+      // 级联不改写 unselectable 节点（fancytree `unselectableIgnore`
+      // 语义）——矩阵屏蔽项保持未选； 的 auto_select 记忆+屏蔽意图明确
       // 要求屏蔽项绝不进入选择集（官方 _changeSelectStatusAttrs 对未配置
       // unselectableStatus 的节点不做拦截，属上游潜伏行为，不沿用）。
       if (child.unselectable) {
@@ -203,7 +203,7 @@ export class SelectionTree {
 
   /**
    * setUnselectable 的标志部分（ft-all.js:5983-6010 的 fixSelection/render 分支
-   * 不做——backend 矩阵资格已先自行取消勾选，见 main.js:1064-1076 顺序）。
+   * 不做——backend 矩阵资格已先自行取消勾选，见  顺序）。
    * 返回标志是否变化。
    */
   applyUnselectable(key: string | number, flag: boolean): boolean {
