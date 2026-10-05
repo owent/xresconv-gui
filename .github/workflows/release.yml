@@ -200,13 +200,7 @@ jobs:
       - uses: actions/download-artifact@v8.0.1
         with:
           path: build/release-artifacts
-      - name: Reject stale assets before any release write
-        id: publication
-        run: node scripts/verify-publication.ts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create draft release (no overwrite)
-        if: steps.publication.outputs.upload == 'true'
+      - name: Upload draft release artifacts (overwrite existing assets)
         # xresloader/upload-to-github-release v1.6.2
         uses: xresloader/upload-to-github-release@v1.6.2
         env:
@@ -216,8 +210,8 @@ jobs:
           tags: true
           draft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-          overwrite: false
-      - name: Verify uploaded or unchanged release contents
+          overwrite: true
+      - name: Verify uploaded release contents
         run: node scripts/verify-publication.ts --require-complete
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

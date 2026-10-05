@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { appendFileSync, createReadStream } from "node:fs";
+import { createReadStream } from "node:fs";
 import path from "node:path";
 import { loadTargets } from "../packages/packaging/src/load.ts";
 import { buildMatrix } from "../packages/packaging/src/matrix.ts";
@@ -41,6 +41,4 @@ const release = await lookupRelease(api, tag);
 const action = publicationAction(candidate, release);
 if (process.argv.includes("--require-complete") && action !== "unchanged")
   throw new Error("uploaded release does not contain the complete candidate artifact set");
-if (process.env.GITHUB_OUTPUT)
-  appendFileSync(process.env.GITHUB_OUTPUT, `upload=${action === "upload"}\n`);
 console.log(`Release content verified: ${action}; ${candidate.size} artifacts/sidecars`);

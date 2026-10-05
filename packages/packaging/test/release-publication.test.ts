@@ -24,18 +24,18 @@ it("finds a complete draft when the published-tag endpoint returns 404", async (
   expect(requests).toHaveLength(3);
 });
 
-it("creates a new draft or resumes only missing assets with identical existing bytes", () => {
+it("reports a missing release or incomplete draft", () => {
   expect(publicationAction(candidate, null)).toBe("upload");
   expect(publicationAction(candidate, { draft: true, assets: assets.slice(0, 1) })).toBe("upload");
 });
 
-it("never mutates an identical published release or a complete draft", () => {
+it("accepts complete uploaded assets with matching digests", () => {
   for (const draft of [true, false]) {
     expect(publicationAction(candidate, { draft, assets })).toBe("unchanged");
   }
 });
 
-it("rejects silently skipped assets from a previous build of the same tag", () => {
+it("detects uploaded assets that differ from the current candidate", () => {
   for (const draft of [true, false]) {
     expect(() =>
       publicationAction(candidate, {

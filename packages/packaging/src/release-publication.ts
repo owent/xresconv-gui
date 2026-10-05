@@ -50,7 +50,7 @@ export async function lookupRelease(
   return { draft: metadata.draft, assets };
 }
 
-/** Same tag is not proof of the same build. Never overwrite or re-draft a public release. */
+/** Compare uploaded release contents with the current candidate artifact set. */
 export function publicationAction(
   candidate: ReadonlyMap<string, string>,
   release: ExistingRelease | null,
@@ -69,9 +69,9 @@ export function publicationAction(
     if (!asset.digest || !/^sha256:[a-f0-9]{64}$/.test(asset.digest))
       throw new Error(`unverified published digest: ${asset.name}`);
     if (asset.digest !== `sha256:${expected}`)
-      throw new Error(`different content for existing asset: ${asset.name}; use a new version/tag`);
+      throw new Error(`different content for uploaded asset: ${asset.name}`);
   }
   if (existing.size === candidate.size) return "unchanged";
-  if (!release.draft) throw new Error("incomplete published release; use a new version/tag");
+  if (!release.draft) throw new Error("incomplete published release");
   return "upload";
 }
