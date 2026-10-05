@@ -107,8 +107,7 @@ describe("BackendSupervisor", () => {
     await waitUntil(() => !pidAlive(grandchildPid), "grandchild reaped with backend tree");
     expect(events.some((e) => e.type === "died")).toBe(true);
 
-    // 不自动重放：若干心跳周期后仍 dead。
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    // 回收后保持 dead；后续时钟推进不自动重启由 review-lifecycle 的虚拟时钟覆盖。
     expect(supervisor.stats().state).toBe("dead");
     expect(events.filter((e) => e.type === "ready").length).toBe(1);
 

@@ -8,7 +8,7 @@
  * SelectionRuleService：by_schemes/by_sheets 与 resolveSelectorItems 逐例
  *   一致；超时规则 fail-closed + 诊断。
  *
- * 真实子进程、显式有界超时、无协议 mock。
+ * 使用真实子进程；控制故障顺序的 fixture 显式确认请求已进入，外部截止只防挂起。
  */
 
 import { buildMatchStringRule } from "@xresconv/compat-service";
@@ -22,7 +22,7 @@ import {
   MatcherWorkerExitError,
 } from "../../src/service/matcher-service.ts";
 import { resolveSelectorItemsIsolated } from "../../src/service/selection-rule-service.ts";
-import { TEST_TIMEOUT_MS, waitUntil } from "./helpers.ts";
+import { fixture, TEST_TIMEOUT_MS } from "./helpers.ts";
 
 const services: MatcherService[] = [];
 
@@ -85,12 +85,9 @@ describe("MatcherService 隔离求值", () => {
     await expect(service.matchBatch(REDOS_RULE, [REDOS_INPUT])).rejects.toBeInstanceOf(
       MatcherTimeoutError,
     );
-    await waitUntil(
-      () => service.stats().ready && service.stats().pid !== oldPid,
-      "matcher worker replenished",
-    );
     const after = await service.matchBatch("exact", ["exact", "nope"]);
     expect(after).toEqual([true, false]);
+    expect(service.stats().pid).not.toBe(oldPid);
     expect(diags.some((m) => m.includes("timed out"))).toBe(true);
     await service.shutdown();
   });
@@ -98,42 +95,56 @@ describe("MatcherService 隔离求值", () => {
   it("挂起期间主进程事件循环/日志服务不被阻塞（不能阻塞日志服务）", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
-    const service = makeService({ deadlineMs: 1200 });
+    const entered = Promise.withResolvers<void>();
+    const service = makeService({
+      workerEntry: fixture("controlled-matcher.mjs"),
+      deadlineMs: TEST_TIMEOUT_MS,
+      onDiag: (message) => {
+        if (message.includes("MATCH_STARTED")) entered.resolve();
+      },
+    });
     await service.start();
     const pipeline = new LogPipeline();
-    const hanging = service.matchBatch(REDOS_RULE, [REDOS_INPUT]);
-    const started = Date.now();
-    // 灾难求值在途期间：事件循环 tick 与日志管线 append 必须即时完成。
-    const ticks: number[] = [];
-    for (let i = 0; i < 5; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      ticks.push(Date.now() - started);
-      await pipeline.info(`tick ${i}`, "TEST");
+    const outcome = service.matchBatch("hold", ["input"]).catch((error: unknown) => error);
+    try {
+      await entered.promise;
+      for (let i = 0; i < 5; i++) await pipeline.info(`tick ${i}`, "TEST");
+      await pipeline.drain();
+      expect(pipeline.snapshot().map((entry) => entry.message)).toEqual([
+        "tick 0",
+        "tick 1",
+        "tick 2",
+        "tick 3",
+        "tick 4",
+      ]);
+      // worker 仍在执行；日志完成由 drain 确认，不比较耗时或 tick 次数。
+      expect(await Promise.race([outcome, Promise.resolve("pending")])).toBe("pending");
+    } finally {
+      await service.shutdown();
     }
-    await pipeline.drain();
-    const messages = pipeline.snapshot().map((entry) => entry.message);
-    expect(messages).toEqual(["tick 0", "tick 1", "tick 2", "tick 3", "tick 4"]);
-    // tick 间隔 ≈50ms：若事件循环被阻塞，累计漂移会远超 deadline 宽度。
-    expect(ticks[4]).toBeLessThan(1200);
-    await expect(hanging).rejects.toBeInstanceOf(MatcherTimeoutError);
-    await service.shutdown();
+    expect(await outcome).toBeInstanceOf(MatcherWorkerExitError);
   });
 
   it("worker 中途死亡：在途请求确定失败（MatcherWorkerExitError）+ 补员可用", {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
-    const service = makeService();
+    const entered = Promise.withResolvers<void>();
+    const service = makeService({
+      workerEntry: fixture("controlled-matcher.mjs"),
+      deadlineMs: TEST_TIMEOUT_MS,
+      onDiag: (message) => {
+        if (message.includes("MATCH_STARTED")) entered.resolve();
+      },
+    });
     await service.start();
     const pid = service.stats().pid;
     expect(pid).toBeDefined();
-    const inFlight = service.matchBatch("exact", ["exact"]);
+    const inFlight = service.matchBatch("hold", ["input"]).catch((error: unknown) => error);
+    await entered.promise;
     process.kill(pid as number, "SIGKILL");
-    await expect(inFlight).rejects.toBeInstanceOf(MatcherWorkerExitError);
-    await waitUntil(
-      () => service.stats().ready && service.stats().pid !== pid,
-      "matcher worker replenished after kill",
-    );
-    expect(await service.matchBatch("glob:*.lua", ["a.lua", "a.txt"])).toEqual([true, false]);
+    expect(await inFlight).toBeInstanceOf(MatcherWorkerExitError);
+    expect(await service.matchBatch("exact", ["exact", "other"])).toEqual([true, false]);
+    expect(service.stats().pid).not.toBe(pid);
     await service.shutdown();
   });
 });

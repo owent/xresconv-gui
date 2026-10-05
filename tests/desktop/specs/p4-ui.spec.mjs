@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { selectValue } from "../interactions.mjs";
 
 /**
  * 真实 WebView 桌面 E2E：验证 UI 在真实 WebView2 的渲染与
@@ -146,7 +147,7 @@ withEmptyState("UI panels in the real webview", () => {
       await (await $("button=显示设置")).click();
       const select = await $('[data-testid="language-select"]');
       await select.waitForDisplayed({ timeout: 10_000 });
-      await select.selectByAttribute("value", "en");
+      await selectValue(browser, select, "en");
       await expectDisplayed('[role="dialog"][aria-label="Display settings"]');
       await (await $("button=Close")).click();
       await browser.waitUntil(async () => (await browser.executeAsync((done) => {

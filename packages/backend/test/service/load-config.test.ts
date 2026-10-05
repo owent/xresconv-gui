@@ -58,9 +58,7 @@ describe("loadConfig + set_name", () => {
     timeout: TEST_TIMEOUT_MS,
   }, async () => {
     const session = new ConversionSession({ pool, setNameTimeoutMs: 300 });
-    const startedAt = Date.now();
     const config = await session.loadConfig(fixture("set-name-loop.xml"));
-    expect(Date.now() - startedAt).toBeLessThan(TEST_TIMEOUT_MS);
     expect(session.getState()).toBe("ready");
     expect(flattenTreeItems(config.tree).map((item) => item.name)).toEqual(["loopy"]);
     const errors = session.pipeline

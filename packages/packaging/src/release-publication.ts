@@ -8,6 +8,48 @@ export interface ExistingRelease {
   assets: readonly PublishedAsset[];
 }
 
+interface ReleaseMetadata {
+  id: number;
+  tag_name: string;
+  draft: boolean;
+}
+
+/** Read the release and its complete asset list through the authenticated API. */
+export async function lookupRelease(
+  api: (endpoint: string) => Promise<Response>,
+  tag: string,
+): Promise<ExistingRelease | null> {
+  const response = await api(`releases/tags/${encodeURIComponent(tag)}`);
+  let metadata: ReleaseMetadata | null = null;
+  if (response.status === 404) {
+    // The tag endpoint only returns published releases. Drafts require the list API.
+    for (let page = 1; ; page++) {
+      const result = await api(`releases?per_page=100&page=${page}`);
+      if (!result.ok) throw new Error(`release list failed: HTTP ${result.status}`);
+      const batch = (await result.json()) as ReleaseMetadata[];
+      for (const entry of batch) {
+        if (entry.tag_name !== tag) continue;
+        if (metadata) throw new Error(`multiple releases for tag: ${tag}`);
+        metadata = entry;
+      }
+      if (batch.length < 100) break;
+    }
+  } else {
+    if (!response.ok) throw new Error(`release lookup failed: HTTP ${response.status}`);
+    metadata = (await response.json()) as ReleaseMetadata;
+  }
+  if (!metadata) return null;
+  const assets: PublishedAsset[] = [];
+  for (let page = 1; ; page++) {
+    const result = await api(`releases/${metadata.id}/assets?per_page=100&page=${page}`);
+    if (!result.ok) throw new Error(`asset lookup failed: HTTP ${result.status}`);
+    const batch = (await result.json()) as PublishedAsset[];
+    assets.push(...batch);
+    if (batch.length < 100) break;
+  }
+  return { draft: metadata.draft, assets };
+}
+
 /** Same tag is not proof of the same build. Never overwrite or re-draft a public release. */
 export function publicationAction(
   candidate: ReadonlyMap<string, string>,

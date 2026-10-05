@@ -8,6 +8,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { createServer, type Socket } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +25,36 @@ const FAKE_WORKER_PATH = fileURLToPath(new URL("./fixtures/fake-worker.mjs", imp
 const TEST_TIMEOUT_MS = 15_000;
 /** Bound for any single protocol/lifecycle wait. */
 const WAIT_MS = 10_000;
+
+/** Scripts announce entry by connecting; the parent explicitly releases their completion. */
+async function invocationGate(count: number) {
+  const entered = Promise.withResolvers<void>();
+  const sockets: Socket[] = [];
+  const server = createServer((socket) => {
+    socket.on("error", () => {});
+    sockets.push(socket);
+    if (sockets.length === count) entered.resolve();
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("missing invocation gate port");
+  return {
+    entered: entered.promise,
+    source: `var socket = require("node:net").connect(${address.port}, "127.0.0.1");
+      socket.once("data", function () { socket.end(); resolve("done"); });
+      socket.once("error", function (error) { reject(String(error)); });`,
+    release: () => {
+      for (const socket of sockets) socket.end("complete");
+    },
+    close: async () => {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    },
+  };
+}
 
 type LogEvent = Envelope | WorkerDiag;
 
@@ -290,15 +321,25 @@ describe("ScriptWorkerPool", () => {
     "e. concurrent invokes spread across workers (size 2)",
     async () => {
       const pool = new ScriptWorkerPool({ size: 2 });
+      const gate = await invocationGate(4);
       try {
         await pool.start();
         const invokes = Array.from({ length: 4 }, () =>
           makeInvoke({
-            source: 'setTimeout(function () { resolve("ok"); }, 50);',
-            timeout_ms: 2000,
+            source: gate.source,
+            timeout_ms: WAIT_MS,
           }),
         );
-        const results = await Promise.all(invokes.map((invoke) => pool.invoke(invoke)));
+        const completed = Promise.all(invokes.map((invoke) => pool.invoke(invoke)));
+        await Promise.race([
+          gate.entered,
+          completed.then(() => {
+            throw new Error("invocations completed before release");
+          }),
+        ]);
+        expect(pool.stats().map((worker) => worker.inflight)).toEqual([2, 2]);
+        gate.release();
+        const results = await completed;
         for (const result of results) {
           expect(result.outcome).toBe("resolved");
         }
@@ -311,6 +352,7 @@ describe("ScriptWorkerPool", () => {
           expect(stat.inflight).toBe(0);
         }
       } finally {
+        await gate.close();
         await pool.shutdown();
       }
     },
@@ -321,19 +363,29 @@ describe("ScriptWorkerPool", () => {
     "f. shutdown is idempotent and lets the in-flight invocation finish",
     async () => {
       const pool = new ScriptWorkerPool({ size: 1 });
-      await pool.start();
-      const slow = makeInvoke({
-        source: 'setTimeout(function () { resolve("done"); }, 100);',
-        timeout_ms: 5000,
-      });
-      const resultPromise = pool.invoke(slow);
-      const first = pool.shutdown();
-      const second = pool.shutdown();
-      expect(second).toBe(first);
-      expect((await resultPromise).outcome).toBe("resolved");
-      await first;
-      expect(pool.stats()).toHaveLength(0);
-      await expectInvokeError(pool.invoke(makeInvoke({})), "POOL_SHUTDOWN");
+      const gate = await invocationGate(1);
+      try {
+        await pool.start();
+        const slow = makeInvoke({ source: gate.source, timeout_ms: WAIT_MS });
+        const resultPromise = pool.invoke(slow).catch((error: unknown) => error);
+        await Promise.race([
+          gate.entered,
+          resultPromise.then(() => {
+            throw new Error("invocation completed before release");
+          }),
+        ]);
+        const first = pool.shutdown();
+        const second = pool.shutdown();
+        gate.release();
+        expect(second).toBe(first);
+        expect(await resultPromise).toMatchObject({ outcome: "resolved" });
+        await first;
+        expect(pool.stats()).toHaveLength(0);
+        await expectInvokeError(pool.invoke(makeInvoke({})), "POOL_SHUTDOWN");
+      } finally {
+        await gate.close();
+        await pool.shutdown();
+      }
     },
     TEST_TIMEOUT_MS,
   );

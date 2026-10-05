@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { publicationAction } from "../src/release-publication.ts";
+import { lookupRelease, publicationAction } from "../src/release-publication.ts";
 
 const candidate = new Map([
   ["app.7z", "a".repeat(64)],
@@ -8,6 +8,21 @@ const candidate = new Map([
 const firstAsset = { name: "app.7z", digest: `sha256:${"a".repeat(64)}` };
 const secondAsset = { name: "app.7z.sha256", digest: `sha256:${"b".repeat(64)}` };
 const assets = [firstAsset, secondAsset];
+
+it("finds a complete draft when the published-tag endpoint returns 404", async () => {
+  const requests: string[] = [];
+  const release = await lookupRelease(async (endpoint) => {
+    requests.push(endpoint);
+    if (endpoint === "releases/tags/v3.0.0") return new Response(null, { status: 404 });
+    if (endpoint === "releases?per_page=100&page=1")
+      return Response.json([{ id: 42, tag_name: "v3.0.0", draft: true }]);
+    if (endpoint === "releases/42/assets?per_page=100&page=1") return Response.json(assets);
+    throw new Error(`unexpected request: ${endpoint}`);
+  }, "v3.0.0");
+  expect(release).toEqual({ draft: true, assets });
+  expect(publicationAction(candidate, release)).toBe("unchanged");
+  expect(requests).toHaveLength(3);
+});
 
 it("creates a new draft or resumes only missing assets with identical existing bytes", () => {
   expect(publicationAction(candidate, null)).toBe("upload");

@@ -5,8 +5,7 @@ import { loadTargets } from "../packages/packaging/src/load.ts";
 import { buildMatrix } from "../packages/packaging/src/matrix.ts";
 import { verifyReleaseArtifacts } from "../packages/packaging/src/release-artifacts.ts";
 import {
-  type ExistingRelease,
-  type PublishedAsset,
+  lookupRelease,
   publicationAction,
 } from "../packages/packaging/src/release-publication.ts";
 
@@ -38,21 +37,7 @@ async function api(endpoint: string) {
   });
 }
 
-const response = await api(`releases/tags/${encodeURIComponent(tag)}`);
-let release: ExistingRelease | null = null;
-if (response.status !== 404) {
-  if (!response.ok) throw new Error(`release lookup failed: HTTP ${response.status}`);
-  const metadata = (await response.json()) as { id: number; draft: boolean };
-  const assets: PublishedAsset[] = [];
-  for (let page = 1; ; page++) {
-    const result = await api(`releases/${metadata.id}/assets?per_page=100&page=${page}`);
-    if (!result.ok) throw new Error(`asset lookup failed: HTTP ${result.status}`);
-    const batch = (await result.json()) as PublishedAsset[];
-    assets.push(...batch);
-    if (batch.length < 100) break;
-  }
-  release = { draft: metadata.draft, assets };
-}
+const release = await lookupRelease(api, tag);
 const action = publicationAction(candidate, release);
 if (process.argv.includes("--require-complete") && action !== "unchanged")
   throw new Error("uploaded release does not contain the complete candidate artifact set");

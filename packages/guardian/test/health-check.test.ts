@@ -88,15 +88,11 @@ describe("guardian health-check entry", () => {
   it("kills a stuck backend at the external deadline and exits non-zero", () => {
     const stuck = join(makeTmp(), "stuck-backend.mjs");
     writeFileSync(stuck, "setInterval(() => {}, 1000);\n");
-    const started = Date.now();
     const r = runGuardian({
       XRESCONV_BACKEND_ENTRY: stuck,
       XRESCONV_BACKEND_DEADLINE_MS: "800",
     });
-    const elapsed = Date.now() - started;
     expect(r.status).not.toBe(0);
-    expect(elapsed).toBeGreaterThanOrEqual(700);
-    expect(elapsed).toBeLessThan(15_000);
     const diagnostic = JSON.parse(r.stderr.split("\n", 1)[0] ?? "");
     expect(diagnostic.ok).toBe(false);
     expect(diagnostic.error).toMatch(/deadline/);

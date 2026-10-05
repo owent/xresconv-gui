@@ -20,6 +20,14 @@
 
 功能增加单元测试，缺陷增加回归测试。环境或外部文件缺失要明确区分失败与未执行，不能将测试构建通过推导为公开介质或全部平台通过。
 
+## 异步测试同步
+
+单元测试以握手、请求进入、完成回调、流关闭和清理完成等事件推进。并发测试使用可控 Promise 屏障，所有预期任务进入后再放行；计时器状态机使用 Vitest 虚拟时钟，显式覆盖截止前、截止后和迟到事件。
+
+不要用固定 sleep、短时间窗口、累计 tick 次数或墙钟耗时断言推断执行顺序与响应性。响应性测试先等待隔离进程确认请求已进入，再等待主进程日志 drain 等完成事件，最后主动取消或终止隔离进程。可能拒绝的 Promise 创建后立即挂接处理，避免等待其他事件时产生未处理拒绝。
+
+真实进程集成测试保留宽裕的防挂起截止。业务超时用例断言错误类型、状态与实际回收结果；性能耗时可记录，但不作为单元正确性的阈值。只有 OS 存活状态、外部驱动就绪等无事件接口的边界使用有截止的条件轮询，不能把轮询间隔或等待结束当作成功证据。
+
 ## 浏览器测试
 
 [Playwright 配置](../../apps/desktop/playwright.config.ts) 先构建前端，再在 `127.0.0.1:4173` 使用 Vite preview，严格端口且不复用已有服务器。三个引擎覆盖布局、主题、字号、树交互、筛选、弹窗与可访问性，原生接口由浏览器适配器替代。
@@ -39,6 +47,8 @@ corepack yarn workspace @xresconv/desktop exec playwright install chromium webki
 Windows/Linux 默认使用 tauri-driver。Windows 需要与 WebView2 版本匹配的 msedgedriver，使用 Windows 风格绝对路径设置 `MSEDGEDRIVER_PATH`，必要时设置 `TAURI_DRIVER_PATH`。Linux 需要相应 WebKit 驱动和可用桌面/Xvfb 环境。
 
 macOS 使用仅 debug `e2e` feature 的嵌入 WebDriver；release + `e2e` 编译拒绝。`XRESCONV_E2E_APP` 可指定待测程序，runner 的驱动选择与构建选项见 [options.mjs](../../tests/desktop/options.mjs)。原生操作与公开介质验证按需要单独执行。
+
+嵌入驱动 1.4.0 的 option 点击只执行 DOM `click()`，不更新 select 值或触发 change。选择控件统一经 [interactions.mjs](../../tests/desktop/interactions.mjs) 操作：嵌入模式设置选项并派发冒泡 input/change，外部驱动保留原生选择。此适配验证渲染器回调；macOS 原生选项输入仍需单独验收。升级驱动时复核适配是否仍有必要。
 
 Windows 字体测试读取真实本机字体、多次打开设置，并验证枚举结果。权限持久化验证需要显式复用同一 WebView2 profile，驱动默认临时 profile 不能证明跨进程恢复。
 

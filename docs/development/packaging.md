@@ -61,4 +61,6 @@ corepack yarn verify:portable --os=macos --arch=arm64 --variant=offline
 
 手动 workflow 和 `build/validate-*` 仅构建，写 GitHub Release 只接受 `v3` tag。聚合验证目标与产物的精确集合，不能只数文件。已存在的同名资产需要下载核对摘要，不匹配时失败，不能以“跳过上传”证明资产属于当前源码。
 
+上传前后使用同一套 [Release 查询与摘要校验](../../packages/packaging/src/release-publication.ts)。GitHub 按 tag 查询只返回已发布版本；404 后必须分页查询有写权限可见的 Release 列表，按 `tag_name` 精确查找草稿，再分页读取该 Release 的资产。列表查询失败或同 tag 存在多个 Release 时直接失败，不能当作首次发布。完整且摘要一致的草稿或公开版本无需上传；部分草稿只补缺失资产，摘要冲突、未知资产或不完整的公开版本均拒绝继续。
+
 发布前分别核对 tag 指向、下载包 sourceCommit、摘要和候选源码。构建、安装、运行与发布是独立事实，验证输出应准确说明执行范围。

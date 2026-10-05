@@ -5,8 +5,8 @@
  * 少于 worker 的任务数（parallelism 16、3 任务 → 3 分片）；
  * 空任务不 spawn。
  *
- * runner 是注入的 fake（不 spawn java）：真实并发窗口用 25ms 延迟放大，
- * maxConcurrency 证明 Promise.all 的真实并行度。语义锚点：
+ * runner 是注入的 fake（不 spawn java）：所有预期分片进入后才允许完成，
+ * maxConcurrency 验证 Promise.all 的并行度。语义锚点：
  * （parallelism）、（[1,16] 夹取）、（round-robin 确定分片）。
  */
 
@@ -57,16 +57,18 @@ interface RunnerStats {
   maxConcurrency: number;
 }
 
-/** 测量真实并发度的 fake runner：25ms 窗口放大并行重叠。 */
-function measuringRunner(stats: RunnerStats) {
+/** 所有分片进入同一个屏障，再统一放行，不依赖机器调度速度。 */
+function measuringRunner(stats: RunnerStats, expectedCalls: number) {
   let inFlight = 0;
+  const entered = Promise.withResolvers<void>();
   return async (options: JavaBatchOptions): Promise<JavaBatchResult> => {
     inFlight++;
     stats.maxConcurrency = Math.max(stats.maxConcurrency, inFlight);
     stats.calls.push(options);
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    if (stats.calls.length === expectedCalls) entered.resolve();
+    await entered.promise;
     inFlight--;
-    return { exitCode: 0, signal: null, failedTaskCount: 0, durationMs: 25 };
+    return { exitCode: 0, signal: null, failedTaskCount: 0, durationMs: 0 };
   };
 }
 
@@ -87,7 +89,11 @@ describe("runConversion 并发分片矩阵", () => {
 
   it("并发 1：6 任务 → 1 分片 6 行，maxConcurrency=1", { timeout: TEST_TIMEOUT_MS }, async () => {
     const stats: RunnerStats = { calls: [], maxConcurrency: 0 };
-    const session = new ConversionSession({ pool, runner: measuringRunner(stats), parallelism: 1 });
+    const session = new ConversionSession({
+      pool,
+      runner: measuringRunner(stats, 1),
+      parallelism: 1,
+    });
     const config = await session.loadConfig(writeConfig(6));
     const summary = await session.runConversion({ items: flattenTreeItems(config.tree) });
 
@@ -104,7 +110,7 @@ describe("runConversion 并发分片矩阵", () => {
     const stats: RunnerStats = { calls: [], maxConcurrency: 0 };
     const session = new ConversionSession({
       pool,
-      runner: measuringRunner(stats),
+      runner: measuringRunner(stats, 4),
       parallelism: 4,
     });
     const config = await session.loadConfig(writeConfig(12));
@@ -131,7 +137,7 @@ describe("runConversion 并发分片矩阵", () => {
     const stats: RunnerStats = { calls: [], maxConcurrency: 0 };
     const session = new ConversionSession({
       pool,
-      runner: measuringRunner(stats),
+      runner: measuringRunner(stats, 16),
       parallelism: 16,
     });
     const config = await session.loadConfig(writeConfig(16));
@@ -153,7 +159,7 @@ describe("runConversion 并发分片矩阵", () => {
     const stats: RunnerStats = { calls: [], maxConcurrency: 0 };
     const session = new ConversionSession({
       pool,
-      runner: measuringRunner(stats),
+      runner: measuringRunner(stats, 3),
       parallelism: 16,
     });
     const config = await session.loadConfig(writeConfig(3));
@@ -167,7 +173,11 @@ describe("runConversion 并发分片矩阵", () => {
 
   it("空任务：不 spawn java，succeeded", { timeout: TEST_TIMEOUT_MS }, async () => {
     const stats: RunnerStats = { calls: [], maxConcurrency: 0 };
-    const session = new ConversionSession({ pool, runner: measuringRunner(stats), parallelism: 4 });
+    const session = new ConversionSession({
+      pool,
+      runner: measuringRunner(stats, 0),
+      parallelism: 4,
+    });
     await session.loadConfig(writeConfig(3)); // 空选择也需先加载配置（状态机要求）
     const summary = await session.runConversion({ items: [] });
 
