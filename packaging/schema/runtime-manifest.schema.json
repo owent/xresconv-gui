@@ -28,6 +28,17 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "resourceArchive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size", "sha256"],
+      "properties": {
+        "path": { "const": "app-resources.zip" },
+        "size": { "type": "integer", "minimum": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      },
+      "description": "Application ZIP. files contains the uncompressed inventory for app/ entries."
+    },
     "schemaVersion": {
       "type": "integer",
       "const": 1,
@@ -196,7 +207,7 @@
           "path": {
             "type": "string",
             "minLength": 1,
-            "description": "Path relative to the installed application root; forward slashes, never absolute (lint-enforced)."
+            "description": "Logical payload path with forward slashes. When resourceArchive is present, app/ paths are ZIP entries and other paths are relative to the installed application root."
           },
           "size": {
             "type": "integer",

@@ -1,6 +1,15 @@
 import type { Messages } from "./types";
 
 export const messages = {
+  "startup.title": "Anwendungsressourcen vorbereiten",
+  "startup.verifying": "Anwendungsressourcen werden geprüft…",
+  "startup.cleaning": "Vorheriger Ressourcencache wird entfernt…",
+  "startup.extracting": "Anwendungsressourcen werden entpackt…",
+  "startup.ready": "Anwendungsressourcen sind bereit",
+  "startup.progress": "Fortschritt beim Entpacken",
+  "startup.files": "{percent}% · {completed} / {total} Dateien",
+  "startup.error": "Anwendungsressourcen konnten nicht vorbereitet werden: {message}",
+  "startup.retry": "Erneut versuchen",
   "common.close": "Schließen",
   "common.cancel": "Abbrechen",
   "common.confirm": "Bestätigen",

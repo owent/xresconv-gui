@@ -22,6 +22,8 @@ tauri-plugin-opener = "2.5.5"
 tauri-plugin-wdio-webdriver = { version = "=1.4.0", optional = true }
 serde.workspace = true
 serde_json.workspace = true
+sha2 = "0.10.9"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 sys-locale = "0.3.2"
 windows-registry = "0.100.0"
 windows-sys = { version = "0.61.2", features = [

@@ -2,6 +2,8 @@
 
 Tauri 桌面层管理窗口、系统接口、进程启动与消息转发。独立 Node.js 业务进程处理配置、选择和转换，用户脚本及复杂扩展在受监督的独立进程执行。
 
+发行启动先由已嵌入的前端显示资源准备界面，Rust 校验 `app-resources.zip` 并准备系统应用缓存。资源就绪后才挂载业务界面、启动 guardian；升级时完整清理旧资源后解压，运行实例通过共享锁保护其缓存。行为与失败边界见[应用资源缓存](resource-cache.md)。
+
 ```mermaid
 flowchart LR
   UI[React / 系统 WebView] -->|Tauri commands| Shell[Tauri 桌面层]

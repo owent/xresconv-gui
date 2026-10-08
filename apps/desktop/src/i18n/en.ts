@@ -1,4 +1,13 @@
 export const messages = {
+  "startup.title": "Preparing application resources",
+  "startup.verifying": "Checking application resources…",
+  "startup.cleaning": "Removing the previous resource cache…",
+  "startup.extracting": "Extracting application resources…",
+  "startup.ready": "Application resources are ready",
+  "startup.progress": "Resource extraction progress",
+  "startup.files": "{percent}% · {completed} / {total} files",
+  "startup.error": "Unable to prepare application resources: {message}",
+  "startup.retry": "Retry",
   "common.close": "Close",
   "common.cancel": "Cancel",
   "common.confirm": "Confirm",

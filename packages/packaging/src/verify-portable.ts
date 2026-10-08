@@ -24,6 +24,7 @@ import { verifyBinaryTarget } from "./binary-target.ts";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
 import { portableArtifactName, portableArtifactNames, portableFormats } from "./matrix.ts";
 import { verifyReleaseArtifacts } from "./release-artifacts.ts";
+import { readApplicationResources } from "./resource-archive.ts";
 import type { ReleaseTarget, RuntimeManifest, TargetOs, TargetVariant } from "./types.ts";
 
 const EXTRACT_TIMEOUT_MS = 5 * 60_000;
@@ -101,8 +102,15 @@ export function verifyLayoutIdentity(
  */
 export function verifyLayoutPayload(layoutRoot: string, manifest: RuntimeManifest): void {
   if (manifest.files.length === 0) throw new Error("layout payload is empty");
+  const resources = manifest.resourceArchive
+    ? readApplicationResources(layoutRoot, manifest)
+    : null;
   for (const file of manifest.files) {
     const payloadPath = path.join(layoutRoot, ...file.path.split("/"));
+    if (resources && file.path.startsWith("app/")) {
+      if (!resources.has(file.path)) throw new Error(`layout payload missing: ${file.path}`);
+      continue;
+    }
     if (!existsSync(payloadPath)) throw new Error(`layout payload missing: ${file.path}`);
     const payload = readFileSync(payloadPath);
     if (
@@ -305,6 +313,14 @@ export async function verifyPortableArtifacts(
       );
       verifyLayoutIdentity(manifest, expected, target);
       verifyLayoutPayload(layoutRoot, manifest);
+      if (manifest.resourceArchive) {
+        const resources = readApplicationResources(layoutRoot, manifest);
+        for (const module of manifest.nativeAddonAbi.modules ?? []) {
+          const resource = resources.get(module.path);
+          if (!resource) throw new Error(`native resource missing: ${module.path}`);
+          verifyBinaryTarget(resource.data, target);
+        }
+      }
       const nodeVersion = expected.staticOnly
         ? `not executed (static ${manifest.nodeVersion})`
         : verifyBundledNode(layoutRoot, manifest);

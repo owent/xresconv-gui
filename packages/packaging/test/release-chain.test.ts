@@ -26,6 +26,7 @@ import { encodeFrame, FrameDecoder } from "@xresconv/ipc";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { installStagedProbe } from "../../../tests/fixtures/staged-modules.mts";
 import { assembleRuntimeLayout } from "../src/assemble.ts";
+import { extractApplicationResources } from "../src/resource-archive.ts";
 import type { ReleaseTarget } from "../src/types.ts";
 import { pickTarget, SAMPLE_COMMIT } from "./fixtures.ts";
 
@@ -47,6 +48,7 @@ interface TestEnvelope {
 interface ChainFixture {
   tmpBase: string;
   installDir: string;
+  resourceDir: string;
   userProjectDir: string;
   tempDir: string;
   nodeExe: string;
@@ -98,7 +100,7 @@ beforeAll(async () => {
   const target: ReleaseTarget = pickTarget(
     (t) => t.os === osOfPlatform && t.arch === archOfPlatform && t.variant === "bootstrap",
   );
-  await assembleRuntimeLayout({
+  const manifest = await assembleRuntimeLayout({
     target,
     outDir: installDir,
     node: {
@@ -114,7 +116,10 @@ beforeAll(async () => {
     verificationReport: { result: "pass", reportPath: "docs/development/packaging.md" },
   });
 
-  installStagedProbe(path.join(installDir, "app", "node_modules"));
+  const resourceDir = path.join(tmpBase, "资源缓存");
+  extractApplicationResources(installDir, manifest, resourceDir);
+  expect(fs.existsSync(path.join(installDir, "app"))).toBe(false);
+  installStagedProbe(path.join(resourceDir, "app", "node_modules"));
 
   // 用户项目在安装树之外：裸包名必须靠发行锚点解析（ 锚定目录无
   // node_modules 上溯链到安装树）。
@@ -164,18 +169,21 @@ resolve();]]></script>
   fixture = {
     tmpBase,
     installDir,
+    resourceDir,
     userProjectDir,
     tempDir,
     nodeExe: path.join(installDir, "runtime", process.platform === "win32" ? "node.exe" : "node"),
-    guardianEntry: path.join(installDir, "app", "guardian", "service.mjs"),
+    guardianEntry: path.join(resourceDir, "app", "guardian", "service.mjs"),
   };
   //  只读介质：spawn 前整树置只读，afterAll 恢复后清理。
   setTreeReadonly(installDir, true);
+  setTreeReadonly(resourceDir, true);
 }, ASSEMBLE_TIMEOUT_MS);
 
 afterAll(() => {
   if (fixture !== null) {
     setTreeReadonly(fixture.installDir, false);
+    setTreeReadonly(fixture.resourceDir, false);
     fs.rmSync(fixture.tmpBase, { recursive: true, force: true });
     fixture = null;
   }

@@ -29,6 +29,7 @@ test.beforeEach(async ({ page }) => {
       transformCallback(callback: (value: unknown) => void) { callbacks.set(++callbackId, callback); return callbackId; },
       unregisterCallback(id: number) { callbacks.delete(id); },
       async invoke(command: string, args: Record<string, unknown> = {}) {
+        if (command === "prepare_app_resources") return;
         if (command === "get_cli_matches") return { input: { value: snapshot.config.path } };
         if (command === "get_system_locales") return ["zh-CN"];
         if (command === "read_display_settings") return settings;

@@ -4,7 +4,7 @@
     "targets": ["dmg", "app"],
     "resources": {
       "../build/release-layout/runtime": "runtime",
-      "../build/release-layout/app": "app",
+      "../build/release-layout/app-resources.zip": "app-resources.zip",
       "../build/release-layout/runtime-manifest.json": "runtime-manifest.json"
     },
     "macOS": {

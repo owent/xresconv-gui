@@ -6,7 +6,7 @@
       "appimage": {
         "files": {
           "/usr/share/xresconv-gui/runtime": "../build/release-layout/runtime",
-          "/usr/share/xresconv-gui/app": "../build/release-layout/app",
+          "/usr/share/xresconv-gui/app-resources.zip": "../build/release-layout/app-resources.zip",
           "/usr/share/xresconv-gui/runtime-manifest.json": "../build/release-layout/runtime-manifest.json",
           "/usr/share/xresconv-gui/preflight.sh": "../packaging/linux/preflight.sh"
         }

@@ -1,6 +1,6 @@
 {
   "name": "xresconv-gui",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "publisher": "owent",
   "description": "xresconv 批量转表工具-GUI (Tauri 2 桌面层 + Node.js 业务进程)",
   "packageManager": "yarn@4.18.1",

@@ -1,6 +1,15 @@
 import type { Messages } from "./types";
 
 export const messages = {
+  "startup.title": "Preparando los recursos de la aplicación",
+  "startup.verifying": "Verificando los recursos de la aplicación…",
+  "startup.cleaning": "Eliminando la caché de recursos anterior…",
+  "startup.extracting": "Extrayendo los recursos de la aplicación…",
+  "startup.ready": "Los recursos de la aplicación están listos",
+  "startup.progress": "Progreso de extracción",
+  "startup.files": "{percent}% · {completed} / {total} archivos",
+  "startup.error": "No se pudieron preparar los recursos de la aplicación: {message}",
+  "startup.retry": "Reintentar",
   "common.close": "Cerrar",
   "common.cancel": "Cancelar",
   "common.confirm": "Confirmar",

@@ -150,8 +150,15 @@ export interface RuntimeManifest {
   moduleTreeHash: string;
   nativeAddonAbi: NativeAddonAbi;
   files: ManifestFile[];
+  resourceArchive?: ResourceArchive;
   signingEvidence: SigningEvidenceEntry[];
   buildToolchain: BuildToolchain;
   repositorySnapshot: RepositorySnapshot;
   verificationReport: VerificationReport;
+}
+
+export interface ResourceArchive {
+  path: "app-resources.zip";
+  size: number;
+  sha256: string;
 }

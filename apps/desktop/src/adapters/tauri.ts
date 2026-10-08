@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { Channel, invoke, isTauri } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getBrowserLocales, translate as t } from "../i18n";
 
@@ -18,6 +18,22 @@ export interface AppInfo {
   name: string;
   version: string;
   protocol_version: number;
+}
+
+export interface ResourceProgress {
+  phase: "verifying" | "cleaning" | "extracting" | "ready";
+  completedBytes: number;
+  totalBytes: number;
+  completedFiles: number;
+  totalFiles: number;
+}
+
+export function prepareAppResources(
+  onProgress: (progress: ResourceProgress) => void,
+): Promise<void> {
+  const channel = new Channel<ResourceProgress>();
+  channel.onmessage = onProgress;
+  return invoke("prepare_app_resources", { onProgress: channel });
 }
 
 /**

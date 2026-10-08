@@ -21,6 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { assembleRuntimeLayout, collectProductionSeeds } from "../src/assemble.ts";
 import { PackagingError, type PackagingErrorCode } from "../src/errors.ts";
 import { validateRuntimeManifest } from "../src/load.ts";
+import { readApplicationResources } from "../src/resource-archive.ts";
 import type { ReleaseTarget, RuntimeManifest } from "../src/types.ts";
 import { pickTarget, SAMPLE_COMMIT } from "./fixtures.ts";
 
@@ -135,15 +136,22 @@ describe("assembleRuntimeLayout（ 本机部分）", () => {
   }, () => {
     for (const rel of [
       `runtime/${process.platform === "win32" ? "node.exe" : "node"}`,
+      "app-resources.zip",
+      "runtime-manifest.json",
+    ]) {
+      expect(fs.existsSync(path.join(installDir, rel)), rel).toBe(true);
+    }
+    expect(fs.existsSync(path.join(installDir, "app"))).toBe(false);
+    const resources = readApplicationResources(installDir, manifest);
+    for (const rel of [
       "app/backend/service.mjs",
       "app/backend/config-worker.mjs",
       "app/guardian/service.mjs",
       "app/script-host/worker.mjs",
       "app/node_modules/@xresconv/contracts/schema/backend-rpc.json",
       "app/node_modules/@xresconv/contracts/package.json",
-      "runtime-manifest.json",
     ]) {
-      expect(fs.existsSync(path.join(installDir, ...rel.split("/"))), rel).toBe(true);
+      expect(resources.has(rel), rel).toBe(true);
     }
     // 单份 Node：全布局只有一份 Node 二进制，不重复嵌入。
     const nodeBinaries = manifest.files.filter((f) => f.origin.startsWith("node-dist:"));
@@ -158,8 +166,12 @@ describe("assembleRuntimeLayout（ 本机部分）", () => {
       expect(isBundle || isContractsDropIn, f.path).toBe(true);
     }
     // 闭包裁剪：无开发机 node_modules 全集（vitest/typescript 等不得落位）。
-    expect(fs.existsSync(path.join(installDir, "app/node_modules/vitest"))).toBe(false);
-    expect(fs.existsSync(path.join(installDir, "app/node_modules/typescript"))).toBe(false);
+    expect([...resources.keys()].some((name) => name.startsWith("app/node_modules/vitest/"))).toBe(
+      false,
+    );
+    expect(
+      [...resources.keys()].some((name) => name.startsWith("app/node_modules/typescript/")),
+    ).toBe(false);
     const npmOrigins = new Set(
       manifest.files
         .filter((f) => f.origin.startsWith("npm:"))

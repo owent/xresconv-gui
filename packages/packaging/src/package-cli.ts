@@ -26,7 +26,9 @@ import { LINUX_BUILD_BASELINE } from "./baseline.ts";
 import { loadTargets, validateRuntimeManifest } from "./load.ts";
 import { artifactName, portableArtifactName, portableFormats } from "./matrix.ts";
 import { acquireCrossNode } from "./node-acquisition.ts";
+import { RESOURCE_ARCHIVE_NAME } from "./resource-archive.ts";
 import type { PortableFormat, ReleaseTarget, RuntimeManifest, TargetOs } from "./types.ts";
+import { verifyLayoutPayload } from "./verify-portable.ts";
 import { copyFixedRuntime, type WebViewLocalePolicy } from "./webview-locales.ts";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -111,14 +113,7 @@ export function verifyReusableLayout(
   }
   if (manifest.appVersion !== version || manifest.sourceCommit !== commit)
     throw new Error("--skip-assemble version/commit mismatch");
-  for (const file of manifest.files) {
-    const payload = readFileSync(path.join(dir, file.path));
-    if (
-      payload.length !== file.size ||
-      createHash("sha256").update(payload).digest("hex") !== file.sha256
-    )
-      throw new Error(`--skip-assemble payload mismatch: ${file.path}`);
-  }
+  verifyLayoutPayload(dir, manifest);
   return manifest;
 }
 
@@ -239,7 +234,7 @@ function stageWindowsPortableTop(
   const loader = path.join(path.dirname(exePath), "WebView2Loader.dll");
   if (existsSync(loader)) copyFileSync(loader, path.join(top, "WebView2Loader.dll"));
   cpSync(path.join(layoutDir, "runtime"), path.join(top, "runtime"), { recursive: true });
-  cpSync(path.join(layoutDir, "app"), path.join(top, "app"), { recursive: true });
+  copyFileSync(path.join(layoutDir, RESOURCE_ARCHIVE_NAME), path.join(top, RESOURCE_ARCHIVE_NAME));
   copyFileSync(
     path.join(layoutDir, "runtime-manifest.json"),
     path.join(top, "runtime-manifest.json"),
@@ -490,8 +485,8 @@ export function tarPortableFromAppImage(appImagePath: string, dest: string): voi
 }
 
 /**
- *  Linux bootstrap portable：裸 exe + 发行布局平铺（exe 同级 runtime/app/
- * runtime-manifest.json/preflight.sh），运行时复用系统 WebKitGTK。仅 linux
+ *  Linux bootstrap portable：裸 exe + 发行布局平铺（exe 同级包含 runtime、
+ * app-resources.zip、runtime-manifest.json、preflight.sh），运行时复用系统 WebKitGTK。仅 linux
  * 宿主可达（nativeArch 已保证）。
  */
 export function tarPortableBootstrapLayout(exePath: string, layoutDir: string, dest: string): void {
@@ -502,7 +497,10 @@ export function tarPortableBootstrapLayout(exePath: string, layoutDir: string, d
     copyFileSync(exePath, path.join(top, "xresconv-gui"));
     chmodSync(path.join(top, "xresconv-gui"), 0o755);
     cpSync(path.join(layoutDir, "runtime"), path.join(top, "runtime"), { recursive: true });
-    cpSync(path.join(layoutDir, "app"), path.join(top, "app"), { recursive: true });
+    copyFileSync(
+      path.join(layoutDir, RESOURCE_ARCHIVE_NAME),
+      path.join(top, RESOURCE_ARCHIVE_NAME),
+    );
     copyFileSync(
       path.join(layoutDir, "runtime-manifest.json"),
       path.join(top, "runtime-manifest.json"),

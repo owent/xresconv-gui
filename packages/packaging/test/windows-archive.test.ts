@@ -50,7 +50,7 @@ beforeEach(() => {
   mkdirSync(path.join(layout, "app"));
   writeFileSync(exe, "MZ test");
   writeFileSync(path.join(layout, "runtime/node.exe"), "node");
-  writeFileSync(path.join(layout, "app/service.mjs"), "export {};");
+  writeFileSync(path.join(layout, "app-resources.zip"), "ZIP fixture");
   writeFileSync(path.join(layout, "runtime-manifest.json"), "{}");
   stagedDirs.length = 0;
   run.mockReset();
@@ -67,6 +67,15 @@ afterEach(() => {
 });
 
 it("uses ultra solid 7z compression for the staged top-level directory", () => {
+  run.mockImplementation((command, args, options) => {
+    if (command === "7z" && args?.[0] === "a") {
+      const top = path.join(String(options?.cwd), "xresconv-gui");
+      expect(readFileSync(path.join(top, "app-resources.zip"), "utf8")).toBe("ZIP fixture");
+      expect(existsSync(path.join(top, "app"))).toBe(false);
+      writeFileSync(path.join(String(options?.cwd), "payload.7z"), magic);
+    }
+    return result();
+  });
   sevenZipPortableWindowsLayout(exe, layout, dest);
   expect(existsSync(dest)).toBe(true);
   expect(run.mock.calls[0]?.[0]).toBe("7z");

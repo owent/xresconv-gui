@@ -33,7 +33,7 @@ beforeEach(() => {
   mkdirSync(path.join(layout, "app"));
   writeFileSync(exe, "ELF test");
   writeFileSync(path.join(layout, "runtime/node"), "node");
-  writeFileSync(path.join(layout, "app/service.mjs"), "export {};");
+  writeFileSync(path.join(layout, "app-resources.zip"), "ZIP fixture");
   writeFileSync(path.join(layout, "runtime-manifest.json"), "{}");
   run.mockReset();
   run.mockImplementation((command, args, options) => {

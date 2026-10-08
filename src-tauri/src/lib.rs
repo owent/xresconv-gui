@@ -16,6 +16,7 @@ mod guardian;
 #[cfg(windows)]
 mod local_fonts;
 mod locale_settings;
+mod resource_cache;
 mod webview_preflight;
 mod windowless_process;
 
@@ -37,6 +38,60 @@ fn get_app_info() -> Handshake {
         version: env!("CARGO_PKG_VERSION"),
         protocol_version: 1,
     }
+}
+
+#[derive(Default)]
+struct ResourceStartup {
+    initialized: bool,
+    runtime: Option<resource_cache::PreparedRuntime>,
+}
+
+type ResourceStartupState = std::sync::Arc<std::sync::Mutex<ResourceStartup>>;
+
+/// The WebView renders progress before this background task prepares the Node payload.
+#[tauri::command]
+async fn prepare_app_resources(
+    app: tauri::AppHandle,
+    on_progress: tauri::ipc::Channel<resource_cache::Progress>,
+    startup: tauri::State<'_, ResourceStartupState>,
+    guardian: tauri::State<'_, std::sync::Arc<guardian::GuardianState>>,
+) -> Result<(), String> {
+    let startup = startup.inner().clone();
+    let guardian = guardian.inner().clone();
+    let cache = app.path().app_cache_dir().map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut state = startup
+            .lock()
+            .map_err(|_| "resource startup lock poisoned")?;
+        if state.initialized {
+            return Ok(());
+        }
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let root = resource_cache::find_installation(
+            guardian::release_layout_candidates(
+                exe.parent().ok_or("application path has no parent")?,
+            ),
+            cfg!(debug_assertions),
+        )?;
+        if let Some(root) = root {
+            let runtime = resource_cache::prepare(
+                &root,
+                &cache,
+                env!("CARGO_PKG_VERSION"),
+                &mut |progress| {
+                    let _ = on_progress.send(progress);
+                },
+            )?;
+            guardian
+                .set_launch_paths(runtime.node.clone(), runtime.entry.clone())
+                .map_err(|e| e.to_string())?;
+            state.runtime = Some(runtime);
+        }
+        state.initialized = true;
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("resource preparation task failed: {e}"))?
 }
 
 /// 系统语言偏好按优先级返回，语言匹配和英文回退由界面处理。
@@ -282,6 +337,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            app.manage(ResourceStartupState::default());
             // 解析 --log-configure 并接力给 guardian 进程（env 注入点
             // 在 guardian.rs spawn；未提供时不设 env，backend 用内置默认配置）。
             if let Ok(matches) = app.cli().matches()
@@ -321,6 +377,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_app_info,
+            prepare_app_resources,
             get_system_locales,
             get_cli_matches,
             get_backend_health,

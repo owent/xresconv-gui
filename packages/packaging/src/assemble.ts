@@ -7,10 +7,7 @@
  *
  * 布局约定（与 guardian/backend bin 的发行自定位一致）：
  *   <outDir>/runtime/node.exe|node      单份固定 Node（各角色复用，不重复嵌入）
- *   <outDir>/app/backend/service.mjs    backend bundle
- *   <outDir>/app/guardian/service.mjs   guardian bundle
- *   <outDir>/app/script-host/worker.mjs worker bundle（含 bin 的 fd2 控制台门卫）
- *   <outDir>/app/node_modules/**        生产 npm 闭包 + contracts schema 落位
+ *   <outDir>/app-resources.zip          app/ 全树：角色 bundle、生产模块和 schema
  *   <outDir>/runtime-manifest.json       manifest（files 相对 outDir，正斜杠）
  *
  * 机制依据（ 实测，非猜测）：Node 禁止对 node_modules 内的 .ts 做类型
@@ -33,6 +30,7 @@ import { build } from "esbuild";
 import { verifyBinaryTarget } from "./binary-target.ts";
 import { PackagingError } from "./errors.ts";
 import { validateRuntimeManifest } from "./load.ts";
+import { packApplicationResources } from "./resource-archive.ts";
 import type {
   BuildToolchain,
   ManifestFile,
@@ -642,6 +640,8 @@ export async function assembleRuntimeLayout(
   for (const module of nativeModules)
     verifyBinaryTarget(fs.readFileSync(path.join(outDir, module.path)), target);
 
+  const resourceArchive = packApplicationResources(outDir, files);
+
   const moduleTreeInput = files
     .filter((file) => file.path.startsWith("app/node_modules/"))
     .map((file) => `${file.path}  ${file.sha256}\n`)
@@ -674,6 +674,7 @@ export async function assembleRuntimeLayout(
     moduleTreeHash,
     nativeAddonAbi: { nodeAbi: nodeFacts.nodeAbi, modules: nativeModules },
     files,
+    resourceArchive,
     signingEvidence: [],
     buildToolchain: collectToolchain(repoRoot, options.toolchain),
     repositorySnapshot: {

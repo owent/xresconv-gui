@@ -29,7 +29,9 @@ corepack yarn package:macos --variant=bootstrap --arch=arm64
 
 ## 发行布局与闭包
 
-每个布局包含目标 Node、应用 workspaces、生产模块、原生模块、平台资源和 `runtime-manifest.json`。清单记录应用版本、sourceCommit、目标身份、Node ABI、运行时策略及文件 SHA-256。
+每个布局包含目标 Node、单一应用资源包 `app-resources.zip`、平台资源和 `runtime-manifest.json`。ZIP 保存业务 workspaces 的 bundle、生产模块、原生模块和 Schema；发行目录不再复制散落的 `app/` 树。清单记录应用版本、sourceCommit、目标身份、Node ABI、运行时策略、ZIP 摘要与解压后的逐文件 SHA-256。
+
+启动窗口显示校验、旧缓存清理和解压进度，资源准备完成后才启动业务进程。缓存保存版本与资源包摘要；更新时完整删除旧资源目录再解压，删除失败则停止并显示重试入口。缓存位置、使用锁和中断恢复见[资源缓存合同](resource-cache.md)。
 
 目标 Node 来自官方发行归档，校验 SHA-256，并从目标 headers 获取 ABI。不能用宿主 Node 或宿主原生模块代替目标文件；跨架构静态验证检查 PE、ELF 或 Mach-O 头。模块闭包保留脚本 `require` 使用的动态依赖，按目标筛选 optional 原生包。SBOM 与第三方许可由实际闭包生成。
 

@@ -1,6 +1,15 @@
 import type { Messages } from "./types";
 
 export const messages = {
+  "startup.title": "准备应用资源",
+  "startup.verifying": "正在校验应用资源…",
+  "startup.cleaning": "正在清理旧版本资源缓存…",
+  "startup.extracting": "正在解压应用资源…",
+  "startup.ready": "应用资源已就绪",
+  "startup.progress": "资源解压进度",
+  "startup.files": "{percent}% · 已完成 {completed} / {total} 个文件",
+  "startup.error": "应用资源准备失败：{message}",
+  "startup.retry": "重试",
   "common.close": "关闭",
   "common.cancel": "取消",
   "common.confirm": "确认",

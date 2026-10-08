@@ -1,5 +1,25 @@
 @import "./styles/tokens.css";
 
+.resource-startup {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 2rem;
+}
+.resource-startup section {
+  width: min(100%, 34rem);
+  padding: 2rem;
+  background: var(--color-panel-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+}
+.resource-startup progress {
+  width: 100%;
+}
+.resource-startup [role="alert"] {
+  overflow-wrap: anywhere;
+}
+
 /* React Aria replaces default classes when a custom className is supplied. */
 *,
 *::before,

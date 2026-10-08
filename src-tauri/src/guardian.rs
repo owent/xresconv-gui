@@ -215,10 +215,7 @@ pub struct GuardianClient {
     shutdown_lock: Mutex<()>,
 }
 
-/// 发布布局自定位：安装根下 `runtime/node(exe)` +
-///`app/guardian/service.mjs` 俱在视为发行布局。Windows/Linux 安装根 = exe
-///同级（NSIS/DEB resources 落位）；macOS .app 的资源在 `Contents/Resources`
-///而 exe 在 `Contents/MacOS`，因此额外探测 exe 目录的 `../Resources`。
+/// 兼容开发与测试中的未归档布局；发行启动由 resource_cache 提供准备后的路径。
 fn release_layout_paths(
     install_root: &std::path::Path,
 ) -> Option<(std::path::PathBuf, std::path::PathBuf)> {
@@ -244,7 +241,7 @@ const LINUX_RESOURCE_DIR_NAME: &str = "xresconv-gui";
 ///`../Resources`（macOS .app：Contents/MacOS → Contents/Resources）、
 ///`../share/<productName>`（Linux deb/rpm 与 AppImage：exe 在 `<prefix>/usr/bin`，
 ///负载在 `<prefix>/usr/share/<productName>`）。
-fn release_layout_candidates(exe_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+pub fn release_layout_candidates(exe_dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut roots = vec![exe_dir.to_path_buf()];
     if let Some(parent) = exe_dir.parent() {
         roots.push(parent.join("Resources"));
@@ -256,17 +253,38 @@ fn release_layout_candidates(exe_dir: &std::path::Path) -> Vec<std::path::PathBu
 impl GuardianClient {
     ///spawn 长驻 guardian 并完成握手（首帧必须 role=guardian 的 health）。
     ///`sink` 存在时事件帧直接转发（壳侧注入 tauri emit）；测试可传 None。
+    #[cfg(test)]
     pub fn start(sink: Option<EventSink>) -> ChannelResult<Self> {
-        // 解析顺序：显式 env → 发布布局（Windows/Linux NSIS exe 同级；macOS
-        // ../Resources；Linux deb/rpm 与 AppImage ../share/<product>）→ 开发态
-        // 回退 → PATH node。
+        Self::start_with_paths(sink, None)
+    }
+
+    fn start_with_paths(
+        sink: Option<EventSink>,
+        prepared: Option<&(std::path::PathBuf, std::path::PathBuf)>,
+    ) -> ChannelResult<Self> {
+        // 解析顺序：显式 env → 已准备的缓存路径 → 未归档开发/测试布局
+        // → workspace 开发入口与 PATH node。
         let exe_dir = std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|p| p.to_path_buf()));
-        let release = exe_dir.as_deref().and_then(|dir| {
-            release_layout_candidates(dir)
-                .into_iter()
-                .find_map(|root| release_layout_paths(&root))
+        if prepared.is_none()
+            && exe_dir.as_deref().is_some_and(|dir| {
+                release_layout_candidates(dir).iter().any(|root| {
+                    root.join("app-resources.zip").exists()
+                        || root.join("runtime-manifest.json").exists()
+                })
+            })
+        {
+            return Err(ChannelError::Io(
+                "application resources have not been prepared".into(),
+            ));
+        }
+        let release = prepared.cloned().or_else(|| {
+            exe_dir.as_deref().and_then(|dir| {
+                release_layout_candidates(dir)
+                    .into_iter()
+                    .find_map(|root| release_layout_paths(&root))
+            })
         });
         let node = match std::env::var("XRESCONV_NODE") {
             Ok(value) => value,
@@ -526,6 +544,7 @@ impl Drop for GuardianClient {
 ///Tauri 托管状态：通道可重建（backend/guardian 故障后 UI 显式触发）。
 pub struct GuardianState {
     client: Mutex<Option<Arc<GuardianClient>>>,
+    launch_paths: Mutex<Option<(std::path::PathBuf, std::path::PathBuf)>>,
     sink: Option<EventSink>,
     closed: AtomicBool,
 }
@@ -534,9 +553,23 @@ impl GuardianState {
     pub fn new(sink: Option<EventSink>) -> Self {
         Self {
             client: Mutex::new(None),
+            launch_paths: Mutex::new(None),
             sink,
             closed: AtomicBool::new(false),
         }
+    }
+
+    pub fn set_launch_paths(
+        &self,
+        node: std::path::PathBuf,
+        entry: std::path::PathBuf,
+    ) -> ChannelResult<()> {
+        let mut paths = self
+            .launch_paths
+            .lock()
+            .map_err(|_| ChannelError::Dead("launch paths lock poisoned".into()))?;
+        *paths = Some((node, entry));
+        Ok(())
     }
 
     ///取活通道；无则建立。死亡判定发生在请求路径（Dead 错误）；
@@ -550,7 +583,14 @@ impl GuardianState {
             return Err(ChannelError::Dead("shell is closing".into()));
         }
         if slot.is_none() {
-            *slot = Some(Arc::new(GuardianClient::start(self.sink.clone())?));
+            let paths = self
+                .launch_paths
+                .lock()
+                .map_err(|_| ChannelError::Dead("launch paths lock poisoned".into()))?;
+            *slot = Some(Arc::new(GuardianClient::start_with_paths(
+                self.sink.clone(),
+                paths.as_ref(),
+            )?));
         }
         Ok(Arc::clone(slot.as_ref().expect("checked above")))
     }

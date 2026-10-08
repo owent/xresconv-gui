@@ -1,6 +1,15 @@
 import type { Messages } from "./types";
 
 export const messages = {
+  "startup.title": "アプリケーションリソースの準備",
+  "startup.verifying": "アプリケーションリソースを検証中…",
+  "startup.cleaning": "以前のリソースキャッシュを削除中…",
+  "startup.extracting": "アプリケーションリソースを展開中…",
+  "startup.ready": "アプリケーションリソースの準備が完了しました",
+  "startup.progress": "リソース展開の進行状況",
+  "startup.files": "{percent}% · {completed} / {total} ファイル",
+  "startup.error": "アプリケーションリソースを準備できません：{message}",
+  "startup.retry": "再試行",
   "common.close": "閉じる",
   "common.cancel": "キャンセル",
   "common.confirm": "確認",
