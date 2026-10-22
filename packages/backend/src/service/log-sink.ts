@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { createProcessScope, type ProcessScope } from "@xresconv/guardian";
 import { encodeFrame, FrameDecoder, writeFrame } from "@xresconv/ipc";
 import type { Log4jsSink, LogEntry } from "./log-pipeline.ts";
+import { LogSpool } from "./log-spool.ts";
 
 /**
  * 默认 log4js 配置（与 src/log4js.json 逐字一致）。 起内联为对象：
@@ -22,7 +23,6 @@ const BUNDLED_WORKER = fileURLToPath(new URL("./log-sink-worker.mjs", import.met
 const WORKER = existsSync(BUNDLED_WORKER)
   ? BUNDLED_WORKER
   : fileURLToPath(new URL("./log-sink-worker.ts", import.meta.url));
-const MAX_PENDING = 128;
 
 /** Each sink owns an isolated process, so configurations and shutdowns cannot affect another session. */
 export function createLog4jsSink(
@@ -66,7 +66,7 @@ export function createLog4jsSink(
   let exited = false;
   let failure: Error | null = null;
   let sequence = 0;
-  let queued = 0;
+  let spool: LogSpool | null = null;
   let stopping = false;
   let shutdownPromise: Promise<void> | null = null;
   let pending: {
@@ -79,7 +79,9 @@ export function createLog4jsSink(
   const fail = (error: Error): void => {
     if (failure) return;
     failure = error;
-    report(error.message);
+    report(
+      spool ? `${error.message}; unconfirmed log spool retained at ${spool.file}` : error.message,
+    );
     if (pending) {
       clearTimeout(pending.timer);
       pending.reject(error);
@@ -132,31 +134,43 @@ export function createLog4jsSink(
       );
     });
   };
-  let tail = request("init", { config }).catch((error: Error) => fail(error));
+  const ready = request("init", { config }).catch((error: Error) => fail(error));
+  let pumping: Promise<void> | null = null;
+  const pump = (): void => {
+    if (pumping || failure) return;
+    pumping = ready
+      .then(async () => {
+        while (!failure && spool && !spool.empty) {
+          await request("append-batch", { entries: spool.takeBatch() });
+          spool.resetIfEmpty();
+        }
+      })
+      .catch((error: Error) => fail(error))
+      .finally(() => {
+        pumping = null;
+        if (!failure && spool && !spool.empty) pump();
+      });
+  };
   return {
     get diagnostic() {
       return diagnostic;
     },
     append(entry: LogEntry): void {
       if (stopping || failure) return;
-      if (queued >= MAX_PENDING) {
-        report("log4js queue full: record not persisted");
-        return;
-      }
-      // Enforce the byte budget before retaining the record in the promise chain.
+      let frame: Buffer;
       try {
-        encodeFrame(entry, 256 * 1024);
+        frame = encodeFrame(entry, 256 * 1024);
       } catch {
         report("log4js record exceeds 256 KiB: record not persisted");
         return;
       }
-      queued++;
-      tail = tail
-        .then(() => request("append", entry))
-        .catch((error: Error) => fail(error))
-        .finally(() => {
-          queued--;
-        });
+      try {
+        spool ??= new LogSpool();
+        spool.append(frame);
+        pump();
+      } catch (error) {
+        fail(error instanceof Error ? error : new Error(String(error)));
+      }
     },
     shutdown(timeoutMs = 5000): Promise<void> {
       if (shutdownPromise) return shutdownPromise;
@@ -171,7 +185,8 @@ export function createLog4jsSink(
           timeoutMs,
         );
         try {
-          await tail;
+          await ready;
+          while (pumping) await pumping;
           if (!failure && !exited)
             await request("shutdown", {}).catch((error: Error) => fail(error));
           await new Promise<void>((resolve, reject) => {
@@ -181,7 +196,7 @@ export function createLog4jsSink(
               child.stderr.destroy();
               child.unref();
               const error = new Error("log4js worker cleanup unconfirmed after kill deadline");
-              report(error.message);
+              fail(error);
               reject(error);
             }, 2000);
             void closed.promise.then(() => {
@@ -192,6 +207,7 @@ export function createLog4jsSink(
           if (failure) throw failure;
         } finally {
           clearTimeout(timer);
+          spool?.close(failure !== null);
         }
       })();
       return shutdownPromise;

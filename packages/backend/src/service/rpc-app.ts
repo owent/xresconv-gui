@@ -11,7 +11,7 @@
  * updateSettings {fields}：合并式写入转换参数覆盖(白名单逐字段类型校验，
  *   未知键/错类型 → INVALID_PARAMS；未加载/运行中 → INVALID_STATE），返回
  *   {overrides, effective, parallelism}（配置默认 ⊕ 覆盖的全量有效值）；matrix 变化
- *   触发会话树矩阵资格重估；parallelism为会话级并发数（number，有限校验，
+ *   触发会话树矩阵资格重估；parallelism为会话级并发数（auto 或有限数字，
  *   取整夹取 [1,16]），不进 overrides；
  * preview {}：当前选择 + 当前覆盖构建转换计划预览(未加载 → INVALID_STATE；
  *   计划构建错误按其 code 透传，如 XRESLOADER_NOT_FOUND），返回任务列表与
@@ -41,6 +41,7 @@
 import type { BackendRpc, Envelope } from "@xresconv/contracts";
 import type { DialogChoice, ScriptWorkerPool } from "@xresconv/guardian";
 import type { OutputMatrixRule, ParsedConfig } from "../config/model.ts";
+import type { Parallelism } from "../convert/parallelism.ts";
 import {
   buildConversionPlan,
   type ConversionOverrides,
@@ -91,7 +92,7 @@ export class RpcError extends Error {
 export interface SettingsView {
   overrides: ConversionOverrides;
   effective: EffectiveSettings | null;
-  parallelism: number;
+  parallelism: Parallelism;
 }
 
 /** preview 的单任务视图(display 为旧式单行展示串）。 */
@@ -147,7 +148,7 @@ export interface BackendRpcAppOptions {
   /** Java 批量执行器；默认 guardian runJavaBatch（测试注入 fake）。 */
   runner?: JavaRunner;
   /** 转表并发数（语义同 ConversionSession）。 */
-  parallelism?: number;
+  parallelism?: Parallelism;
   /** set_name 单条超时（毫秒）。 */
   setNameTimeoutMs?: number;
   /** 选择器匹配的隔离 matcher 工厂；缺省真实 MatcherService（懒创建）。 */
@@ -230,7 +231,7 @@ function asMatrixRule(value: unknown, index: number): OutputMatrixRule {
 /** validateSettingsFields 的分流结果：parallelism 属会话级设置，不进 ConversionOverrides。 */
 interface ParsedSettingsFields {
   overrides: ConversionOverrides;
-  parallelism?: number;
+  parallelism?: Parallelism;
 }
 
 /** updateSettings 的 fields 校验：白名单 + 逐字段类型，未知键/错类型 → INVALID_PARAMS。 */
@@ -239,14 +240,14 @@ function validateSettingsFields(value: unknown): ParsedSettingsFields {
     throw new RpcError("INVALID_PARAMS", "updateSettings requires params.fields (object)");
   }
   const fields: ConversionOverrides = {};
-  let parallelism: number | undefined;
+  let parallelism: Parallelism | undefined;
   for (const [key, v] of Object.entries(value)) {
     if (key === "parallelism") {
-      // 会话级并发数：number 且有限；取整/夹取 [1,16] 归 ConversionSession。
-      if (typeof v !== "number" || !Number.isFinite(v)) {
+      // auto 原样保留；数字取整和范围夹取归 ConversionSession。
+      if (v !== "auto" && (typeof v !== "number" || !Number.isFinite(v))) {
         throw new RpcError(
           "INVALID_PARAMS",
-          "updateSettings fields.parallelism must be a finite number",
+          "updateSettings fields.parallelism must be auto or a finite number",
         );
       }
       parallelism = v;

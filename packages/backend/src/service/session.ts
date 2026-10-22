@@ -22,6 +22,11 @@ import type { Envelope, ScriptResult } from "@xresconv/contracts";
 import type { ScriptWorkerPool, WorkerDiag } from "@xresconv/guardian";
 import { runJavaBatch } from "@xresconv/guardian";
 import type { ParsedConfig, TreeItem } from "../config/model.ts";
+import {
+  DEFAULT_PARALLELISM,
+  normalizeParallelism,
+  type Parallelism,
+} from "../convert/parallelism.ts";
 import type {
   ConversionOverrides,
   ConversionSelection,
@@ -46,29 +51,20 @@ import { runConversion as executeRun, type JavaRunner, type RunSummary } from ".
 import { resolveSelectorItemsIsolated } from "./selection-rule-service.ts";
 import { type AppliedOpsReport, SessionTreeState } from "./tree-state.ts";
 
-/** 并发默认 2（启动硬压 2 的语义)，上限 16。 */
-export const DEFAULT_PARALLELISM = 2;
-export const MAX_PARALLELISM = 16;
+export { DEFAULT_PARALLELISM, MAX_PARALLELISM } from "../convert/parallelism.ts";
 
 /** log4js shutdown flush 的有界等待。 */
 const LOG4JS_SHUTDOWN_TIMEOUT_MS = 5000;
 /** dispose 等待活动运行实际回收的上限（超时不冒充清理成功，记诊断）。 */
 const DISPOSE_RUN_TIMEOUT_MS = 60_000;
 
-/** 并发数归一化：取整并压到 [1, MAX_PARALLELISM]；非有限值抛 RangeError。 */
-function normalizeParallelism(value: number): number {
-  const requested = Math.floor(value);
-  if (!Number.isFinite(requested)) throw new RangeError("parallelism must be finite");
-  return Math.min(MAX_PARALLELISM, Math.max(1, requested));
-}
-
 export interface ConversionSessionOptions {
   /** 会话共享的 script worker 池（调用方负责 start/shutdown）。 */
   pool: ScriptWorkerPool;
   /** Java 批量执行器；默认 guardian runJavaBatch。 */
   runner?: JavaRunner;
-  /** 转表并发数，默认 2，压到 [1,16]。 */
-  parallelism?: number;
+  /** 默认 auto；数字取整并压到 [1,16]。 */
+  parallelism?: Parallelism;
   /** set_name 单条超时（毫秒），默认 5000。 */
   setNameTimeoutMs?: number;
   /** 日志管线；缺省自建。 */
@@ -93,7 +89,7 @@ export class ConversionSession {
   private readonly pool: ScriptWorkerPool;
   private readonly runner: JavaRunner;
   /** 转表并发数（ 起可变：updateSettings parallelism 写入；run 每次取当前值）。 */
-  private parallelism: number;
+  private parallelism: Parallelism;
   private readonly setNameTimeoutMs: number | undefined;
   private readonly log4jsSink: Log4jsSink | null = null;
   private readonly appendLogInvocations = new Set<string>();
@@ -178,12 +174,12 @@ export class ConversionSession {
   }
 
   /** 当前转表并发数（快照 settings.parallelism 数据源）。 */
-  getParallelism(): number {
+  getParallelism(): Parallelism {
     return this.parallelism;
   }
 
-  /** 设置转表并发数（ updateSettings parallelism）；取整并压到 [1,16]，非有限抛 RangeError。 */
-  setParallelism(value: number): void {
+  /** 设置 auto 或取整并压到 [1,16] 的数字；非法值抛 RangeError。 */
+  setParallelism(value: Parallelism): void {
     this.parallelism = normalizeParallelism(value);
   }
 

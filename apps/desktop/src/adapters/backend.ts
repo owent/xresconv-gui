@@ -85,14 +85,14 @@ export interface ConversionOverridesLike {
   matrix?: OutputMatrixRuleLike[];
 }
 
-/** updateSettings 的 fields：overrides 字段 + 会话级 parallelism（number, 1..16）。 */
-export type SettingsFields = ConversionOverridesLike & { parallelism?: number };
+/** updateSettings 的 fields：overrides 字段 + 会话级 parallelism（auto 或 1..16）。 */
+export type SettingsFields = ConversionOverridesLike & { parallelism?: number | "auto" };
 
 /** 表单设置视图（镜像 backend rpc-app.ts SettingsView； 起含 parallelism）。 */
 export interface SettingsViewLike {
   overrides: ConversionOverridesLike;
   effective: EffectiveSettingsLike | null;
-  parallelism: number;
+  parallelism: number | "auto";
 }
 
 /** preview 任务/冲突/结果（镜像 backend rpc-app.ts PreviewResult)。 */

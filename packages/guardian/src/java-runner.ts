@@ -10,6 +10,8 @@ import { HardDeadlineError, SpawnError } from "./run-with-deadline.ts";
 export interface JavaBatchOptions {
   /** JVM 参数（含 -Dfile.encoding=UTF-8，由调用方给；对齐 ）。 */
   javaArgs?: string[];
+  /** --stdin 后的 xresloader 启动参数，如 --parallelism auto。 */
+  xresloaderArgs?: string[];
   /** xresloader JAR 路径。 */
   jarPath: string;
   /** 工作目录（spawn cwd)。 */
@@ -93,7 +95,9 @@ export function runJavaBatch(options: JavaBatchOptions): Promise<JavaBatchResult
   const { javaArgs = [], jarPath, workDir, tasks, onLog, deadlineMs, signal } = options;
   const started = Date.now();
   const program = options.spawnSpec?.command ?? resolveJavaExecutable().command;
-  const args = options.spawnSpec?.args ?? javaArgs.concat(["-jar", jarPath, "--stdin"]);
+  const args =
+    options.spawnSpec?.args ??
+    javaArgs.concat(["-jar", jarPath, "--stdin", ...(options.xresloaderArgs ?? [])]);
   const scope = options.scope ?? createProcessScope({ name: "java-batch" });
 
   return new Promise<JavaBatchResult>((resolve, reject) => {

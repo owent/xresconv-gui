@@ -26,16 +26,20 @@ async function handle(value: unknown): Promise<void> {
         error = diagnostic;
       }
       configured = error === undefined;
-    } else if (request.kind === "append" && configured) {
-      const { level, moduleName, text } = request.payload;
-      if (
-        typeof level !== "string" ||
-        !Object.hasOwn(levels, level) ||
-        typeof text !== "string" ||
-        typeof moduleName !== "string"
-      )
-        throw new Error("invalid log record");
-      log4js.getLogger(moduleName || undefined)[levels[level as keyof typeof levels]](text);
+    } else if (request.kind === "append-batch" && configured) {
+      const entries = request.payload.entries;
+      if (!Array.isArray(entries) || entries.length > 64) throw new Error("invalid log batch");
+      for (const entry of entries) {
+        const { level, moduleName, text } = entry;
+        if (
+          typeof level !== "string" ||
+          !Object.hasOwn(levels, level) ||
+          typeof text !== "string" ||
+          typeof moduleName !== "string"
+        )
+          throw new Error("invalid log record");
+        log4js.getLogger(moduleName || undefined)[levels[level as keyof typeof levels]](text);
+      }
     } else if (request.kind === "shutdown") {
       await new Promise<void>((resolve, reject) =>
         log4js.shutdown((err) => (err ? reject(err) : resolve())),

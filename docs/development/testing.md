@@ -65,6 +65,8 @@ node tests/conversion/project-smoke.mjs <trusted-project.xml>
 
 差分测试比较 bin、lua、msgpack、json、xml、javascript、ue-json、ue-csv 的 argv 与 stdin 输出，按格式归一化非稳定内容并比较字节。缺少 JAR/样本时独立入口 exit 2，单元集成用例显式 skip，不能计作已验证。
 
+backend 的真实 JAR 冒烟分别运行 `auto`、数字并发和 `-Dxresloader.version` 展示覆盖，检查输出及 JVM 数量。测试通过真实 `--version` 和 `--help` 核验版本与参数支持，不复用被测的 JAR 属性解析函数；兼容性验收分别指定 2.24 及以上和旧版 JAR 运行。
+
 project smoke 加载无转换前/后和日志 hook 的可信配置，覆盖工具和输出目录，仅向 `build/project-smoke` 写产物。真实转换测试设置外部硬截止和进程树回收：差分入口最多 10 分钟，project smoke 最多 4 分钟；软取消不能替代硬截止。
 
 ## 故障与资源边界

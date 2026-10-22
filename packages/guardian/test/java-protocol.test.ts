@@ -40,6 +40,33 @@ afterEach(() => {
 const options = { jarPath: "fake.jar", workDir: ".", tasks: ["-t lua"] };
 
 describe("Java pipe failure boundaries", () => {
+  it.each([
+    { xresloaderArgs: undefined },
+    { xresloaderArgs: ["--parallelism", "auto"] },
+    { xresloaderArgs: ["--parallelism", "4"] },
+  ])(
+    "启动参数 $xresloaderArgs 位于 -jar 和 --stdin 之后，保持旧版默认参数",
+    async ({ xresloaderArgs }) => {
+      const child = fakeChild();
+      const pending = runJavaBatch({
+        ...options,
+        javaArgs: ["-Xmx512m", "-Dfile.encoding=UTF-8"],
+        xresloaderArgs,
+        scope: fakeScope(),
+      });
+      expect(vi.mocked(spawn).mock.calls[0]?.[1]).toEqual([
+        "-Xmx512m",
+        "-Dfile.encoding=UTF-8",
+        "-jar",
+        "fake.jar",
+        "--stdin",
+        ...(xresloaderArgs ?? []),
+      ]);
+      child.emit("close", 0, null);
+      expect((await pending).failedTaskCount).toBe(0);
+    },
+  );
+
   it("does not report success after stdin reports EPIPE even if the child exits zero", async () => {
     const child = fakeChild();
     const scope = fakeScope();

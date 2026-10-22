@@ -26,7 +26,7 @@ Envelope 使用 `protocol_version`、`kind`、`id`、`role`、`payload`，可携
 | `loadConfig` / `reload` | 加载 `{path}` / 重载已加载配置，运行中拒绝 |
 | `getSnapshot` | 读取会话快照 |
 | `applyOps` | 提交 `{ops}`，验证树版本与合法操作 |
-| `updateSettings` | 提交 `{fields}`，并行度为会话字段，范围 1–16 |
+| `updateSettings` | 提交 `{fields}`，并发数为会话字段，默认 `auto`，也可选择 1–16 |
 | `preview` / `run` | 构建预览 / 开始转换 |
 | `cancel` / `reset` | 取消 / 后端会话重置 |
 | `getLogs` | `{limit, beforeSeq}`，每页 1–1000，缺省最新 1000 条 |

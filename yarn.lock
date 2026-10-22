@@ -2083,6 +2083,7 @@ __metadata:
     "@xresconv/contracts": "workspace:*"
     "@xresconv/guardian": "workspace:*"
     "@xresconv/ipc": "workspace:*"
+    adm-zip: "npm:^0.6.1"
     fast-xml-parser: "npm:5.11.1"
     log4js: "npm:6.9.1"
     typescript: "npm:7.0.2"

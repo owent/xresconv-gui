@@ -25,7 +25,7 @@ function outputTypeOptions(): { value: string; label: string }[] {
     { value: "ue-csv", label: t("format.ueCsv") },
   ];
 }
-/** 并发数范围 1..16；超过 6 需用户确认。 */
+/** auto 或 1..16；数字超过 6 需用户确认。 */
 const PARALLELISM_OPTIONS = Array.from({ length: 16 }, (_, index) => index + 1);
 const PARALLELISM_CONFIRM_THRESHOLD = 6;
 
@@ -54,7 +54,7 @@ export function ConversionSettings() {
 
   const effective = settings?.effective ?? null;
   const disabled = effective === null || BUSY_STATES.has(runState);
-  const parallelism = settings?.parallelism ?? 2;
+  const parallelism = settings?.parallelism ?? "auto";
 
   const submit = (fields: SettingsFields) => {
     void updateSettings(fields);
@@ -125,15 +125,16 @@ export function ConversionSettings() {
             disabled={disabled}
             value={parallelism}
             onChange={(event) => {
-              const next = Number(event.target.value);
+              const next = event.target.value === "auto" ? "auto" : Number(event.target.value);
               if (next === parallelism) return;
-              if (next > PARALLELISM_CONFIRM_THRESHOLD) {
+              if (typeof next === "number" && next > PARALLELISM_CONFIRM_THRESHOLD) {
                 setPendingParallelism(next);
               } else {
                 submit({ parallelism: next });
               }
             }}
           >
+            <option value="auto">auto</option>
             {PARALLELISM_OPTIONS.map((value) => (
               <option key={value} value={value}>
                 {value}

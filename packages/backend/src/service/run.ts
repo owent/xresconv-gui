@@ -2,9 +2,16 @@
 
 import { randomUUID } from "node:crypto";
 import { statSync } from "node:fs";
+import path from "node:path";
 import type { ScriptResult } from "@xresconv/contracts";
 import type { JavaBatchOptions, JavaBatchResult, ScriptWorkerPool } from "@xresconv/guardian";
 import type { Hook, ParsedConfig } from "../config/model.ts";
+import {
+  LEGACY_PARALLELISM,
+  type Parallelism,
+  readXresloaderVersion,
+  supportsNativeParallelism,
+} from "../convert/parallelism.ts";
 import {
   buildConversionPlan,
   type ConversionOverrides,
@@ -56,8 +63,8 @@ export interface RunOptions {
   readonly pool: ScriptWorkerPool;
   readonly pipeline: LogPipeline;
   readonly runner: JavaRunner;
-  /** 已压到 [1,16] 的并发数（会话侧默认 2)。 */
-  readonly parallelism: number;
+  /** auto 或已压到 [1,16] 的数字。 */
+  readonly parallelism: Parallelism;
   readonly runSeq: number;
   /** 取消信号（会话 cancel 触发）；runner 侧中止用同一信号。 */
   readonly signal: AbortSignal;
@@ -241,9 +248,10 @@ async function runShard(
   planWorkDir: string,
   planJar: string,
   planJavaArgs: string[],
+  xresloaderArgs: string[],
   options: RunOptions,
 ): Promise<ShardOutcome> {
-  const cmds = [...planJavaArgs, "-jar", planJar, "--stdin"];
+  const cmds = [...planJavaArgs, "-jar", planJar, "--stdin", ...xresloaderArgs];
   // 进程启动，module = work_dir。
   void options.pipeline.info(`Process ${processIndex} : ${cmds.join(" ")}`, planWorkDir);
 
@@ -274,6 +282,7 @@ async function runShard(
   try {
     result = await options.runner({
       javaArgs: planJavaArgs,
+      xresloaderArgs,
       jarPath: planJar,
       workDir: planWorkDir,
       tasks: lines,
@@ -400,8 +409,24 @@ export async function runConversion(options: RunOptions): Promise<RunSummary> {
         }
       }
 
-      // 确定分片：round-robin（task i → 分片 i%N），。0 任务不 spawn。
-      const shardCount = Math.min(options.parallelism, plan.tasks.length);
+      const nativeParallelism =
+        plan.tasks.length > 0 &&
+        supportsNativeParallelism(
+          await readXresloaderVersion(
+            path.resolve(plan.workDir, plan.xresloaderPath),
+            options.signal,
+          ),
+        );
+      const xresloaderArgs = nativeParallelism
+        ? ["--parallelism", String(options.parallelism)]
+        : [];
+      // 新版单 JVM 保持任务顺序；旧版 round-robin，auto 使用原默认进程数。
+      const processCount = nativeParallelism
+        ? 1
+        : options.parallelism === "auto"
+          ? LEGACY_PARALLELISM
+          : options.parallelism;
+      const shardCount = Math.min(processCount, plan.tasks.length);
       if (shardCount > 0) {
         const shards: ConversionTask[][] = [];
         for (let i = 0; i < shardCount; i++) {
@@ -418,6 +443,7 @@ export async function runConversion(options: RunOptions): Promise<RunSummary> {
               plan.workDir,
               plan.xresloaderPath,
               plan.javaArgs,
+              xresloaderArgs,
               options,
             ),
           ),

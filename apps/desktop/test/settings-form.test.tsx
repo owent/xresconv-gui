@@ -38,7 +38,7 @@ function makeEffective(partial: Partial<EffectiveSettingsLike> = {}): EffectiveS
 
 function makeSnapshot(
   effective: EffectiveSettingsLike | null = makeEffective(),
-  parallelism = 2,
+  parallelism: number | "auto" = 2,
   state = "ready",
 ): BackendSnapshot {
   return {
@@ -95,7 +95,7 @@ function answerUpdateSettings(snapshot: BackendSnapshot) {
     };
     for (const [key, value] of Object.entries(fields)) {
       if (key === "parallelism") {
-        next.parallelism = value as number;
+        next.parallelism = value as number | "auto";
       } else if (next.effective !== null) {
         (next.effective as unknown as Record<string, unknown>)[key] = value;
       }
@@ -110,6 +110,22 @@ describe("ConversionSettings", () => {
     vi.clearAllMocks();
     resetSessionStore();
     mockedInvoke.mockReset();
+  });
+
+  it("auto 原样显示和提交，从数字切换回来不弹高并发确认", async () => {
+    const snapshot = makeSnapshot(makeEffective(), "auto");
+    await loadFixture(snapshot);
+    routeRpc({ updateSettings: answerUpdateSettings(snapshot) });
+    render(<ConversionSettings />);
+    const select = screen.getByLabelText("并发数");
+    expect(select).toHaveProperty("value", "auto");
+    const user = userEvent.setup();
+    await user.selectOptions(select, "4");
+    await waitFor(() => expect(select).toHaveProperty("value", "4"));
+    await user.selectOptions(select, "auto");
+    await waitFor(() => expect(select).toHaveProperty("value", "auto"));
+    expect(updateSettingsFields()).toEqual([{ parallelism: 4 }, { parallelism: "auto" }]);
+    expect(screen.queryByRole("dialog", { name: "确认高并发数" })).toBeNull();
   });
 
   it("加载后按 effective 渲染全部字段", async () => {

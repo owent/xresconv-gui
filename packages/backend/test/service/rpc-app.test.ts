@@ -588,8 +588,8 @@ describe("BackendRpcApp", () => {
     const loaded = (await app.handleRpc("loadConfig", {
       path: fixture("run-mirror.xml"),
     })) as BackendSnapshot;
-    // 默认并发（DEFAULT_PARALLELISM=2）进快照。
-    expect(loaded.settings.parallelism).toBe(2);
+    // 默认 auto 原样进入快照。
+    expect(loaded.settings.parallelism).toBe("auto");
 
     const updated = (await app.handleRpc("updateSettings", {
       fields: { parallelism: 8, outputDir: "par-out" },
@@ -616,6 +616,12 @@ describe("BackendRpcApp", () => {
       fields: { parallelism: 0 },
     })) as SettingsView;
     expect(clampedLow.parallelism).toBe(1);
+    const automatic = (await app.handleRpc("updateSettings", {
+      fields: { parallelism: "auto" },
+    })) as SettingsView;
+    expect(automatic.parallelism).toBe("auto");
+    expect((await snapshot(app)).settings.parallelism).toBe("auto");
+    expect("parallelism" in automatic.overrides).toBe(false);
   });
 
   it("updateSettings：parallelism 错类型/非有限 → INVALID_PARAMS", {
@@ -636,7 +642,7 @@ describe("BackendRpcApp", () => {
       "INVALID_PARAMS",
     );
     // 拒绝后不改变既有值
-    expect(((await snapshot(app)) as BackendSnapshot).settings.parallelism).toBe(2);
+    expect(((await snapshot(app)) as BackendSnapshot).settings.parallelism).toBe("auto");
   });
 
   it("updateSettings：运行中 parallelism 同样拒绝（INVALID_STATE）", {
@@ -669,6 +675,6 @@ describe("BackendRpcApp", () => {
       "cancelled state",
     );
     // 拒绝后保持默认并发
-    expect(((await snapshot(app)) as BackendSnapshot).settings.parallelism).toBe(2);
+    expect(((await snapshot(app)) as BackendSnapshot).settings.parallelism).toBe("auto");
   });
 });

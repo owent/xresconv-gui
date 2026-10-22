@@ -4,7 +4,7 @@
 //    给 backend-rpc method 枚举追加 updateSettings/preview、错误码词表
 //   补 XRESLOADER_NOT_FOUND（docs/development/testing.md）；
 //    给 backend-rpc params 描述补 updateSettings fields 的 parallelism
-//   （number，1..16，会话级，不进 overrides；纯文本变更，docs/development/testing.md）；
+//   （auto 或 number 1..16，会话级，不进 overrides；纯文本变更，docs/development/testing.md）；
 //    给 backend-rpc method 枚举追加 setHookEnabled/setCustomSelectors/
 //   invokeCustomButton、params 描述补三方法参数形状（docs/development/testing.md）；
 //    给 backend-rpc method 枚举追加 checkJava（java -version 探测，
