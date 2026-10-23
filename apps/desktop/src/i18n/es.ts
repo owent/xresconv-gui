@@ -25,7 +25,9 @@ export const messages = {
   "settings.dark": "Oscuro",
   "settings.themeHint":
     "Los cambios se aplican y guardan al instante. El modo sistema sigue al dispositivo.",
-  "settings.fonts": "Fuentes por área",
+  "settings.fonts": "Fuentes y tamaños por área",
+  "settings.fontSizeHint":
+    "Tamaño: 6–48 px, en pasos de 0,5. Intro o salir del campo aplica y guarda. En blanco restaura el valor predeterminado; las áreas sin tamaño propio escalan con Global.",
   "settings.area": "Área",
   "settings.family": "Fuente (vacío: global/predeterminada)",
   "settings.size": "Tamaño (px)",

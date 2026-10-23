@@ -75,6 +75,7 @@ describe("display settings bootstrap (auto-load retry)", () => {
     resetEnvironmentDiagnostics();
     resetDisplaySettings();
     document.documentElement.removeAttribute("data-theme");
+    document.documentElement.removeAttribute("style");
   });
 
   it("loads CLI input on first launch without a settings file", async () => {
@@ -150,6 +151,66 @@ describe("display settings bootstrap (auto-load retry)", () => {
         lastConfigFile: "new.xml",
         fonts: { tree: { family: "Sarasa", size: 18 } },
       }),
+    );
+  });
+
+  it("restores all font areas and normalizes stored sizes to the supported range", async () => {
+    mockedInvoke.mockImplementation(async (cmd) =>
+      cmd === "read_display_settings"
+        ? {
+            fonts: {
+              global: { family: "Segoe UI", size: 0 },
+              ui: { size: 72 },
+              tree: { size: 20.5 },
+              log: { size: Number.NaN },
+            },
+          }
+        : null,
+    );
+    const { result } = renderHook(() => useDisplaySettings());
+    await waitFor(() => expect(result.current.fonts.global.family).toBe("Segoe UI"));
+    expect(result.current.fonts).toEqual({
+      global: { family: "Segoe UI", size: 6 },
+      ui: { family: "", size: 48 },
+      tree: { family: "", size: 20.5 },
+      log: { family: "", size: null },
+    });
+    expect(document.documentElement.style.getPropertyValue("--font-tree-size")).toBe("20.5px");
+    expect(document.documentElement.style.getPropertyValue("--font-log-size")).toBe("");
+  });
+
+  it.each([
+    ["2", 6],
+    ["80", 48],
+    ["20.5", 20.5],
+    ["", null],
+  ])("commits size %s as %s and preserves the font family", async (input, expected) => {
+    let disk: Record<string, unknown> = {
+      theme: "dark",
+      language: "zh-CN",
+      fonts: { tree: { family: "Consolas", size: 18 } },
+    };
+    mockedInvoke.mockImplementation(async (cmd, args) => {
+      if (cmd === "read_display_settings") return structuredClone(disk);
+      if (cmd === "write_display_settings") disk = structuredClone(args ?? {});
+      return null;
+    });
+    render(<DisplaySettingsDialog open onClose={() => {}} />);
+    const user = userEvent.setup();
+    const size = screen.getByRole("spinbutton", { name: "左侧转换列表字号(px)" });
+    await waitFor(() => expect((size as HTMLInputElement).value).toBe("18"));
+    await user.clear(size);
+    if (input !== "") await user.type(size, input);
+    await user.keyboard("{Enter}");
+    await waitFor(() =>
+      expect(disk).toMatchObject({
+        theme: "dark",
+        language: "zh-CN",
+        fonts: { tree: { family: "Consolas", size: expected } },
+      }),
+    );
+    expect(document.documentElement.style.getPropertyValue("--font-tree-size")).toBe(
+      expected === null ? "" : `${expected}px`,
     );
   });
 

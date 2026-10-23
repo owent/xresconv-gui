@@ -25,7 +25,9 @@ export const messages = {
   "settings.dark": "Sombre",
   "settings.themeHint":
     "Les changements sont immédiats et enregistrés. Le mode système suit votre appareil.",
-  "settings.fonts": "Polices par zone",
+  "settings.fonts": "Polices et tailles par zone",
+  "settings.fontSizeHint":
+    "Taille : 6–48 px, par pas de 0,5. Entrée ou la sortie du champ applique et enregistre. Un champ vide rétablit la valeur par défaut ; les zones sans taille suivent la taille globale.",
   "settings.area": "Zone",
   "settings.family": "Police (vide : globale/par défaut)",
   "settings.size": "Taille (px)",

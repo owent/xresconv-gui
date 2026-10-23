@@ -24,7 +24,9 @@ export const messages = {
   "settings.light": "ライト",
   "settings.dark": "ダーク",
   "settings.themeHint": "テーマはすぐに適用・保存されます。システム設定にも追従できます。",
-  "settings.fonts": "領域別フォント",
+  "settings.fonts": "領域別フォントとサイズ",
+  "settings.fontSizeHint":
+    "サイズは 6–48px、0.5 刻みです。Enter キーまたはフォーカス移動で適用・保存します。空欄で既定に戻り、サイズ未指定の領域は全体設定に合わせて拡大・縮小します。",
   "settings.area": "領域",
   "settings.family": "フォント（空欄で全体・既定）",
   "settings.size": "サイズ(px)",

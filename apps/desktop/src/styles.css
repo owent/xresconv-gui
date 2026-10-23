@@ -209,7 +209,7 @@ textarea {
 }
 .app-brand h1 {
   margin: 0;
-  font: 700 1.1rem / 1.25 var(--font-family-base);
+  font: 700 calc(var(--font-ui-size) * 1.25) / 1.25 var(--font-family-base);
   letter-spacing: -0.04em;
 }
 .brand-suffix {
@@ -219,7 +219,7 @@ textarea {
 }
 .app-brand p {
   margin: 0.2rem 0 0;
-  font-size: 0.7rem;
+  font-size: calc(var(--font-ui-size) * 0.8);
   color: var(--color-text-muted);
   letter-spacing: 0.06em;
 }
@@ -721,13 +721,17 @@ button.btn-run {
 }
 .confirm-modal.settings-modal {
   width: 48rem;
+  overflow-wrap: anywhere;
+}
+.settings-modal .confirm-actions button {
+  max-width: 100%;
 }
 .confirm-dialog:focus {
   outline: none;
 }
 .confirm-dialog h2 {
   margin: 0 0 1.2rem;
-  font-size: 1.2rem;
+  font-size: calc(var(--font-ui-size) * 1.375);
   letter-spacing: -0.025em;
 }
 .confirm-dialog h3 {
@@ -894,11 +898,14 @@ details.collapsible > *:not(summary) {
 .font-grid-head,
 .font-row {
   display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr) 5.5rem;
+  grid-template-columns:
+    minmax(5rem, 1fr) minmax(0, 3fr)
+    minmax(5.5rem, calc(var(--font-ui-size) * 6.5));
   align-items: center;
   gap: 0.75rem;
 }
 .font-grid-head {
+  margin-top: 0.75rem;
   margin-bottom: 0.5rem;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
@@ -912,7 +919,14 @@ details.collapsible > *:not(summary) {
   font-size: var(--font-size-sm);
 }
 .font-row input {
+  min-width: 0;
   width: 100%;
+}
+.font-field {
+  min-width: 0;
+}
+.font-field-label {
+  display: none;
 }
 .settings-last-file {
   padding: 0.7rem;
@@ -1040,14 +1054,30 @@ details.collapsible > *:not(summary) {
     padding: 1rem;
     max-height: calc(100dvh - 1.3rem);
   }
-  .font-grid-head,
+  .font-grid-head {
+    display: none;
+  }
   .font-row {
-    grid-template-columns: 5rem minmax(0, 1fr) 4.5rem;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.4rem;
+  }
+  .font-settings {
+    gap: 1.25rem;
+  }
+  .font-row-label {
+    font-weight: 650;
+  }
+  .font-field-label {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
   }
   .theme-option {
     padding: 0.6rem 0.4rem;
     gap: 0.4rem;
+  }
+  .theme-choice {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (prefers-reduced-motion: reduce) {

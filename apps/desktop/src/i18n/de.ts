@@ -25,7 +25,9 @@ export const messages = {
   "settings.dark": "Dunkel",
   "settings.themeHint":
     "Änderungen werden sofort angewendet und gespeichert. Der Systemmodus folgt dem Gerät.",
-  "settings.fonts": "Schriftarten nach Bereich",
+  "settings.fonts": "Schriftarten und Größen nach Bereich",
+  "settings.fontSizeHint":
+    "Größe: 6–48 px, Schrittweite 0,5. Mit Enter oder beim Verlassen des Feldes anwenden und speichern. Leer setzt den Standard zurück; Bereiche ohne eigene Größe skalieren mit Global.",
   "settings.area": "Bereich",
   "settings.family": "Schriftart (leer: global/Standard)",
   "settings.size": "Größe (px)",

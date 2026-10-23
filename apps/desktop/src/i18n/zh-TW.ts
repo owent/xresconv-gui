@@ -24,7 +24,9 @@ export const messages = {
   "settings.light": "亮色",
   "settings.dark": "暗色",
   "settings.themeHint": "亮色/暗色立即生效並記住；跟隨系統隨系統切換。",
-  "settings.fonts": "分區字型",
+  "settings.fonts": "分區字型與字級",
+  "settings.fontSizeHint":
+    "字級範圍 6–48px，步進 0.5。按 Enter 或移開焦點後套用並儲存；留空恢復預設，未單獨設定字級的區域隨全域縮放。",
   "settings.area": "區域",
   "settings.family": "字型（留空跟隨全域/預設）",
   "settings.size": "字級(px)",

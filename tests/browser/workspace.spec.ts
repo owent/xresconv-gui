@@ -124,6 +124,86 @@ test("语言切换保留配置、选择和项目名称", async ({ page }) => {
   await expect(page.getByRole("textbox", { name: "Datenversion", exact: true })).toHaveValue("2026.09.27");
 });
 
+test("全局字号缩放提示与日志，分区覆盖可清空", async ({ page }, info) => {
+  await page.getByRole("button", { name: "显示设置", exact: true }).click();
+  const size = (area: string) => page.getByRole("spinbutton", { name: `${area}字号(px)`, exact: true });
+  const setSize = async (area: string, value: string) => {
+    await size(area).fill(value);
+    await size(area).press("Enter");
+  };
+  const hint = page.locator(".settings-hint").first();
+  const log = page.getByRole("log");
+  await expect(hint).toHaveCSS("font-size", "12px");
+  await expect(log).toHaveCSS("font-size", "13px");
+  await setSize("全局", "28");
+  await expect(hint).toHaveCSS("font-size", "24px");
+  await expect(log).toHaveCSS("font-size", "26px");
+  await expect(page.locator(".conversion-tree")).toHaveCSS("font-size", "28px");
+  await setSize("界面控件", "21");
+  await expect(hint).toHaveCSS("font-size", "18px");
+  await expect(log).toHaveCSS("font-size", "26px");
+  await setSize("左侧转换列表", "20.5");
+  await setSize("日志输出", "18");
+  await expect(page.locator(".conversion-tree")).toHaveCSS("font-size", "20.5px");
+  await expect(log).toHaveCSS("font-size", "18px");
+  await setSize("界面控件", "");
+  await expect(hint).toHaveCSS("font-size", "24px");
+  await setSize("日志输出", "");
+  await expect(log).toHaveCSS("font-size", "26px");
+  await page.getByText("暗色", { exact: true }).click();
+  await page.screenshot({ path: info.outputPath("font-settings-dark.png") });
+  await setSize("全局", "");
+  await expect(hint).toHaveCSS("font-size", "12px");
+  await expect(log).toHaveCSS("font-size", "13px");
+  await expect(page.locator(".conversion-tree")).toHaveCSS("font-size", "20.5px");
+});
+
+test("最大字号下窄窗口仍可编辑与关闭显示设置", async ({ page }, info) => {
+  await page.getByRole("button", { name: "显示设置", exact: true }).click();
+  const global = page.getByRole("spinbutton", { name: "全局字号(px)", exact: true });
+  await global.fill("48");
+  await global.press("Enter");
+  for (const language of ["zh-CN", "en", "de"]) {
+    await page.getByTestId("language-select").selectOption(language);
+    for (const width of [720, 360]) {
+      await page.setViewportSize({ width, height: 800 });
+      const dialog = page.getByRole("dialog");
+      expect(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+      for (const input of await dialog.getByRole("spinbutton").all()) {
+        await input.scrollIntoViewIfNeeded();
+        await expect(input).toBeVisible();
+        expect(await input.evaluate(node => {
+          const box = node.getBoundingClientRect();
+          return box.left >= 0 && box.right <= window.innerWidth;
+        })).toBe(true);
+      }
+      await dialog.locator(".font-settings").scrollIntoViewIfNeeded();
+      await page.screenshot({ path: info.outputPath(`font-settings-${language}-${width}.png`) });
+    }
+  }
+  await page.getByRole("dialog").locator(".confirm-actions .btn-ghost").click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+});
+
+test("字号输入收敛到边界并保留无效草稿之前的设置", async ({ page }) => {
+  await page.getByRole("button", { name: "显示设置", exact: true }).click();
+  const size = page.getByRole("spinbutton", { name: "全局字号(px)", exact: true });
+  for (const [input, expected] of [["80", "48"], ["2", "6"], ["18.5", "18.5"]]) {
+    await size.fill(input);
+    await size.press("Enter");
+    await expect(size).toHaveValue(expected);
+  }
+  await size.focus();
+  await size.press("End");
+  await size.pressSequentially("e");
+  await size.press("Tab");
+  await expect(size).toHaveValue("18.5");
+  await size.fill("");
+  await size.press("Enter");
+  await expect(size).toHaveValue("");
+  await expect(page.locator("body")).toHaveCSS("font-size", "14px");
+});
+
 test("窄窗口和分区大字号不遮挡日志与操作", async ({ page }, info) => {
   await page.setViewportSize({ width: 900, height: 600 });
   const treeToolbar = page.getByRole("toolbar", { name: "转换树工具栏" });

@@ -19,6 +19,9 @@ import {
 import {
   type FontArea,
   type FontPrefs,
+  MAX_FONT_SIZE,
+  MIN_FONT_SIZE,
+  normalizeFontSize,
   type ThemeMode,
   useDisplaySettings,
 } from "./display-settings";
@@ -143,6 +146,9 @@ export function DisplaySettingsDialog({ open, onClose }: { open: boolean; onClos
           </section>
           <section className="settings-section" aria-label={t("settings.fonts")}>
             <h3 className="settings-section-title">{t("settings.fonts")}</h3>
+            <p className="settings-hint" id="font-settings-hint">
+              {t("settings.fontSizeHint")}
+            </p>
             <div className="font-grid-head" aria-hidden="true">
               <span>{t("settings.area")}</span>
               <span>{t("settings.family")}</span>
@@ -208,54 +214,67 @@ function FontRow({
   const listId = `font-candidates-${area}`;
   const [family, setFamily] = useState(prefs.family);
   const [size, setSize] = useState(String(prefs.size ?? ""));
+  const [invalidSize, setInvalidSize] = useState(false);
   useEffect(() => {
     setFamily(prefs.family);
     setSize(String(prefs.size ?? ""));
+    setInvalidSize(false);
   }, [prefs]);
   const commit = () => {
     const next = {
       family: family.trim(),
-      size: size === "" ? null : Math.min(48, Math.max(6, Number(size))),
+      size: invalidSize ? prefs.size : normalizeFontSize(size === "" ? null : Number(size)),
     };
     setFamily(next.family);
     setSize(String(next.size ?? ""));
+    setInvalidSize(false);
     if (next.family !== prefs.family || next.size !== prefs.size) onChange(next);
   };
   return (
     <div className="font-row">
       <span className="font-row-label">{label}</span>
-      <input
-        className="font-family-input"
-        aria-label={t("settings.fontLabel", { area: label })}
-        list={listId}
-        value={family}
-        placeholder={t("common.default")}
-        onChange={(event) => setFamily(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-        }}
-      />
+      <label className="font-field">
+        <span className="font-field-label">{t("settings.family")}</span>
+        <input
+          className="font-family-input"
+          aria-label={t("settings.fontLabel", { area: label })}
+          list={listId}
+          value={family}
+          placeholder={t("common.default")}
+          onChange={(event) => setFamily(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
+      </label>
       <datalist id={listId}>
         {fontNames.map((name) => (
           <option key={name} value={name} />
         ))}
       </datalist>
-      <input
-        className="font-size-input"
-        aria-label={t("settings.sizeLabel", { area: label })}
-        type="number"
-        min={6}
-        max={48}
-        step={0.5}
-        value={size}
-        placeholder={t("common.defaultInput")}
-        onChange={(event) => setSize(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur();
-        }}
-      />
+      <label className="font-field">
+        <span className="font-field-label">{t("settings.size")}</span>
+        <input
+          className="font-size-input"
+          aria-label={t("settings.sizeLabel", { area: label })}
+          type="number"
+          aria-describedby="font-settings-hint"
+          min={MIN_FONT_SIZE}
+          max={MAX_FONT_SIZE}
+          step={0.5}
+          value={size}
+          placeholder={t("common.defaultInput")}
+          onChange={(event) => {
+            setSize(event.target.value);
+            setInvalidSize(event.target.validity.badInput);
+          }}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
+      </label>
     </div>
   );
 }

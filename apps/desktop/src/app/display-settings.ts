@@ -40,6 +40,15 @@ export interface FontsConfig {
 
 export type FontArea = keyof FontsConfig;
 
+export const MIN_FONT_SIZE = 6;
+export const MAX_FONT_SIZE = 48;
+
+export function normalizeFontSize(size: number | null): number | null {
+  return size !== null && Number.isFinite(size)
+    ? Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, size))
+    : null;
+}
+
 export interface DisplaySettingsState {
   theme: ThemeMode;
   lastConfigFile: string | null;
@@ -91,7 +100,7 @@ function toPrefs(
 ): FontPrefs {
   return {
     family: typeof value?.family === "string" ? value.family : "",
-    size: typeof value?.size === "number" && Number.isFinite(value.size) ? value.size : null,
+    size: normalizeFontSize(typeof value?.size === "number" ? value.size : null),
   };
 }
 
@@ -288,7 +297,7 @@ export function useDisplaySettings(): DisplaySettingsState & {
   };
 
   const setFontPrefs = (area: FontArea, prefs: FontPrefs) => {
-    state = { ...state, fonts: { ...state.fonts, [area]: prefs } };
+    state = { ...state, fonts: { ...state.fonts, [area]: toPrefs(prefs) } };
     applyFonts(state.fonts);
     emit();
     void persist({ fonts: state.fonts });

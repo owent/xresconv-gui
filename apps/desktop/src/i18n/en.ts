@@ -23,7 +23,9 @@ export const messages = {
   "settings.dark": "Dark",
   "settings.themeHint":
     "Theme changes apply immediately and are saved. System mode follows your device.",
-  "settings.fonts": "Fonts by area",
+  "settings.fonts": "Fonts and sizes by area",
+  "settings.fontSizeHint":
+    "Size: 6–48 px, step 0.5. Press Enter or leave the field to apply and save. Blank restores the default; areas without a size scale with Global.",
   "settings.area": "Area",
   "settings.family": "Font (blank uses global/default)",
   "settings.size": "Size (px)",
