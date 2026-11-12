@@ -16,7 +16,7 @@
     "@xresconv/guardian": "workspace:*",
     "@xresconv/ipc": "workspace:*",
     "adm-zip": "^0.6.1",
-    "fast-xml-parser": "5.11.1",
+    "fast-xml-parser": "5.12.0",
     "log4js": "6.9.1"
   },
   "devDependencies": {
